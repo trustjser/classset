@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f6f5f4" />
+  <title>课集 ClassSet · 学期与日历</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #f6f5f4;
+      --surface: #fff;
+      --blue: #0075de;
+      --blue-hover: #0066c4;
+      --blue-soft: #e8f1fc;
+      --blue-wash: #f3f8fe;
+      --ink: #1a1a1a;
+      --ink-2: #615d59;
+      --muted: #a39e98;
+      --border: rgba(0, 0, 0, .08);
+      --border-strong: rgba(0, 0, 0, .12);
+      --green: #2ba471;
+      --green-bg: #e9f6ef;
+      --red: #d54941;
+      --red-bg: #fbeceb;
+      --amber: #c98a2b;
+      --amber-bg: #faf1e2;
+      --shadow: 0 8px 30px rgba(35, 30, 24, .06), 0 1px 3px rgba(35, 30, 24, .04);
+      --shadow-pop: 0 18px 60px rgba(24, 27, 32, .2), 0 2px 8px rgba(24, 27, 32, .08);
+      --radius-card: 15px;
+      --radius-control: 10px;
+      --radius-pill: 999px;
+      --side-width: 238px;
+      --topbar-height: 62px;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 340px; min-height: 100%; background: #eeedeb; color: var(--ink); }
+    body { padding: 18px; }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(0, 117, 222, .2);
+      outline-offset: 2px;
+      border-color: rgba(0, 117, 222, .5) !important;
+    }
+    .app {
+      display: flex;
+      width: min(1500px, 100%);
+      height: min(930px, calc(100vh - 36px));
+      min-height: 760px;
+      margin: 0 auto;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    /* App shell */
+    .sidebar {
+      display: flex;
+      flex: 0 0 var(--side-width);
+      flex-direction: column;
+      min-width: 0;
+      padding: 18px 13px 14px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 17px; }
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      grid-template: 1fr 1fr / 1fr 1fr;
+      gap: 2px;
+      padding: 5px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .brand-mark i { border-radius: 2px; background: var(--blue); }
+    .brand-mark i:nth-child(2) { background: #3b9bf0; }
+    .brand-mark i:nth-child(3) { background: #9cc6f5; }
+    .brand-mark i:nth-child(4) { background: #004fa0; }
+    .brand-name { font-size: 15px; font-weight: 700; line-height: 1.12; letter-spacing: .01em; }
+    .brand-name small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: .03em; }
+    .school-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 62px;
+      margin-bottom: 15px;
+      padding: 10px 11px;
+      text-align: left;
+      background: var(--canvas);
+      border: 1px solid transparent;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    .school-card:hover { border-color: var(--border-strong); }
+    .school-avatar { display: grid; place-items: center; flex: 0 0 32px; height: 32px; border-radius: 10px; background: var(--blue-soft); color: var(--blue); font-size: 13px; font-weight: 700; }
+    .school-meta { min-width: 0; }
+    .school-meta b, .school-meta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .school-meta b { font-size: 12px; font-weight: 600; }
+    .school-meta span { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .nav-label { padding: 12px 10px 7px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 39px;
+      margin: 2px 0;
+      padding: 0 10px;
+      color: var(--ink-2);
+      background: transparent;
+      border: 0;
+      border-radius: 10px;
+      font-size: 12.5px;
+      text-align: left;
+      cursor: pointer;
+      transition: background .14s ease, color .14s ease;
+    }
+    .nav-item svg { width: 17px; height: 17px; flex: 0 0 17px; color: var(--muted); }
+    .nav-item:hover { background: #f7f6f5; }
+    .nav-item.active { color: var(--blue); background: var(--blue-soft); font-weight: 600; }
+    .nav-item.active svg { color: var(--blue); }
+    .nav-item .nav-tag { margin-left: auto; padding: 2px 7px; color: var(--muted); background: #f4f3f2; border-radius: var(--radius-pill); font-size: 10px; }
+    .nav-divider { height: 1px; margin: 11px 7px 8px; background: var(--border); }
+    .side-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
+    .offline { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 10px; background: var(--canvas); }
+    .offline-icon { display: grid; place-items: center; width: 23px; height: 23px; flex: 0 0 23px; border-radius: 50%; color: var(--green); background: var(--green-bg); }
+    .offline-icon svg { width: 13px; height: 13px; }
+    .offline b, .offline small { display: block; }
+    .offline b { font-size: 10.5px; font-weight: 600; }
+    .offline small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+
+    .workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; background: var(--canvas); }
+    .topbar {
+      display: flex;
+      flex: 0 0 var(--topbar-height);
+      align-items: center;
+      gap: 14px;
+      padding: 0 25px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .school-crumb { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+    .crumb-chevron { color: #c1bcb7; font-size: 16px; font-weight: 400; }
+    .top-select {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 36px;
+      padding: 0 12px;
+      color: var(--ink-2);
+      background: #f6f5f4;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .top-select:hover { border-color: var(--border-strong); }
+    .top-select svg { width: 13px; height: 13px; color: var(--muted); }
+    .topbar-spacer { flex: 1; }
+    .save-status { display: flex; align-items: center; gap: 6px; color: var(--green); font-size: 11px; white-space: nowrap; }
+    .save-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .help-button { width: 31px; height: 31px; display: grid; place-items: center; padding: 0; color: var(--ink-2); background: #fff; border: 1px solid var(--border); border-radius: 50%; cursor: pointer; }
+    .help-button:hover { background: var(--canvas); }
+    .help-button svg { width: 15px; height: 15px; }
+    .content { flex: 1; min-height: 0; overflow: auto; padding: 24px 26px 28px; }
+    .page-head { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 19px; }
+    .breadcrumb { margin-bottom: 7px; color: var(--blue); font-size: 11px; font-weight: 600; }
+    h1 { margin: 0; color: var(--ink); font-size: 25px; font-weight: 700; letter-spacing: -.025em; }
+    .page-head p { max-width: 660px; margin: 6px 0 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.6; }
+    .page-head-spacer { flex: 1; }
+
+    /* Shared controls */
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 35px;
+      padding: 0 13px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background .14s ease, border-color .14s ease, transform .14s ease;
+    }
+    .button:active { transform: translateY(1px); }
+    .button svg { width: 15px; height: 15px; }
+    .button-primary { color: #fff; background: var(--blue); }
+    .button-primary:hover { background: var(--blue-hover); }
+    .button-secondary { color: var(--ink); background: #fff; border-color: var(--border-strong); }
+    .button-secondary:hover { background: #faf9f8; }
+    .button-quiet { color: var(--ink-2); background: transparent; border-color: transparent; }
+    .button-quiet:hover { color: var(--blue); background: var(--blue-wash); }
+    .button-small { min-height: 31px; padding: 0 11px; font-size: 11.5px; }
+    .workspace-grid { display: grid; grid-template-columns: minmax(350px, .84fr) minmax(0, 1.16fr); align-items: start; gap: 16px; }
+    .card { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: 0 1px 3px rgba(24, 24, 24, .025); }
+    .card-head { display: flex; align-items: center; gap: 10px; min-height: 57px; padding: 0 18px; border-bottom: 1px solid var(--border); }
+    .card-head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+    .card-head .head-hint { margin-left: 1px; color: var(--muted); font-size: 11px; }
+    .card-head-spacer { flex: 1; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 0 9px; border-radius: var(--radius-pill); font-size: 10.5px; font-weight: 550; white-space: nowrap; }
+    .badge-current { color: #24895f; background: var(--green-bg); }
+    .badge-blue { color: var(--blue); background: var(--blue-soft); }
+    .badge-neutral { color: var(--ink-2); background: #f2f0ed; }
+    .card-body { padding: 17px 18px 18px; }
+    .term-name-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 17px; }
+    .term-name-row b { display: block; font-size: 13px; font-weight: 650; }
+    .term-name-row span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .editable-hint { display: inline-flex !important; align-items: center; gap: 5px; margin-top: 2px !important; color: var(--blue) !important; font-size: 10px !important; white-space: nowrap; }
+    .editable-hint i { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    .field > label, .field-label { display: block; margin: 0 0 6px; color: var(--ink-2); font-size: 11px; font-weight: 550; }
+    .input-wrap { position: relative; }
+    .input-control, .select-control {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      height: 42px;
+      padding: 0 11px;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-control);
+      font-size: 12px;
+      transition: border-color .14s ease, box-shadow .14s ease;
+    }
+    .input-control:hover, .select-control:hover { border-color: rgba(0, 0, 0, .19); }
+    .input-control:focus, .select-control:focus { border-color: rgba(0, 117, 222, .55); outline: none; box-shadow: 0 0 0 3px rgba(0, 117, 222, .1); }
+    .input-date { padding-right: 8px; }
+    .input-hint { margin: 5px 1px 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .anchor-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 52px; padding: 5px 6px 5px 11px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); }
+    .anchor-control input { width: 100%; min-width: 0; height: 34px; padding: 0; border: 0; color: var(--ink); background: transparent; font-size: 12px; }
+    .anchor-control input:focus { outline: none; }
+    .anchor-control:focus-within { border-color: rgba(0,117,222,.55); box-shadow: 0 0 0 3px rgba(0,117,222,.1); }
+    .anchor-parity { margin-left: 9px; padding: 7px 10px; color: var(--blue); background: var(--blue-soft); border-left: 1px solid var(--border); border-radius: 0 7px 7px 0; font-size: 10px; font-weight: 600; white-space: nowrap; }
+    .term-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 10px 11px; border-radius: 10px; background: #f7f6f4; }
+    .term-summary span { color: var(--ink-2); font-size: 10.5px; }
+    .term-summary b { color: var(--ink); font-size: 11px; font-weight: 600; }
+    .schedule-note { display: flex; gap: 10px; margin-top: 14px; padding: 12px 12px 11px; background: var(--blue-wash); border-radius: 11px; }
+    .schedule-note-icon { display: grid; place-items: center; width: 23px; height: 23px; flex: 0 0 23px; color: var(--blue); background: var(--blue-soft); border-radius: 7px; }
+    .schedule-note-icon svg { width: 14px; height: 14px; }
+    .schedule-note b { display: block; margin: 1px 0 4px; color: #126fc1; font-size: 11px; font-weight: 650; }
+    .schedule-note p { margin: 0; color: var(--ink-2); font-size: 10.5px; line-height: 1.55; }
+    .text-link { color: var(--blue); font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .text-link:hover { text-decoration: underline; }
+    .term-footer { display: flex; align-items: center; gap: 7px; margin-top: 14px; color: var(--muted); font-size: 10px; }
+    .term-footer svg { width: 13px; height: 13px; color: var(--green); }
+    .term-footer .footer-spacer { flex: 1; }
+    .derived-note { color: var(--ink-2); }
+
+    /* Teaching calendar */
+    .calendar-card { overflow: hidden; }
+    .calendar-head { flex-wrap: wrap; min-height: 58px; }
+    .calendar-title-stack { display: flex; flex-direction: column; gap: 3px; }
+    .calendar-title-stack h2 { font-size: 14px; }
+    .calendar-title-stack small { color: var(--muted); font-size: 10px; }
+    .section-badge { margin-left: 2px; }
+    .calendar-nav { display: flex; align-items: center; gap: 8px; }
+    .month-label { min-width: 94px; color: var(--ink); font-size: 12px; font-weight: 600; text-align: center; }
+    .icon-button { display: grid; place-items: center; width: 29px; height: 29px; padding: 0; color: var(--ink-2); background: #fff; border: 1px solid var(--border); border-radius: 9px; cursor: pointer; }
+    .icon-button:hover { color: var(--blue); background: var(--blue-wash); border-color: rgba(0,117,222,.2); }
+    .icon-button svg { width: 14px; height: 14px; }
+    .calendar-content { padding: 13px 14px 14px; }
+    .calendar-legend { display: flex; align-items: center; gap: 12px; margin: 0 3px 10px; color: var(--ink-2); font-size: 10px; }
+    .calendar-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 7px; height: 7px; border-radius: 50%; background: #bdb7b0; }
+    .legend-dot.single { background: var(--blue); }
+    .legend-dot.double { background: #a8a39d; }
+    .legend-dot.makeup { background: var(--green); }
+    .legend-dot.stop { background: var(--red); }
+    .month-grid { display: grid; grid-template-columns: 70px repeat(7, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .weekday, .weekday-spacer { display: grid; place-items: center; min-height: 34px; color: var(--muted); background: #faf9f8; border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 600; }
+    .weekday + .weekday, .day { border-left: 1px solid var(--border); }
+    .week-meta { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 64px; padding: 4px 2px; background: #faf9f8; border-bottom: 1px solid var(--border); }
+    .week-meta b { color: var(--ink-2); font-size: 9px; font-weight: 550; }
+    .week-meta span { min-width: 26px; padding: 3px 6px; color: var(--blue); background: var(--blue-soft); border-radius: var(--radius-pill); font-size: 9px; text-align: center; }
+    .week-meta span.double { color: var(--ink-2); background: #efede9; }
+    .week-meta span.outside { color: var(--muted); background: #f0efed; }
+    .day {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      min-width: 0;
+      min-height: 64px;
+      padding: 7px 6px 5px;
+      overflow: hidden;
+      text-align: left;
+      background: #fff;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .12s ease;
+    }
+    .day:hover { z-index: 1; background: var(--blue-wash); box-shadow: inset 0 0 0 1px rgba(0,117,222,.18); }
+    .day:nth-last-child(-n + 8) { border-bottom: 0; }
+    .day .day-num { display: inline-grid; place-items: center; width: 22px; height: 22px; color: var(--ink); border-radius: 50%; font-size: 11px; font-weight: 550; }
+    .day.weekend .day-num { color: var(--ink-2); }
+    .day.outside-month { background: #fcfbfa; }
+    .day.outside-month .day-num { color: #c5c0bb; }
+    .day.today .day-num { color: #fff; background: var(--blue); }
+    .day.event-makeup { background: #f5fbf7; }
+    .day.event-stop { background: #fdf7f6; }
+    .event-mark { display: block; max-width: 100%; margin-top: 3px; padding: 3px 5px; overflow: hidden; color: #21835a; background: var(--green-bg); border-radius: 5px; font-size: 9px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+    .event-mark.stop { color: var(--red); background: var(--red-bg); }
+    .event-mark.more { color: var(--ink-2); background: #f2f0ed; }
+    .exceptions { margin-top: 14px; padding: 12px 12px 8px; background: #faf9f8; border-radius: 11px; }
+    .exceptions-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .exceptions-head b { font-size: 11px; font-weight: 650; }
+    .exceptions-head span { color: var(--muted); font-size: 10px; }
+    .exceptions-head .grow { flex: 1; }
+    .exception-list { display: flex; flex-direction: column; }
+    .exception-row { display: grid; grid-template-columns: 52px 1fr auto; align-items: start; gap: 9px; min-height: 38px; padding: 8px 1px; border-top: 1px solid var(--border); }
+    .exception-date { color: var(--ink); font-size: 10.5px; font-weight: 650; white-space: nowrap; }
+    .exception-main { min-width: 0; }
+    .exception-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--ink); font-size: 10.5px; font-weight: 550; }
+    .exception-description { margin-top: 3px; color: var(--muted); font-size: 9.5px; line-height: 1.45; }
+    .exception-type { display: inline-flex; align-items: center; min-height: 19px; padding: 0 7px; border-radius: var(--radius-pill); font-size: 9px; font-weight: 600; }
+    .exception-type.makeup { color: #21835a; background: var(--green-bg); }
+    .exception-type.stop { color: var(--red); background: var(--red-bg); }
+    .delete-exception { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; color: #b2ada7; background: transparent; border: 0; border-radius: 7px; cursor: pointer; }
+    .delete-exception:hover { color: var(--red); background: var(--red-bg); }
+    .delete-exception svg { width: 13px; height: 13px; }
+    .empty-exceptions { padding: 15px 0; color: var(--muted); font-size: 10.5px; text-align: center; }
+    .calendar-footnote { display: flex; align-items: flex-start; gap: 6px; margin: 11px 2px 0; color: var(--muted); font-size: 9.5px; line-height: 1.5; }
+    .calendar-footnote svg { width: 13px; height: 13px; flex: 0 0 13px; margin-top: 1px; color: var(--blue); }
+
+    /* Native dialogs keep the prototype usable with keyboard and mouse. */
+    dialog {
+      width: min(560px, calc(100vw - 28px));
+      max-height: min(92vh, 820px);
+      padding: 0;
+      overflow: auto;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid rgba(0, 0, 0, .08);
+      border-radius: 17px;
+      box-shadow: var(--shadow-pop);
+    }
+    dialog::backdrop { background: rgba(26, 26, 26, .3); backdrop-filter: blur(2px); }
+    .dialog-head { display: flex; align-items: flex-start; gap: 14px; padding: 20px 22px 15px; border-bottom: 1px solid var(--border); }
+    .dialog-head h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    .dialog-head p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .dialog-close { display: grid; place-items: center; width: 29px; height: 29px; margin: -4px -6px 0 auto; padding: 0; color: var(--muted); background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
+    .dialog-close:hover { color: var(--ink); background: var(--canvas); }
+    .dialog-close svg { width: 16px; height: 16px; }
+    .dialog-body { padding: 17px 22px 7px; }
+    .dialog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+    .dialog-grid .field.full { grid-column: 1 / -1; }
+    .dialog-body .field > label { margin-bottom: 6px; }
+    .kind-switch { display: inline-flex; gap: 3px; padding: 3px; background: #f2f0ed; border-radius: var(--radius-pill); }
+    .kind-option { position: relative; }
+    .kind-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .kind-option span { display: inline-flex; align-items: center; justify-content: center; min-width: 80px; height: 30px; padding: 0 12px; color: var(--ink-2); border-radius: var(--radius-pill); font-size: 11px; cursor: pointer; }
+    .kind-option input:checked + span { color: var(--ink); background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.1); font-weight: 600; }
+    .kind-option input:focus-visible + span { outline: 3px solid rgba(0,117,222,.2); outline-offset: 2px; }
+    .mapping-panel { margin-top: 15px; padding: 12px; background: #f8f7f6; border: 1px solid var(--border); border-radius: 11px; }
+    .mapping-title { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; font-size: 11px; font-weight: 650; }
+    .mapping-title svg { width: 14px; height: 14px; color: var(--blue); }
+    .mapping-help { margin: -4px 0 10px; color: var(--muted); font-size: 9.5px; line-height: 1.5; }
+    .mapping-row { display: grid; grid-template-columns: minmax(90px, .75fr) minmax(120px, 1fr); align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+    .mapping-row:first-of-type { border-top: 0; }
+    .mapping-row label { color: var(--ink-2); font-size: 10.5px; }
+    .mapping-row select { height: 34px; font-size: 10.5px; }
+    .mapping-row[hidden] { display: none; }
+    .dialog-note { display: flex; gap: 8px; margin-top: 13px; padding: 10px 11px; color: var(--ink-2); background: var(--blue-wash); border-radius: 9px; font-size: 10px; line-height: 1.5; }
+    .dialog-note svg { width: 14px; height: 14px; flex: 0 0 14px; color: var(--blue); }
+    .dialog-foot { display: flex; align-items: center; gap: 9px; padding: 15px 22px 19px; }
+    .dialog-foot .foot-note { margin-right: auto; color: var(--muted); font-size: 10px; }
+    .dialog-error { min-height: 15px; margin: 8px 0 0; color: var(--red); font-size: 10px; }
+    .toast { position: fixed; z-index: 10; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 9px; padding: 11px 15px; color: #fff; background: #292a2b; border-radius: 11px; box-shadow: var(--shadow-pop); font-size: 11px; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s ease, transform .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast svg { width: 15px; height: 15px; color: #7bd2a6; }
+
+    @media (max-width: 1120px) {
+      :root { --side-width: 210px; }
+      body { padding: 12px; }
+      .app { height: min(960px, calc(100vh - 24px)); min-height: 760px; }
+      .content { padding: 21px 20px 24px; }
+      .workspace-grid { grid-template-columns: minmax(300px, .88fr) minmax(0, 1.12fr); gap: 12px; }
+      .month-grid { grid-template-columns: 58px repeat(7, minmax(0, 1fr)); }
+      .day { min-height: 58px; padding: 5px 4px; }
+      .week-meta { min-height: 58px; }
+      .card-body { padding-inline: 15px; }
+      .calendar-content { padding-inline: 11px; }
+      .calendar-legend { gap: 8px; font-size: 9px; }
+    }
+    @media (max-width: 850px) {
+      :root { --side-width: 68px; }
+      body { padding: 0; background: var(--canvas); }
+      .app { width: 100%; height: 100vh; min-height: 650px; border: 0; border-radius: 0; }
+      .sidebar { align-items: center; padding: 13px 7px 10px; }
+      .brand { justify-content: center; padding: 3px 0 14px; }
+      .brand-name, .school-meta, .nav-label, .nav-item span, .nav-item .nav-tag, .side-foot { display: none; }
+      .school-card { justify-content: center; width: 44px; min-height: 44px; margin-bottom: 11px; padding: 5px; }
+      .school-avatar { flex-basis: 32px; }
+      .nav-item { justify-content: center; width: 46px; min-height: 43px; margin: 2px 0; padding: 0; }
+      .nav-item svg { width: 19px; height: 19px; }
+      .nav-divider { width: 38px; margin: 10px 0; }
+      .topbar { padding: 0 18px; }
+      .content { padding: 20px 18px 24px; }
+      .workspace-grid { grid-template-columns: 1fr; }
+      .calendar-card { grid-row: 2; }
+      .semester-card { grid-row: 1; }
+      .card-body { padding-inline: 18px; }
+      .calendar-content { padding-inline: 14px; }
+      .month-grid { grid-template-columns: 70px repeat(7, minmax(0, 1fr)); }
+      .day { min-height: 62px; padding: 6px; }
+      .week-meta { min-height: 62px; }
+    }
+    @media (max-width: 560px) {
+      :root { --side-width: 54px; --topbar-height: 56px; }
+      .sidebar { padding-inline: 4px; }
+      .brand-mark { width: 31px; height: 31px; }
+      .school-card { width: 40px; }
+      .nav-item { width: 40px; min-height: 40px; }
+      .topbar { gap: 8px; padding-inline: 11px; }
+      .school-crumb { max-width: 110px; gap: 6px; overflow: hidden; font-size: 10px; text-overflow: ellipsis; }
+      .top-select { min-height: 32px; max-width: 160px; padding-inline: 8px; overflow: hidden; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
+      .save-status { display: none; }
+      .content { padding: 18px 12px 20px; }
+      .page-head { align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+      .page-head p { max-width: 100%; font-size: 11px; }
+      .page-head-spacer { display: none; }
+      h1 { font-size: 22px; }
+      .page-head > .button { min-height: 32px; }
+      .page-head > .button-secondary { margin-left: auto; }
+      .workspace-grid { gap: 12px; }
+      .card-head { min-height: 51px; padding-inline: 13px; }
+      .card-body { padding: 14px 13px; }
+      .field-grid { gap: 10px; }
+      .input-control, .select-control { height: 40px; font-size: 11px; }
+      .calendar-head { align-items: flex-start; padding-block: 11px; }
+      .calendar-head .card-head-spacer { display: none; }
+      .calendar-nav { margin-left: auto; }
+      .calendar-content { padding: 10px 8px 11px; }
+      .calendar-legend { flex-wrap: wrap; gap: 6px 10px; margin-inline: 2px; }
+      .month-grid { grid-template-columns: 43px repeat(7, minmax(0, 1fr)); }
+      .weekday { min-height: 29px; font-size: 8.5px; }
+      .week-meta { min-height: 53px; gap: 3px; }
+      .week-meta b { font-size: 7.5px; }
+      .week-meta span { min-width: 21px; padding: 3px 4px; font-size: 7.5px; }
+      .day { min-height: 53px; padding: 4px 2px; }
+      .day .day-num { width: 19px; height: 19px; font-size: 9px; }
+      .event-mark { margin-top: 2px; padding: 2px 3px; font-size: 7px; }
+      .exceptions { padding: 10px 9px 6px; }
+      .exceptions-head { flex-wrap: wrap; }
+      .exceptions-head .button { margin-left: auto; }
+      .exception-row { grid-template-columns: 43px 1fr auto; gap: 5px; }
+      .exception-date, .exception-title { font-size: 9.5px; }
+      .exception-description { font-size: 8.5px; }
+      .dialog-head, .dialog-body { padding-inline: 16px; }
+      .dialog-foot { padding-inline: 16px; }
+      .dialog-grid { gap: 12px 8px; }
+      .mapping-row { grid-template-columns: 80px minmax(0, 1fr); gap: 7px; }
+      .dialog-foot .foot-note { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="课集排课软件界面原型">
+    <aside class="sidebar" aria-label="主导航">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="brand-name">课集<small>CLASSSET</small></div>
+      </div>
+      <button class="school-card" type="button" data-toast="这里用于切换本地学校数据文件">
+        <span class="school-avatar">青</span>
+        <span class="school-meta"><b>青木实验学校</b><span>本地工作区</span></span>
+      </button>
+
+      <div class="nav-label">排课准备</div>
+      <button class="nav-item active" type="button" aria-current="page" title="学期与日历">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg><span>学期与日历</span>
+      </button>
+      <button class="nav-item" type="button" data-toast="班级与学段按学校结构分组维护">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>班级与学段</span>
+      </button>
+      <button class="nav-item" type="button" data-toast="作息设置中可为每个学段分别配置上课日和每日节数">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>作息设置</span><span class="nav-tag">分学段</span>
+      </button>
+
+      <div class="nav-divider"></div>
+      <div class="nav-label">排课与课表</div>
+      <button class="nav-item" type="button" data-toast="科目节数入口">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h3M8 15h6"/></svg><span>科目节数</span>
+      </button>
+      <button class="nav-item" type="button" data-toast="教师任课入口">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>教师任课</span>
+      </button>
+      <button class="nav-item" type="button" data-toast="自动排课入口">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3m-.4 6.4 2.1-2.1M12 18v3m6.4-2.6-2.1-2.1M18 12h3m-5.1-4.3 2.1-2.1"/><circle cx="12" cy="12" r="5"/></svg><span>自动排课</span><span class="nav-tag">后续</span>
+      </button>
+      <button class="nav-item" type="button" data-toast="课表编辑入口">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M9 10v11M15 10v11"/></svg><span>课表编辑</span>
+      </button>
+
+      <div class="side-foot">
+        <div class="offline">
+          <span class="offline-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>
+          <span><b>数据保存在本机</b><small>离线可用 · 自动保存</small></span>
+        </div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="school-crumb"><span>青木实验学校</span><span class="crumb-chevron">›</span></div>
+        <button class="top-select" type="button" data-toast="这里可切换学校学期">
+          <span id="activeTermLabel">2026–2027 · 第一学期</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="topbar-spacer"></div>
+        <div class="save-status"><i></i>本地已保存</div>
+        <button class="help-button" type="button" aria-label="帮助" data-toast="帮助与快捷键">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.6 1.4c-.9 1-2.2 1.2-2.2 2.8M12 17h.01"/></svg>
+        </button>
+      </header>
+
+      <div class="content">
+        <div class="page-head">
+          <div>
+            <div class="breadcrumb">排课准备 <span aria-hidden="true">/</span> 学期与日历</div>
+            <h1>学期与日历</h1>
+            <p>设定学期日期与单双周锚点，安排停课、补课等日历例外。不同学段的上课日请在作息设置中分别维护。</p>
+          </div>
+          <div class="page-head-spacer"></div>
+          <button class="button button-secondary button-small" type="button" data-toast="学期列表会展示本校全部学期">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>学期列表
+          </button>
+          <button class="button button-primary button-small" id="openTermDialog" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>新建学期
+          </button>
+        </div>
+
+        <div class="workspace-grid">
+          <section class="card semester-card" aria-labelledby="semesterTitle">
+            <div class="card-head">
+              <h2 id="semesterTitle">学期设置</h2>
+              <span class="card-head-spacer"></span>
+              <span class="badge badge-current"><span aria-hidden="true">●</span>当前</span>
+            </div>
+            <div class="card-body">
+              <div class="term-name-row">
+                <div>
+                  <b><span id="termHeading">2026–2027 学年 · 第一学期</span></b>
+                  <span>青木实验学校</span>
+                </div>
+                <span class="editable-hint"><i></i>可直接编辑</span>
+              </div>
+
+              <div class="field-grid">
+                <div class="field">
+                  <label for="schoolYear">学年</label>
+                  <input class="input-control" id="schoolYear" value="2026–2027" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="termType">学期</label>
+                  <select class="select-control" id="termType">
+                    <option>第一学期</option><option>第二学期</option><option>第三学期</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="termStart">学期开始日期</label>
+                  <input class="input-control input-date" id="termStart" type="date" value="2026-08-31" />
+                </div>
+                <div class="field">
+                  <label for="termEnd">学期结束日期</label>
+                  <input class="input-control input-date" id="termEnd" type="date" value="2027-01-22" />
+                </div>
+                <div class="field full">
+                  <label for="weekAnchor">第 1 教学周起始日</label>
+                  <div class="anchor-control">
+                    <input id="weekAnchor" type="date" value="2026-08-31" aria-describedby="anchorHint" />
+                    <span class="anchor-parity">第 1 周 · 单周</span>
+                  </div>
+                  <div class="input-hint" id="anchorHint">单双周从这个日期连续交替；停课和补课不会重置周次锚点。</div>
+                </div>
+              </div>
+
+              <div class="term-summary">
+                <span>按锚点计算</span>
+                <b id="termWeekSummary">共 21 个教学周 · 第 1 周为单周</b>
+              </div>
+
+              <div class="schedule-note">
+                <span class="schedule-note-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                <div>
+                  <b>上课日由各学段的作息决定</b>
+                  <p>小学部、初中部可有不同的上课日与每日节数。去 <a class="text-link" href="#schedule" id="scheduleLink">作息设置</a> 分别配置。</p>
+                </div>
+              </div>
+
+              <div class="term-footer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+                <span>字段修改会自动应用到本地预览</span>
+                <span class="footer-spacer"></span>
+                <span class="derived-note">单双周标记为自动计算</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card calendar-card" aria-labelledby="calendarTitle">
+            <div class="card-head calendar-head">
+              <div class="calendar-title-stack">
+                <h2 id="calendarTitle">教学日历</h2>
+                <small>2026–2027 学年 · 日期视图</small>
+              </div>
+              <span class="badge badge-blue section-badge">多学段日历</span>
+              <span class="card-head-spacer"></span>
+              <div class="calendar-nav">
+                <button class="icon-button" id="previousMonth" type="button" aria-label="上个月">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <div class="month-label" id="monthLabel">2026 年 10 月</div>
+                <button class="icon-button" id="nextMonth" type="button" aria-label="下个月">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="calendar-content">
+              <div class="calendar-legend" aria-label="日历图例">
+                <span><i class="legend-dot single"></i>单周</span>
+                <span><i class="legend-dot double"></i>双周</span>
+                <span><i class="legend-dot makeup"></i>补课</span>
+                <span><i class="legend-dot stop"></i>停课</span>
+              </div>
+              <div class="month-grid" id="monthGrid" aria-label="教学日历月份网格"></div>
+
+              <div class="exceptions">
+                <div class="exceptions-head">
+                  <b>本月例外</b><span id="exceptionCount">2 条安排</span><span class="grow"></span>
+                  <button class="button button-quiet button-small" id="openExceptionDialog" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>添加例外
+                  </button>
+                </div>
+                <div class="exception-list" id="exceptionList"></div>
+              </div>
+              <div class="calendar-footnote">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                <span>补课可映射到指定教学周，并按学段选择采用的作息日；日历例外不会改变单双周锚点。</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="termDialog" aria-labelledby="termDialogTitle">
+    <form id="termForm">
+      <div class="dialog-head">
+        <div><h2 id="termDialogTitle">新建学期</h2><p>填写日期范围与第 1 教学周起始日。第 1 周按规则设为单周。</p></div>
+        <button class="dialog-close" type="button" data-close="termDialog" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <div class="dialog-grid">
+          <div class="field"><label for="newSchoolYear">学年</label><input class="input-control" id="newSchoolYear" value="2027–2028" required /></div>
+          <div class="field"><label for="newTermType">学期</label><select class="select-control" id="newTermType"><option>第一学期</option><option>第二学期</option><option>第三学期</option></select></div>
+          <div class="field"><label for="newTermStart">开始日期</label><input class="input-control input-date" id="newTermStart" type="date" value="2027-09-01" required /></div>
+          <div class="field"><label for="newTermEnd">结束日期</label><input class="input-control input-date" id="newTermEnd" type="date" value="2028-01-20" required /></div>
+          <div class="field full"><label for="newWeekAnchor">第 1 教学周起始日</label><input class="input-control input-date" id="newWeekAnchor" type="date" value="2027-09-06" required /><div class="input-hint">该日期决定周次单双交替的锚点，不要求与学期开始日期相同。</div></div>
+        </div>
+        <p class="dialog-error" id="termError" role="alert"></p>
+      </div>
+      <div class="dialog-foot"><span class="foot-note">创建后可继续调整日期</span><button class="button button-secondary" type="button" data-close="termDialog">取消</button><button class="button button-primary" type="submit">创建学期</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="exceptionDialog" aria-labelledby="exceptionDialogTitle">
+    <form id="exceptionForm">
+      <div class="dialog-head">
+        <div><h2 id="exceptionDialogTitle">添加日历例外</h2><p>为指定日期添加停课或补课安排，可按学段分别指定适用作息。</p></div>
+        <button class="dialog-close" type="button" data-close="exceptionDialog" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <div class="dialog-grid">
+          <div class="field"><label for="exceptionDate">日期</label><input class="input-control input-date" id="exceptionDate" type="date" value="2026-10-10" required /></div>
+          <div class="field"><label for="exceptionScope">适用范围</label><select class="select-control" id="exceptionScope"><option value="all">全校（所有学段）</option><option value="primary">小学部</option><option value="middle">初中部</option></select></div>
+          <div class="field full"><span class="field-label">安排类型</span>
+            <div class="kind-switch" role="radiogroup" aria-label="安排类型">
+              <label class="kind-option"><input type="radio" name="exceptionKind" value="makeup" checked /><span>补课</span></label>
+              <label class="kind-option"><input type="radio" name="exceptionKind" value="stop" /><span>停课</span></label>
+            </div>
+          </div>
+          <div class="field full"><label for="exceptionReason">说明</label><input class="input-control" id="exceptionReason" placeholder="例如：国庆调休、校运会" autocomplete="off" /></div>
+        </div>
+
+        <div class="mapping-panel" id="mappingPanel">
+          <div class="mapping-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M8 3v4m8 3v4m-8 3v4"/></svg>补课课表映射</div>
+          <p class="mapping-help">说明这一天采用哪一周、各学段的哪天作息；单双周按学期锚点计算。</p>
+          <div class="field"><label for="makeupWeek">采用教学周</label><select class="select-control" id="makeupWeek"></select></div>
+          <div class="mapping-row" data-stage="primary"><label for="primaryScheduleDay">小学部采用作息日</label><select class="select-control" id="primaryScheduleDay"><option>周一</option><option>周二</option><option>周三</option><option>周四</option><option>周五</option><option>周六</option><option>周日</option></select></div>
+          <div class="mapping-row" data-stage="middle"><label for="middleScheduleDay">初中部采用作息日</label><select class="select-control" id="middleScheduleDay"><option>周一</option><option>周二</option><option selected>周三</option><option>周四</option><option>周五</option><option>周六</option><option>周日</option></select></div>
+        </div>
+        <div class="dialog-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>停课例外只影响所选范围；补课映射保留原教学周锚点，不会把后续单双周整体顺延。</span></div>
+        <p class="dialog-error" id="exceptionError" role="alert"></p>
+      </div>
+      <div class="dialog-foot"><span class="foot-note">仅更新当前 HTML 演示状态</span><button class="button button-secondary" type="button" data-close="exceptionDialog">取消</button><button class="button button-primary" type="submit">添加例外</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span id="toastMessage">已更新</span>
+  </div>
+
+  <script>
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+    const termDialog = $('#termDialog');
+    const exceptionDialog = $('#exceptionDialog');
+    const dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    let monthCursor = new Date(2026, 9, 1);
+    let toastTimer;
+    let exceptions = [
+      { id: 'e1', date: '2026-10-10', kind: 'makeup', scope: 'all', reason: '调休补课', week: 6, primaryDay: '周一', middleDay: '周三' },
+      { id: 'e2', date: '2026-10-21', kind: 'stop', scope: 'all', reason: '校运会', week: null, primaryDay: '', middleDay: '' }
+    ];
+
+    function parseDate(value) {
+      if (!value) return null;
+      const parts = value.split('-').map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+      const date = new Date(parts[0], parts[1] - 1, parts[2]);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+    function dateKey(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+    function mondayOf(date) {
+      const result = new Date(date);
+      result.setDate(result.getDate() - ((result.getDay() + 6) % 7));
+      result.setHours(0, 0, 0, 0);
+      return result;
+    }
+    function teachingWeek(date) {
+      const anchor = parseDate($('#weekAnchor').value);
+      if (!anchor || !date) return null;
+      return Math.floor((mondayOf(date) - mondayOf(anchor)) / 604800000) + 1;
+    }
+    function weekLabel(week) {
+      if (week < 1) return '未锚定';
+      return week % 2 === 1 ? '单周' : '双周';
+    }
+    function formatWeekday(date) {
+      return dayNames[(date.getDay() + 6) % 7];
+    }
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+    }
+    function showToast(message) {
+      $('#toastMessage').textContent = message;
+      const toast = $('#toast');
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+    function getTermWeekCount() {
+      const anchor = parseDate($('#weekAnchor').value);
+      const end = parseDate($('#termEnd').value);
+      if (!anchor || !end || end < anchor) return null;
+      return Math.floor((mondayOf(end) - mondayOf(anchor)) / 604800000) + 1;
+    }
+    function updateTermSummary() {
+      const year = $('#schoolYear').value.trim() || '未命名学年';
+      const term = $('#termType').value;
+      $('#termHeading').textContent = `${year.replace(/-/g, '–')} 学年 · ${term}`;
+      $('#activeTermLabel').textContent = `${year.replace(/-/g, '–')} · ${term}`;
+      const anchor = parseDate($('#weekAnchor').value);
+      const count = getTermWeekCount();
+      const start = parseDate($('#termStart').value);
+      const end = parseDate($('#termEnd').value);
+      if (count && anchor) {
+        $('#termWeekSummary').textContent = `共 ${count} 个教学周 · 第 1 周为单周`;
+      } else if (start && end && end < start) {
+        $('#termWeekSummary').textContent = '结束日期早于开始日期';
+      } else {
+        $('#termWeekSummary').textContent = '请设置教学周锚点与日期范围';
+      }
+      renderCalendar();
+    }
+    function formatExceptionDate(value) {
+      const date = parseDate(value);
+      return date ? `${date.getMonth() + 1}/${String(date.getDate()).padStart(2, '0')}` : value;
+    }
+    function scopeLabel(scope) {
+      return ({ all: '全校', primary: '小学部', middle: '初中部' })[scope] || '全校';
+    }
+    function scopeDescription(item) {
+      if (item.kind === 'stop') return `${scopeLabel(item.scope)} · 当日停课`;
+      const mappings = [];
+      if (item.scope === 'all' || item.scope === 'primary') mappings.push(`小学部 ${item.primaryDay || '按学段作息'}`);
+      if (item.scope === 'all' || item.scope === 'middle') mappings.push(`初中部 ${item.middleDay || '按学段作息'}`);
+      const parity = item.week ? weekLabel(item.week) : '';
+      return `${scopeLabel(item.scope)} · ${mappings.join(' / ')}作息 · 第 ${item.week || '—'} 周${parity ? `（${parity}）` : ''}`;
+    }
+    function renderExceptions() {
+      const currentMonthPrefix = `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, '0')}`;
+      const visible = exceptions.filter(item => item.date.startsWith(currentMonthPrefix)).sort((a, b) => a.date.localeCompare(b.date));
+      $('#exceptionCount').textContent = `${visible.length} 条安排`;
+      const list = $('#exceptionList');
+      if (!visible.length) {
+        list.innerHTML = '<div class="empty-exceptions">本月还没有日历例外，点击“添加例外”开始设置。</div>';
+        return;
+      }
+      list.innerHTML = visible.map(item => {
+        const typeText = item.kind === 'makeup' ? '补课' : '停课';
+        const title = item.reason || (item.kind === 'makeup' ? '补课安排' : '停课安排');
+        return `<div class="exception-row">
+          <span class="exception-date">${formatExceptionDate(item.date)}</span>
+          <div class="exception-main">
+            <div class="exception-title"><span class="exception-type ${item.kind}">${typeText}</span>${escapeHtml(title)}</div>
+            <div class="exception-description">${escapeHtml(scopeDescription(item))}</div>
+          </div>
+          <button class="delete-exception" type="button" data-delete="${escapeHtml(item.id)}" aria-label="删除 ${escapeHtml(title)}" title="删除例外">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>
+          </button>
+        </div>`;
+      }).join('');
+    }
+    function renderCalendar() {
+      const year = monthCursor.getFullYear();
+      const month = monthCursor.getMonth();
+      $('#monthLabel').textContent = `${year} 年 ${month + 1} 月`;
+      const grid = $('#monthGrid');
+      const weekdays = ['教学周', ...dayNames];
+      grid.innerHTML = weekdays.map((name, index) => index === 0
+        ? '<div class="weekday-spacer">教学周</div>'
+        : `<div class="weekday">${name.slice(1)}</div>`).join('');
+      const first = new Date(year, month, 1);
+      const start = mondayOf(first);
+      for (let row = 0; row < 6; row += 1) {
+        const weekStart = new Date(start);
+        weekStart.setDate(start.getDate() + row * 7);
+        const week = teachingWeek(weekStart);
+        const parity = weekLabel(week ?? 0);
+        const parityClass = parity === '双周' ? 'double' : parity === '单周' ? '' : 'outside';
+        grid.insertAdjacentHTML('beforeend', `<div class="week-meta"><b>${week > 0 ? `第 ${week} 周` : '学期间'}</b><span class="${parityClass}">${parity}</span></div>`);
+        for (let col = 0; col < 7; col += 1) {
+          const date = new Date(weekStart);
+          date.setDate(weekStart.getDate() + col);
+          const key = dateKey(date);
+          const monthMatch = date.getMonth() === month;
+          const dayEvents = exceptions.filter(item => item.date === key);
+          const mainEvent = dayEvents[0];
+          const classes = ['day'];
+          if (!monthMatch) classes.push('outside-month');
+          if (col >= 5) classes.push('weekend');
+          if (mainEvent?.kind === 'makeup') classes.push('event-makeup');
+          if (mainEvent?.kind === 'stop') classes.push('event-stop');
+          const marks = dayEvents.slice(0, 1).map(item => `<span class="event-mark ${item.kind === 'stop' ? 'stop' : ''}">${item.kind === 'makeup' ? '补课' : '停课'}${item.reason ? ` · ${escapeHtml(item.reason)}` : ''}</span>`).join('');
+          const more = dayEvents.length > 1 ? `<span class="event-mark more">+${dayEvents.length - 1} 项</span>` : '';
+          grid.insertAdjacentHTML('beforeend', `<button type="button" class="${classes.join(' ')}" data-date="${key}" aria-label="${year}年${month + 1}月${date.getDate()}日${mainEvent ? `，${mainEvent.kind === 'makeup' ? '补课' : '停课'}，点击添加安排` : '，点击添加例外'}" title="点击为 ${month + 1} 月 ${date.getDate()} 日添加例外"><span class="day-num">${date.getDate()}</span>${marks}${more}</button>`);
+        }
+      }
+      renderExceptions();
+      $$('.day', grid).forEach(day => day.addEventListener('click', () => {
+        const chosen = parseDate(day.dataset.date);
+        if (chosen && chosen.getMonth() !== monthCursor.getMonth()) {
+          monthCursor = new Date(chosen.getFullYear(), chosen.getMonth(), 1);
+          renderCalendar();
+        }
+        openExceptionDialog(day.dataset.date);
+      }));
+    }
+    function refreshMakeupWeeks(preferredWeek) {
+      const select = $('#makeupWeek');
+      const count = Math.max(getTermWeekCount() || 20, 20);
+      const date = parseDate($('#exceptionDate').value);
+      const currentWeek = date ? teachingWeek(date) : 1;
+      const selected = preferredWeek || (currentWeek > 0 ? currentWeek : 1);
+      select.innerHTML = Array.from({ length: count }, (_, index) => {
+        const week = index + 1;
+        const weekText = weekLabel(week);
+        return `<option value="${week}" ${week === selected ? 'selected' : ''}>第 ${week} 教学周 · ${weekText}</option>`;
+      }).join('');
+    }
+    function updateMappingScope() {
+      const scope = $('#exceptionScope').value;
+      $$('[data-stage]').forEach(row => {
+        row.hidden = scope !== 'all' && row.dataset.stage !== scope;
+      });
+    }
+    function updateExceptionKind() {
+      const kind = $('input[name="exceptionKind"]:checked').value;
+      $('#mappingPanel').hidden = kind !== 'makeup';
+    }
+    function openExceptionDialog(dateValue = dateKey(new Date(2026, 9, 10))) {
+      $('#exceptionDate').value = dateValue;
+      $('#exceptionScope').value = 'all';
+      $('#exceptionReason').value = '';
+      $('input[name="exceptionKind"][value="makeup"]').checked = true;
+      $('#primaryScheduleDay').value = '周一';
+      $('#middleScheduleDay').value = '周三';
+      $('#exceptionError').textContent = '';
+      refreshMakeupWeeks();
+      updateMappingScope();
+      updateExceptionKind();
+      exceptionDialog.showModal();
+    }
+
+    $('#openTermDialog').addEventListener('click', () => {
+      $('#termError').textContent = '';
+      termDialog.showModal();
+    });
+    $('#openExceptionDialog').addEventListener('click', () => openExceptionDialog());
+    $('#previousMonth').addEventListener('click', () => { monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1); renderCalendar(); });
+    $('#nextMonth').addEventListener('click', () => { monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1); renderCalendar(); });
+    ['schoolYear', 'termType', 'termStart', 'termEnd', 'weekAnchor'].forEach(id => $(`#${id}`).addEventListener('change', updateTermSummary));
+    $('#weekAnchor').addEventListener('input', updateTermSummary);
+    $('#exceptionDate').addEventListener('change', () => refreshMakeupWeeks());
+    $('#exceptionScope').addEventListener('change', updateMappingScope);
+    $$('input[name="exceptionKind"]').forEach(input => input.addEventListener('change', updateExceptionKind));
+    $$('[data-close]').forEach(button => button.addEventListener('click', () => $(`#${button.dataset.close}`).close()));
+    $$('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast)));
+    $('#scheduleLink').addEventListener('click', event => { event.preventDefault(); showToast('作息设置：按小学部、初中部等学段分别配置上课日'); });
+    $('#exceptionList').addEventListener('click', event => {
+      const button = event.target.closest('[data-delete]');
+      if (!button) return;
+      exceptions = exceptions.filter(item => item.id !== button.dataset.delete);
+      renderCalendar();
+      showToast('已删除这条例外');
+    });
+    $('#termForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const start = $('#newTermStart').value;
+      const end = $('#newTermEnd').value;
+      if (start > end) {
+        $('#termError').textContent = '结束日期需要晚于开始日期。';
+        return;
+      }
+      $('#schoolYear').value = $('#newSchoolYear').value.trim();
+      $('#termType').value = $('#newTermType').value;
+      $('#termStart').value = start;
+      $('#termEnd').value = end;
+      $('#weekAnchor').value = $('#newWeekAnchor').value;
+      monthCursor = new Date(parseDate(start).getFullYear(), parseDate(start).getMonth(), 1);
+      updateTermSummary();
+      termDialog.close();
+      showToast('新学期已添加到当前原型');
+    });
+    $('#exceptionForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const date = $('#exceptionDate').value;
+      if (!date) {
+        $('#exceptionError').textContent = '请选择例外日期。';
+        return;
+      }
+      const kind = $('input[name="exceptionKind"]:checked').value;
+      const scope = $('#exceptionScope').value;
+      const week = kind === 'makeup' ? Number($('#makeupWeek').value) : null;
+      const item = {
+        id: `e${Date.now()}`,
+        date,
+        kind,
+        scope,
+        reason: $('#exceptionReason').value.trim() || (kind === 'makeup' ? '补课安排' : '停课安排'),
+        week,
+        primaryDay: $('#primaryScheduleDay').value,
+        middleDay: $('#middleScheduleDay').value
+      };
+      exceptions.push(item);
+      const parsed = parseDate(date);
+      monthCursor = new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+      renderCalendar();
+      exceptionDialog.close();
+      showToast('日历例外已添加到当前原型');
+    });
+
+    updateTermSummary();
+  </script>
+</body>
+</html>

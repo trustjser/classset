@@ -1,0 +1,13 @@
+
+/wiki-doc/
+.workbuddy
+docs
+.DS_Store
+node_modules
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+/build/
+.agents
+.agent
