@@ -50,7 +50,7 @@ class RoutineRow {
 /// 界面 02b：第 1–6 节平铺、第 7–10 节折叠）。
 const int kRoutineVisibleLessonRows = 6;
 
-/// 按设计稿规则生成节次标签：早读→「早读」，晚上→「晚自习 N」，
+/// 按时段生成节次标签：早上→「早 N」，晚上→「晚 N」，
 /// 其余时段→跨时段全局连续「第 N 节」。
 List<LessonLabel> lessonLabels(List<LessonPeriodType> periods) {
   final sorted = [...periods]
@@ -58,13 +58,13 @@ List<LessonLabel> lessonLabels(List<LessonPeriodType> periods) {
   final labels = <LessonLabel>[];
   var sequence = 0;
   for (final period in sorted) {
-    final isMorning = period.name == '早读';
+    final isMorning = period.name.contains('早');
     final isEvening = period.name.contains('晚');
     for (final time in period.lessonTimes) {
       final label = isMorning
-          ? (period.lessonTimes.length == 1 ? '早读' : '早读 ${time.lessonIndex}')
+          ? '早${time.lessonIndex}'
           : isEvening
-          ? '晚自习 ${time.lessonIndex}'
+          ? '晚${time.lessonIndex}'
           : '第 ${++sequence} 节';
       labels.add(
         LessonLabel(

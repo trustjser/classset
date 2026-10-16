@@ -970,10 +970,15 @@ class DriftSchoolRepository implements SchoolRepository {
   }
 
   Future<void> _createDefaultRoutine(String stageId) async {
-    const defaultPeriods = [('上午', 4), ('下午', 4), ('晚上', 2)];
+    const defaultPeriods = [
+      ('早上', 0, 'early'),
+      ('上午', 4, '0'),
+      ('下午', 4, '1'),
+      ('晚上', 2, '2'),
+    ];
     for (var index = 0; index < defaultPeriods.length; index++) {
-      final (name, count) = defaultPeriods[index];
-      final periodId = '${stageId}_period_$index';
+      final (name, count, key) = defaultPeriods[index];
+      final periodId = '${stageId}_period_$key';
       await _database
           .into(_database.lessonPeriodTypes)
           .insert(

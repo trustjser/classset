@@ -30,7 +30,12 @@ abstract final class AppTheme {
   static const double cardRadius = 14;
   static const double controlRadius = 10;
   static const double pagePadding = 26;
+  static const double compactPagePadding = 16;
+  static const double compactPageBreakpoint = 880;
   static const double pageSectionGap = 16;
+
+  static double pagePaddingForWidth(double availableWidth) =>
+      availableWidth < compactPageBreakpoint ? compactPagePadding : pagePadding;
 
   static final f.FThemeData forui = _createForuiTheme();
 

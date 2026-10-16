@@ -77,17 +77,17 @@ class AppClassChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chip = Container(
-      height: 26,
+      height: 32,
       decoration: BoxDecoration(
         color: background,
         border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.only(left: 9, right: 4, top: 3, bottom: 3),
+          padding: const EdgeInsets.only(left: 10, right: 6, top: 4, bottom: 4),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

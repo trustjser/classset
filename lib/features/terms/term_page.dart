@@ -256,6 +256,9 @@ class _TermCalendarDashboard extends StatelessWidget {
       builder: (context, constraints) {
         final sideBySide =
             constraints.maxWidth >= 1100 && constraints.maxHeight >= 700;
+        final horizontalPadding = AppTheme.pagePaddingForWidth(
+          constraints.maxWidth,
+        );
         final panelHeight = constraints.maxHeight.isFinite
             ? (constraints.maxHeight - 150).clamp(520.0, 840.0).toDouble()
             : 840.0;
@@ -277,7 +280,12 @@ class _TermCalendarDashboard extends StatelessWidget {
         );
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(26, 22, 26, 30),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            22,
+            horizontalPadding,
+            30,
+          ),
           children: [
             const _TermPageHeading(),
             const SizedBox(height: 20),

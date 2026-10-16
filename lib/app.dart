@@ -80,19 +80,48 @@ class _AppShell extends ConsumerWidget {
                   children: [
                     _TopBar(pageTitle: pageTitle, databasePath: databasePath),
                     Expanded(
-                      child: switch (section) {
-                        AppSection.terms => TermPage(
-                          databasePath: databasePath,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        reverseDuration: const Duration(milliseconds: 140),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        layoutBuilder: (currentChild, previousChildren) =>
+                            Stack(
+                              alignment: Alignment.topLeft,
+                              fit: StackFit.expand,
+                              clipBehavior: Clip.hardEdge,
+                              children: [
+                                ...previousChildren,
+                                if (currentChild != null) currentChild,
+                              ],
+                            ),
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.012),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
                         ),
-                        AppSection.classes =>
-                          activeTermId == null
-                              ? const _ChooseTermMessage()
-                              : ClassesPage(termId: activeTermId),
-                        AppSection.routines =>
-                          activeTermId == null
-                              ? const _ChooseTermMessage()
-                              : RoutinePage(termId: activeTermId),
-                      },
+                        child: KeyedSubtree(
+                          key: ValueKey(section),
+                          child: switch (section) {
+                            AppSection.terms => TermPage(
+                              databasePath: databasePath,
+                            ),
+                            AppSection.classes =>
+                              activeTermId == null
+                                  ? const _ChooseTermMessage()
+                                  : ClassesPage(termId: activeTermId),
+                            AppSection.routines =>
+                              activeTermId == null
+                                  ? const _ChooseTermMessage()
+                                  : RoutinePage(termId: activeTermId),
+                          },
+                        ),
+                      ),
                     ),
                   ],
                 ),

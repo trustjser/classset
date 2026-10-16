@@ -355,9 +355,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('单击格子标记免任课，撤销提示条可撤销', (tester) async {
+  testWidgets('免任课改动在保存前暂存，撤销提示条可撤销', (tester) async {
     await pumpPage(tester);
     await selectJuniorStage(tester);
+    final saveButton = find.descendant(
+      of: find.byTooltip('保存作息设置'),
+      matching: find.byType(IconButton),
+    );
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNull);
+
     const cellKey = ValueKey('routine-cell-jr_am-3-3');
 
     await tester.tap(find.byKey(cellKey));
@@ -372,12 +380,13 @@ void main() {
       () => repository.watchFreeSlots('jr').first,
     ))!;
     expect(
-      slots.any((slot) => slot.label == '无课' && slot.weekday == 3),
-      isTrue,
+      slots.where((slot) => slot.weekday == 3 && slot.lessonIndex == 3),
+      isEmpty,
     );
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNotNull);
 
     await tester.tap(find.text('撤销'));
-    // 撤销回调内的仓库流读取需真实事件循环才能完成。
+    // 撤销提示条回调需真实事件循环处理完成。
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
     );
@@ -393,6 +402,119 @@ void main() {
     expect(
       afterUndo.where((slot) => slot.weekday == 3 && slot.lessonIndex == 3),
       isEmpty,
+    );
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('设置后再次取消免任课恢复原值，保存按钮禁用且数据库不变', (tester) async {
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    final saveButton = find.descendant(
+      of: find.byTooltip('保存作息设置'),
+      matching: find.byType(IconButton),
+    );
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNull);
+
+    const cellKey = ValueKey('routine-cell-jr_am-3-3');
+    await tester.tap(find.byKey(cellKey));
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNotNull);
+    expect(
+      (await tester.runAsync(() => repository.watchFreeSlots('jr').first))!
+          .where((slot) => slot.weekday == 3 && slot.lessonIndex == 3),
+      isEmpty,
+    );
+
+    await tester.tap(find.byKey(cellKey));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byKey(cellKey), matching: find.text('无课')),
+      findsNothing,
+    );
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNull);
+    expect(
+      (await tester.runAsync(() => repository.watchFreeSlots('jr').first))!
+          .where((slot) => slot.weekday == 3 && slot.lessonIndex == 3),
+      isEmpty,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('撤销免任课修改回到保存基线后保存按钮禁用', (tester) async {
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    final saveButton = find.descendant(
+      of: find.byTooltip('保存作息设置'),
+      matching: find.byType(IconButton),
+    );
+    // 初始作息含按天差异，先保存归一化后的基线。
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNull);
+
+    const cellKey = ValueKey('routine-cell-jr_am-3-3');
+    await tester.tap(find.byKey(cellKey));
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNotNull);
+
+    await tester.tap(find.byIcon(Icons.undo_rounded));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byKey(cellKey), matching: find.text('无课')),
+      findsNothing,
+    );
+    expect(tester.widget<IconButton>(saveButton).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('切换学段后撤销重做仍可用并返回操作学段', (tester) async {
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    const cellKey = ValueKey('routine-cell-jr_am-3-3');
+    await tester.tap(find.byKey(cellKey));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byKey(cellKey), matching: find.text('无课')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('小学部 · 10 节'));
+    await tester.pumpAndSettle();
+
+    final undoButton = find.ancestor(
+      of: find.byIcon(Icons.undo_rounded),
+      matching: find.byType(IconButton),
+    );
+    expect(tester.widget<IconButton>(undoButton).onPressed, isNotNull);
+    await tester.tap(undoButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('初中部 · 12 节'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byKey(cellKey), matching: find.text('无课')),
+      findsNothing,
+    );
+
+    final redoButton = find.ancestor(
+      of: find.byIcon(Icons.redo_rounded),
+      matching: find.byType(IconButton),
+    );
+    expect(tester.widget<IconButton>(redoButton).onPressed, isNotNull);
+    await tester.tap(redoButton);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byKey(cellKey), matching: find.text('无课')),
+      findsOneWidget,
     );
     expect(tester.takeException(), isNull);
   });
@@ -426,6 +548,19 @@ void main() {
     ))!;
     expect(
       slots.any((slot) => slot.label == '教研活动' && slot.weekday == 3),
+      isFalse,
+    );
+    final saveButton = find.descendant(
+      of: find.byTooltip('保存作息设置'),
+      matching: find.byType(IconButton),
+    );
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+    final savedSlots = (await tester.runAsync(
+      () => repository.watchFreeSlots('jr').first,
+    ))!;
+    expect(
+      savedSlots.any((slot) => slot.label == '教研活动' && slot.weekday == 3),
       isTrue,
     );
     expect(tester.takeException(), isNull);
@@ -467,6 +602,16 @@ void main() {
 
     expect(find.text('眼保健操'), findsOneWidget);
     expect(find.text('公共'), findsOneWidget);
+    expect(
+      (await tester.runAsync(() => repository.watchCommonPeriods('jr').first))!,
+      isEmpty,
+    );
+    final saveButton = find.descendant(
+      of: find.byTooltip('保存作息设置'),
+      matching: find.byType(IconButton),
+    );
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
     final periods = (await tester.runAsync(
       () => repository.watchCommonPeriods('jr').first,
     ))!;

@@ -46,6 +46,7 @@ class AppSectionPanel extends StatelessWidget {
     this.headerPadding,
     this.headerDivider = false,
     this.expandChild = false,
+    this.showBorder = true,
     super.key,
   });
 
@@ -56,9 +57,11 @@ class AppSectionPanel extends StatelessWidget {
   final EdgeInsetsGeometry? headerPadding;
   final bool headerDivider;
   final bool expandChild;
+  final bool showBorder;
 
   @override
   Widget build(BuildContext context) => AppSurface(
+    showBorder: showBorder,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -91,15 +94,18 @@ class AppSectionPanel extends StatelessWidget {
 
 /// A reusable Forui-token surface for cards and summary blocks.
 class AppSurface extends StatelessWidget {
-  const AppSurface({required this.child, super.key});
+  const AppSurface({required this.child, this.showBorder = true, super.key});
 
   final Widget child;
+  final bool showBorder;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: AppTheme.forui.colors.card,
-      border: Border.all(color: AppTheme.forui.colors.border),
+      border: showBorder
+          ? Border.all(color: AppTheme.forui.colors.border)
+          : null,
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
     ),
     child: ClipRRect(
@@ -173,6 +179,7 @@ class AppDataTableHeader extends StatelessWidget {
     required this.children,
     this.height = 40,
     this.textColor = AppTheme.ink,
+    this.backgroundColor = AppTheme.tableHeader,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
     super.key,
   });
@@ -180,13 +187,14 @@ class AppDataTableHeader extends StatelessWidget {
   final List<Widget> children;
   final double height;
   final Color textColor;
+  final Color backgroundColor;
   final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) => Container(
     height: height,
     padding: padding,
-    color: AppTheme.tableHeader,
+    color: backgroundColor,
     child: DefaultTextStyle(
       style: TextStyle(
         color: textColor,

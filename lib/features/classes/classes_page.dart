@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_badges.dart';
@@ -27,9 +29,9 @@ Color _stageTint(int index) => switch (index % 3) {
 };
 
 Color _stageChipBorder(int index) => switch (index % 3) {
-  0 => const Color(0xFFC8D9FF),
-  1 => const Color(0xFFBFE8D0),
-  _ => const Color(0xFFF7D6B3),
+  0 => const Color(0xFFD8E5F8),
+  1 => const Color(0xFFD6EBDD),
+  _ => const Color(0xFFF2E2D0),
 };
 
 class ClassesPage extends ConsumerStatefulWidget {
@@ -61,36 +63,41 @@ class _ClassesPageState extends ConsumerState<ClassesPage> {
             .where((stage) => stage.id == _selectedStageId)
             .toList();
         final selectedStage = matching.isEmpty ? items.first : matching.first;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Toolbar(
-                onBatchFill: () => _openBatchFill(items, selectedStage.id),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding = AppTheme.pagePaddingForWidth(
+              constraints.maxWidth,
+            );
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                22,
+                horizontalPadding,
+                30,
               ),
-              const SizedBox(height: 16),
-              _StageCardRow(
-                stages: items,
-                onRename: (stage) => _editStage(context, ref, stage),
-                onDelete: (stage) => _deleteStage(context, ref, stage),
-                onAddStage: () => _addStage(items),
-                canDelete: items.length > 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Toolbar(),
+                  const SizedBox(height: 20),
+                  _StageCardRow(
+                    stages: items,
+                    onRename: (stage) => _editStage(context, ref, stage),
+                    onDelete: (stage) => _deleteStage(context, ref, stage),
+                    onAddStage: () => _addStage(items),
+                    canDelete: items.length > 1,
+                  ),
+                  const SizedBox(height: 16),
+                  _GradeClassTable(
+                    stages: items,
+                    onBatchFillHeader: () =>
+                        _openBatchFill(items, selectedStage.id),
+                    onAddGrade: () => _addGrades(context, ref, items),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              _GradeClassTable(
-                stages: items,
-                onBatchFillHeader: () =>
-                    _openBatchFill(items, selectedStage.id),
-                onAddGrade: () => _addGrades(context, ref, items),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '删除年级 / 班级时会二次确认，并明确列出将被连带删除的资料。',
-                style: TextStyle(color: Color(0xFFA6A6A6), fontSize: 12),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -305,55 +312,62 @@ class _ClassesPageState extends ConsumerState<ClassesPage> {
 }
 
 class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.onBatchFill});
-
-  final VoidCallback onBatchFill;
+  const _Toolbar();
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final heading = <Widget>[
-        const Text(
-          '学段结构',
-          style: TextStyle(
-            color: AppTheme.ink,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+      const heading = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '排课准备  /  班级与学段',
+            style: TextStyle(
+              color: AppTheme.blue,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        const Flexible(
-          child: Text(
-            '班级、科目、教师全校共享；年级必须归属唯一学段',
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: AppTheme.muted, fontSize: 11),
+          SizedBox(height: 7),
+          Text(
+            '班级与学段',
+            style: TextStyle(
+              color: AppTheme.ink,
+              fontSize: 25,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
           ),
-        ),
-      ];
-      final actions = <Widget>[
-        AppOutlineButton.icon(
-          onPressed: onBatchFill,
-          icon: const Icon(Icons.playlist_add, size: 16),
-          label: const Text('批量填充名称'),
-        ),
-        const SizedBox(width: 8),
-        AppOutlineButton.icon(
-          onPressed: null,
-          icon: const Icon(Icons.upload_file_outlined, size: 16),
-          label: const Text('模板导入'),
-        ),
-      ];
+          SizedBox(height: 5),
+          Text(
+            '按学段组织年级和班级，年级仅归属一个学段。',
+            style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+          ),
+        ],
+      );
+      final templateImport = AppOutlineButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.upload_file_outlined, size: 16),
+        label: const Text('模板导入'),
+      );
       if (constraints.maxWidth < 700) {
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(children: heading),
+            heading,
             const SizedBox(height: 12),
-            Row(children: actions),
+            Align(alignment: Alignment.centerRight, child: templateImport),
           ],
         );
       }
-      return Row(children: [...heading, const Spacer(), ...actions]);
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Expanded(child: heading),
+          const SizedBox(width: 16),
+          templateImport,
+        ],
+      );
     },
   );
 }
@@ -419,16 +433,33 @@ class _StageCardRow extends StatelessWidget {
           ],
         );
       }
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (var index = 0; index < cards.length; index++) ...[
-              if (index > 0) const SizedBox(width: gap),
-              cards[index],
-            ],
-          ],
-        ),
+      final stageColumns = ((constraints.maxWidth + gap) / (minCardWidth + gap))
+          .floor()
+          .clamp(1, stages.length)
+          .toInt();
+      final wrappedCardWidth =
+          (constraints.maxWidth - (stageColumns - 1) * gap) / stageColumns;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap,
+        children: [
+          for (var index = 0; index < stages.length; index++)
+            SizedBox(
+              width: wrappedCardWidth,
+              child: _StageCard(
+                stage: stages[index],
+                accent: _stageAccent(index),
+                onRename: () => onRename(stages[index]),
+                onDelete: canDelete ? () => onDelete(stages[index]) : null,
+              ),
+            ),
+          SizedBox(
+            width: constraints.maxWidth < addCardWidth
+                ? constraints.maxWidth
+                : addCardWidth,
+            child: _AddStageCard(onTap: onAddStage),
+          ),
+        ],
       );
     },
   );
@@ -554,27 +585,31 @@ class _AddStageCard extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     key: const Key('add-stage-card'),
     height: 104,
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFC6C6C6)),
+    child: Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+        side: const BorderSide(color: AppTheme.border),
       ),
-      child: ClipRRect(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: AppTheme.selectedBlue,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        child: InkWell(
-          onTap: onTap,
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add, size: 20, color: AppTheme.muted),
-              SizedBox(height: 5),
-              Text(
-                '新增学段',
-                style: TextStyle(color: AppTheme.muted, fontSize: 13),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add, size: 20, color: AppTheme.blue),
+            SizedBox(height: 5),
+            Text(
+              '新增学段',
+              style: TextStyle(
+                color: AppTheme.blue,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     ),
@@ -596,18 +631,13 @@ class _GradeClassTable extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rows = <(SchoolStage, GradeGroup)>[];
     final gradesByStage = <String, List<GradeGroup>>{};
-    var gradeTotal = 0;
-    var classTotal = 0;
     for (final stage in stages) {
       final grades =
           ref.watch(gradesProvider(stage.id)).valueOrNull ??
           const <GradeGroup>[];
       gradesByStage[stage.id] = grades;
-      gradeTotal += grades.length;
       for (final grade in grades) {
         rows.add((stage, grade));
-        classTotal +=
-            ref.watch(classesProvider(grade.id)).valueOrNull?.length ?? 0;
       }
     }
     return LayoutBuilder(
@@ -617,10 +647,14 @@ class _GradeClassTable extends ConsumerWidget {
           width: constraints.maxWidth < 760 ? 760 : constraints.maxWidth,
           child: AppSectionPanel(
             padding: EdgeInsets.zero,
+            showBorder: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 AppDataTableHeader(
+                  height: 44,
+                  textColor: AppTheme.muted,
+                  backgroundColor: Colors.white,
                   children: [
                     SizedBox(
                       width: 136,
@@ -646,14 +680,17 @@ class _GradeClassTable extends ConsumerWidget {
                     Expanded(
                       child: InkWell(
                         onTap: onBatchFillHeader,
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Text('班级（点击列头可批量填充名称）'),
-                            SizedBox(width: 4),
-                            Icon(
-                              Icons.playlist_add,
-                              size: 13,
-                              color: AppTheme.blue,
+                            const Text('班级'),
+                            const SizedBox(width: 4),
+                            const Tooltip(
+                              message: '批量填充名称',
+                              child: Icon(
+                                Icons.playlist_add,
+                                size: 14,
+                                color: AppTheme.blue,
+                              ),
                             ),
                           ],
                         ),
@@ -700,18 +737,6 @@ class _GradeClassTable extends ConsumerWidget {
                           ),
                         ],
                       ),
-                Container(
-                  height: 36,
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  color: const Color(0xFFFAFAFA),
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '共 ${stages.length} 个学段 · $gradeTotal 个年级 · $classTotal 个班级'
-                    ' · 拖拽年级名称可调整排序（影响总课表分组顺序）',
-                    style: const TextStyle(color: AppTheme.muted, fontSize: 11),
-                  ),
-                ),
               ],
             ),
           ),
@@ -769,153 +794,175 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
     final stageIndex = stages.indexWhere((item) => item.id == stage.id);
     final classes = ref.watch(classesProvider(grade.id));
     final classList = classes.valueOrNull ?? const <ClassGroup>[];
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppTheme.tableDivider)),
-      ),
-      constraints: const BoxConstraints(minHeight: 56),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 136,
-            child: ReorderableDragStartListener(
-              index: widget.rowIndex,
-              child: Text(
-                grade.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Divider(height: 1, thickness: 1, color: AppTheme.tableDivider),
+        ),
+        Container(
+          constraints: const BoxConstraints(minHeight: 64),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 136,
+                child: ReorderableDragStartListener(
+                  index: widget.rowIndex,
+                  child: Text(
+                    grade.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
-            ),
-          ),
-          SizedBox(
-            width: 110,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: AppBadge(
-                label: stage.name,
-                fontSize: 11,
-                foreground: _stageAccent(stageIndex),
-                background: _stageTint(stageIndex),
+              SizedBox(
+                width: 110,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: AppBadge(
+                    label: stage.name,
+                    fontSize: 11,
+                    foreground: _stageAccent(stageIndex),
+                    background: _stageTint(stageIndex),
+                  ),
+                ),
               ),
-            ),
-          ),
-          Expanded(
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (var index = 0; index < classList.length; index++)
-                  if (_editingClassId == classList[index].id)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 130,
-                          child: _InlineClassEditor(
-                            key: ValueKey(classList[index].id),
-                            name: classList[index].name,
-                            onSubmit: (name) => _saveClassName(
-                              classList[index],
-                              classList,
-                              name,
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (var index = 0; index < classList.length; index++)
+                      if (_editingClassId == classList[index].id)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 130,
+                              child: _InlineClassEditor(
+                                key: ValueKey(classList[index].id),
+                                name: classList[index].name,
+                                onSubmit: (name) => _saveClassName(
+                                  classList[index],
+                                  classList,
+                                  name,
+                                ),
+                                onCancel: () => setState(() {
+                                  _editingClassId = null;
+                                  _inlineError = null;
+                                }),
+                              ),
                             ),
-                            onCancel: () => setState(() {
-                              _editingClassId = null;
-                              _inlineError = null;
-                            }),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          '回车保存 · Esc 取消',
-                          style: TextStyle(color: AppTheme.muted, fontSize: 11),
-                        ),
-                        if (_inlineError != null) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            _inlineError!,
-                            style: const TextStyle(
-                              color: AppTheme.destructive,
-                              fontSize: 11,
+                            const SizedBox(width: 8),
+                            const Text(
+                              '失焦或回车保存 · Esc 取消',
+                              style: TextStyle(
+                                color: AppTheme.muted,
+                                fontSize: 11,
+                              ),
                             ),
-                          ),
-                        ],
-                      ],
-                    )
-                  else
-                    AppClassChip(
-                      name: classList[index].name,
-                      background: _stageTint(stageIndex),
-                      borderColor: _stageChipBorder(stageIndex),
-                      showDeleteIcon: false,
-                      onTap: () => setState(() {
-                        _editingClassId = classList[index].id;
-                        _inlineError = null;
-                      }),
-                      onDelete: () =>
-                          _deleteClass(context, ref, classList[index]),
-                      onMoveUp: index > 0
-                          ? () => _moveClass(
-                              context,
-                              ref,
-                              classList,
-                              classList[index],
-                              -1,
-                            )
-                          : null,
-                      onMoveDown: index < classList.length - 1
-                          ? () => _moveClass(
-                              context,
-                              ref,
-                              classList,
-                              classList[index],
-                              1,
-                            )
-                          : null,
+                            if (_inlineError != null) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                _inlineError!,
+                                style: const TextStyle(
+                                  color: AppTheme.destructive,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ],
+                        )
+                      else
+                        AppClassChip(
+                          name: classList[index].name,
+                          background: _stageTint(stageIndex),
+                          borderColor: _stageChipBorder(stageIndex),
+                          showDeleteIcon: false,
+                          onTap: () => setState(() {
+                            _editingClassId = classList[index].id;
+                            _inlineError = null;
+                          }),
+                          onDelete: () =>
+                              _deleteClass(context, ref, classList[index]),
+                          onMoveUp: index > 0
+                              ? () => _moveClass(
+                                  context,
+                                  ref,
+                                  classList,
+                                  classList[index],
+                                  -1,
+                                )
+                              : null,
+                          onMoveDown: index < classList.length - 1
+                              ? () => _moveClass(
+                                  context,
+                                  ref,
+                                  classList,
+                                  classList[index],
+                                  1,
+                                )
+                              : null,
+                        ),
+                    AppGhostButton.icon(
+                      onPressed: () =>
+                          _addClass(context, ref, grade, classList),
+                      icon: const Icon(
+                        Icons.add,
+                        size: 13,
+                        color: AppTheme.blue,
+                      ),
+                      label: const Text(
+                        '添加班级',
+                        style: TextStyle(fontSize: 11, color: AppTheme.blue),
+                      ),
                     ),
-                AppGhostButton.icon(
-                  onPressed: () => _addClass(context, ref, grade, classList),
-                  icon: const Icon(Icons.add, size: 13, color: AppTheme.blue),
-                  label: const Text(
-                    '添加班级',
-                    style: TextStyle(fontSize: 11, color: AppTheme.blue),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 86,
-            child: Row(
-              children: [
-                InkWell(
-                  onTap: () =>
-                      _editGrade(context, ref, grade, stages, gradesByStage),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    child: Text(
-                      '编辑',
-                      style: TextStyle(color: AppTheme.blue, fontSize: 11),
+              ),
+              SizedBox(
+                width: 86,
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () => _editGrade(
+                        context,
+                        ref,
+                        grade,
+                        stages,
+                        gradesByStage,
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          '编辑',
+                          style: TextStyle(color: AppTheme.blue, fontSize: 11),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    InkWell(
+                      onTap: () =>
+                          _deleteGrade(context, ref, grade, classList.length),
+                      child: const Text(
+                        '删除',
+                        style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                InkWell(
-                  onTap: () =>
-                      _deleteGrade(context, ref, grade, classList.length),
-                  child: const Text(
-                    '删除',
-                    style: TextStyle(color: AppTheme.muted, fontSize: 11),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -927,7 +974,18 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
     final name = rawName.trim();
     if (name.isEmpty ||
         siblings.any((other) => other.id != item.id && other.name == name)) {
-      setState(() => _inlineError = name.isEmpty ? '名称不能为空' : '班级名称重复');
+      if (mounted && _editingClassId == item.id) {
+        setState(() => _inlineError = name.isEmpty ? '名称不能为空' : '班级名称重复');
+      }
+      return;
+    }
+    if (name == item.name) {
+      if (mounted && _editingClassId == item.id) {
+        setState(() {
+          _editingClassId = null;
+          _inlineError = null;
+        });
+      }
       return;
     }
     try {
@@ -943,12 +1001,16 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
           );
       if (mounted) {
         setState(() {
-          _editingClassId = null;
-          _inlineError = null;
+          if (_editingClassId == item.id) {
+            _editingClassId = null;
+            _inlineError = null;
+          }
         });
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _inlineError = '保存失败：$error');
+      if (mounted && _editingClassId == item.id) {
+        setState(() => _inlineError = '保存失败：$error');
+      }
     }
   }
 }
@@ -962,7 +1024,7 @@ class _InlineClassEditor extends StatefulWidget {
   });
 
   final String name;
-  final ValueChanged<String> onSubmit;
+  final Future<void> Function(String) onSubmit;
   final VoidCallback onCancel;
 
   @override
@@ -971,6 +1033,8 @@ class _InlineClassEditor extends StatefulWidget {
 
 class _InlineClassEditorState extends State<_InlineClassEditor> {
   late final _controller = TextEditingController(text: widget.name);
+  var _submitting = false;
+  var _cancelled = false;
 
   @override
   void dispose() {
@@ -978,12 +1042,34 @@ class _InlineClassEditorState extends State<_InlineClassEditor> {
     super.dispose();
   }
 
+  void _cancel() {
+    _cancelled = true;
+    widget.onCancel();
+  }
+
+  void _handleFocusChange(bool hasFocus) {
+    if (!hasFocus && !_cancelled) unawaited(_submit());
+  }
+
+  void _handleFieldSubmitted(String _) => unawaited(_submit());
+
+  Future<void> _submit() async {
+    if (_submitting || _cancelled) return;
+    _submitting = true;
+    try {
+      await widget.onSubmit(_controller.text);
+    } finally {
+      _submitting = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Focus(
+    onFocusChange: _handleFocusChange,
     onKeyEvent: (node, event) {
       if (event is KeyDownEvent &&
           event.logicalKey == LogicalKeyboardKey.escape) {
-        widget.onCancel();
+        _cancel();
         return KeyEventResult.handled;
       }
       return KeyEventResult.ignored;
@@ -991,9 +1077,8 @@ class _InlineClassEditorState extends State<_InlineClassEditor> {
     child: AppTextFormField(
       controller: _controller,
       autofocus: true,
-      size: FTextFieldSizeVariant.sm,
-      dense: true,
-      onFieldSubmitted: widget.onSubmit,
+      size: FTextFieldSizeVariant.md,
+      onFieldSubmitted: _handleFieldSubmitted,
     ),
   );
 }

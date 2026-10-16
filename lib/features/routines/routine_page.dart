@@ -17,6 +17,24 @@ import 'package:forui/forui.dart' as f;
 
 const _weekdayNames = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
 const _weekdayShort = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const _builtInPeriodDefinitions = <(String, String, int, List<String>)>[
+  ('早上', 'early', 0, ['早上', '早读']),
+  ('上午', '0', 4, ['上午']),
+  ('下午', '1', 4, ['下午']),
+  ('晚上', '2', 2, ['晚上']),
+];
+const _timeSeparatorWidth = 16.0;
+const _timeRowTrailingWidth = 22.0;
+const _timeRowFixedWidth = 44.0;
+const _routineStackedLayoutBreakpoint = 760.0;
+const _routineThreeColumnLayoutBreakpoint = 1120.0;
+
+({double label, double field}) _timeRowWidths(double availableWidth) {
+  final flexibleWidth = math
+      .max(0.0, availableWidth - _timeRowFixedWidth)
+      .toDouble();
+  return (label: flexibleWidth * 0.36, field: flexibleWidth * 0.32);
+}
 
 /// 范围树「编辑中」学段的绿色高亮（设计稿 02b：初中部（编辑中））。
 const _editingStageBackground = Color(0xFFE9F7EF);
@@ -39,47 +57,133 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
     final stages = ref.watch(stagesProvider(widget.termId));
     return RepaintBoundary(
       key: const ValueKey('routine-page-snapshot'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-        child: stages.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) =>
-              Center(child: SelectableText('读取学段失败：$error')),
-          data: (items) {
-            if (items.isEmpty) {
-              return const Center(
-                child: Text(
-                  '请先在「班级与学段」新增学段。',
-                  style: TextStyle(color: AppTheme.muted),
-                ),
-              );
-            }
-            final matching = items
-                .where((stage) => stage.id == _selectedStageId)
-                .toList();
-            final selectedStage = matching.isEmpty
-                ? items.first
-                : matching.first;
-            return _RoutineEditor(
-              termId: widget.termId,
-              stage: selectedStage,
-              stages: items,
-              onSelectStage: (stageId) =>
-                  setState(() => _selectedStageId = stageId),
-            );
-          },
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < AppTheme.compactPageBreakpoint;
+          final horizontalPadding = AppTheme.pagePaddingForWidth(
+            constraints.maxWidth,
+          );
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              compact ? 16 : 20,
+              horizontalPadding,
+              16,
+            ),
+            child: stages.when(
+              loading: () => _StaticRoutinePage(
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              error: (error, stack) => _StaticRoutinePage(
+                child: Center(child: SelectableText('读取学段失败：$error')),
+              ),
+              data: (items) {
+                if (items.isEmpty) {
+                  return const _StaticRoutinePage(
+                    child: Center(
+                      child: Text(
+                        '请先在「班级与学段」新增学段。',
+                        style: TextStyle(color: AppTheme.muted),
+                      ),
+                    ),
+                  );
+                }
+                final matching = items
+                    .where((stage) => stage.id == _selectedStageId)
+                    .toList();
+                final selectedStage = matching.isEmpty
+                    ? items.first
+                    : matching.first;
+                return _RoutineEditor(
+                  termId: widget.termId,
+                  stage: selectedStage,
+                  stages: items,
+                  onSelectStage: (stageId) =>
+                      setState(() => _selectedStageId = stageId),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }
 }
 
+class _RoutinePageHeading extends StatelessWidget {
+  const _RoutinePageHeading({this.actions = const []});
+
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      const Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '排课准备  /  作息设置',
+              style: TextStyle(
+                color: AppTheme.blue,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: 7),
+            Text(
+              '作息设置',
+              style: TextStyle(
+                color: AppTheme.ink,
+                fontSize: 25,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
+            ),
+            SizedBox(height: 5),
+            Text(
+              '按学段设置上课日、时段节数、免任课范围和节次时间。',
+              style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+      if (actions.isNotEmpty) ...[
+        const SizedBox(width: 16),
+        Wrap(spacing: 4, children: actions),
+      ],
+    ],
+  );
+}
+
+class _StaticRoutinePage extends StatelessWidget {
+  const _StaticRoutinePage({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const _RoutinePageHeading(),
+      const SizedBox(height: 20),
+      Expanded(child: child),
+    ],
+  );
+}
+
 /// 免任课范围：全校 / 学段 / 年级 / 班级。
 class _FreeSlotScopeSelection {
-  const _FreeSlotScopeSelection({required this.scope, required this.scopeId});
+  const _FreeSlotScopeSelection({
+    required this.scope,
+    required this.scopeId,
+    this.parentGradeId,
+  });
 
   final FreeSlotScope scope;
   final String scopeId;
+  final String? parentGradeId;
 
   String get label => switch (scope) {
     FreeSlotScope.school => '全校',
@@ -110,265 +214,455 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   String? _loadedStageId;
   Set<int> _teachingDays = {};
   List<_PeriodDraft> _periods = [];
-  Map<String, int> _overrides = {};
   final Map<String, String> _timeInputs = {};
   final Set<String> _collapsedPeriodGroups = {};
-  final Map<String, TextEditingController> _commonTimeControllers = {};
+  final Map<String, FreeSlot?> _freeSlotBaseline = {};
+  final Map<String, FreeSlot?> _freeSlotDraft = {};
+  final Map<String, CommonPeriod?> _commonPeriodBaseline = {};
+  final Map<String, CommonPeriod?> _commonPeriodDraft = {};
+  final Map<String, _DraftSnapshot> _routineBaselineByStage = {};
+  final Map<String, _DraftSnapshot> _routineDraftByStage = {};
+  final Map<String, bool> _routineNeedsNormalizationByStage = {};
   bool _isSaving = false;
-
-  /// 网格折叠行是否展开（设计稿：第 7–10 节 ▸）。
-  bool _gridExpanded = false;
+  bool _isHistoryBusy = false;
+  bool _needsNormalization = false;
+  int _draftRevision = 0;
 
   _FreeSlotScopeSelection _scope = const _FreeSlotScopeSelection(
-    scope: FreeSlotScope.school,
+    scope: FreeSlotScope.stage,
     scopeId: '',
   );
   final Set<String> _expandedStages = {};
   final Set<String> _expandedGrades = {};
 
   // —— 草稿快照与撤销（设计稿操作 02d）——
-  _DraftSnapshot _snapshot = const _DraftSnapshot();
   final List<_UndoableEdit> _undoStack = [];
-  _UndoableEdit? _toastEdit;
-  Timer? _toastTimer;
+  final List<_UndoableEdit> _redoStack = [];
 
-  /// 草稿相对上次加载 / 保存是否有未保存修改。
-  bool get _routineDirty => !_snapshot.isSame(_currentSnapshot());
-
-  @override
-  void dispose() {
-    _toastTimer?.cancel();
-    for (final controller in _commonTimeControllers.values) {
-      controller.dispose();
+  /// 当前页面是否存在尚未通过保存按钮确认的修改。
+  bool get _hasUnsavedChanges {
+    if (_freeSlotDraft.isNotEmpty || _commonPeriodDraft.isNotEmpty) return true;
+    if (_routineNeedsNormalizationByStage.values.any((value) => value)) {
+      return true;
     }
-    super.dispose();
+    for (final entry in _routineDraftByStage.entries) {
+      final baseline = _routineBaselineByStage[entry.key];
+      if (baseline == null || !baseline.isSame(entry.value)) return true;
+    }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
     final routine = ref.watch(routineProvider(widget.stage.id));
     return routine.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(child: SelectableText('读取作息失败：$error')),
+      loading: () => const _StaticRoutinePage(
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stack) => _StaticRoutinePage(
+        child: Center(child: SelectableText('读取作息失败：$error')),
+      ),
       data: (value) {
-        if (value == null) return const Center(child: Text('该学段尚未初始化作息。'));
+        if (value == null) {
+          return const _StaticRoutinePage(
+            child: Center(child: Text('该学段尚未初始化作息。')),
+          );
+        }
         if (_loadedStageId != widget.stage.id) {
           // 同步加载（学段页签已预热过 routineProvider，切换学段无需闪烁加载态）。
           _load(value);
         }
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final showTimeRail = constraints.maxWidth >= 1020;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 220,
-                  child: ListView(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    children: [
-                      _ScopeTreeCard(
-                        termId: widget.termId,
-                        stages: widget.stages,
-                        selectedStageId: widget.stage.id,
-                        scope: _scope,
-                        expandedStages: _expandedStages,
-                        expandedGrades: _expandedGrades,
-                        onSelectStage: widget.onSelectStage,
-                        onSelectScope: (scope) =>
-                            setState(() => _scope = scope),
-                        onToggleStage: (id) => setState(() {
-                          _expandedStages.contains(id)
-                              ? _expandedStages.remove(id)
-                              : _expandedStages.add(id);
-                        }),
-                        onToggleGrade: (id) => setState(() {
-                          _expandedGrades.contains(id)
-                              ? _expandedGrades.remove(id)
-                              : _expandedGrades.add(id);
-                        }),
-                      ),
-                      const SizedBox(height: 12),
-                      AppSectionPanel(
-                        title: '上课天',
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                        child: AppWeekdaySelector(
-                          compact: true,
-                          fontSize: 13,
-                          labels: _weekdayNames,
-                          selectedWeekdays: _teachingDays,
-                          onChanged: _toggleTeachingDay,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      AppSectionPanel(
-                        title: _periodCountsCardTitle,
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (
-                              var index = 0;
-                              index < _periods.length;
-                              index++
-                            )
-                              _PeriodCountRow(
-                                period: _periods[index],
-                                visual: periodVisualFor(
-                                  _periods[index].name,
-                                  index,
-                                ),
-                                onChanged: _setPeriodCount,
-                                onEnable: _enablePeriod,
-                                onRename: _renamePeriod,
-                                onDelete: _deletePeriod,
-                              ),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: AppGhostButton.icon(
-                                onPressed: _addPeriod,
-                                icon: const Icon(Icons.add, size: 16),
-                                label: const Text('新增时段'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _CommonPeriodsCard(
-                        stageId: widget.stage.id,
-                        stageName: widget.stage.name,
-                        onAdd: _insertCommonPeriod,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: AppSectionPanel(
-                    padding: const EdgeInsets.all(16),
-                    expandChild: true,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _StageTabs(
-                          stages: widget.stages,
-                          selectedStageId: widget.stage.id,
-                          onSelectStage: widget.onSelectStage,
-                        ),
-                        const SizedBox(height: 12),
-                        _OverrideSummaryBar(
-                          periods: _periods,
-                          overrides: _overrides,
-                          capacity: _weeklyCapacity(),
-                          onAdd: _addOverride,
-                          onEdit: _editOverride,
-                        ),
-                        const SizedBox(height: 10),
-                        Expanded(
-                          child: Stack(
-                            children: [
-                              Positioned.fill(child: _buildMatrix()),
-                              if (_toastEdit != null)
-                                Positioned(
-                                  left: 8,
-                                  right: 8,
-                                  bottom: 10,
-                                  child: Center(
-                                    child: _UndoToastBar(
-                                      key: const ValueKey('routine-undo-toast'),
-                                      edit: _toastEdit!,
-                                      onUndo: _applyToastUndo,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        if (_routineDirty) ...[
-                          const SizedBox(height: 10),
-                          _UnsavedChangesBar(
-                            key: const ValueKey('routine-unsaved-bar'),
-                            isSaving: _isSaving,
-                            onRevert: _revertAll,
-                            onSave: _save,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                if (showTimeRail) ...[
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: 280,
-                    child: _LessonTimePanel(
-                      periods: _periods,
-                      timeInputs: _timeInputs,
-                      commonPeriods:
-                          ref
-                              .watch(commonPeriodsProvider(widget.stage.id))
-                              .valueOrNull ??
-                          const <CommonPeriod>[],
-                      commonTimeControllers: _commonTimeControllers,
-                      needsCrossStageTimes: _needsCrossStageTimes(),
-                      collapsedGroups: _collapsedPeriodGroups,
-                      teachingDays: _teachingDays,
-                      overrides: _overrides,
-                      onToggleGroup: (periodId) => setState(() {
-                        _collapsedPeriodGroups.contains(periodId)
-                            ? _collapsedPeriodGroups.remove(periodId)
-                            : _collapsedPeriodGroups.add(periodId);
-                      }),
-                      onTimeChanged: _updateTime,
-                      onInsertCommonPeriod: _insertCommonPeriod,
-                      onCommonPeriodTimeChanged: _updateCommonPeriodTime,
-                      onDeleteCommonPeriod: _deleteCommonPeriod,
-                    ),
-                  ),
-                ],
-              ],
-            );
-          },
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _RoutinePageHeading(actions: _buildHeaderActions()),
+            const SizedBox(height: 20),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < _routineStackedLayoutBreakpoint) {
+                    return _buildStackedLayout();
+                  }
+
+                  if (constraints.maxWidth <
+                      _routineThreeColumnLayoutBreakpoint) {
+                    return _buildTwoColumnLayout(constraints.maxWidth);
+                  }
+
+                  return _buildThreeColumnLayout(constraints.maxWidth);
+                },
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
+  Widget _buildStackedLayout() => SingleChildScrollView(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSettingsContent(),
+        const SizedBox(height: 16),
+        _buildMatrixPanel(compact: true),
+        const SizedBox(height: 16),
+        _buildLessonTimePanel(scrollable: false),
+      ],
+    ),
+  );
+
+  Widget _buildTwoColumnLayout(double maxWidth) {
+    final settingsWidth = maxWidth >= 960 ? 280.0 : 248.0;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: settingsWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSettingsContent(),
+                const SizedBox(height: 16),
+                _buildLessonTimePanel(scrollable: false),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [Expanded(child: _buildMatrixPanel())],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThreeColumnLayout(double maxWidth) {
+    final settingsWidth = maxWidth >= 1520 ? 248.0 : 232.0;
+    final timeWidth = maxWidth >= 1520 ? 304.0 : 288.0;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: settingsWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildSettingsContent(),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [Expanded(child: _buildMatrixPanel())],
+          ),
+        ),
+        const SizedBox(width: 16),
+        SizedBox(width: timeWidth, child: _buildLessonTimePanel()),
+      ],
+    );
+  }
+
+  List<Widget> _buildHeaderActions() => [
+    Tooltip(
+      message: _undoStack.isEmpty ? '撤销' : '撤销：${_undoStack.last.message}',
+      child: IconButton(
+        onPressed: _undoStack.isEmpty || _isHistoryBusy
+            ? null
+            : () => unawaited(_undo()),
+        icon: const Icon(Icons.undo_rounded),
+      ),
+    ),
+    Tooltip(
+      message: _redoStack.isEmpty ? '重做' : '重做：${_redoStack.last.message}',
+      child: IconButton(
+        onPressed: _redoStack.isEmpty || _isHistoryBusy
+            ? null
+            : () => unawaited(_redo()),
+        icon: const Icon(Icons.redo_rounded),
+      ),
+    ),
+    const SizedBox(width: 4),
+    Tooltip(
+      message: _isSaving ? '保存中' : '保存作息设置',
+      child: FilledButton.icon(
+        onPressed: _hasUnsavedChanges && !_isSaving ? _save : null,
+        icon: _isSaving
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.save_outlined),
+        label: Text(_isSaving ? '保存中' : '保存'),
+      ),
+    ),
+  ];
+
+  Widget _buildSettingsContent() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _ScopeTreeCard(
+        termId: widget.termId,
+        stages: widget.stages,
+        selectedStageId: widget.stage.id,
+        scope: _scope,
+        expandedStages: _expandedStages,
+        expandedGrades: _expandedGrades,
+        onSelectStage: (id) {
+          if (!_isHistoryBusy) widget.onSelectStage(id);
+        },
+        onSelectScope: (scope) => setState(() => _scope = scope),
+        onToggleStage: (id) => setState(() {
+          _expandedStages.contains(id)
+              ? _expandedStages.remove(id)
+              : _expandedStages.add(id);
+        }),
+        onToggleGrade: (id) => setState(() {
+          _expandedGrades.contains(id)
+              ? _expandedGrades.remove(id)
+              : _expandedGrades.add(id);
+        }),
+      ),
+      const SizedBox(height: 12),
+      AppSectionPanel(
+        title: '上课日',
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: AppWeekdaySelector(
+          compact: true,
+          fontSize: 13,
+          labels: _weekdayNames,
+          selectedWeekdays: _teachingDays,
+          onChanged: _toggleTeachingDay,
+        ),
+      ),
+      const SizedBox(height: 12),
+      AppSectionPanel(
+        title: '每天节数',
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < _periods.length; index++)
+              _PeriodCountRow(
+                period: _periods[index],
+                visual: periodVisualFor(_periods[index].name, index),
+                onChanged: _setPeriodCount,
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  Widget _buildMatrixPanel({bool compact = false}) {
+    final persistedCommonPeriods =
+        ref.watch(commonPeriodsProvider(widget.stage.id)).valueOrNull ??
+        const <CommonPeriod>[];
+    final commonPeriods = _effectiveCommonPeriods(persistedCommonPeriods);
+    return AppSectionPanel(
+      padding: EdgeInsets.fromLTRB(16, 16, compact ? 16 : 8, 16),
+      expandChild: !compact,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: _StageTabs(
+                    stages: widget.stages,
+                    selectedStageId: widget.stage.id,
+                    onSelectStage: (id) {
+                      if (!_isHistoryBusy) widget.onSelectStage(id);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Spacer(),
+              Text(
+                '每周容量 ${_weeklyCapacity()} 格 / 班',
+                style: const TextStyle(
+                  color: AppTheme.blue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (compact)
+            _buildMatrix(
+              commonPeriods,
+              scrollVertically: false,
+              footer: _AllSchoolFreeSlotsSummary(
+                stages: widget.stages,
+                draftChanges: _freeSlotDraft,
+                trailingInset: compact ? 20 : 0,
+                onDelete: _deleteFreeSlotEntry,
+              ),
+            )
+          else
+            Expanded(
+              child: _buildMatrix(
+                commonPeriods,
+                footer: _AllSchoolFreeSlotsSummary(
+                  stages: widget.stages,
+                  draftChanges: _freeSlotDraft,
+                  trailingInset: compact ? 20 : 0,
+                  onDelete: _deleteFreeSlotEntry,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLessonTimePanel({bool scrollable = true}) => _LessonTimePanel(
+    scrollable: scrollable,
+    periods: _periods,
+    timeInputs: _timeInputs,
+    revision: _draftRevision,
+    commonPeriods: _effectiveCommonPeriods(
+      ref.watch(commonPeriodsProvider(widget.stage.id)).valueOrNull ??
+          const <CommonPeriod>[],
+    ),
+    needsCrossStageTimes: _needsCrossStageTimes(),
+    collapsedGroups: _collapsedPeriodGroups,
+    onToggleGroup: (periodId) => setState(() {
+      _collapsedPeriodGroups.contains(periodId)
+          ? _collapsedPeriodGroups.remove(periodId)
+          : _collapsedPeriodGroups.add(periodId);
+    }),
+    onTimeChanged: _updateTime,
+    onInsertCommonPeriod: _insertCommonPeriod,
+    onCommonPeriodTimeChanged: (period, isStart, value) =>
+        unawaited(_updateCommonPeriodTime(period, isStart, value)),
+    onRenameCommonPeriod: _renameCommonPeriod,
+    onDeleteCommonPeriod: _deleteCommonPeriod,
+  );
+
   // —— 数据加载与保存 ——
 
   void _load(StageRoutine routine) {
-    _loadedStageId = widget.stage.id;
-    _teachingDays = {...routine.teachingWeekdays};
-    _periods = routine.periodTypes.map(_PeriodDraft.fromDomain).toList();
-    _overrides = {
-      for (final item in routine.overrides)
-        _overrideKey(item.periodTypeId, item.weekday): item.lessonCount,
-    };
-    _renumberLabels();
-    _timeInputs
-      ..clear()
-      ..addEntries([
-        for (final period in routine.periodTypes)
-          for (final time in period.lessonTimes) ...[
-            MapEntry(
-              _timeKey(period.id, time.lessonIndex, true),
-              time.startLabel ?? '',
-            ),
-            MapEntry(
-              _timeKey(period.id, time.lessonIndex, false),
-              time.endLabel ?? '',
-            ),
-          ],
-      ]);
-    _gridExpanded = false;
-    _undoStack.clear();
-    _toastEdit = null;
-    _toastTimer?.cancel();
-    _snapshot = _currentSnapshot();
+    final previousStageId = _loadedStageId;
+    if (previousStageId != null) {
+      _routineDraftByStage[previousStageId] = _currentRoutineSnapshot();
+      _routineNeedsNormalizationByStage[previousStageId] = _needsNormalization;
+    }
+
+    final stageId = widget.stage.id;
+    _loadedStageId = stageId;
+    final existingDraft = _routineDraftByStage[stageId];
+    if (existingDraft != null) {
+      _applyRoutineSnapshot(existingDraft);
+      _needsNormalization = _routineNeedsNormalizationByStage[stageId] ?? false;
+    } else {
+      _teachingDays = {...routine.teachingWeekdays};
+      _needsNormalization = _requiresFixedPeriods(routine);
+      _periods = _fixedPeriodDrafts(routine);
+      for (final period in _periods) {
+        _ensureTimes(period);
+      }
+      _renumberLabels();
+      _timeInputs
+        ..clear()
+        ..addEntries([
+          for (final period in routine.periodTypes.where(
+            (item) => _periods.any((draft) => draft.id == item.id),
+          ))
+            for (final time in period.lessonTimes) ...[
+              MapEntry(
+                _timeKey(period.id, time.lessonIndex, true),
+                time.startLabel ?? '',
+              ),
+              MapEntry(
+                _timeKey(period.id, time.lessonIndex, false),
+                time.endLabel ?? '',
+              ),
+            ],
+        ]);
+      final initialSnapshot = _currentRoutineSnapshot();
+      _routineBaselineByStage[stageId] = initialSnapshot;
+      _routineDraftByStage[stageId] = initialSnapshot;
+      _routineNeedsNormalizationByStage[stageId] = _needsNormalization;
+    }
+
+    _scope = _FreeSlotScopeSelection(
+      scope: FreeSlotScope.stage,
+      scopeId: stageId,
+    );
+    _draftRevision++;
+    _syncCurrentRoutineDraft();
   }
 
-  /// 按设计稿规则重建节次标签：早读→「早读」，晚上→「晚自习 N」，其余→全局连续「第 N 节」。
+  bool _requiresFixedPeriods(StageRoutine routine) {
+    if (routine.overrides.isNotEmpty ||
+        routine.periodTypes.length != _builtInPeriodDefinitions.length) {
+      return true;
+    }
+    final orderedPeriods = [...routine.periodTypes]
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    for (var index = 0; index < orderedPeriods.length; index++) {
+      final period = orderedPeriods[index];
+      if (period.name != _builtInPeriodDefinitions[index].$1 ||
+          period.sortOrder != index ||
+          period.lessonTimes.length != period.defaultLessonCount) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<_PeriodDraft> _fixedPeriodDrafts(StageRoutine routine) {
+    final result = <_PeriodDraft>[];
+    for (var index = 0; index < _builtInPeriodDefinitions.length; index++) {
+      final (name, key, defaultCount, aliases) =
+          _builtInPeriodDefinitions[index];
+      LessonPeriodType? source;
+      for (final alias in aliases) {
+        for (final period in routine.periodTypes) {
+          if (period.name == alias) {
+            source = period;
+            break;
+          }
+        }
+        if (source != null) break;
+      }
+      result.add(
+        source == null
+              ? _PeriodDraft(
+                  id: '${routine.stageId}_period_$key',
+                  name: name,
+                  defaultLessonCount: defaultCount,
+                  sortOrder: index,
+                  times: [],
+                )
+              : _PeriodDraft.fromDomain(source)
+          ..name = name
+          ..sortOrder = index,
+      );
+    }
+    return result;
+  }
+
+  /// 按时段重建节次标签：早上→「早 N」，晚上→「晚 N」，其余→全局连续「第 N 节」。
   void _renumberLabels() {
     for (final label in lessonLabels(_domainPeriods())) {
       final period = _periods.firstWhere((item) => item.id == label.periodId);
@@ -400,9 +694,8 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
 
   // —— 草稿快照 ——
 
-  _DraftSnapshot _currentSnapshot() => _DraftSnapshot(
+  _DraftSnapshot _currentRoutineSnapshot() => _DraftSnapshot(
     teachingDays: {..._teachingDays},
-    overrides: {..._overrides},
     periods: [
       for (final period in _periods)
         _PeriodSnapshot(
@@ -419,61 +712,184 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     timeInputs: {..._timeInputs},
   );
 
-  // —— 撤销提示条（设计稿操作 02d）——
-
-  void _pushUndo(String message, VoidCallback undo) {
-    final edit = _UndoableEdit(message: message, undo: undo);
-    setState(() => _undoStack.add(edit));
-    _showToast(edit);
+  _DraftSnapshot _currentSnapshot() {
+    final routine = _currentRoutineSnapshot();
+    return _DraftSnapshot(
+      teachingDays: routine.teachingDays,
+      periods: routine.periods,
+      timeInputs: routine.timeInputs,
+      freeSlotDraft: {..._freeSlotDraft},
+      commonPeriodDraft: {..._commonPeriodDraft},
+    );
   }
 
-  void _showToast(_UndoableEdit edit) {
-    _toastTimer?.cancel();
-    setState(() => _toastEdit = edit);
-    _toastTimer = Timer(const Duration(seconds: 6), () {
-      if (mounted) setState(() => _toastEdit = null);
-    });
+  void _applyDraftSnapshot(_DraftSnapshot snapshot) {
+    _applyRoutineSnapshot(snapshot);
+    _freeSlotDraft
+      ..clear()
+      ..addAll(snapshot.freeSlotDraft);
+    _commonPeriodDraft
+      ..clear()
+      ..addAll(snapshot.commonPeriodDraft);
   }
 
-  Future<void> _applyToastUndo() async {
-    final edit = _toastEdit;
-    if (edit == null) return;
-    _toastTimer?.cancel();
+  void _applyRoutineSnapshot(_DraftSnapshot snapshot) {
+    _draftRevision++;
+    _teachingDays = {...snapshot.teachingDays};
+    _periods = [
+      for (final period in snapshot.periods)
+        _PeriodDraft(
+          id: period.id,
+          name: period.name,
+          defaultLessonCount: period.defaultLessonCount,
+          sortOrder: period.sortOrder,
+          times: [
+            for (final time in period.times)
+              _TimeDraft(lessonIndex: time.lessonIndex, label: time.label),
+          ],
+        ),
+    ];
+    _timeInputs
+      ..clear()
+      ..addAll(snapshot.timeInputs);
+    _syncCurrentRoutineDraft();
+  }
+
+  void _syncCurrentRoutineDraft() {
+    final stageId = _loadedStageId;
+    if (stageId == null) return;
+    _routineDraftByStage[stageId] = _currentRoutineSnapshot();
+    _routineNeedsNormalizationByStage[stageId] = _needsNormalization;
+  }
+
+  // —— 页面历史：撤销/重做并恢复操作时选中的范围 ——
+
+  void _pushUndo(
+    String message, {
+    required FutureOr<void> Function() undo,
+    required FutureOr<void> Function() redo,
+    String? coalesceKey,
+  }) {
+    final stageId = _loadedStageId ?? widget.stage.id;
+    final previous = _undoStack.isEmpty ? null : _undoStack.last;
+    final samePosition =
+        previous != null &&
+        previous.stageId == stageId &&
+        previous.scope.scope == _scope.scope &&
+        previous.scope.scopeId == _scope.scopeId &&
+        previous.expandedStages.length == _expandedStages.length &&
+        previous.expandedStages.containsAll(_expandedStages) &&
+        previous.expandedGrades.length == _expandedGrades.length &&
+        previous.expandedGrades.containsAll(_expandedGrades);
+    if (coalesceKey != null &&
+        previous != null &&
+        samePosition &&
+        previous.coalesceKey == coalesceKey) {
+      setState(() {
+        previous
+          ..message = message
+          ..redo = redo;
+        _redoStack.clear();
+      });
+      return;
+    }
+    final edit = _UndoableEdit(
+      message: message,
+      undo: undo,
+      redo: redo,
+      stageId: stageId,
+      scope: _scope,
+      expandedStages: {..._expandedStages},
+      expandedGrades: {..._expandedGrades},
+      coalesceKey: coalesceKey,
+    );
     setState(() {
-      _toastEdit = null;
-      _undoStack.remove(edit);
+      _undoStack.add(edit);
+      _redoStack.clear();
+      if (_undoStack.length > 100) _undoStack.removeAt(0);
     });
-    edit.undo();
   }
 
-  void _revertAll() {
-    final loaded = ref.read(routineProvider(widget.stage.id)).valueOrNull;
-    if (loaded != null) setState(() => _load(loaded));
+  void _pushSnapshotUndo(
+    String message,
+    _DraftSnapshot before,
+    _DraftSnapshot after, {
+    String? coalesceKey,
+  }) => _pushUndo(
+    message,
+    undo: () => setState(() => _applyDraftSnapshot(before)),
+    redo: () => setState(() => _applyDraftSnapshot(after)),
+    coalesceKey: coalesceKey,
+  );
+
+  Future<void> _undo() => _applyHistory(undo: true);
+
+  Future<void> _redo() => _applyHistory(undo: false);
+
+  Future<void> _applyHistory({required bool undo}) async {
+    if (_isHistoryBusy) return;
+    final source = undo ? _undoStack : _redoStack;
+    if (source.isEmpty) return;
+    final edit = source.last;
+    setState(() => _isHistoryBusy = true);
+    try {
+      await _selectHistoryStage(edit.stageId);
+      if (!mounted) return;
+      if (_loadedStageId != edit.stageId) {
+        throw StateError('该学段的作息配置不存在。');
+      }
+      setState(() {
+        _scope = edit.scope;
+        _expandedStages
+          ..clear()
+          ..addAll(edit.expandedStages);
+        _expandedGrades
+          ..clear()
+          ..addAll(edit.expandedGrades);
+      });
+      await (undo ? edit.undo : edit.redo)();
+      if (!mounted) return;
+      setState(() {
+        source.removeLast();
+        (undo ? _redoStack : _undoStack).add(edit);
+        _isHistoryBusy = false;
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _isHistoryBusy = false);
+      await _showError('无法${undo ? '撤销' : '重做'}这项修改：$error');
+    }
+  }
+
+  Future<void> _selectHistoryStage(String stageId) async {
+    if (_loadedStageId == stageId && widget.stage.id == stageId) return;
+
+    final routine = await ref.read(routineProvider(stageId).future);
+    if (!mounted || routine == null) return;
+    if (widget.stage.id != stageId) widget.onSelectStage(stageId);
+
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || _loadedStageId == stageId) return;
+    setState(() => _load(routine));
   }
 
   // —— 时段节数 ——
 
-  /// 「每天节数」卡片标题：存在其他学段时标注互不相关（设计稿 02b）。
-  String get _periodCountsCardTitle {
-    final others = widget.stages
-        .where((stage) => stage.id != widget.stage.id)
-        .toList();
-    if (others.isEmpty) return '每天节数';
-    if (others.length == 1) return '每天节数（与${others.first.name}无关）';
-    return '每天节数（与其他学段无关）';
-  }
-
   void _toggleTeachingDay(Set<int> weekdays) {
     final previous = {..._teachingDays};
-    setState(() => _teachingDays = weekdays);
-    final added = weekdays.difference(previous);
-    final removed = previous.difference(weekdays);
+    final next = {...weekdays};
+    final before = _currentSnapshot();
+    setState(() => _teachingDays = next);
+    _syncCurrentRoutineDraft();
+    final added = next.difference(previous);
+    final removed = previous.difference(next);
     final weekday = (added.isNotEmpty ? added : removed).first;
-    _pushUndo(
+    _pushSnapshotUndo(
       added.isNotEmpty
           ? '已将 ${_weekdayNames[weekday - 1]} 设为上课天'
           : '已取消 ${_weekdayNames[weekday - 1]} 上课天',
-      () => setState(() => _teachingDays = previous),
+      before,
+      _currentSnapshot(),
     );
   }
 
@@ -481,45 +897,22 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     final index = _periods.indexWhere((period) => period.id == periodId);
     if (index < 0) return;
     final period = _periods[index];
-    final previous = period.defaultLessonCount;
+    final before = _currentSnapshot();
     setState(() {
       period.defaultLessonCount = count.clamp(0, 9);
       _ensureTimes(period);
       _renumberLabels();
     });
-    _pushUndo(
+    _syncCurrentRoutineDraft();
+    _pushSnapshotUndo(
       '已将 ${period.name} 设为 $count 节',
-      () => setState(() {
-        period.defaultLessonCount = previous;
-        _ensureTimes(period);
-        _renumberLabels();
-      }),
+      before,
+      _currentSnapshot(),
     );
   }
 
-  /// 启用未启用的时段（设计稿：早读（未启用）+ 启用）。
-  void _enablePeriod(_PeriodDraft period) {
-    final previous = period.defaultLessonCount;
-    setState(() {
-      period.defaultLessonCount = 1;
-      _ensureTimes(period);
-      _renumberLabels();
-    });
-    _pushUndo('已启用「${period.name}」', () {
-      setState(() {
-        period.defaultLessonCount = previous;
-        _ensureTimes(period);
-        _renumberLabels();
-      });
-    });
-  }
-
   void _ensureTimes(_PeriodDraft period) {
-    final overriddenCount = _overrides.entries
-        .where((entry) => entry.key.startsWith('${period.id}_'))
-        .map((entry) => entry.value)
-        .fold<int>(0, math.max);
-    final count = math.max(period.defaultLessonCount, overriddenCount);
+    final count = period.defaultLessonCount;
     while (period.times.length < count) {
       period.times.add(
         _TimeDraft(lessonIndex: period.times.length + 1, label: ''),
@@ -530,86 +923,34 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     }
   }
 
-  Future<void> _addPeriod() async {
-    final result = await showDialog<_NewPeriodResult>(
-      context: context,
-      builder: (context) => const _NewPeriodDialog(),
-    );
-    if (result == null) return;
-    setState(() {
-      final id = DateTime.now().microsecondsSinceEpoch.toString();
-      final period = _PeriodDraft(
-        id: id,
-        name: result.name,
-        defaultLessonCount: result.count,
-        sortOrder: _periods.length,
-        times: [],
-      );
-      _periods.add(period);
-      _ensureTimes(period);
-      _renumberLabels();
-    });
-  }
-
-  Future<void> _renamePeriod(_PeriodDraft period) async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) =>
-          _TextEntryDialog(title: '修改时段名称', initialValue: period.name),
-    );
-    if (result == null) return;
-    setState(() {
-      period.name = result;
-      _renumberLabels();
-    });
-  }
-
-  Future<void> _deletePeriod(_PeriodDraft period) async {
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AppDialog(
-            title: Text('删除「${period.name}」？'),
-            content: const Text('该时段的默认节数、按天覆盖、免任课与节次时间会一并删除。'),
-            actions: [
-              AppGhostButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消'),
-              ),
-              AppSecondaryButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('确认删除'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-    if (!confirmed) return;
-    setState(() {
-      _periods.removeWhere((item) => item.id == period.id);
-      _overrides.removeWhere((key, value) => key.startsWith('${period.id}_'));
-      _renumberLabels();
-    });
-  }
-
   void _updateTime(
     _PeriodDraft period,
     int lessonIndex,
     bool isStart,
     String value,
   ) {
-    setState(() {
-      _timeInputs[_timeKey(period.id, lessonIndex, isStart)] = value.trim();
-    });
+    final key = _timeKey(period.id, lessonIndex, isStart);
+    final nextValue = value.trim();
+    final previousValue = _timeInputs[key] ?? '';
+    if (previousValue == nextValue) return;
+    final before = _currentSnapshot();
+    setState(() => _timeInputs[key] = nextValue);
+    _syncCurrentRoutineDraft();
+    final after = _currentSnapshot();
+    _pushSnapshotUndo(
+      '调整${period.times.firstWhere((time) => time.lessonIndex == lessonIndex).label}'
+      '${isStart ? '开始' : '结束'}时间',
+      before,
+      after,
+      coalesceKey: key,
+    );
   }
 
   int _weeklyCapacity() {
     var total = 0;
     for (final weekday in _teachingDays) {
       for (final period in _periods) {
-        total +=
-            _overrides[_overrideKey(period.id, weekday)] ??
-            period.defaultLessonCount;
+        total += period.defaultLessonCount;
       }
     }
     // 减去当前范围可见的免任课格数。
@@ -617,9 +958,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       for (final period in _periods) {
         for (
           var lessonIndex = 1;
-          lessonIndex <=
-              (_overrides[_overrideKey(period.id, weekday)] ??
-                  period.defaultLessonCount);
+          lessonIndex <= period.defaultLessonCount;
           lessonIndex++
         ) {
           if (_cellInfo(period, weekday, lessonIndex).marker != null) total--;
@@ -630,69 +969,128 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   }
 
   Future<void> _save() async {
-    final periods = <LessonPeriodType>[];
-    for (final period in _periods) {
-      final times = <LessonTime>[];
-      for (final time in period.times) {
-        final startText =
-            _timeInputs[_timeKey(period.id, time.lessonIndex, true)] ?? '';
-        final endText =
-            _timeInputs[_timeKey(period.id, time.lessonIndex, false)] ?? '';
-        final start = _parseTime(startText);
-        final end = _parseTime(endText);
-        if ((startText.isEmpty) != (endText.isEmpty) ||
-            start == null && startText.isNotEmpty ||
-            end == null && endText.isNotEmpty) {
-          await _showError(
-            '「${period.name} ${time.label}」时间格式不正确，请填写完整的 HH:mm。',
+    final freeSlotDraft = Map<String, FreeSlot?>.of(_freeSlotDraft);
+    final commonPeriodDraft = Map<String, CommonPeriod?>.of(_commonPeriodDraft);
+    final routineSnapshots = <String, _DraftSnapshot>{};
+    for (final entry in _routineDraftByStage.entries) {
+      final baseline = _routineBaselineByStage[entry.key];
+      if (_routineNeedsNormalizationByStage[entry.key] == true ||
+          baseline == null ||
+          !baseline.isSame(entry.value)) {
+        routineSnapshots[entry.key] = entry.value;
+      }
+    }
+
+    final routines = <StageRoutine>[];
+    for (final entry in routineSnapshots.entries) {
+      final snapshot = entry.value;
+      final periods = <LessonPeriodType>[];
+      for (final period in snapshot.periods) {
+        final times = <LessonTime>[];
+        for (final time in period.times) {
+          final startText =
+              snapshot.timeInputs[_timeKey(
+                period.id,
+                time.lessonIndex,
+                true,
+              )] ??
+              '';
+          final endText =
+              snapshot.timeInputs[_timeKey(
+                period.id,
+                time.lessonIndex,
+                false,
+              )] ??
+              '';
+          final start = _parseTime(startText);
+          final end = _parseTime(endText);
+          if ((startText.isEmpty) != (endText.isEmpty) ||
+              start == null && startText.isNotEmpty ||
+              end == null && endText.isNotEmpty) {
+            await _showError(
+              '「${period.name} ${time.label}」时间格式不正确，请填写完整的 HH:mm。',
+            );
+            return;
+          }
+          if (start != null && end != null && start >= end) {
+            await _showError('「${period.name} ${time.label}」开始时间必须早于结束时间。');
+            return;
+          }
+          times.add(
+            LessonTime(
+              lessonIndex: time.lessonIndex,
+              label: time.label,
+              startMinute: start,
+              endMinute: end,
+            ),
           );
-          return;
         }
-        if (start != null && end != null && start >= end) {
-          await _showError('「${period.name} ${time.label}」开始时间必须早于结束时间。');
-          return;
-        }
-        times.add(
-          LessonTime(
-            lessonIndex: time.lessonIndex,
-            label: time.label,
-            startMinute: start,
-            endMinute: end,
+        periods.add(
+          LessonPeriodType(
+            id: period.id,
+            name: period.name,
+            defaultLessonCount: period.defaultLessonCount,
+            sortOrder: period.sortOrder,
+            lessonTimes: times,
           ),
         );
       }
-      periods.add(
-        LessonPeriodType(
-          id: period.id,
-          name: period.name,
-          defaultLessonCount: period.defaultLessonCount,
-          sortOrder: _periods.indexOf(period),
-          lessonTimes: times,
+      routines.add(
+        StageRoutine(
+          stageId: entry.key,
+          teachingWeekdays: {...snapshot.teachingDays},
+          periodTypes: periods,
+          overrides: const [],
         ),
       );
     }
-    final routine = StageRoutine(
-      stageId: widget.stage.id,
-      teachingWeekdays: {..._teachingDays},
-      periodTypes: periods,
-      overrides: [
-        for (final entry in _overrides.entries)
-          RoutineOverride(
-            periodTypeId: entry.key.substring(0, entry.key.lastIndexOf('_')),
-            weekday: int.parse(
-              entry.key.substring(entry.key.lastIndexOf('_') + 1),
-            ),
-            lessonCount: entry.value,
-          ),
-      ],
-    );
     setState(() => _isSaving = true);
     try {
-      await ref.read(schoolRepositoryProvider).saveRoutine(routine);
+      final repository = ref.read(schoolRepositoryProvider);
+      for (final routine in routines) {
+        await repository.saveRoutine(routine);
+      }
+      for (final entry in freeSlotDraft.entries) {
+        final slot = entry.value;
+        if (slot == null) {
+          await repository.deleteFreeSlot(entry.key);
+        } else {
+          await repository.saveFreeSlot(slot);
+        }
+      }
+      for (final entry in commonPeriodDraft.entries) {
+        final period = entry.value;
+        if (period == null) {
+          await repository.deleteCommonPeriod(entry.key);
+        } else {
+          await repository.saveCommonPeriod(period);
+        }
+      }
       if (!mounted) return;
       setState(() {
-        _load(routine);
+        for (final entry in freeSlotDraft.entries) {
+          _freeSlotBaseline[entry.key] = entry.value;
+          if (_freeSlotDraft.containsKey(entry.key) &&
+              _sameFreeSlot(_freeSlotDraft[entry.key], entry.value)) {
+            _freeSlotDraft.remove(entry.key);
+          }
+        }
+        for (final entry in commonPeriodDraft.entries) {
+          _commonPeriodBaseline[entry.key] = entry.value;
+          if (_commonPeriodDraft.containsKey(entry.key) &&
+              _sameCommonPeriod(_commonPeriodDraft[entry.key], entry.value)) {
+            _commonPeriodDraft.remove(entry.key);
+          }
+        }
+        for (final entry in routineSnapshots.entries) {
+          _routineBaselineByStage[entry.key] = entry.value;
+          _routineNeedsNormalizationByStage[entry.key] = false;
+        }
+        _needsNormalization =
+            _routineNeedsNormalizationByStage[_loadedStageId] ?? false;
         _isSaving = false;
+        _undoStack.clear();
+        _redoStack.clear();
       });
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
       _showSaved();
@@ -723,105 +1121,27 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     duration: const Duration(seconds: 3),
   );
 
-  // —— 按天差异 ——
-
-  Future<void> _addOverride() async {
-    if (_periods.isEmpty) return;
-    final result = await showDialog<_OverrideEdit>(
-      context: context,
-      builder: (context) => _OverrideDialog(
-        weekdayName:
-            _weekdayNames[_teachingDays.isEmpty ? 0 : _teachingDays.first - 1],
-        periodName: _periods.first.name,
-        defaultCount: _periods.first.defaultLessonCount,
-        currentCount: null,
-        periods: _periods,
-        teachingDays: _teachingDays,
-      ),
-    );
-    if (result == null) return;
-    _applyOverride(result);
-  }
-
-  Future<void> _editOverride(_PeriodDraft period, int weekday) async {
-    final key = _overrideKey(period.id, weekday);
-    final result = await showDialog<_OverrideEdit>(
-      context: context,
-      builder: (context) => _OverrideDialog(
-        weekdayName: _weekdayNames[weekday - 1],
-        periodName: period.name,
-        defaultCount: period.defaultLessonCount,
-        currentCount: _overrides[key],
-        periods: _periods,
-        teachingDays: _teachingDays,
-        fixedPeriodId: period.id,
-        fixedWeekday: weekday,
-      ),
-    );
-    if (result == null) return;
-    _applyOverride(result);
-  }
-
-  void _applyOverride(_OverrideEdit result) {
-    if (result.periodTypeId == null || result.weekday == null) return;
-    final targetKey = _overrideKey(result.periodTypeId!, result.weekday!);
-    final previous = _overrides[targetKey];
-    final period = _periods.firstWhere(
-      (item) => item.id == result.periodTypeId,
-    );
-    setState(() {
-      if (result.lessonCount == null) {
-        _overrides.remove(targetKey);
-      } else {
-        _overrides[targetKey] = result.lessonCount!;
-      }
-      _ensureTimes(period);
-      _renumberLabels();
-    });
-    final weekdayName = _weekdayNames[result.weekday! - 1];
-    _pushUndo(
-      result.lessonCount == null
-          ? '已恢复 $weekdayName · ${period.name} 默认节数'
-          : '已将 $weekdayName · ${period.name} 设为 ${result.lessonCount} 节',
-      () => setState(() {
-        if (previous == null) {
-          _overrides.remove(targetKey);
-        } else {
-          _overrides[targetKey] = previous;
-        }
-        _ensureTimes(period);
-        _renumberLabels();
-      }),
-    );
-  }
-
   // —— 免任课 ——
 
   _CellInfo _cellInfo(_PeriodDraft period, int weekday, int lessonIndex) {
     if (!_teachingDays.contains(weekday)) {
       return const _CellInfo.invalid();
     }
-    final override = _overrides[_overrideKey(period.id, weekday)];
-    final effective = override ?? period.defaultLessonCount;
-    if (lessonIndex > effective) {
-      return _CellInfo(
-        invalid: true,
-        overrideShortfall: override != null,
-        marker: null,
-      );
+    if (lessonIndex > period.defaultLessonCount) {
+      return _CellInfo(invalid: true, marker: null);
     }
     return _CellInfo(
       invalid: false,
-      overrideShortfall: false,
       marker: _resolveMarker(period.id, weekday, lessonIndex),
     );
   }
 
   /// 解析格子当前范围的免任课标记（更具体的范围优先）。
   FreeSlot? _resolveMarker(String periodTypeId, int weekday, int lessonIndex) {
-    final slots =
+    final persistedSlots =
         ref.watch(freeSlotsProvider(widget.stage.id)).valueOrNull ??
         const <FreeSlot>[];
+    final slots = _effectiveFreeSlots(widget.stage.id, persistedSlots);
     FreeSlot? best;
     int bestPriority = -1;
     for (final slot in slots) {
@@ -840,7 +1160,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     return best;
   }
 
-  /// 标记属于当前可见范围的优先级：当前范围 > 学段 > 全校；不在范围内返回 -1。
+  /// 标记继承顺序：当前范围 > 年级 > 学段 > 全校；不在范围内返回 -1。
   int _scopePriority(FreeSlot slot) {
     final isCurrentScope = switch (_scope.scope) {
       FreeSlotScope.school => slot.scope == FreeSlotScope.school,
@@ -852,13 +1172,21 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         slot.scope == FreeSlotScope.schoolClass &&
             slot.scopeId == _scope.scopeId,
     };
-    if (isCurrentScope) return 3;
-    if (slot.scope == FreeSlotScope.stage &&
-        slot.scopeId == widget.stage.id &&
-        _scope.scope != FreeSlotScope.school) {
+    if (isCurrentScope) return 4;
+    if (_scope.scope == FreeSlotScope.schoolClass &&
+        slot.scope == FreeSlotScope.grade &&
+        slot.scopeId == _scope.parentGradeId) {
+      return 3;
+    }
+    if (_scope.scope != FreeSlotScope.school &&
+        slot.scope == FreeSlotScope.stage &&
+        slot.scopeId == widget.stage.id) {
       return 2;
     }
-    if (slot.scope == FreeSlotScope.school) return 1;
+    if (_scope.scope != FreeSlotScope.school &&
+        slot.scope == FreeSlotScope.school) {
+      return 1;
+    }
     return -1;
   }
 
@@ -870,17 +1198,22 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   ) async {
     final existing = _resolveMarker(period.id, weekday, lessonIndex);
     final weekdayName = _weekdayNames[weekday - 1];
+    final before = _currentSnapshot();
     if (existing != null) {
       await _deleteMarkers(period, weekday, lessonIndex);
-      _pushUndo('已取消 $weekdayName · $lessonLabel 的免任课', () {
-        _createMarker(period, weekday, lessonIndex, existing.label);
-      });
+      _pushSnapshotUndo(
+        '已取消 $weekdayName · $lessonLabel 的免任课',
+        before,
+        _currentSnapshot(),
+      );
       return;
     }
     await _createMarker(period, weekday, lessonIndex, FreeSlotLabels.none);
-    _pushUndo('已将 $weekdayName · $lessonLabel 设为「${FreeSlotLabels.none}」', () {
-      _deleteMarkers(period, weekday, lessonIndex);
-    });
+    _pushSnapshotUndo(
+      '已将 $weekdayName · $lessonLabel 设为「${FreeSlotLabels.none}」',
+      before,
+      _currentSnapshot(),
+    );
   }
 
   Future<void> _setMarkerLabel(
@@ -892,18 +1225,17 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   ) async {
     final existing = _resolveMarker(period.id, weekday, lessonIndex);
     if (existing != null && existing.label == label) return;
+    final before = _currentSnapshot();
     if (existing != null) {
       await _deleteMarkers(period, weekday, lessonIndex);
     }
     await _createMarker(period, weekday, lessonIndex, label);
     final weekdayName = _weekdayNames[weekday - 1];
-    _pushUndo('已将 $weekdayName · $lessonLabel 设为「$label」', () {
-      if (existing != null) {
-        _createMarker(period, weekday, lessonIndex, existing.label);
-      } else {
-        _deleteMarkers(period, weekday, lessonIndex);
-      }
-    });
+    _pushSnapshotUndo(
+      '已将 $weekdayName · $lessonLabel 设为「$label」',
+      before,
+      _currentSnapshot(),
+    );
   }
 
   /// 全校范围标记展开到该学期所有学段（按时段名称匹配）。
@@ -915,6 +1247,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   ) async {
     final repository = ref.read(schoolRepositoryProvider);
     try {
+      final desiredSlots = <FreeSlot>[];
       if (_scope.scope == FreeSlotScope.school) {
         for (final stage in widget.stages) {
           final routine = await repository.watchRoutine(stage.id).first;
@@ -924,7 +1257,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
               .firstOrNull;
           if (target == null) continue;
           if (lessonIndex > target.lessonTimes.length) continue;
-          await repository.saveFreeSlot(
+          desiredSlots.add(
             FreeSlot(
               id: '${stage.id}_free_${target.id}_${weekday}_$lessonIndex',
               scope: FreeSlotScope.school,
@@ -938,7 +1271,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           );
         }
       } else {
-        await repository.saveFreeSlot(
+        desiredSlots.add(
           FreeSlot(
             id:
                 '${widget.stage.id}_free_${period.id}_${weekday}_$lessonIndex'
@@ -953,7 +1286,25 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           ),
         );
       }
-      ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
+
+      final persistedByStage = <String, List<FreeSlot>>{};
+      for (final slot in desiredSlots) {
+        if (!persistedByStage.containsKey(slot.stageId)) {
+          persistedByStage[slot.stageId] = await repository
+              .watchFreeSlots(slot.stageId)
+              .first;
+        }
+        final previous = persistedByStage[slot.stageId]!
+            .where((item) => item.id == slot.id)
+            .firstOrNull;
+        _rememberFreeSlotBaseline(slot.id, previous);
+      }
+      if (!mounted) return;
+      setState(() {
+        for (final slot in desiredSlots) {
+          _stageFreeSlot(slot.id, slot);
+        }
+      });
     } on Object catch (error) {
       if (mounted) await _showError('设置免任课失败：$error');
     }
@@ -965,53 +1316,92 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     int lessonIndex,
   ) async {
     final repository = ref.read(schoolRepositoryProvider);
-    final slots = (await repository.watchFreeSlots(widget.stage.id).first)
-        .where(
-          (slot) => slot.weekday == weekday && slot.lessonIndex == lessonIndex,
-        )
-        .toList();
     try {
-      if (_scope.scope == FreeSlotScope.school) {
-        // 删除所有学段中同时段名称的全校范围标记。
-        for (final slot in slots) {
-          if (slot.scope != FreeSlotScope.school) continue;
-          if (slot.periodTypeId == period.id) {
-            await repository.deleteFreeSlot(slot.id);
-            continue;
-          }
-          final otherRoutine = await repository
-              .watchRoutine(slot.stageId)
-              .first;
-          final otherPeriod = otherRoutine?.periodTypes
-              .where((item) => item.id == slot.periodTypeId)
-              .firstOrNull;
-          if (otherPeriod != null && otherPeriod.name == period.name) {
-            await repository.deleteFreeSlot(slot.id);
-          }
-        }
-      } else {
-        for (final slot in slots) {
-          final matches = switch (_scope.scope) {
-            FreeSlotScope.stage =>
-              slot.scope == FreeSlotScope.stage &&
-                  slot.scopeId == widget.stage.id &&
-                  slot.periodTypeId == period.id,
-            FreeSlotScope.grade =>
-              slot.scope == FreeSlotScope.grade &&
-                  slot.scopeId == _scope.scopeId &&
-                  slot.periodTypeId == period.id,
-            FreeSlotScope.schoolClass =>
-              slot.scope == FreeSlotScope.schoolClass &&
-                  slot.scopeId == _scope.scopeId &&
-                  slot.periodTypeId == period.id,
-            FreeSlotScope.school => false,
+      final stageIds = _scope.scope == FreeSlotScope.school
+          ? widget.stages.map((stage) => stage.id)
+          : [widget.stage.id];
+      final matching = <FreeSlot>[];
+      final persistedById = <String, FreeSlot>{};
+      final periodNameByStage = <String, Map<String, String>>{};
+      for (final stageId in stageIds) {
+        final persisted = await repository.watchFreeSlots(stageId).first;
+        persistedById.addEntries(
+          persisted.map((slot) => MapEntry(slot.id, slot)),
+        );
+        final slots = _effectiveFreeSlots(stageId, persisted).where(
+          (slot) => slot.weekday == weekday && slot.lessonIndex == lessonIndex,
+        );
+        if (_scope.scope == FreeSlotScope.school) {
+          final routine = await repository.watchRoutine(stageId).first;
+          periodNameByStage[stageId] = {
+            for (final item
+                in routine?.periodTypes ?? const <LessonPeriodType>[])
+              item.id: item.name,
           };
-          if (matches) await repository.deleteFreeSlot(slot.id);
+        }
+        for (final slot in slots) {
+          final bool matches;
+          if (_scope.scope == FreeSlotScope.school) {
+            matches =
+                slot.scope == FreeSlotScope.school &&
+                periodNameByStage[stageId]?[slot.periodTypeId] == period.name;
+          } else {
+            matches =
+                slot.scope == _scope.scope &&
+                slot.scopeId == _scope.scopeId &&
+                slot.periodTypeId == period.id;
+          }
+          if (matches) matching.add(slot);
         }
       }
-      ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
+
+      if (!mounted || matching.isEmpty) return;
+      setState(() {
+        for (final slot in matching) {
+          _rememberFreeSlotBaseline(slot.id, persistedById[slot.id]);
+          _stageFreeSlot(slot.id, null);
+        }
+      });
     } on Object catch (error) {
       if (mounted) await _showError('取消免任课失败：$error');
+    }
+  }
+
+  List<FreeSlot> _effectiveFreeSlots(String stageId, List<FreeSlot> persisted) {
+    final slotsById = {for (final slot in persisted) slot.id: slot};
+    for (final entry in _freeSlotDraft.entries) {
+      final slot = entry.value;
+      if (slot == null || slot.stageId != stageId) {
+        slotsById.remove(entry.key);
+      } else {
+        slotsById[entry.key] = slot;
+      }
+    }
+    return slotsById.values.toList(growable: false);
+  }
+
+  void _rememberFreeSlotBaseline(String id, FreeSlot? persisted) {
+    if (!_freeSlotBaseline.containsKey(id)) {
+      _freeSlotBaseline[id] = persisted;
+    }
+  }
+
+  void _stageFreeSlot(String id, FreeSlot? value) {
+    if (_sameFreeSlot(_freeSlotBaseline[id], value)) {
+      _freeSlotDraft.remove(id);
+    } else {
+      _freeSlotDraft[id] = value;
+    }
+  }
+
+  void _deleteFreeSlotEntry(FreeSlot slot) {
+    if (_isSaving || _isHistoryBusy) return;
+    final before = _currentSnapshot();
+    _rememberFreeSlotBaseline(slot.id, slot);
+    setState(() => _stageFreeSlot(slot.id, null));
+    final after = _currentSnapshot();
+    if (!before.isSame(after)) {
+      _pushSnapshotUndo('删除免任课「${slot.label}」', before, after);
     }
   }
 
@@ -1063,60 +1453,117 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       ),
     );
     if (result == null) return;
-    try {
-      await ref
-          .read(schoolRepositoryProvider)
-          .saveCommonPeriod(
-            CommonPeriod(
-              id: DateTime.now().microsecondsSinceEpoch.toString(),
-              stageId: widget.stage.id,
-              name: result.name,
-              insertAfterLessonId: result.afterLessonId,
-              durationMinutes: result.durationMinutes,
-              startMinute: null,
-              endMinute: null,
-            ),
-          );
-      ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
-    } on Object catch (error) {
-      if (mounted) await _showError('插入公共时段失败：$error');
-    }
+    final before = _currentSnapshot();
+    final period = CommonPeriod(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      stageId: widget.stage.id,
+      name: result.name,
+      insertAfterLessonId: result.afterLessonId,
+      durationMinutes: result.durationMinutes,
+      startMinute: null,
+      endMinute: null,
+    );
+    _commonPeriodBaseline[period.id] = null;
+    setState(() => _stageCommonPeriod(period.id, period));
+    _pushSnapshotUndo('新增公共时段「${period.name}」', before, _currentSnapshot());
   }
 
-  void _updateCommonPeriodTime(
+  Future<void> _updateCommonPeriodTime(
     CommonPeriod period,
     bool isStart,
     String value,
-  ) {
+  ) async {
     final text = value.trim();
     final minutes = text.isEmpty ? null : _parseTime(text);
     if (text.isNotEmpty && minutes == null) {
-      _showError('时间格式不正确，请填写 HH:mm。');
+      await _showError('时间格式不正确，请填写 HH:mm。');
       return;
     }
     final other = isStart ? period.endMinute : period.startMinute;
     if (minutes != null && other != null) {
       if (isStart && minutes >= other) {
-        _showError('开始时间必须早于结束时间。');
+        await _showError('开始时间必须早于结束时间。');
         return;
       }
       if (!isStart && minutes <= other) {
-        _showError('结束时间必须晚于开始时间。');
+        await _showError('结束时间必须晚于开始时间。');
         return;
       }
     }
-    final updated = isStart
-        ? period.copyWith(startMinute: minutes)
-        : period.copyWith(endMinute: minutes);
-    _persistCommonPeriod(updated);
+    final before = _currentSnapshot();
+    try {
+      await _rememberCommonPeriodBaseline(period.id);
+      final updated = CommonPeriod(
+        id: period.id,
+        stageId: period.stageId,
+        name: period.name,
+        insertAfterLessonId: period.insertAfterLessonId,
+        durationMinutes: period.durationMinutes,
+        startMinute: isStart ? minutes : period.startMinute,
+        endMinute: isStart ? period.endMinute : minutes,
+      );
+      setState(() => _stageCommonPeriod(period.id, updated));
+      _pushSnapshotUndo(
+        '调整公共时段「${period.name}」${isStart ? '开始' : '结束'}时间',
+        before,
+        _currentSnapshot(),
+        coalesceKey: 'common-${period.id}-${isStart ? 'start' : 'end'}',
+      );
+    } on Object catch (error) {
+      if (mounted) await _showError('修改公共时段失败：$error');
+    }
   }
 
-  Future<void> _persistCommonPeriod(CommonPeriod period) async {
+  Future<void> _renameCommonPeriod(CommonPeriod period) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) =>
+          _TextEntryDialog(title: '编辑公共时段名称', initialValue: period.name),
+    );
+    if (name == null || name == period.name) return;
+
+    final before = _currentSnapshot();
     try {
-      await ref.read(schoolRepositoryProvider).saveCommonPeriod(period);
-      ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
+      await _rememberCommonPeriodBaseline(period.id);
+      setState(() {
+        _stageCommonPeriod(period.id, period.copyWith(name: name));
+      });
+      _pushSnapshotUndo('重命名公共时段「${period.name}」', before, _currentSnapshot());
     } on Object catch (error) {
-      if (mounted) await _showError('保存公共时段失败：$error');
+      if (mounted) await _showError('修改公共时段名称失败：$error');
+    }
+  }
+
+  List<CommonPeriod> _effectiveCommonPeriods(List<CommonPeriod> persisted) {
+    final periodsById = {for (final period in persisted) period.id: period};
+    for (final entry in _commonPeriodDraft.entries) {
+      final period = entry.value;
+      if (period == null) {
+        periodsById.remove(entry.key);
+      } else if (period.stageId == widget.stage.id) {
+        periodsById[entry.key] = period;
+      }
+    }
+    return periodsById.values.toList(growable: false);
+  }
+
+  Future<void> _rememberCommonPeriodBaseline(String id) async {
+    if (_commonPeriodBaseline.containsKey(id)) return;
+    final period =
+        (await ref
+                .read(schoolRepositoryProvider)
+                .watchCommonPeriods(widget.stage.id)
+                .first)
+            .where((item) => item.id == id)
+            .firstOrNull;
+    _commonPeriodBaseline[id] = period;
+  }
+
+  void _stageCommonPeriod(String id, CommonPeriod? value) {
+    if (_sameCommonPeriod(_commonPeriodBaseline[id], value)) {
+      _commonPeriodDraft.remove(id);
+    } else {
+      _commonPeriodDraft[id] = value;
     }
   }
 
@@ -1141,57 +1588,70 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         ) ??
         false;
     if (!confirmed) return;
+    final before = _currentSnapshot();
     try {
-      await ref.read(schoolRepositoryProvider).deleteCommonPeriod(period.id);
-      ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
+      await _rememberCommonPeriodBaseline(period.id);
+      setState(() => _stageCommonPeriod(period.id, null));
+      _pushSnapshotUndo('删除公共时段「${period.name}」', before, _currentSnapshot());
     } on Object catch (error) {
-      if (mounted) await _showError('删除公共时段失败：$error');
+      if (mounted) await _showError('暂存删除公共时段失败：$error');
     }
   }
 
   // —— 免任课网格 ——
 
-  /// 网格列：上课天的最小~最大星期构成连续区间（设计稿 02b：周六列无效）。
-  List<int> get _gridDays => routineGridColumns(_teachingDays);
+  /// 网格只展示已选为上课日的列。
+  List<int> get _gridDays => _teachingDays.toList()..sort();
 
-  /// 网格行：前 6 个非晚自习行平铺，其余折叠为「第 X–Y 节」，晚自习行始终平铺。
-  List<_GridItem> _gridItems() {
+  /// 网格始终展示全部课节。
+  List<_GridItem> _gridItems(List<CommonPeriod> commonPeriods) {
     final periods = _domainPeriods();
     final draftById = {for (final period in _periods) period.id: period};
     final items = <_GridItem>[];
-    if (_gridExpanded) {
-      final collapsed = buildRoutineRows(periods);
-      final foldRow = collapsed.where((row) => row.isFolded).firstOrNull;
-      var foldableSeen = 0;
-      for (final row in buildRoutineRows(periods, expandFolded: true)) {
-        items.add(_GridItem.lesson(row, draftById[row.periodId]!));
-        if (row.isEvening) continue;
-        foldableSeen++;
-        if (foldRow != null && foldableSeen == kRoutineVisibleLessonRows) {
-          items.add(_GridItem.collapseBar(foldRow.label));
-        }
-      }
-    } else {
-      for (final row in buildRoutineRows(periods)) {
-        items.add(_GridItem.lesson(row, draftById[row.periodId]!));
+    final rows = buildRoutineRows(periods, expandFolded: true);
+    final insertedCommonPeriodIds = <String>{};
+    for (final commonPeriod in commonPeriods.where(
+      (item) => item.insertAfterLessonId == null,
+    )) {
+      items.add(_GridItem.common(commonPeriod));
+      insertedCommonPeriodIds.add(commonPeriod.id);
+    }
+    for (final row in rows) {
+      items.add(_GridItem.lesson(row, draftById[row.periodId]!));
+      final lessonId = '${row.periodId}_${row.lessonIndex}';
+      for (final commonPeriod in commonPeriods.where(
+        (item) => item.insertAfterLessonId == lessonId,
+      )) {
+        items.add(_GridItem.common(commonPeriod));
+        insertedCommonPeriodIds.add(commonPeriod.id);
       }
     }
+    // 锚点课节已被删除的公共时段保留在表格末尾，避免无法找到。
+    items.addAll(
+      commonPeriods
+          .where((item) => !insertedCommonPeriodIds.contains(item.id))
+          .map(_GridItem.common),
+    );
     return items;
   }
 
-  Widget _buildMatrix() => _FreeSlotMatrix(
+  Widget _buildMatrix(
+    List<CommonPeriod> commonPeriods, {
+    bool scrollVertically = true,
+    Widget? footer,
+  }) => _FreeSlotMatrix(
     key: const ValueKey('routine-matrix'),
-    items: _gridItems(),
+    items: _gridItems(commonPeriods),
     days: _gridDays,
     teachingDays: _teachingDays,
+    scrollVertically: scrollVertically,
+    footer: footer,
     cellInfo: _cellInfo,
     onCellTap: _toggleMarker,
     onSetMarkerLabel: _setMarkerLabel,
     onCustomLabel: _promptCustomLabel,
     onAddCommonPeriod: (period, weekday, lessonIndex) =>
         _insertCommonPeriod(afterLessonId: '${period.id}_$lessonIndex'),
-    onExpandFold: () => setState(() => _gridExpanded = true),
-    onCollapseFold: () => setState(() => _gridExpanded = false),
   );
 }
 
@@ -1228,21 +1688,6 @@ class _ScopeTreeCard extends ConsumerWidget {
     padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
     child: Column(
       children: [
-        AppTreeTile(
-          isSelected: scope.scope == FreeSlotScope.school,
-          leading: const Icon(Icons.domain_outlined, size: 15),
-          title: const Text(
-            '全校',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          height: 30,
-          onTap: () => onSelectScope(
-            const _FreeSlotScopeSelection(
-              scope: FreeSlotScope.school,
-              scopeId: '',
-            ),
-          ),
-        ),
         for (final stage in stages)
           _ScopeStageNode(
             termId: termId,
@@ -1452,6 +1897,7 @@ class _ScopeGradeNode extends ConsumerWidget {
                 _FreeSlotScopeSelection(
                   scope: FreeSlotScope.schoolClass,
                   scopeId: schoolClass.id,
+                  parentGradeId: grade.id,
                 ),
               ),
             ),
@@ -1536,121 +1982,113 @@ class _StageTab extends ConsumerWidget {
   }
 }
 
-class _OverrideSummaryBar extends StatelessWidget {
-  const _OverrideSummaryBar({
-    required this.periods,
-    required this.overrides,
-    required this.capacity,
-    required this.onAdd,
-    required this.onEdit,
-  });
+class _CommonPeriodChip extends StatelessWidget {
+  const _CommonPeriodChip({required this.period});
 
-  final List<_PeriodDraft> periods;
-  final Map<String, int> overrides;
-  final int capacity;
-  final Future<void> Function() onAdd;
-  final Future<void> Function(_PeriodDraft, int) onEdit;
+  final CommonPeriod period;
 
   @override
   Widget build(BuildContext context) {
-    final entries = <(String, int, int)>[];
-    for (final period in periods) {
-      for (final entry in overrides.entries) {
-        if (!entry.key.startsWith('${period.id}_')) continue;
-        final weekday = int.parse(
-          entry.key.substring(entry.key.lastIndexOf('_') + 1),
-        );
-        entries.add((
-          '${_weekdayNames[weekday - 1]} ${period.name} '
-              '${period.defaultLessonCount}→${entry.value}',
-          period.sortOrder,
-          weekday,
-        ));
-      }
-    }
-    entries.sort(
-      (a, b) => a.$2.compareTo(b.$2) == 0
-          ? a.$3.compareTo(b.$3)
-          : a.$2.compareTo(b.$2),
-    );
-    return Row(
-      children: [
-        const Text(
-          '按天差异',
-          style: TextStyle(color: AppTheme.muted, fontSize: 11),
-        ),
-        const SizedBox(width: 8),
-        if (entries.isEmpty)
-          AppGhostButton(
-            onPressed: () => onAdd(),
-            child: const Text('暂无差异 · 添加', style: TextStyle(fontSize: 11)),
-          )
-        else
-          Expanded(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final entry in entries)
-                  InkWell(
-                    onTap: () {
-                      final period = periods.firstWhere(
-                        (item) => item.sortOrder == entry.$2,
-                      );
-                      onEdit(period, entry.$3);
-                    },
-                    child: AppBadge(
-                      label: entry.$1,
-                      foreground: const Color(0xFFE37318),
-                      background: const Color(0xFFFFF1E9),
-                      fontSize: 11,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        const Spacer(),
-        Text(
-          '每周容量 $capacity 格 / 班',
-          style: const TextStyle(
-            color: AppTheme.blue,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+    final start = period.startLabel;
+    final end = period.endLabel;
+    final detail = start != null && end != null
+        ? '$start–$end'
+        : '${period.durationMinutes} 分钟';
+    return AppBadge(
+      label: '${period.name} · $detail',
+      foreground: const Color(0xFFE37318),
+      background: const Color(0xFFFFF1E9),
+      fontSize: 11,
     );
   }
 }
 
 class _CellInfo {
-  const _CellInfo({
-    required this.invalid,
-    required this.overrideShortfall,
-    required this.marker,
-  });
+  const _CellInfo({required this.invalid, required this.marker});
 
-  const _CellInfo.invalid()
-    : invalid = true,
-      overrideShortfall = false,
-      marker = null;
+  const _CellInfo.invalid() : invalid = true, marker = null;
 
   final bool invalid;
-  final bool overrideShortfall;
   final FreeSlot? marker;
 }
 
-/// 网格行条目：节次行 / 折叠行 / 展开后的收起条。
+/// 网格行条目。
 class _GridItem {
-  const _GridItem.lesson(this.row, this.period) : collapseLabel = null;
-
-  const _GridItem.collapseBar(this.collapseLabel) : row = null, period = null;
+  const _GridItem.lesson(this.row, this.period) : commonPeriod = null;
+  const _GridItem.common(this.commonPeriod) : row = null, period = null;
 
   final RoutineRow? row;
   final _PeriodDraft? period;
-  final String? collapseLabel;
+  final CommonPeriod? commonPeriod;
+}
 
-  bool get isCollapseBar => collapseLabel != null;
+const double _verticalScrollbarGutterWidth = 14;
+
+class _NoAutoVerticalScrollbarBehavior extends MaterialScrollBehavior {
+  const _NoAutoVerticalScrollbarBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    final isVertical =
+        details.direction == AxisDirection.down ||
+        details.direction == AxisDirection.up;
+    return isVertical ? child : super.buildScrollbar(context, child, details);
+  }
+}
+
+class _VerticalScrollWithGutter extends StatefulWidget {
+  const _VerticalScrollWithGutter({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_VerticalScrollWithGutter> createState() =>
+      _VerticalScrollWithGutterState();
+}
+
+class _VerticalScrollWithGutterState extends State<_VerticalScrollWithGutter> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ScrollConfiguration(
+    behavior: const _NoAutoVerticalScrollbarBehavior(),
+    child: ScrollbarTheme(
+      data: ScrollbarTheme.of(context).copyWith(crossAxisMargin: 0),
+      child: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        thickness: 8,
+        radius: const Radius.circular(4),
+        scrollbarOrientation: ScrollbarOrientation.right,
+        notificationPredicate: (notification) =>
+            notification.depth == 0 &&
+            (notification.metrics.axisDirection == AxisDirection.down ||
+                notification.metrics.axisDirection == AxisDirection.up),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                child: widget.child,
+              ),
+            ),
+            const SizedBox(width: _verticalScrollbarGutterWidth),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _FreeSlotMatrix extends StatelessWidget {
@@ -1659,98 +2097,92 @@ class _FreeSlotMatrix extends StatelessWidget {
     required this.items,
     required this.days,
     required this.teachingDays,
+    this.footer,
+    this.scrollVertically = true,
     required this.cellInfo,
     required this.onCellTap,
     required this.onSetMarkerLabel,
     required this.onCustomLabel,
     required this.onAddCommonPeriod,
-    required this.onExpandFold,
-    required this.onCollapseFold,
   });
 
   final List<_GridItem> items;
   final List<int> days;
   final Set<int> teachingDays;
+  final Widget? footer;
+  final bool scrollVertically;
   final _CellInfo Function(_PeriodDraft, int, int) cellInfo;
   final Future<void> Function(_PeriodDraft, int, int, String) onCellTap;
   final Future<void> Function(_PeriodDraft, int, int, String, String)
   onSetMarkerLabel;
   final Future<void> Function(_PeriodDraft, int, int, String) onCustomLabel;
   final Future<void> Function(_PeriodDraft, int, int) onAddCommonPeriod;
-  final VoidCallback onExpandFold;
-  final VoidCallback onCollapseFold;
 
   @override
   Widget build(BuildContext context) {
     if (days.isEmpty) {
-      return const Center(child: Text('请先在左侧选择上课天。'));
+      return _buildScrollableContent(
+        const SizedBox(height: 44, child: Center(child: Text('请先在左侧选择上课天。'))),
+      );
     }
     return LayoutBuilder(
       builder: (context, constraints) {
         const labelWidth = 88.0;
+        final matrixWidth =
+            constraints.maxWidth -
+            (scrollVertically ? _verticalScrollbarGutterWidth : 0);
         final dayWidth = math.max(
           72.0,
-          (constraints.maxWidth - labelWidth) / days.length,
+          (matrixWidth - labelWidth) / days.length,
         );
-        final totalWidth = labelWidth + dayWidth * days.length;
-        // 外层垂直滚动 + 内层水平滚动，避免行数多时溢出。
-        return SingleChildScrollView(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _matrixHeading('节次', width: labelWidth, fontSize: 11),
-                    for (final weekday in days)
-                      _matrixHeading(
-                        teachingDays.contains(weekday)
-                            ? _weekdayShort[weekday - 1]
-                            : '',
-                        width: dayWidth,
-                        fontSize: 12,
-                      ),
-                  ],
-                ),
-                for (final item in items)
-                  _buildItem(item, labelWidth, dayWidth, totalWidth),
-              ],
-            ),
+        final table = SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  _matrixHeading('节次', width: labelWidth, fontSize: 11),
+                  for (final weekday in days)
+                    _matrixHeading(
+                      teachingDays.contains(weekday)
+                          ? _weekdayShort[weekday - 1]
+                          : '',
+                      width: dayWidth,
+                      fontSize: 12,
+                    ),
+                ],
+              ),
+              for (final item in items) _buildItem(item, labelWidth, dayWidth),
+            ],
           ),
         );
+        return _buildScrollableContent(table);
       },
     );
   }
 
-  Widget _buildItem(
-    _GridItem item,
-    double labelWidth,
-    double dayWidth,
-    double totalWidth,
-  ) {
-    if (item.isCollapseBar) {
-      return _FoldBar(
-        key: const ValueKey('routine-fold-bar'),
-        label: item.collapseLabel!,
-        width: totalWidth,
-        onTap: onCollapseFold,
-      );
+  Widget _buildScrollableContent(Widget table) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        table,
+        if (footer != null) ...[const SizedBox(height: 12), footer!],
+      ],
+    );
+    // 窄布局由页面统一纵向滚动；其余布局让表格与汇总共用滚动区。
+    return scrollVertically
+        ? _VerticalScrollWithGutter(child: content)
+        : content;
+  }
+
+  Widget _buildItem(_GridItem item, double labelWidth, double dayWidth) {
+    final commonPeriod = item.commonPeriod;
+    if (commonPeriod != null) {
+      return _buildCommonPeriodRow(commonPeriod, labelWidth, dayWidth);
     }
     final row = item.row!;
     final period = item.period!;
     final visual = periodVisualFor(row.periodName, period.sortOrder);
-    if (row.isFolded) {
-      return _FoldRow(
-        key: const ValueKey('routine-fold-row'),
-        label: '${row.label} ▸',
-        labelWidth: labelWidth,
-        dayWidth: dayWidth,
-        days: days,
-        teachingDays: teachingDays,
-        visual: visual,
-        onTap: onExpandFold,
-      );
-    }
     return Row(
       children: [
         _matrixLabelCell(
@@ -1785,6 +2217,43 @@ class _FreeSlotMatrix extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildCommonPeriodRow(
+    CommonPeriod period,
+    double labelWidth,
+    double dayWidth,
+  ) => Row(
+    children: [
+      Container(
+        width: labelWidth,
+        height: 34,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFF7F0),
+          border: Border(bottom: BorderSide(color: Colors.white)),
+        ),
+        child: const Text(
+          '公共时段',
+          style: TextStyle(
+            color: Color(0xFFE37318),
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      Container(
+        width: dayWidth * days.length,
+        height: 34,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFF7F0),
+          border: Border(bottom: BorderSide(color: Colors.white)),
+        ),
+        child: _CommonPeriodChip(period: period),
+      ),
+    ],
+  );
 
   Widget _matrixHeading(
     String label, {
@@ -1833,125 +2302,6 @@ class _FreeSlotMatrix extends StatelessWidget {
   );
 }
 
-/// 折叠行：「第 7–10 节 ▸」，点击展开隐藏的行。
-/// 折叠行（设计稿「第 7–10 节 ▸」）：与普通行同构——节次标签格 +
-/// 首节所属时段的着色格（非上课天列置灰显示「—」），整行点击展开；
-/// 格内不含免任课标记。
-class _FoldRow extends StatelessWidget {
-  const _FoldRow({
-    required this.label,
-    required this.labelWidth,
-    required this.dayWidth,
-    required this.days,
-    required this.teachingDays,
-    required this.visual,
-    required this.onTap,
-    super.key,
-  });
-
-  final String label;
-  final double labelWidth;
-  final double dayWidth;
-  final List<int> days;
-  final Set<int> teachingDays;
-  final PeriodVisual visual;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Row(
-      children: [
-        Container(
-          width: labelWidth,
-          height: 44,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: visual.labelTint,
-            border: const Border(
-              right: BorderSide(color: Colors.white),
-              bottom: BorderSide(color: Colors.white),
-            ),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              color: visual.color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        for (final weekday in days)
-          Container(
-            width: dayWidth,
-            height: 44,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: teachingDays.contains(weekday)
-                  ? visual.cellTint
-                  : DisabledCellVisual.cellTint,
-              border: const Border(
-                right: BorderSide(color: Colors.white),
-                bottom: BorderSide(color: Colors.white),
-              ),
-            ),
-            child: teachingDays.contains(weekday)
-                ? null
-                : const Text(
-                    '—',
-                    style: TextStyle(color: AppTheme.muted, fontSize: 11),
-                  ),
-          ),
-      ],
-    ),
-  );
-}
-
-/// 展开后的收起条：出现在第 6 行之后，点击重新折叠。
-class _FoldBar extends StatelessWidget {
-  const _FoldBar({
-    required this.label,
-    required this.width,
-    required this.onTap,
-    super.key,
-  });
-
-  final String label;
-  final double width;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 2),
-    child: InkWell(
-      onTap: onTap,
-      child: Container(
-        width: width,
-        height: 24,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFAFAFA),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.expand_less, size: 12, color: AppTheme.muted),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF5E5E5E)),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
 class _MatrixCell extends StatelessWidget {
   const _MatrixCell({
     super.key,
@@ -1988,20 +2338,16 @@ class _MatrixCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final background = info.marker != null
         ? FreeSlotVisual.cellTint
-        : info.overrideShortfall
-        ? FreeSlotVisual.cellTint
         : info.invalid
         ? DisabledCellVisual.cellTint
         : tint;
-    final label = info.marker?.label ?? (info.overrideShortfall ? '无课' : null);
+    final label = info.marker?.label;
     final currentLabel = info.marker?.label;
     final cell = InkWell(
-      onTap: onTap,
+      onTap: info.invalid ? null : onTap,
       child: Tooltip(
         message: info.marker != null
             ? '${info.marker!.label} · $periodName · $weekdayName'
-            : info.overrideShortfall
-            ? '$weekdayName $periodName 节数已覆盖，点击「按天差异」可调整'
             : info.invalid
             ? '$weekdayName 不上课'
             : '$weekdayName $periodName · 点击标记免任课',
@@ -2036,6 +2382,7 @@ class _MatrixCell extends StatelessWidget {
         ),
       ),
     );
+    if (info.invalid) return cell;
     // FContextMenu 点选后不会自动收起，需经 menuBuilder 取到 controller 手动隐藏。
     return f.FContextMenu(
       menuBuilder: (context, controller, menu) => [
@@ -2092,22 +2439,15 @@ class _PeriodCountRow extends StatelessWidget {
     required this.period,
     required this.visual,
     required this.onChanged,
-    required this.onEnable,
-    required this.onRename,
-    required this.onDelete,
   });
 
   final _PeriodDraft period;
   final PeriodVisual visual;
   final void Function(String, int) onChanged;
-  final ValueChanged<_PeriodDraft> onEnable;
-  final ValueChanged<_PeriodDraft> onRename;
-  final ValueChanged<_PeriodDraft> onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final isEnabled = period.defaultLessonCount > 0;
-    final row = Padding(
+    return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
@@ -2115,410 +2455,424 @@ class _PeriodCountRow extends StatelessWidget {
           const SizedBox(width: 7),
           Expanded(
             child: Text(
-              isEnabled ? period.name : '${period.name}（未启用）',
+              period.name,
               style: TextStyle(
-                color: isEnabled ? visual.color : AppTheme.muted,
+                color: visual.color,
                 fontWeight: FontWeight.w500,
                 fontSize: 13,
               ),
             ),
           ),
-          if (isEnabled)
-            AppNumberStepper(
-              value: period.defaultLessonCount,
-              onChanged: (value) => onChanged(period.id, value),
-              min: 0,
-              max: 9,
-              compact: true,
-            )
-          else
-            InkWell(
-              onTap: () => onEnable(period),
-              borderRadius: BorderRadius.circular(4),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                child: Text(
-                  '+ 启用',
-                  style: TextStyle(
-                    color: AppTheme.blue,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
+          AppNumberStepper(
+            value: period.defaultLessonCount,
+            onChanged: (value) => onChanged(period.id, value),
+            min: 0,
+            max: 9,
+            compact: true,
+          ),
         ],
       ),
-    );
-    // 设计稿 02b：行内不放「⋯」按钮，改名 / 删除走右键菜单。
-    // FContextMenu 点选后不会自动收起，需经 menuBuilder 取到 controller 手动隐藏。
-    return f.FContextMenu(
-      menuBuilder: (context, controller, menu) => [
-        f.FItemGroup(
-          divider: .none,
-          children: [
-            AppMenuTile(
-              item: AppMenuItem(
-                label: '修改名称',
-                onPressed: () {
-                  unawaited(controller.hide());
-                  onRename(period);
-                },
-              ),
-            ),
-            AppMenuTile(
-              item: AppMenuItem(
-                label: '删除时段',
-                destructive: true,
-                onPressed: () {
-                  unawaited(controller.hide());
-                  onDelete(period);
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
-      child: row,
     );
   }
 }
 
-class _CommonPeriodsCard extends ConsumerWidget {
-  const _CommonPeriodsCard({
-    required this.stageId,
+class _SchoolFreeSlotEntry {
+  const _SchoolFreeSlotEntry({
+    required this.stageOrder,
     required this.stageName,
-    required this.onAdd,
+    required this.scopeName,
+    required this.periodOrder,
+    required this.periodName,
+    required this.slot,
   });
 
-  final String stageId;
+  final int stageOrder;
   final String stageName;
-  final Future<void> Function({String? afterLessonId}) onAdd;
+  final String scopeName;
+  final int periodOrder;
+  final String periodName;
+  final FreeSlot slot;
+}
+
+class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
+  const _AllSchoolFreeSlotsSummary({
+    required this.stages,
+    required this.draftChanges,
+    required this.trailingInset,
+    required this.onDelete,
+  });
+
+  final List<SchoolStage> stages;
+  final Map<String, FreeSlot?> draftChanges;
+  final double trailingInset;
+  final ValueChanged<FreeSlot> onDelete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final periods =
-        ref.watch(commonPeriodsProvider(stageId)).valueOrNull ??
-        const <CommonPeriod>[];
-    return AppSectionPanel(
-      title: '公共时段（$stageName独立）',
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Row(
+    final entries = <_SchoolFreeSlotEntry>[];
+    var isLoading = false;
+    var hasError = false;
+    for (var stageIndex = 0; stageIndex < stages.length; stageIndex++) {
+      final stage = stages[stageIndex];
+      final slotsState = ref.watch(freeSlotsProvider(stage.id));
+      final routineState = ref.watch(routineProvider(stage.id));
+      final gradesState = ref.watch(gradesProvider(stage.id));
+      final grades = gradesState.valueOrNull ?? const <GradeGroup>[];
+      final gradeNames = {for (final grade in grades) grade.id: grade.name};
+      final classNames = <String, String>{};
+      for (final grade in grades) {
+        final classesState = ref.watch(classesProvider(grade.id));
+        for (final group in classesState.valueOrNull ?? const <ClassGroup>[]) {
+          classNames[group.id] = '${grade.name} · ${group.name}';
+        }
+        isLoading =
+            isLoading ||
+            classesState.isLoading && classesState.valueOrNull == null;
+        hasError = hasError || classesState.hasError;
+      }
+
+      final periods =
+          routineState.valueOrNull?.periodTypes ?? const <LessonPeriodType>[];
+      final periodById = {for (final item in periods) item.id: item};
+      final slotsById = {
+        for (final slot in slotsState.valueOrNull ?? const <FreeSlot>[])
+          slot.id: slot,
+      };
+      for (final entry in draftChanges.entries) {
+        final slot = entry.value;
+        if (slot == null) {
+          slotsById.remove(entry.key);
+        } else if (slot.stageId == stage.id) {
+          slotsById[entry.key] = slot;
+        }
+      }
+      for (final slot in slotsById.values) {
+        final period = periodById[slot.periodTypeId];
+        final scopeName = switch (slot.scope) {
+          FreeSlotScope.school => '全校',
+          FreeSlotScope.stage => '学段',
+          FreeSlotScope.grade => gradeNames[slot.scopeId] ?? '年级',
+          FreeSlotScope.schoolClass => classNames[slot.scopeId] ?? '班级',
+        };
+        entries.add(
+          _SchoolFreeSlotEntry(
+            stageOrder: stageIndex,
+            stageName: stage.name,
+            scopeName: scopeName,
+            periodOrder: period?.sortOrder ?? 0,
+            periodName: period?.name ?? '时段',
+            slot: slot,
+          ),
+        );
+      }
+      isLoading =
+          isLoading ||
+          slotsState.isLoading && slotsState.valueOrNull == null ||
+          routineState.isLoading && routineState.valueOrNull == null ||
+          gradesState.isLoading && gradesState.valueOrNull == null;
+      hasError =
+          hasError ||
+          slotsState.hasError ||
+          routineState.hasError ||
+          gradesState.hasError;
+    }
+    entries.sort((a, b) {
+      final stageOrder = a.stageOrder.compareTo(b.stageOrder);
+      if (stageOrder != 0) return stageOrder;
+      final weekday = a.slot.weekday.compareTo(b.slot.weekday);
+      if (weekday != 0) return weekday;
+      final periodOrder = a.periodOrder.compareTo(b.periodOrder);
+      if (periodOrder != 0) return periodOrder;
+      return a.slot.lessonIndex.compareTo(b.slot.lessonIndex);
+    });
+    final entriesByWeekday = <int, List<_SchoolFreeSlotEntry>>{};
+    for (final entry in entries) {
+      entriesByWeekday
+          .putIfAbsent(entry.slot.weekday, () => <_SchoolFreeSlotEntry>[])
+          .add(entry);
+    }
+    final weekdays = entriesByWeekday.keys.toList()..sort();
+    final weekdayGroups = [
+      for (final weekday in weekdays)
+        _buildWeekdayGroup(
+          weekdayLabel: weekday >= 1 && weekday <= 7
+              ? _weekdayNames[weekday - 1]
+              : '其他日期',
+          entries: entriesByWeekday[weekday]!,
+          onDelete: onDelete,
+        ),
+    ];
+    final groupedList = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < weekdayGroups.length; index++) ...[
+          if (index > 0) const Divider(height: 1),
+          weekdayGroups[index],
+        ],
+      ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: AppGhostButton.icon(
-              onPressed: () => onAdd(),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('新增', style: TextStyle(fontSize: 12)),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 6),
+            child: Row(
+              children: [
+                Text('全校免任课', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(width: 8),
+                Text(
+                  '${entries.length} 项',
+                  style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          AppOutlineButton(
-            onPressed: periods.isEmpty ? null : () => _manage(context, periods),
-            child: Text(
-              '管理（${periods.length}）',
-              style: const TextStyle(fontSize: 12),
+          if (isLoading && entries.isEmpty)
+            const SizedBox(
+              height: 48,
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (hasError && entries.isEmpty)
+            const Text(
+              '免任课暂时无法读取',
+              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+            )
+          else if (entries.isEmpty)
+            const Text(
+              '暂无免任课',
+              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+            )
+          else
+            Padding(
+              // 与右侧滚动条留出间距，避免误触滚动条。
+              padding: EdgeInsets.only(right: trailingInset),
+              child: groupedList,
             ),
-          ),
         ],
       ),
     );
   }
 
-  Future<void> _manage(BuildContext context, List<CommonPeriod> periods) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AppDialog(
-        title: const Text('公共时段'),
-        content: SizedBox(
-          width: 380,
+  Widget _buildWeekdayGroup({
+    required String weekdayLabel,
+    required List<_SchoolFreeSlotEntry> entries,
+    required ValueChanged<FreeSlot> onDelete,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 2),
+        child: Text(
+          weekdayLabel,
+          style: const TextStyle(
+            color: AppTheme.muted,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      for (final entry in entries)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final period in periods)
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(period.name),
-                  subtitle: Text(
-                    period.startLabel == null
-                        ? '时长 ${period.durationMinutes} 分钟 · 未填起止时间'
-                        : '${period.startLabel} – ${period.endLabel}',
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${entry.periodName}第 ${entry.slot.lessonIndex} 节',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.ink,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 96),
+                    child: Text(
+                      entry.slot.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFE37318),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                  SizedBox.square(
+                    dimension: 20,
+                    child: IconButton(
+                      tooltip: '删除这条免任课',
+                      onPressed: () => onDelete(entry.slot),
+                      constraints: const BoxConstraints.tightFor(
+                        width: 20,
+                        height: 20,
+                      ),
+                      padding: EdgeInsets.zero,
+                      iconSize: 12,
+                      color: AppTheme.muted,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${entry.stageName} · ${entry.scopeName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppTheme.muted, fontSize: 10),
+              ),
             ],
           ),
         ),
-        actions: [
-          AppGhostButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('关闭'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 撤销提示条（设计稿操作 02d）：白底浮条 + 琥珀提示点 + 描述 + 撤销链接。
-class _UndoToastBar extends StatelessWidget {
-  const _UndoToastBar({required this.edit, required this.onUndo, super.key});
-
-  final _UndoableEdit edit;
-  final Future<void> Function() onUndo;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: const Color(0xFFDEDEDE)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x24000000),
-          offset: Offset(0, 4),
-          blurRadius: 16,
-          spreadRadius: -2,
-        ),
-      ],
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: const BoxDecoration(
-            color: Color(0xFFE37318),
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            edit.message,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppTheme.ink, fontSize: 12),
-          ),
-        ),
-        const SizedBox(width: 12),
-        InkWell(
-          onTap: () => unawaited(onUndo()),
-          borderRadius: BorderRadius.circular(4),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            child: Text(
-              '撤销',
-              style: TextStyle(
-                color: AppTheme.blue,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-/// 未保存修改底栏：提示 + 撤销修改 + 保存（顶栏-未保存态在本壳内的落位）。
-class _UnsavedChangesBar extends StatelessWidget {
-  const _UnsavedChangesBar({
-    required this.isSaving,
-    required this.onRevert,
-    required this.onSave,
-    super.key,
-  });
-
-  final bool isSaving;
-  final VoidCallback onRevert;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: AppTheme.border),
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: const BoxDecoration(
-            color: Color(0xFFE37318),
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        const Text(
-          '有未保存的修改',
-          style: TextStyle(color: AppTheme.ink, fontSize: 12),
-        ),
-        const Spacer(),
-        AppGhostButton(
-          onPressed: isSaving ? null : onRevert,
-          child: const Text('撤销修改'),
-        ),
-        const SizedBox(width: 8),
-        AppPrimaryButton.icon(
-          onPressed: isSaving ? null : onSave,
-          icon: const Icon(Icons.save_outlined, size: 16),
-          label: Text(isSaving ? '保存中' : '保存'),
-        ),
-      ],
-    ),
+    ],
   );
 }
 
 class _LessonTimePanel extends StatelessWidget {
   const _LessonTimePanel({
+    this.scrollable = true,
     required this.periods,
     required this.timeInputs,
+    required this.revision,
     required this.commonPeriods,
-    required this.commonTimeControllers,
     required this.needsCrossStageTimes,
     required this.collapsedGroups,
-    required this.teachingDays,
-    required this.overrides,
     required this.onToggleGroup,
     required this.onTimeChanged,
     required this.onInsertCommonPeriod,
     required this.onCommonPeriodTimeChanged,
+    required this.onRenameCommonPeriod,
     required this.onDeleteCommonPeriod,
   });
 
+  final bool scrollable;
   final List<_PeriodDraft> periods;
   final Map<String, String> timeInputs;
+  final int revision;
   final List<CommonPeriod> commonPeriods;
-  final Map<String, TextEditingController> commonTimeControllers;
   final bool needsCrossStageTimes;
   final Set<String> collapsedGroups;
-  final Set<int> teachingDays;
-  final Map<String, int> overrides;
   final ValueChanged<String> onToggleGroup;
   final void Function(_PeriodDraft, int, bool, String) onTimeChanged;
   final Future<void> Function({String? afterLessonId}) onInsertCommonPeriod;
   final void Function(CommonPeriod, bool, String) onCommonPeriodTimeChanged;
+  final Future<void> Function(CommonPeriod) onRenameCommonPeriod;
   final Future<void> Function(CommonPeriod) onDeleteCommonPeriod;
 
-  TextEditingController _controller(String key, String initial) {
-    final existing = commonTimeControllers[key];
-    if (existing != null) return existing;
-    final controller = TextEditingController(text: initial);
-    commonTimeControllers[key] = controller;
-    return controller;
-  }
-
   @override
-  Widget build(BuildContext context) => AppSectionPanel(
-    title: '节次与时间',
-    expandChild: true,
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    trailing: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (needsCrossStageTimes)
-          const AppBadge(
-            label: '跨学段必填',
-            foreground: Color(0xFFE37318),
-            background: Color(0xFFFFF1E9),
-            fontSize: 11,
+  Widget build(BuildContext context) {
+    final children = <Widget>[
+      const _TimeColumnHeader(),
+      for (var index = 0; index < periods.length; index++) ...[
+        if (collapsedGroups.contains(periods[index].id))
+          _PeriodGroupHeaderCollapsed(
+            period: periods[index],
+            visual: periodVisualFor(periods[index].name, index),
+            timeInputs: timeInputs,
+            onExpand: () => onToggleGroup(periods[index].id),
+          )
+        else ...[
+          _PeriodGroupHeader(
+            period: periods[index],
+            visual: periodVisualFor(periods[index].name, index),
+            onCollapse: () => onToggleGroup(periods[index].id),
           ),
-        const SizedBox(width: 8),
-        InkWell(
-          onTap: () => onInsertCommonPeriod(),
-          child: const Text(
-            '+ 插入',
-            style: TextStyle(
-              color: AppTheme.blue,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    ),
-    child: ListView(
-      padding: const EdgeInsets.only(bottom: 8),
-      children: [
-        for (var index = 0; index < periods.length; index++) ...[
-          if (collapsedGroups.contains(periods[index].id))
-            _PeriodGroupHeaderCollapsed(
+          for (final time in periods[index].times) ...[
+            _LessonTimeRow(
               period: periods[index],
-              visual: periodVisualFor(periods[index].name, index),
+              time: time,
               timeInputs: timeInputs,
-              teachingDays: teachingDays,
-              overrides: overrides,
-              onExpand: () => onToggleGroup(periods[index].id),
-            )
-          else ...[
-            _PeriodGroupHeader(
-              period: periods[index],
-              visual: periodVisualFor(periods[index].name, index),
-              onCollapse: () => onToggleGroup(periods[index].id),
+              revision: revision,
+              onChanged: onTimeChanged,
             ),
-            for (final time in periods[index].times) ...[
-              _LessonTimeRow(
-                period: periods[index],
-                time: time,
-                timeInputs: timeInputs,
-                onChanged: onTimeChanged,
+            for (final common in commonPeriods.where(
+              (item) =>
+                  item.insertAfterLessonId ==
+                  '${periods[index].id}_${time.lessonIndex}',
+            ))
+              _CommonPeriodRow(
+                period: common,
+                onChanged: onCommonPeriodTimeChanged,
+                onRename: onRenameCommonPeriod,
+                onDelete: onDeleteCommonPeriod,
               ),
-              _InsertCommonPeriodSlot(
-                onTap: () => onInsertCommonPeriod(
-                  afterLessonId: '${periods[index].id}_${time.lessonIndex}',
-                ),
-              ),
-              for (final common in commonPeriods.where(
-                (item) =>
-                    item.insertAfterLessonId ==
-                    '${periods[index].id}_${time.lessonIndex}',
-              ))
-                _CommonPeriodRow(
-                  period: common,
-                  controllerStart: _controller(
-                    '${common.id}_start',
-                    common.startLabel ?? '',
-                  ),
-                  controllerEnd: _controller(
-                    '${common.id}_end',
-                    common.endLabel ?? '',
-                  ),
-                  onChanged: onCommonPeriodTimeChanged,
-                  onDelete: onDeleteCommonPeriod,
-                ),
-            ],
           ],
-          for (final common in commonPeriods.where(
-            (item) =>
-                item.insertAfterLessonId == null &&
-                periods.isNotEmpty &&
-                periods.first.id == periods[index].id &&
-                index == 0,
-          ))
-            _CommonPeriodRow(
-              period: common,
-              controllerStart: _controller(
-                '${common.id}_start',
-                common.startLabel ?? '',
-              ),
-              controllerEnd: _controller(
-                '${common.id}_end',
-                common.endLabel ?? '',
-              ),
-              onChanged: onCommonPeriodTimeChanged,
-              onDelete: onDeleteCommonPeriod,
-            ),
         ],
+        for (final common in commonPeriods.where(
+          (item) =>
+              item.insertAfterLessonId == null &&
+              periods.isNotEmpty &&
+              periods.first.id == periods[index].id &&
+              index == 0,
+        ))
+          _CommonPeriodRow(
+            period: common,
+            onChanged: onCommonPeriodTimeChanged,
+            onRename: onRenameCommonPeriod,
+            onDelete: onDeleteCommonPeriod,
+          ),
       ],
-    ),
-  );
+    ];
+    return AppSectionPanel(
+      title: '节次与时间',
+      expandChild: scrollable,
+      padding: EdgeInsets.fromLTRB(12, 0, scrollable ? 8 : 12, 0),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (needsCrossStageTimes)
+            const AppBadge(
+              label: '跨学段必填',
+              foreground: Color(0xFFE37318),
+              background: Color(0xFFFFF1E9),
+              fontSize: 11,
+            ),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: () => onInsertCommonPeriod(),
+            child: const Text(
+              '+ 插入',
+              style: TextStyle(
+                color: AppTheme.blue,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+      child: scrollable
+          ? _VerticalScrollWithGutter(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: children,
+                ),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+    );
+  }
 }
 
 /// 展开的分组头（18px：色点 + 「上午时段 · 每天 5 节」），点击收起。
@@ -2552,24 +2906,20 @@ class _PeriodGroupHeader extends StatelessWidget {
   );
 }
 
-/// 折叠的分组头（24px #FAFAFA：「下午 · 5 节 14:00–18:30」+ 展开）。
+/// 折叠的分组头（24px #FAFAFA：时段节数与起止时间摘要）。
 ///
-/// 时间未填全时退化为按天节数概要（设计稿界面 02：晚上 · 2 节 周五 5/周日 2）。
+/// 时间未填写时只显示当前时段节数。
 class _PeriodGroupHeaderCollapsed extends StatelessWidget {
   const _PeriodGroupHeaderCollapsed({
     required this.period,
     required this.visual,
     required this.timeInputs,
-    required this.teachingDays,
-    required this.overrides,
     required this.onExpand,
   });
 
   final _PeriodDraft period;
   final PeriodVisual visual;
   final Map<String, String> timeInputs;
-  final Set<int> teachingDays;
-  final Map<String, int> overrides;
   final VoidCallback onExpand;
 
   String? get _timeRangeLabel {
@@ -2599,22 +2949,9 @@ class _PeriodGroupHeaderCollapsed extends StatelessWidget {
     return '${format(minStart)}–${format(maxEnd)}';
   }
 
-  /// 时间未填全时的按天节数概要：「周五 5/周日 2」。
-  String? get _perDayCountsLabel {
-    final parts = <String>[];
-    for (final weekday in teachingDays.toList()..sort()) {
-      final count =
-          overrides[_overrideKey(period.id, weekday)] ??
-          period.defaultLessonCount;
-      if (count > 0) parts.add('${_weekdayShort[weekday - 1]} $count');
-    }
-    if (parts.isEmpty) return null;
-    return parts.join('/');
-  }
-
   @override
   Widget build(BuildContext context) {
-    final summary = _timeRangeLabel ?? _perDayCountsLabel;
+    final summary = _timeRangeLabel;
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 6),
       child: InkWell(
@@ -2660,12 +2997,14 @@ class _LessonTimeRow extends StatelessWidget {
     required this.period,
     required this.time,
     required this.timeInputs,
+    required this.revision,
     required this.onChanged,
   });
 
   final _PeriodDraft period;
   final _TimeDraft time;
   final Map<String, String> timeInputs;
+  final int revision;
   final void Function(_PeriodDraft, int, bool, String) onChanged;
 
   @override
@@ -2673,94 +3012,207 @@ class _LessonTimeRow extends StatelessWidget {
     final visual = periodVisualFor(period.name, period.sortOrder);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: visual.labelTint,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              time.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: visual.color, fontSize: 12),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 50,
-            child: AppTextFormField(
-              key: ValueKey('${period.id}_${time.lessonIndex}_start'),
-              initialValue:
-                  timeInputs['${period.id}_${time.lessonIndex}_start'] ?? '',
-              decoration: const InputDecoration(hintText: '08:00'),
-              dense: true,
-              textAlign: TextAlign.center,
-              onChanged: (value) =>
-                  onChanged(period, time.lessonIndex, true, value),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 3),
-            child: Text(
-              '–',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
-            ),
-          ),
-          SizedBox(
-            width: 50,
-            child: AppTextFormField(
-              key: ValueKey('${period.id}_${time.lessonIndex}_end'),
-              initialValue:
-                  timeInputs['${period.id}_${time.lessonIndex}_end'] ?? '',
-              decoration: const InputDecoration(hintText: '08:45'),
-              dense: true,
-              textAlign: TextAlign.center,
-              onChanged: (value) =>
-                  onChanged(period, time.lessonIndex, false, value),
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final widths = _timeRowWidths(constraints.maxWidth);
+          return Row(
+            children: [
+              Container(
+                width: widths.label,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: visual.labelTint,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  time.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: visual.color, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 6),
+              SizedBox(
+                width: widths.field,
+                child: _TimePickerField(
+                  key: ValueKey(
+                    '${revision}_${period.id}_${time.lessonIndex}_start',
+                  ),
+                  value:
+                      timeInputs['${period.id}_${time.lessonIndex}_start'] ??
+                      '',
+                  hint: '08:00',
+                  onPicked: (value) =>
+                      onChanged(period, time.lessonIndex, true, value),
+                ),
+              ),
+              const SizedBox(
+                width: _timeSeparatorWidth,
+                child: Center(
+                  child: Text(
+                    '–',
+                    style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: widths.field,
+                child: _TimePickerField(
+                  key: ValueKey(
+                    '${revision}_${period.id}_${time.lessonIndex}_end',
+                  ),
+                  value:
+                      timeInputs['${period.id}_${time.lessonIndex}_end'] ?? '',
+                  hint: '08:45',
+                  onPicked: (value) =>
+                      onChanged(period, time.lessonIndex, false, value),
+                ),
+              ),
+              const SizedBox(width: _timeRowTrailingWidth),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-/// 插入公共时段槽（26px #FAFAFA）。
-class _InsertCommonPeriodSlot extends StatelessWidget {
-  const _InsertCommonPeriodSlot({required this.onTap});
+class _TimePickerField extends StatelessWidget {
+  const _TimePickerField({
+    required this.value,
+    required this.hint,
+    required this.onPicked,
+    super.key,
+  });
 
-  final VoidCallback onTap;
+  final String value;
+  final String hint;
+  final ValueChanged<String> onPicked;
+
+  Future<void> _pickTime(BuildContext context) async {
+    final minutes = _parseTime(value) ?? _parseTime(hint) ?? 0;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+    if (picked == null) return;
+    onPicked(
+      '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayedValue = value.isEmpty ? '--:--' : value;
+    final color = value.isEmpty
+        ? AppTheme.muted
+        : Theme.of(context).colorScheme.onSurface;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _pickTime(context),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 28,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFE8E5E2)),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: value.isEmpty ? 0 : 14),
+                    child: Text(
+                      displayedValue,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: TextStyle(fontSize: 12, color: color),
+                    ),
+                  ),
+                ),
+              ),
+              if (value.isNotEmpty)
+                Positioned(
+                  right: 1,
+                  top: 0,
+                  bottom: 0,
+                  child: Tooltip(
+                    message: '清空时间',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onPicked(''),
+                      child: const SizedBox(
+                        width: 16,
+                        child: Center(
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 10,
+                            color: AppTheme.muted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeColumnHeader extends StatelessWidget {
+  const _TimeColumnHeader();
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 2, bottom: 6),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        height: 26,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: const Color(0xFFFAFAFA),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+    padding: const EdgeInsets.only(top: 4, bottom: 2),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final widths = _timeRowWidths(constraints.maxWidth);
+        return Row(
           children: [
-            Icon(Icons.add, size: 11, color: AppTheme.muted),
-            SizedBox(width: 4),
-            Text(
-              '+ 插入公共时段',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+            SizedBox(
+              width: widths.label,
+              child: const Text(
+                '节次',
+                style: TextStyle(color: AppTheme.muted, fontSize: 10),
+              ),
             ),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: widths.field,
+              child: const Center(
+                child: Text(
+                  '开始',
+                  style: TextStyle(color: AppTheme.muted, fontSize: 10),
+                ),
+              ),
+            ),
+            const SizedBox(width: _timeSeparatorWidth),
+            SizedBox(
+              width: widths.field,
+              child: const Center(
+                child: Text(
+                  '结束',
+                  style: TextStyle(color: AppTheme.muted, fontSize: 10),
+                ),
+              ),
+            ),
+            const SizedBox(width: _timeRowTrailingWidth),
           ],
-        ),
-      ),
+        );
+      },
     ),
   );
 }
@@ -2768,316 +3220,98 @@ class _InsertCommonPeriodSlot extends StatelessWidget {
 class _CommonPeriodRow extends StatelessWidget {
   const _CommonPeriodRow({
     required this.period,
-    required this.controllerStart,
-    required this.controllerEnd,
     required this.onChanged,
+    required this.onRename,
     required this.onDelete,
   });
 
   final CommonPeriod period;
-  final TextEditingController controllerStart;
-  final TextEditingController controllerEnd;
   final void Function(CommonPeriod, bool, String) onChanged;
+  final Future<void> Function(CommonPeriod) onRename;
   final Future<void> Function(CommonPeriod) onDelete;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
-    child: Row(
-      children: [
-        Container(
-          width: 64,
-          height: 28,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF8F2),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            period.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFFE37318), fontSize: 11),
-          ),
-        ),
-        const SizedBox(width: 6),
-        SizedBox(
-          width: 50,
-          child: AppTextFormField(
-            controller: controllerStart,
-            decoration: const InputDecoration(hintText: '09:05'),
-            dense: true,
-            textAlign: TextAlign.center,
-            onChanged: (value) => onChanged(period, true, value),
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 3),
-          child: Text(
-            '–',
-            style: TextStyle(color: AppTheme.muted, fontSize: 11),
-          ),
-        ),
-        SizedBox(
-          width: 50,
-          child: AppTextFormField(
-            controller: controllerEnd,
-            decoration: const InputDecoration(hintText: '09:15'),
-            dense: true,
-            textAlign: TextAlign.center,
-            onChanged: (value) => onChanged(period, false, value),
-          ),
-        ),
-        const SizedBox(width: 4),
-        const AppBadge(
-          label: '公共',
-          foreground: Color(0xFFE37318),
-          background: Color(0xFFFFF1E9),
-          fontSize: 11,
-        ),
-        const SizedBox(width: 2),
-        InkWell(
-          onTap: () => onDelete(period),
-          borderRadius: BorderRadius.circular(8),
-          child: const Padding(
-            padding: EdgeInsets.all(3),
-            child: Icon(Icons.close, size: 12, color: AppTheme.muted),
-          ),
-        ),
-      ],
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final widths = _timeRowWidths(constraints.maxWidth);
+        return Row(
+          children: [
+            Tooltip(
+              message: '点击编辑名称',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => unawaited(onRename(period)),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    width: widths.label,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8F2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      period.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFE37318),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: widths.field,
+              child: _TimePickerField(
+                value: period.startLabel ?? '',
+                hint: '09:05',
+                onPicked: (value) => onChanged(period, true, value),
+              ),
+            ),
+            const SizedBox(
+              width: _timeSeparatorWidth,
+              child: Center(
+                child: Text(
+                  '–',
+                  style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: widths.field,
+              child: _TimePickerField(
+                value: period.endLabel ?? '',
+                hint: '09:15',
+                onPicked: (value) => onChanged(period, false, value),
+              ),
+            ),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: _timeRowTrailingWidth - 4,
+              child: InkWell(
+                onTap: () => onDelete(period),
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.all(3),
+                  child: Icon(Icons.close, size: 12, color: AppTheme.muted),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     ),
   );
 }
 
 // —— 弹窗 ——
-
-class _OverrideEdit {
-  const _OverrideEdit(this.lessonCount, {this.periodTypeId, this.weekday});
-
-  final int? lessonCount;
-  final String? periodTypeId;
-  final int? weekday;
-}
-
-class _OverrideDialog extends StatefulWidget {
-  const _OverrideDialog({
-    required this.weekdayName,
-    required this.periodName,
-    required this.defaultCount,
-    required this.currentCount,
-    required this.periods,
-    required this.teachingDays,
-    this.fixedPeriodId,
-    this.fixedWeekday,
-  });
-
-  final String weekdayName;
-  final String periodName;
-  final int defaultCount;
-  final int? currentCount;
-  final List<_PeriodDraft> periods;
-  final Set<int> teachingDays;
-  final String? fixedPeriodId;
-  final int? fixedWeekday;
-
-  @override
-  State<_OverrideDialog> createState() => _OverrideDialogState();
-}
-
-class _OverrideDialogState extends State<_OverrideDialog> {
-  late bool _isCustom = widget.currentCount != null;
-  late int _count = widget.currentCount ?? widget.defaultCount;
-  late String _periodId = widget.fixedPeriodId ?? widget.periods.first.id;
-  late int _weekday =
-      widget.fixedWeekday ??
-      (widget.teachingDays.isEmpty ? 1 : widget.teachingDays.first);
-
-  @override
-  Widget build(BuildContext context) {
-    final period = widget.periods.firstWhere((item) => item.id == _periodId);
-    return AppDialog(
-      title: Text('${_weekdayNames[_weekday - 1]} · ${period.name}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.fixedPeriodId == null)
-            AppSelectField<String>(
-              items: {for (final item in widget.periods) item.name: item.id},
-              value: _periodId,
-              label: '时段类型',
-              onChanged: (value) =>
-                  setState(() => _periodId = value ?? _periodId),
-            ),
-          if (widget.fixedWeekday == null) ...[
-            const SizedBox(height: 12),
-            AppSelectField<int>(
-              items: {
-                for (final day in widget.teachingDays.toList()..sort())
-                  _weekdayNames[day - 1]: day,
-              },
-              value: _weekday,
-              label: '星期',
-              onChanged: (value) =>
-                  setState(() => _weekday = value ?? _weekday),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('为这一天单独设置'),
-                    const SizedBox(height: 2),
-                    Text(
-                      '默认每天 ${period.defaultLessonCount} 节',
-                      style: const TextStyle(
-                        color: AppTheme.muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              f.FSwitch(
-                value: _isCustom,
-                onChange: (value) => setState(() {
-                  _isCustom = value;
-                  _count = period.defaultLessonCount;
-                }),
-              ),
-            ],
-          ),
-          if (_isCustom) ...[
-            const SizedBox(height: 12),
-            AppSelectField<int>(
-              items: {
-                for (var count = 0; count <= 9; count++) '$count 节': count,
-              },
-              value: _count,
-              label: '当天节数',
-              onChanged: (value) => setState(() => _count = value ?? _count),
-            ),
-          ],
-          if (_isCustom && _count == 0)
-            const Padding(
-              padding: EdgeInsets.only(top: 10),
-              child: Text(
-                '覆盖为 0 后，这一天不安排该时段课程。',
-                style: TextStyle(color: AppTheme.muted, fontSize: 12),
-              ),
-            ),
-        ],
-      ),
-      actions: [
-        if (widget.currentCount != null)
-          AppGhostButton(
-            onPressed: () => Navigator.pop(
-              context,
-              _OverrideEdit(null, periodTypeId: _periodId, weekday: _weekday),
-            ),
-            child: const Text('恢复默认'),
-          ),
-        AppGhostButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        AppPrimaryButton(
-          onPressed: () => Navigator.pop(
-            context,
-            _OverrideEdit(
-              _isCustom ? _count : null,
-              periodTypeId: _periodId,
-              weekday: _weekday,
-            ),
-          ),
-          child: const Text('应用'),
-        ),
-      ],
-    );
-  }
-}
-
-class _NewPeriodResult {
-  const _NewPeriodResult({required this.name, required this.count});
-
-  final String name;
-  final int count;
-}
-
-class _NewPeriodDialog extends StatefulWidget {
-  const _NewPeriodDialog();
-
-  @override
-  State<_NewPeriodDialog> createState() => _NewPeriodDialogState();
-}
-
-class _NewPeriodDialogState extends State<_NewPeriodDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  int _count = 1;
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AppDialog(
-    title: const Text('新增时段类型'),
-    content: SizedBox(
-      width: 360,
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppTextFormField(
-              controller: _nameController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '时段名称',
-                hintText: '例如：早读、晚自习',
-              ),
-              validator: (value) =>
-                  value == null || value.trim().isEmpty ? '请输入名称' : null,
-            ),
-            const SizedBox(height: 12),
-            AppSelectField<int>(
-              items: {
-                for (var count = 0; count <= 9; count++) '$count 节': count,
-              },
-              value: _count,
-              label: '默认每天节数',
-              onChanged: (value) => setState(() => _count = value ?? _count),
-            ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      AppGhostButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('取消'),
-      ),
-      AppPrimaryButton(
-        onPressed: () => _formKey.currentState!.validate()
-            ? Navigator.pop(
-                context,
-                _NewPeriodResult(
-                  name: _nameController.text.trim(),
-                  count: _count,
-                ),
-              )
-            : null,
-        child: const Text('添加'),
-      ),
-    ],
-  );
-}
 
 class _CommonPeriodResult {
   const _CommonPeriodResult({
@@ -3302,35 +3536,48 @@ class _TimeDraft {
   String label;
 }
 
-/// 可撤销的一次编辑（设计稿操作 02d 撤销提示条）。
+/// 一次编辑及其作用范围，用于在撤销/重做时恢复选中位置。
 class _UndoableEdit {
-  const _UndoableEdit({required this.message, required this.undo});
+  _UndoableEdit({
+    required this.message,
+    required this.undo,
+    required this.redo,
+    required this.stageId,
+    required this.scope,
+    required this.expandedStages,
+    required this.expandedGrades,
+    this.coalesceKey,
+  });
 
-  final String message;
-  final VoidCallback undo;
+  String message;
+  final FutureOr<void> Function() undo;
+  FutureOr<void> Function() redo;
+  final String stageId;
+  final _FreeSlotScopeSelection scope;
+  final Set<String> expandedStages;
+  final Set<String> expandedGrades;
+  final String? coalesceKey;
 }
 
 /// 草稿快照：用于判定是否有未保存修改。
 class _DraftSnapshot {
   const _DraftSnapshot({
     this.teachingDays = const {},
-    this.overrides = const {},
     this.periods = const [],
     this.timeInputs = const {},
+    this.freeSlotDraft = const {},
+    this.commonPeriodDraft = const {},
   });
 
   final Set<int> teachingDays;
-  final Map<String, int> overrides;
   final List<_PeriodSnapshot> periods;
   final Map<String, String> timeInputs;
+  final Map<String, FreeSlot?> freeSlotDraft;
+  final Map<String, CommonPeriod?> commonPeriodDraft;
 
   bool isSame(_DraftSnapshot other) {
     if (teachingDays.length != other.teachingDays.length) return false;
     if (!teachingDays.containsAll(other.teachingDays)) return false;
-    if (overrides.length != other.overrides.length) return false;
-    for (final entry in overrides.entries) {
-      if (other.overrides[entry.key] != entry.value) return false;
-    }
     if (periods.length != other.periods.length) return false;
     for (var index = 0; index < periods.length; index++) {
       if (!periods[index].isSame(other.periods[index])) return false;
@@ -3339,9 +3586,59 @@ class _DraftSnapshot {
     for (final entry in timeInputs.entries) {
       if (other.timeInputs[entry.key] != entry.value) return false;
     }
+    if (!_sameNullableMap(freeSlotDraft, other.freeSlotDraft, _sameFreeSlot)) {
+      return false;
+    }
+    if (!_sameNullableMap(
+      commonPeriodDraft,
+      other.commonPeriodDraft,
+      _sameCommonPeriod,
+    )) {
+      return false;
+    }
     return true;
   }
 }
+
+bool _sameNullableMap<T>(
+  Map<String, T?> left,
+  Map<String, T?> right,
+  bool Function(T?, T?) sameValue,
+) {
+  if (left.length != right.length) return false;
+  for (final entry in left.entries) {
+    if (!right.containsKey(entry.key) ||
+        !sameValue(entry.value, right[entry.key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _sameFreeSlot(FreeSlot? left, FreeSlot? right) =>
+    identical(left, right) ||
+    left != null &&
+        right != null &&
+        left.id == right.id &&
+        left.scope == right.scope &&
+        left.scopeId == right.scopeId &&
+        left.stageId == right.stageId &&
+        left.periodTypeId == right.periodTypeId &&
+        left.weekday == right.weekday &&
+        left.lessonIndex == right.lessonIndex &&
+        left.label == right.label;
+
+bool _sameCommonPeriod(CommonPeriod? left, CommonPeriod? right) =>
+    identical(left, right) ||
+    left != null &&
+        right != null &&
+        left.id == right.id &&
+        left.stageId == right.stageId &&
+        left.name == right.name &&
+        left.insertAfterLessonId == right.insertAfterLessonId &&
+        left.durationMinutes == right.durationMinutes &&
+        left.startMinute == right.startMinute &&
+        left.endMinute == right.endMinute;
 
 class _PeriodSnapshot {
   const _PeriodSnapshot({
@@ -3382,8 +3679,6 @@ class _TimeSnapshot {
   bool isSame(_TimeSnapshot other) =>
       lessonIndex == other.lessonIndex && label == other.label;
 }
-
-String _overrideKey(String periodId, int weekday) => '${periodId}_$weekday';
 
 String _timeKey(String periodId, int lessonIndex, bool isStart) =>
     '${periodId}_${lessonIndex}_${isStart ? 'start' : 'end'}';
