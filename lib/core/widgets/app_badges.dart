@@ -156,15 +156,20 @@ class PeriodVisual {
   final Color labelTint;
 }
 
-/// 按设计稿映射时段配色：早读=橙、上午=蓝、下午=绿、晚上=深灰；
+/// 早上 / 早读时段配色。
+/// 2026-10-17：由橙色（#E37318 / #FFF1E9）改为紫色——橙色底与免任课红格
+/// （#FFF0ED + #C63D36）过于接近，在网格里容易混淆。
+const _morningVisual = PeriodVisual(
+  color: Color(0xFF834EC2),
+  cellTint: Color(0xFFF4F1FB),
+  labelTint: Color(0xFFF8F6FD),
+);
+
+/// 按设计稿映射时段配色：早上/早读=紫、上午=蓝、下午=绿、晚上=深灰；
 /// 自定义时段在四套预设间轮换。
 PeriodVisual periodVisualFor(String periodName, int index) {
   final preset = switch (periodName) {
-    '早读' => const PeriodVisual(
-      color: Color(0xFFE37318),
-      cellTint: Color(0xFFE9F0FF),
-      labelTint: Color(0xFFFFF8F2),
-    ),
+    '早上' || '早读' => _morningVisual,
     '上午' => const PeriodVisual(
       color: AppTheme.blue,
       cellTint: Color(0xFFE9F0FF),
@@ -186,11 +191,7 @@ PeriodVisual periodVisualFor(String periodName, int index) {
 }
 
 const _cyclingPresets = <PeriodVisual>[
-  PeriodVisual(
-    color: Color(0xFFE37318),
-    cellTint: Color(0xFFFFF1E9),
-    labelTint: Color(0xFFFFF8F2),
-  ),
+  _morningVisual,
   PeriodVisual(
     color: AppTheme.blue,
     cellTint: Color(0xFFE9F0FF),

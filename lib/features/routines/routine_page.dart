@@ -193,6 +193,10 @@ class _FreeSlotScopeSelection {
   };
 }
 
+/// 范围树选中回调：scope 所属的 [stageId] 一并回传，供调用方在跨学段选中时先切换学段。
+typedef _ScopeSelectCallback =
+    void Function(String stageId, _FreeSlotScopeSelection selection);
+
 class _RoutineEditor extends ConsumerStatefulWidget {
   const _RoutineEditor({
     required this.termId,
@@ -232,6 +236,9 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     scope: FreeSlotScope.stage,
     scopeId: '',
   );
+
+  /// 在范围内点击了其他学段下的年级/班级时暂存选中项，待学段切换完成后恢复。
+  _FreeSlotScopeSelection? _pendingScope;
   final Set<String> _expandedStages = {};
   final Set<String> _expandedGrades = {};
 
@@ -408,6 +415,20 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     ),
   ];
 
+  /// 范围树节点点击：若所选年级/班级不属于当前编辑学段，先切换到对应学段再恢复选中项。
+  void _selectScope(String stageId, _FreeSlotScopeSelection selection) {
+    if (stageId == widget.stage.id) {
+      setState(() => _scope = selection);
+      return;
+    }
+    if (_isHistoryBusy) return;
+    setState(() {
+      _pendingScope = selection;
+      _expandedStages.add(stageId);
+    });
+    widget.onSelectStage(stageId);
+  }
+
   Widget _buildSettingsContent() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -418,10 +439,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         scope: _scope,
         expandedStages: _expandedStages,
         expandedGrades: _expandedGrades,
-        onSelectStage: (id) {
-          if (!_isHistoryBusy) widget.onSelectStage(id);
-        },
-        onSelectScope: (scope) => setState(() => _scope = scope),
+        onSelectScope: _selectScope,
         onToggleStage: (id) => setState(() {
           _expandedStages.contains(id)
               ? _expandedStages.remove(id)
@@ -470,42 +488,49 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         const <CommonPeriod>[];
     final commonPeriods = _effectiveCommonPeriods(persistedCommonPeriods);
     return AppSectionPanel(
-      padding: EdgeInsets.fromLTRB(16, 16, compact ? 16 : 8, 16),
+      // 右侧留白 = 该内边距 + 表格滚动条槽宽，与左侧 16 保持一致。
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        compact ? 16 : 16 - _verticalScrollbarGutterWidth,
+        16,
+      ),
       expandChild: !compact,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: _StageTabs(
-                    stages: widget.stages,
-                    selectedStageId: widget.stage.id,
-                    onSelectStage: (id) {
-                      if (!_isHistoryBusy) widget.onSelectStage(id);
-                    },
+          Padding(
+            // 与表格内容右边界对齐（表格右侧让出滚动条槽）。
+            padding: EdgeInsets.only(
+              right: compact ? 0 : _verticalScrollbarGutterWidth,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: _StageTabs(
+                      stages: widget.stages,
+                      selectedStageId: widget.stage.id,
+                      onSelectStage: (id) {
+                        if (!_isHistoryBusy) widget.onSelectStage(id);
+                      },
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Text(
+                  '${_weeklyCapacity()} 格 / 班',
+                  style: const TextStyle(
+                    color: AppTheme.blue,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              const Spacer(),
-              Text(
-                '每周容量 ${_weeklyCapacity()} 格 / 班',
-                style: const TextStyle(
-                  color: AppTheme.blue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
           if (compact)
             _buildMatrix(
               commonPeriods,
@@ -604,10 +629,12 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       _routineNeedsNormalizationByStage[stageId] = _needsNormalization;
     }
 
-    _scope = _FreeSlotScopeSelection(
-      scope: FreeSlotScope.stage,
-      scopeId: stageId,
-    );
+    // 跨学段点击年级/班级时保留待恢复的选中项，其余情况回到学段级范围。
+    final pending = _pendingScope;
+    _pendingScope = null;
+    _scope =
+        pending ??
+        _FreeSlotScopeSelection(scope: FreeSlotScope.stage, scopeId: stageId);
     _draftRevision++;
     _syncCurrentRoutineDraft();
   }
@@ -1665,7 +1692,6 @@ class _ScopeTreeCard extends ConsumerWidget {
     required this.scope,
     required this.expandedStages,
     required this.expandedGrades,
-    required this.onSelectStage,
     required this.onSelectScope,
     required this.onToggleStage,
     required this.onToggleGrade,
@@ -1677,8 +1703,7 @@ class _ScopeTreeCard extends ConsumerWidget {
   final _FreeSlotScopeSelection scope;
   final Set<String> expandedStages;
   final Set<String> expandedGrades;
-  final ValueChanged<String> onSelectStage;
-  final ValueChanged<_FreeSlotScopeSelection> onSelectScope;
+  final _ScopeSelectCallback onSelectScope;
   final ValueChanged<String> onToggleStage;
   final ValueChanged<String> onToggleGrade;
 
@@ -1698,7 +1723,6 @@ class _ScopeTreeCard extends ConsumerWidget {
             isExpanded: expandedStages.contains(stage.id),
             expandedGrades: expandedGrades,
             scope: scope,
-            onSelectStage: onSelectStage,
             onSelectScope: onSelectScope,
             onToggle: () => onToggleStage(stage.id),
             onToggleGrade: onToggleGrade,
@@ -1717,7 +1741,6 @@ class _ScopeStageNode extends ConsumerWidget {
     required this.isExpanded,
     required this.expandedGrades,
     required this.scope,
-    required this.onSelectStage,
     required this.onSelectScope,
     required this.onToggle,
     required this.onToggleGrade,
@@ -1730,8 +1753,7 @@ class _ScopeStageNode extends ConsumerWidget {
   final bool isExpanded;
   final Set<String> expandedGrades;
   final _FreeSlotScopeSelection scope;
-  final ValueChanged<String> onSelectStage;
-  final ValueChanged<_FreeSlotScopeSelection> onSelectScope;
+  final _ScopeSelectCallback onSelectScope;
   final VoidCallback onToggle;
   final ValueChanged<String> onToggleGrade;
 
@@ -1792,15 +1814,13 @@ class _ScopeStageNode extends ConsumerWidget {
           ),
           height: 30,
           contentPadding: const EdgeInsets.only(left: 8, right: 8),
-          onTap: () {
-            onSelectStage(stage.id);
-            onSelectScope(
-              _FreeSlotScopeSelection(
-                scope: FreeSlotScope.stage,
-                scopeId: stage.id,
-              ),
-            );
-          },
+          onTap: () => onSelectScope(
+            stage.id,
+            _FreeSlotScopeSelection(
+              scope: FreeSlotScope.stage,
+              scopeId: stage.id,
+            ),
+          ),
         ),
         if (isExpanded)
           for (final grade in grades)
@@ -1812,7 +1832,7 @@ class _ScopeStageNode extends ConsumerWidget {
                   scope.scopeId == grade.id,
               isExpanded: expandedGrades.contains(grade.id),
               scope: scope,
-              onSelectScope: onSelectScope,
+              onSelectScope: (selection) => onSelectScope(stage.id, selection),
               onToggle: () => onToggleGrade(grade.id),
             ),
       ],
@@ -2022,7 +2042,9 @@ class _GridItem {
   final CommonPeriod? commonPeriod;
 }
 
-const double _verticalScrollbarGutterWidth = 14;
+/// 纵向滚动条在内容区右侧占用的槽宽，与 Scrollbar 的 thickness 一致。
+/// 面板右侧内边距 = 期望的右侧留白 - 该槽宽，使内容（含滚动条）左右留白等宽。
+const double _verticalScrollbarGutterWidth = 8;
 
 class _NoAutoVerticalScrollbarBehavior extends MaterialScrollBehavior {
   const _NoAutoVerticalScrollbarBehavior();
@@ -2066,7 +2088,7 @@ class _VerticalScrollWithGutterState extends State<_VerticalScrollWithGutter> {
       data: ScrollbarTheme.of(context).copyWith(crossAxisMargin: 0),
       child: Scrollbar(
         controller: _scrollController,
-        thumbVisibility: true,
+        thumbVisibility: false,
         thickness: 8,
         radius: const Radius.circular(4),
         scrollbarOrientation: ScrollbarOrientation.right,
@@ -2832,7 +2854,13 @@ class _LessonTimePanel extends StatelessWidget {
     return AppSectionPanel(
       title: '节次与时间',
       expandChild: scrollable,
-      padding: EdgeInsets.fromLTRB(12, 0, scrollable ? 8 : 12, 0),
+      // 右侧留白 = 该内边距 + 滚动条槽宽，与左侧 12 保持一致。
+      padding: EdgeInsets.fromLTRB(
+        12,
+        0,
+        scrollable ? 12 - _verticalScrollbarGutterWidth : 12,
+        0,
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
