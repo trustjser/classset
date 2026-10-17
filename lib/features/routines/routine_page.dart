@@ -3373,6 +3373,11 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
   final _durationController = TextEditingController(text: '10');
   String? _afterLessonId;
 
+  /// 「第 1 节之前」的哨兵值：下拉组件无法把 null 当作可回显的选中项
+  /// （null 会被当作未选择而显示为空），提交时再映射回领域层的 null
+  /// （afterLessonId = null 表示插在最前）。
+  static const _beforeFirstLessonId = '__before_first__';
+
   @override
   void initState() {
     super.initState();
@@ -3437,7 +3442,7 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
             const SizedBox(height: 12),
             AppSelectField<String?>(
               items: {
-                '第 1 节之前': null,
+                '第 1 节之前': _beforeFirstLessonId,
                 for (final period in widget.periods)
                   for (final time in period.times)
                     '${time.label} 之后': '${period.id}_${time.lessonIndex}',
@@ -3468,7 +3473,9 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
             _CommonPeriodResult(
               name: _nameController.text.trim(),
               durationMinutes: int.parse(_durationController.text),
-              afterLessonId: _afterLessonId,
+              afterLessonId: _afterLessonId == _beforeFirstLessonId
+                  ? null
+                  : _afterLessonId,
             ),
           );
         },

@@ -78,9 +78,9 @@ void main() {
     await tester.enterText(find.widgetWithText(AppTextFormField, '数量'), '3');
     await tester.tap(find.text('添加').last);
     await tester.pumpAndSettle();
-    expect(find.text('一（1）班'), findsOneWidget);
-    expect(find.text('一（2）班'), findsOneWidget);
-    expect(find.text('一（3）班'), findsOneWidget);
+    expect(find.text('一年级 1 班'), findsOneWidget);
+    expect(find.text('一年级 2 班'), findsOneWidget);
+    expect(find.text('一年级 3 班'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -94,12 +94,12 @@ void main() {
     expect(find.byKey(const Key('add-grade-button')), findsOneWidget);
     await tester.tap(find.byKey(const Key('add-grade-button')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('二年级、三年级、四年级'), findsOneWidget);
+    expect(find.textContaining('一、二、三'), findsOneWidget);
     await tester.tap(find.text('添加').last);
     await tester.pumpAndSettle();
-    expect(find.text('二年级'), findsOneWidget);
-    expect(find.text('三年级'), findsOneWidget);
-    expect(find.text('四年级'), findsOneWidget);
+    expect(find.text('一'), findsOneWidget);
+    expect(find.text('二'), findsOneWidget);
+    expect(find.text('三'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -160,7 +160,7 @@ void main() {
     expect(find.textContaining('已选 1 个学段'), findsOneWidget);
     await tester.tap(find.text('应用填充'));
     await tester.pumpAndSettle();
-    expect(find.text('一（1）班'), findsOneWidget);
+    expect(find.text('一年级 1 班'), findsOneWidget);
 
     await tester.tap(find.text('批量填充名称').first);
     await tester.pumpAndSettle();

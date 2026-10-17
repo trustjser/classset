@@ -1182,17 +1182,6 @@ class _StageNameDialogState extends State<_StageNameDialog> {
                     ),
                 ],
               ),
-            const SizedBox(height: 12),
-            const Text(
-              '学段＝拥有独立作息的年级组；每个年级必须归属且仅归属一个学段（US-001 AC2）。'
-              '创建后：作息设置出现该学段页签（默认沿用全校作息），本页新增空白学段卡。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '删除学段前需先迁移其下年级；空学段可直接删除，不影响全校共享的班级、科目、教师数据。',
-              style: TextStyle(color: Color(0xFFE37318), fontSize: 11),
-            ),
           ],
         ),
       ),
@@ -1276,12 +1265,14 @@ class _AddGradesDialog extends StatefulWidget {
 
 class _AddGradesDialogState extends State<_AddGradesDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _prefixController = TextEditingController();
+  final _customController = TextEditingController();
   late String _stageId;
   int _count = 3;
-  String _template = '中文数字';
+  String _mode = '中文数字';
 
-  static const _templates = ['中文数字', '阿拉伯数字', '初一式', '自定义前缀'];
+  /// 按当前命名方式解析出实际模板字符串。
+  String _resolveTemplate() =>
+      _mode == '自定义' ? _customController.text : gradeNamingTemplates[_mode]!;
 
   @override
   void initState() {
@@ -1291,16 +1282,19 @@ class _AddGradesDialogState extends State<_AddGradesDialog> {
 
   @override
   void dispose() {
-    _prefixController.dispose();
+    _customController.dispose();
     super.dispose();
   }
 
-  List<String> _previewNames() => generateGradeNames(
-    template: _template,
-    count: _count.clamp(1, 9),
-    existingNames: widget.existingNamesByStage[_stageId] ?? const {},
-    prefix: _prefixController.text,
-  );
+  List<String> _previewNames() {
+    final template = _resolveTemplate();
+    if (!template.contains('{n}') && !template.contains('{N}')) return const [];
+    return generateGradeNames(
+      template: template,
+      count: _count.clamp(1, 9),
+      existingNames: widget.existingNamesByStage[_stageId] ?? const {},
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1332,12 +1326,12 @@ class _AddGradesDialogState extends State<_AddGradesDialog> {
                   Expanded(
                     child: AppSelectField<String>(
                       items: {
-                        for (final template in _templates) template: template,
+                        for (final mode in gradeNamingModes) mode: mode,
                       },
-                      value: _template,
+                      value: _mode,
                       label: '命名方式',
                       onChanged: (value) =>
-                          setState(() => _template = value ?? _template),
+                          setState(() => _mode = value ?? _mode),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1363,16 +1357,19 @@ class _AddGradesDialogState extends State<_AddGradesDialog> {
                   ),
                 ],
               ),
-              if (_template == '自定义前缀') ...[
+              if (_mode == '自定义') ...[
                 const SizedBox(height: 12),
                 AppTextFormField(
-                  controller: _prefixController,
+                  controller: _customController,
                   decoration: const InputDecoration(
-                    labelText: '名称前缀',
-                    hintText: '例如：高',
+                    labelText: '自定义名称',
+                    hintText: '例如：{n} 年级 或 {N}',
                   ),
                   validator: (value) =>
-                      value == null || value.trim().isEmpty ? '请输入名称前缀' : null,
+                      value != null &&
+                              (value.contains('{n}') || value.contains('{N}'))
+                          ? null
+                          : '请包含占位符 {n} 或 {N}',
                   onChanged: (_) => setState(() {}),
                 ),
               ],
@@ -1446,7 +1443,7 @@ class _BatchFillNamesDialog extends ConsumerStatefulWidget {
 }
 
 class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
-  static const _templates = ['第 {N} 班', '{N} 班', '{年级} {N} 班', '自定义…'];
+  static const _templates = ['{年级} {n} 班', '{n} 班', '自定义…'];
 
   late final Set<String> _selectedStageIds;
   late String _template;
@@ -1456,7 +1453,7 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
   void initState() {
     super.initState();
     _selectedStageIds = {widget.defaultStageId};
-    _template = _templates[1];
+    _template = _templates[0];
   }
 
   @override
@@ -1484,13 +1481,13 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
     return List.generate(classCount, (index) {
       final ordinal = index + 1;
       return switch (_template) {
-        '{N} 班' => '$short（$ordinal）班',
-        '第 {N} 班' => '第 $ordinal 班',
-        '{年级} {N} 班' => '$gradeName $ordinal 班',
+        '{n} 班' => '$short（$ordinal）班',
+        '第 {n} 班' => '第 $ordinal 班',
+        '{年级} {n} 班' => '$gradeName $ordinal 班',
         _ =>
           _customController.text
               .trim()
-              .replaceAll('{N}', '$ordinal')
+              .replaceAll('{n}', '$ordinal')
               .replaceAll('{年级}', gradeName),
       };
     });
@@ -1558,7 +1555,7 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                 controller: _customController,
                 decoration: const InputDecoration(
                   labelText: '命名规则',
-                  hintText: '可用 {N} 与 {年级}，如：{年级}（{N}）班',
+                  hintText: '可用 {n} 与 {年级}，如：{年级}（{n}）班',
                 ),
                 onChanged: (_) => setState(() {}),
               ),
@@ -1614,11 +1611,6 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 13),
-            const Text(
-              '支持多选学段，勾选即覆盖其下全部年级班级；仅重命名班级，不影响任课与课表数据',
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
             ),
             const SizedBox(height: 24),
             const Text(
@@ -1679,11 +1671,6 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                             ),
                       ],
                     ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '重名或空名将被跳过，并在应用后逐条提示；最近一次填充可一键撤销。',
-              style: TextStyle(color: Color(0xFFE37318), fontSize: 12),
             ),
             const SizedBox(height: 24),
             Row(
@@ -1902,10 +1889,7 @@ class _AddClassesDialogState extends State<_AddClassesDialog> {
     final names = <String>[];
     var ordinal = 1;
     while (names.length < _count && ordinal < 1000) {
-      final gradeName = widget.grade.name.endsWith('年级')
-          ? widget.grade.name.substring(0, widget.grade.name.length - 2)
-          : widget.grade.name;
-      final name = '$gradeName（$ordinal）班';
+      final name = '${widget.grade.name} $ordinal 班';
       if (used.add(name)) names.add(name);
       ordinal++;
     }

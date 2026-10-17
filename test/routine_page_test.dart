@@ -447,7 +447,7 @@ void main() {
     await selectJuniorStage(tester);
     final saveButton = find.descendant(
       of: find.byTooltip('保存作息设置'),
-      matching: find.byType(IconButton),
+      matching: find.byType(FilledButton),
     );
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
@@ -500,7 +500,7 @@ void main() {
 
     final saveButton = find.descendant(
       of: find.byTooltip('保存作息设置'),
-      matching: find.byType(IconButton),
+      matching: find.byType(FilledButton),
     );
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
@@ -537,7 +537,7 @@ void main() {
 
     final saveButton = find.descendant(
       of: find.byTooltip('保存作息设置'),
-      matching: find.byType(IconButton),
+      matching: find.byType(FilledButton),
     );
     // 初始作息含按天差异，先保存归一化后的基线。
     await tester.tap(saveButton);
@@ -639,7 +639,7 @@ void main() {
     );
     final saveButton = find.descendant(
       of: find.byTooltip('保存作息设置'),
-      matching: find.byType(IconButton),
+      matching: find.byType(FilledButton),
     );
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
@@ -676,7 +676,7 @@ void main() {
     await pumpPage(tester);
     await selectJuniorStage(tester);
 
-    await tester.tap(find.text('新增'));
+    await tester.tap(find.text('+ 插入'));
     await tester.pumpAndSettle();
     // 名称输入框需限定在弹窗内（页面时间字段也是 EditableText）。
     final dialog = find.byType(f.FDialog);
@@ -688,14 +688,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('眼保健操'), findsOneWidget);
-    expect(find.text('公共'), findsOneWidget);
+    // 公共行徽章为「名称 · 时长」组合文案（_CommonPeriodChip）。
+    expect(find.text('眼保健操 · 10 分钟'), findsOneWidget);
     expect(
       (await tester.runAsync(() => repository.watchCommonPeriods('jr').first))!,
       isEmpty,
     );
     final saveButton = find.descendant(
       of: find.byTooltip('保存作息设置'),
-      matching: find.byType(IconButton),
+      matching: find.byType(FilledButton),
     );
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
@@ -703,6 +704,42 @@ void main() {
       () => repository.watchCommonPeriods('jr').first,
     ))!;
     expect(periods.single.name, '眼保健操');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('位置选择「第 1 节之前」后下拉框正常回显并可插入', (tester) async {
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    await tester.tap(find.text('+ 插入'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(f.FDialog);
+
+    // 打开「位置」下拉，选择「第 1 节之前」。
+    await tester.tap(
+      find.descendant(
+        of: dialog,
+        matching: find.byType(AppSelectField<String?>),
+      ).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第 1 节之前').last);
+    await tester.pumpAndSettle();
+
+    // 回归：此前该选项值为 null，选中后下拉控件回显为空。
+    expect(
+      find.descendant(of: dialog, matching: find.text('第 1 节之前')),
+      findsOneWidget,
+    );
+
+    // 哨兵值在提交时映射回 null（插在最前）：插入不抛错且公共行出现。
+    await tester.enterText(
+      find.descendant(of: dialog, matching: find.byType(EditableText)).first,
+      '眼保健操',
+    );
+    await tester.tap(find.descendant(of: dialog, matching: find.text('插入')));
+    await tester.pumpAndSettle();
+    expect(find.text('眼保健操'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

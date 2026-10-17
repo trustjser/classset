@@ -2,40 +2,60 @@ import 'package:class_set/features/classes/grade_name_templates.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('中文模板跳过已有名称并填补空缺', () {
+  test('阿拉伯数字模板 {n} 生成 1、2、3', () {
     expect(
-      generateGradeNames(
-        template: '中文数字',
-        count: 3,
-        existingNames: {'一年级', '三年级'},
-      ),
-      ['二年级', '四年级', '五年级'],
+      generateGradeNames(template: '{n}', count: 3, existingNames: {}),
+      ['1', '2', '3'],
     );
   });
 
-  test('初一式和自定义前缀生成正确名称', () {
-    expect(generateGradeNames(template: '初一式', count: 2, existingNames: {}), [
-      '初一',
-      '初二',
-    ]);
+  test('中文数字模板 {N} 生成 一、二、三', () {
+    expect(
+      generateGradeNames(template: '{N}', count: 3, existingNames: {}),
+      ['一', '二', '三'],
+    );
+  });
+
+  test('自定义模板支持 {n} 与 {N} 占位符', () {
     expect(
       generateGradeNames(
-        template: '自定义前缀',
-        count: 2,
-        prefix: '高',
+        template: '{n} 年级',
+        count: 3,
         existingNames: {},
       ),
-      ['高一', '高二'],
+      ['1 年级', '2 年级', '3 年级'],
+    );
+    expect(
+      generateGradeNames(template: '{N}班', count: 3, existingNames: {}),
+      ['一班', '二班', '三班'],
+    );
+  });
+
+  test('模板跳过已有名称并填补空缺', () {
+    expect(
+      generateGradeNames(
+        template: '{n}',
+        count: 3,
+        existingNames: {'1', '3'},
+      ),
+      ['2', '4', '5'],
+    );
+  });
+
+  test('模板不含占位符时抛错', () {
+    expect(
+      () => generateGradeNames(template: '年级', count: 3, existingNames: {}),
+      throwsArgumentError,
     );
   });
 
   test('数量范围必须为 1 到 9', () {
     expect(
-      () => generateGradeNames(template: '中文数字', count: 0, existingNames: {}),
+      () => generateGradeNames(template: '{n}', count: 0, existingNames: {}),
       throwsArgumentError,
     );
     expect(
-      () => generateGradeNames(template: '中文数字', count: 10, existingNames: {}),
+      () => generateGradeNames(template: '{n}', count: 10, existingNames: {}),
       throwsArgumentError,
     );
   });
