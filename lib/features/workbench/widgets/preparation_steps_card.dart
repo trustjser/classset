@@ -143,7 +143,6 @@ class _StepIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: isCurrent ? AppTheme.selectedBlue : AppTheme.tableHeader,
         borderRadius: BorderRadius.circular(10),
-        border: isCurrent ? Border.all(color: AppTheme.blue) : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
