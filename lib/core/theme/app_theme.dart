@@ -26,6 +26,14 @@ abstract final class AppTheme {
   static const Color warningSurface = Color(0xFFFAF1E2);
   static const Color destructive = Color(0xFFD54941);
   static const Color destructiveSurface = Color(0xFFFBECEB);
+
+  /// 学段强调色：与「班级与学段」页一致，按学段序号蓝 / 绿 / 橙轮换。
+  /// [index] 取学段在全局学段列表中的序号，保证同一学段颜色稳定。
+  static Color stageAccent(int index) => switch (index % 3) {
+    0 => blue,
+    1 => const Color(0xFF2BA471),
+    _ => const Color(0xFFE37318),
+  };
   static const Color dialogBarrier = Color(0x52000000);
   static const double cardRadius = 14;
   static const double controlRadius = 10;

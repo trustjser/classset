@@ -126,6 +126,79 @@ class CalendarExceptions extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// 科目：全校共享（不按学段隔离）。
+class Subjects extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get shortName => text()();
+  IntColumn get sortOrder => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// 科目节数需求：科目 × 年级（或班级）× 周模式 的每周节数。
+class SubjectRequirements extends Table {
+  TextColumn get id => text()();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get gradeId =>
+      text().references(GradeGroups, #id, onDelete: KeyAction.cascade)();
+
+  /// 非 null = 按班覆盖；null = 年级默认。
+  TextColumn get classId =>
+      text().nullable().references(ClassGroups, #id, onDelete: KeyAction.cascade)();
+
+  /// weekly / odd / even。
+  TextColumn get weekMode => text().withDefault(const Constant('weekly'))();
+  IntColumn get lessonCount => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// 科目预设：科目 × 范围 × 学段 × 星期 × 时段 × 节次 的位置偏好。
+class SubjectPresets extends Table {
+  TextColumn get id => text()();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+
+  /// school/stage/grade/class；全校 scopeId = 学期 ID。
+  TextColumn get scopeType => text()();
+  TextColumn get scopeId => text()();
+
+  /// 所属学段（全校范围行按学段展开存储）。
+  TextColumn get stageId =>
+      text().references(SchoolStages, #id, onDelete: KeyAction.cascade)();
+  IntColumn get weekday => integer()();
+  TextColumn get periodTypeId => text().references(
+    LessonPeriodTypes,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get lessonIndex => integer()();
+
+  /// auto/prefer/must/forbid。
+  TextColumn get value => text().withDefault(const Constant('auto'))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// 课程配对：同班两门课（一单一双）共用同一时段。
+class SubjectPairings extends Table {
+  TextColumn get id => text()();
+  TextColumn get classId =>
+      text().references(ClassGroups, #id, onDelete: KeyAction.cascade)();
+  TextColumn get oddSubjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get evenSubjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// 免任课格子：按范围（全校/学段/年级/班级）标记具体节次不排课。
 class FreeSlots extends Table {
   TextColumn get id => text()();
@@ -177,6 +250,10 @@ class CommonPeriods extends Table {
     CalendarExceptions,
     FreeSlots,
     CommonPeriods,
+    Subjects,
+    SubjectRequirements,
+    SubjectPresets,
+    SubjectPairings,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -185,7 +262,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -198,6 +275,14 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await migrator.addColumn(academicTerms, academicTerms.cycleMode);
+      }
+      if (from < 4) {
+        await migrator.createTable(subjects);
+        await migrator.createTable(subjectRequirements);
+      }
+      if (from < 5) {
+        await migrator.createTable(subjectPresets);
+        await migrator.createTable(subjectPairings);
       }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),

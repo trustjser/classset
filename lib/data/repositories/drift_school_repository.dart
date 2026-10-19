@@ -6,6 +6,7 @@ import 'package:class_set/domain/models/common_period.dart' as domain;
 import 'package:class_set/domain/models/free_slot.dart' as domain;
 import 'package:class_set/domain/models/school_structure.dart' as domain;
 import 'package:class_set/domain/models/stage_routine.dart' as domain;
+import 'package:class_set/domain/models/subject.dart' as domain;
 import 'package:drift/drift.dart';
 
 class DriftSchoolRepository implements SchoolRepository {
@@ -316,6 +317,46 @@ class DriftSchoolRepository implements SchoolRepository {
             ..orderBy([(stage) => OrderingTerm.asc(stage.sortOrder)]))
           .watch()
           .map((rows) => rows.map(_toDomainStage).toList(growable: false));
+
+  @override
+  Stream<List<domain.StageStructureStat>> watchStageStructureStats(
+    String termId,
+  ) => _database
+      .customSelect(
+        '''
+        SELECT s.id AS stage_id,
+          (SELECT COUNT(*) FROM grade_groups g WHERE g.stage_id = s.id)
+            AS grade_count,
+          (SELECT COUNT(*) FROM stage_teaching_days d
+             WHERE d.stage_id = s.id AND d.is_teaching_day = 1)
+            AS teaching_day_count,
+          (SELECT COUNT(*) FROM lesson_period_types p
+             WHERE p.stage_id = s.id)
+            AS period_count
+        FROM school_stages s
+        WHERE s.term_id = ?
+        ORDER BY s.sort_order ASC
+        ''',
+        variables: [Variable<String>(termId)],
+        readsFrom: {
+          _database.schoolStages,
+          _database.gradeGroups,
+          _database.stageTeachingDays,
+          _database.lessonPeriodTypes,
+        },
+      )
+      .watch()
+      .map(
+        (rows) => [
+          for (final row in rows)
+            domain.StageStructureStat(
+              stageId: row.read<String>('stage_id'),
+              gradeCount: row.read<int>('grade_count'),
+              hasTeachingDays: row.read<int>('teaching_day_count') > 0,
+              hasPeriods: row.read<int>('period_count') > 0,
+            ),
+        ],
+      );
 
   @override
   Future<void> saveStage(domain.SchoolStage stage) =>
@@ -1155,4 +1196,399 @@ class DriftSchoolRepository implements SchoolRepository {
 
   static DateTime _dateOnly(DateTime value) =>
       DateTime(value.year, value.month, value.day);
+
+  // —— 科目与科目节数 ——
+
+  @override
+  Stream<List<domain.Subject>> watchSubjects() =>
+      (_database.select(_database.subjects)
+            ..orderBy([(subject) => OrderingTerm.asc(subject.sortOrder)]))
+          .watch()
+          .map((rows) => rows.map(_toDomainSubject).toList(growable: false));
+
+  @override
+  Future<void> saveSubjects(List<domain.Subject> subjects) async {
+    if (subjects.isEmpty) return;
+    await _database.batch((batch) {
+      batch.insertAll(
+        _database.subjects,
+        [
+          for (final subject in subjects)
+            SubjectsCompanion.insert(
+              id: subject.id,
+              name: subject.name.trim(),
+              shortName: subject.shortName.trim(),
+              sortOrder: subject.sortOrder,
+            ),
+        ],
+        mode: InsertMode.insertOrReplace,
+      );
+    });
+  }
+
+  @override
+  Future<void> deleteSubject(String subjectId) => (_database.delete(
+    _database.subjects,
+  )..where((subject) => subject.id.equals(subjectId))).go();
+
+  @override
+  Stream<List<domain.SubjectRequirement>> watchRequirementsForGrade(
+    String gradeId,
+  ) =>
+      (_database.select(_database.subjectRequirements)
+            ..where((row) => row.gradeId.equals(gradeId)))
+          .watch()
+          .map(
+            (rows) => rows.map(_toDomainRequirement).toList(growable: false),
+          );
+
+  @override
+  Stream<List<domain.SubjectRequirement>> watchAllRequirements() =>
+      (_database.select(_database.subjectRequirements))
+          .watch()
+          .map(
+            (rows) => rows.map(_toDomainRequirement).toList(growable: false),
+          );
+
+  @override
+  Stream<List<domain.ClassBrief>> watchClassesForStage(String stageId) =>
+      _database
+          .customSelect(
+            '''
+            SELECT s.id AS stage_id, g.id AS grade_id, c.id AS class_id,
+                   c.name AS class_name
+            FROM class_groups c
+            JOIN grade_groups g ON c.grade_id = g.id
+            JOIN school_stages s ON g.stage_id = s.id
+            WHERE s.id = ?
+            ORDER BY g.sort_order ASC, c.sort_order ASC
+            ''',
+            variables: [Variable<String>(stageId)],
+            readsFrom: {
+              _database.classGroups,
+              _database.gradeGroups,
+              _database.schoolStages,
+            },
+          )
+          .watch()
+          .map(
+            (rows) => [
+              for (final row in rows)
+                domain.ClassBrief(
+                  stageId: row.read<String>('stage_id'),
+                  gradeId: row.read<String>('grade_id'),
+                  id: row.read<String>('class_id'),
+                  name: row.read<String>('class_name'),
+                ),
+            ],
+          );
+
+  @override
+  Stream<List<domain.GradeGroup>> watchGradesForTerm(String termId) =>
+      _database
+          .customSelect(
+            '''
+            SELECT g.id AS g_id, g.stage_id AS g_stage_id,
+                   g.name AS g_name, g.sort_order AS g_sort
+            FROM grade_groups g
+            JOIN school_stages s ON g.stage_id = s.id
+            WHERE s.term_id = ?
+            ORDER BY s.sort_order ASC, g.sort_order ASC
+            ''',
+            variables: [Variable<String>(termId)],
+            readsFrom: {_database.gradeGroups, _database.schoolStages},
+          )
+          .watch()
+          .map(
+            (rows) => [
+              for (final row in rows)
+                domain.GradeGroup(
+                  id: row.read<String>('g_id'),
+                  stageId: row.read<String>('g_stage_id'),
+                  name: row.read<String>('g_name'),
+                  sortOrder: row.read<int>('g_sort'),
+                ),
+            ],
+          );
+
+  @override
+  Stream<List<domain.ClassBrief>> watchClassesForTerm(String termId) =>
+      _database
+          .customSelect(
+            '''
+            SELECT s.id AS stage_id, g.id AS grade_id, c.id AS class_id,
+                   c.name AS class_name
+            FROM class_groups c
+            JOIN grade_groups g ON c.grade_id = g.id
+            JOIN school_stages s ON g.stage_id = s.id
+            WHERE s.term_id = ?
+            ORDER BY s.sort_order ASC, g.sort_order ASC, c.sort_order ASC
+            ''',
+            variables: [Variable<String>(termId)],
+            readsFrom: {
+              _database.classGroups,
+              _database.gradeGroups,
+              _database.schoolStages,
+            },
+          )
+          .watch()
+          .map(
+            (rows) => [
+              for (final row in rows)
+                domain.ClassBrief(
+                  stageId: row.read<String>('stage_id'),
+                  gradeId: row.read<String>('grade_id'),
+                  id: row.read<String>('class_id'),
+                  name: row.read<String>('class_name'),
+                ),
+            ],
+          );
+
+  @override
+  Stream<Map<String, domain.StageRoutine>> watchRoutinesForTerm(
+    String termId,
+  ) =>
+      _database
+          .customSelect(
+            'SELECT id FROM school_stages WHERE term_id = ?',
+            variables: [Variable<String>(termId)],
+            readsFrom: {_database.schoolStages},
+          )
+          .watch()
+          .asyncMap((rows) async => {
+            for (final row in rows)
+              row.read<String>('id'): await _loadRoutine(
+                row.read<String>('id'),
+              ),
+          });
+
+  @override
+  Stream<List<domain.FreeSlot>> watchFreeSlotsForTerm(String termId) =>
+      (_database.select(_database.freeSlots).join([
+            innerJoin(
+              _database.schoolStages,
+              _database.schoolStages.id.equalsExp(_database.freeSlots.stageId),
+            ),
+          ])
+            ..where(_database.schoolStages.termId.equals(termId)))
+          .watch()
+          .map(
+            (rows) => [
+              for (final row in rows)
+                _toDomainFreeSlot(row.readTable(_database.freeSlots)),
+            ],
+          );
+
+  @override
+  Future<void> replaceGradeRequirements({
+    required String gradeId,
+    required List<domain.SubjectRequirement> requirements,
+  }) async {
+    await _database.transaction(() async {
+      await (_database.delete(
+        _database.subjectRequirements,
+      )..where((row) => row.gradeId.equals(gradeId))).go();
+      if (requirements.isEmpty) return;
+      await _database.batch((batch) {
+        batch.insertAll(
+          _database.subjectRequirements,
+          [
+            for (final requirement in requirements)
+              SubjectRequirementsCompanion.insert(
+                id: requirement.id,
+                subjectId: requirement.subjectId,
+                gradeId: requirement.gradeId,
+                classId: Value(requirement.classId),
+                weekMode: Value(requirement.weekMode.storageValue),
+                lessonCount: Value(requirement.lessonCount),
+              ),
+          ],
+        );
+      });
+    });
+  }
+
+  domain.Subject _toDomainSubject(Subject row) => domain.Subject(
+    id: row.id,
+    name: row.name,
+    shortName: row.shortName,
+    sortOrder: row.sortOrder,
+  );
+
+  // —— 科目预设与课程配对 ——
+
+  @override
+  Stream<List<domain.SubjectPreset>> watchPresetsForSubject(
+    String subjectId,
+  ) =>
+      (_database.select(_database.subjectPresets)
+            ..where((row) => row.subjectId.equals(subjectId)))
+          .watch()
+          .map((rows) => rows.map(_toDomainPreset).toList(growable: false));
+
+  @override
+  Stream<List<domain.SubjectPreset>> watchAllPresets() =>
+      (_database.select(_database.subjectPresets))
+          .watch()
+          .map((rows) => rows.map(_toDomainPreset).toList(growable: false));
+
+  @override
+  Future<void> replaceSubjectPresets({
+    required String subjectId,
+    required String termId,
+    required domain.FreeSlotScope scope,
+    required String scopeId,
+    required String stageId,
+    required List<domain.SubjectPreset> presets,
+  }) async {
+    await _database.transaction(() async {
+      if (scope == domain.FreeSlotScope.school) {
+        // 全校范围按学段展开存储：时段按名称匹配到该学期每个学段。
+        final stages = await (_database.select(_database.schoolStages)
+              ..where((row) => row.termId.equals(termId)))
+            .get();
+        for (final stage in stages) {
+          await _deleteSubjectPresets(subjectId, scope, scopeId, stage.id);
+          if (presets.isEmpty) continue;
+          final expanded = await _expandPresetsToStage(presets, stage.id);
+          await _insertSubjectPresets(expanded);
+        }
+        return;
+      }
+      await _deleteSubjectPresets(subjectId, scope, scopeId, stageId);
+      if (presets.isEmpty) return;
+      await _insertSubjectPresets(presets);
+    });
+  }
+
+  Future<void> _deleteSubjectPresets(
+    String subjectId,
+    domain.FreeSlotScope scope,
+    String scopeId,
+    String stageId,
+  ) => (_database.delete(_database.subjectPresets)
+        ..where(
+          (row) =>
+              row.subjectId.equals(subjectId) &
+              row.scopeType.equals(scope.storageValue) &
+              row.scopeId.equals(scopeId) &
+              row.stageId.equals(stageId),
+        ))
+      .go();
+
+  Future<void> _insertSubjectPresets(
+    List<domain.SubjectPreset> presets,
+  ) async {
+    if (presets.isEmpty) return;
+    await _database.batch((batch) {
+      batch.insertAll(_database.subjectPresets, [
+        for (final preset in presets)
+          SubjectPresetsCompanion.insert(
+            id: _newId(),
+            subjectId: preset.subjectId,
+            scopeType: preset.scope.storageValue,
+            scopeId: preset.scopeId,
+            stageId: preset.stageId,
+            weekday: preset.weekday,
+            periodTypeId: preset.periodTypeId,
+            lessonIndex: preset.lessonIndex,
+            value: Value(preset.value.storageValue),
+          ),
+      ]);
+    });
+  }
+
+  /// 把针对某学段网格的预设按「同时段名称」展开到目标学段。
+  Future<List<domain.SubjectPreset>> _expandPresetsToStage(
+    List<domain.SubjectPreset> presets,
+    String targetStageId,
+  ) async {
+    final targetPeriods = await (_database.select(_database.lessonPeriodTypes)
+          ..where((row) => row.stageId.equals(targetStageId)))
+        .get();
+    final nameToId = {for (final period in targetPeriods) period.name: period.id};
+    final sourceNames = <String, String>{};
+    for (final periodId in presets.map((preset) => preset.periodTypeId).toSet()) {
+      final row = await (_database.select(_database.lessonPeriodTypes)
+            ..where((row) => row.id.equals(periodId)))
+          .getSingleOrNull();
+      if (row != null) sourceNames[periodId] = row.name;
+    }
+    return [
+      for (final preset in presets)
+        if (nameToId[sourceNames[preset.periodTypeId]] != null)
+          domain.SubjectPreset(
+            id: '',
+            subjectId: preset.subjectId,
+            scope: preset.scope,
+            scopeId: preset.scopeId,
+            stageId: targetStageId,
+            weekday: preset.weekday,
+            periodTypeId: nameToId[sourceNames[preset.periodTypeId]]!,
+            lessonIndex: preset.lessonIndex,
+            value: preset.value,
+          ),
+    ];
+  }
+
+  @override
+  Stream<List<domain.SubjectPairing>> watchAllPairings() =>
+      (_database.select(_database.subjectPairings))
+          .watch()
+          .map((rows) => rows.map(_toDomainPairing).toList(growable: false));
+
+  @override
+  Future<void> replaceClassPairings({
+    required String classId,
+    required List<domain.SubjectPairing> pairings,
+  }) async {
+    await _database.transaction(() async {
+      await (_database.delete(_database.subjectPairings)
+            ..where((row) => row.classId.equals(classId)))
+          .go();
+      if (pairings.isEmpty) return;
+      await _database.batch((batch) {
+        batch.insertAll(_database.subjectPairings, [
+          for (final pairing in pairings)
+            SubjectPairingsCompanion.insert(
+              id: _newId(),
+              classId: pairing.classId,
+              oddSubjectId: pairing.oddSubjectId,
+              evenSubjectId: pairing.evenSubjectId,
+            ),
+        ]);
+      });
+    });
+  }
+
+  domain.SubjectPreset _toDomainPreset(SubjectPreset row) =>
+      domain.SubjectPreset(
+        id: row.id,
+        subjectId: row.subjectId,
+        scope: domain.FreeSlotScope.fromStorage(row.scopeType),
+        scopeId: row.scopeId,
+        stageId: row.stageId,
+        weekday: row.weekday,
+        periodTypeId: row.periodTypeId,
+        lessonIndex: row.lessonIndex,
+        value: domain.PresetValue.fromStorage(row.value),
+      );
+
+  domain.SubjectPairing _toDomainPairing(SubjectPairing row) =>
+      domain.SubjectPairing(
+        id: row.id,
+        classId: row.classId,
+        oddSubjectId: row.oddSubjectId,
+        evenSubjectId: row.evenSubjectId,
+      );
+
+  domain.SubjectRequirement _toDomainRequirement(SubjectRequirement row) =>
+      domain.SubjectRequirement(
+        id: row.id,
+        subjectId: row.subjectId,
+        gradeId: row.gradeId,
+        weekMode: domain.WeekMode.fromStorage(row.weekMode),
+        lessonCount: row.lessonCount,
+        classId: row.classId,
+      );
 }

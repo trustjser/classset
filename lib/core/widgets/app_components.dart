@@ -1181,9 +1181,13 @@ class AppMenuItem {
     this.destructive = false,
     this.shortcut,
     this.selected = false,
+    this.enabled = true,
   });
 
   final String label;
+
+  /// false 时菜单项呈禁用态（onPress 置空、文字变灰）。
+  final bool enabled;
   final VoidCallback onPressed;
   final bool destructive;
 
@@ -1202,12 +1206,16 @@ class AppMenuTile extends StatelessWidget with FItemMixin {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = item.destructive ? AppTheme.destructive : AppTheme.ink;
+    final foreground = item.destructive
+        ? AppTheme.destructive
+        : item.enabled
+        ? AppTheme.ink
+        : AppTheme.muted;
     return FItem.raw(
       variant: item.destructive ? .destructive : .primary,
       selected: item.selected,
       style: .delta(rawContentStyle: .delta(padding: .value(EdgeInsets.zero))),
-      onPress: item.onPressed,
+      onPress: item.enabled ? item.onPressed : null,
       child: Container(
         height: 30,
         margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),

@@ -4469,6 +4469,1654 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
   }
 }
 
+class $SubjectsTable extends Subjects with TableInfo<$SubjectsTable, Subject> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _shortNameMeta = const VerificationMeta(
+    'shortName',
+  );
+  @override
+  late final GeneratedColumn<String> shortName = GeneratedColumn<String>(
+    'short_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, shortName, sortOrder];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subjects';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Subject> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('short_name')) {
+      context.handle(
+        _shortNameMeta,
+        shortName.isAcceptableOrUnknown(data['short_name']!, _shortNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_shortNameMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sortOrderMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Subject map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Subject(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      shortName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}short_name'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $SubjectsTable createAlias(String alias) {
+    return $SubjectsTable(attachedDatabase, alias);
+  }
+}
+
+class Subject extends DataClass implements Insertable<Subject> {
+  final String id;
+  final String name;
+  final String shortName;
+  final int sortOrder;
+  const Subject({
+    required this.id,
+    required this.name,
+    required this.shortName,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['short_name'] = Variable<String>(shortName);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  SubjectsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectsCompanion(
+      id: Value(id),
+      name: Value(name),
+      shortName: Value(shortName),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory Subject.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Subject(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      shortName: serializer.fromJson<String>(json['shortName']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'shortName': serializer.toJson<String>(shortName),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  Subject copyWith({
+    String? id,
+    String? name,
+    String? shortName,
+    int? sortOrder,
+  }) => Subject(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    shortName: shortName ?? this.shortName,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  Subject copyWithCompanion(SubjectsCompanion data) {
+    return Subject(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      shortName: data.shortName.present ? data.shortName.value : this.shortName,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Subject(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('shortName: $shortName, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, shortName, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Subject &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.shortName == this.shortName &&
+          other.sortOrder == this.sortOrder);
+}
+
+class SubjectsCompanion extends UpdateCompanion<Subject> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> shortName;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const SubjectsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.shortName = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectsCompanion.insert({
+    required String id,
+    required String name,
+    required String shortName,
+    required int sortOrder,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       shortName = Value(shortName),
+       sortOrder = Value(sortOrder);
+  static Insertable<Subject> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? shortName,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (shortName != null) 'short_name': shortName,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? shortName,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return SubjectsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      shortName: shortName ?? this.shortName,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (shortName.present) {
+      map['short_name'] = Variable<String>(shortName.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('shortName: $shortName, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SubjectRequirementsTable extends SubjectRequirements
+    with TableInfo<$SubjectRequirementsTable, SubjectRequirement> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectRequirementsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _gradeIdMeta = const VerificationMeta(
+    'gradeId',
+  );
+  @override
+  late final GeneratedColumn<String> gradeId = GeneratedColumn<String>(
+    'grade_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES grade_groups (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _classIdMeta = const VerificationMeta(
+    'classId',
+  );
+  @override
+  late final GeneratedColumn<String> classId = GeneratedColumn<String>(
+    'class_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES class_groups (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _weekModeMeta = const VerificationMeta(
+    'weekMode',
+  );
+  @override
+  late final GeneratedColumn<String> weekMode = GeneratedColumn<String>(
+    'week_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('weekly'),
+  );
+  static const VerificationMeta _lessonCountMeta = const VerificationMeta(
+    'lessonCount',
+  );
+  @override
+  late final GeneratedColumn<int> lessonCount = GeneratedColumn<int>(
+    'lesson_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    subjectId,
+    gradeId,
+    classId,
+    weekMode,
+    lessonCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_requirements';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubjectRequirement> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('grade_id')) {
+      context.handle(
+        _gradeIdMeta,
+        gradeId.isAcceptableOrUnknown(data['grade_id']!, _gradeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_gradeIdMeta);
+    }
+    if (data.containsKey('class_id')) {
+      context.handle(
+        _classIdMeta,
+        classId.isAcceptableOrUnknown(data['class_id']!, _classIdMeta),
+      );
+    }
+    if (data.containsKey('week_mode')) {
+      context.handle(
+        _weekModeMeta,
+        weekMode.isAcceptableOrUnknown(data['week_mode']!, _weekModeMeta),
+      );
+    }
+    if (data.containsKey('lesson_count')) {
+      context.handle(
+        _lessonCountMeta,
+        lessonCount.isAcceptableOrUnknown(
+          data['lesson_count']!,
+          _lessonCountMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SubjectRequirement map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectRequirement(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      gradeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}grade_id'],
+      )!,
+      classId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}class_id'],
+      ),
+      weekMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}week_mode'],
+      )!,
+      lessonCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}lesson_count'],
+      )!,
+    );
+  }
+
+  @override
+  $SubjectRequirementsTable createAlias(String alias) {
+    return $SubjectRequirementsTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectRequirement extends DataClass
+    implements Insertable<SubjectRequirement> {
+  final String id;
+  final String subjectId;
+  final String gradeId;
+
+  /// 非 null = 按班覆盖；null = 年级默认。
+  final String? classId;
+
+  /// weekly / odd / even。
+  final String weekMode;
+  final int lessonCount;
+  const SubjectRequirement({
+    required this.id,
+    required this.subjectId,
+    required this.gradeId,
+    this.classId,
+    required this.weekMode,
+    required this.lessonCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['subject_id'] = Variable<String>(subjectId);
+    map['grade_id'] = Variable<String>(gradeId);
+    if (!nullToAbsent || classId != null) {
+      map['class_id'] = Variable<String>(classId);
+    }
+    map['week_mode'] = Variable<String>(weekMode);
+    map['lesson_count'] = Variable<int>(lessonCount);
+    return map;
+  }
+
+  SubjectRequirementsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectRequirementsCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      gradeId: Value(gradeId),
+      classId: classId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(classId),
+      weekMode: Value(weekMode),
+      lessonCount: Value(lessonCount),
+    );
+  }
+
+  factory SubjectRequirement.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectRequirement(
+      id: serializer.fromJson<String>(json['id']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+      gradeId: serializer.fromJson<String>(json['gradeId']),
+      classId: serializer.fromJson<String?>(json['classId']),
+      weekMode: serializer.fromJson<String>(json['weekMode']),
+      lessonCount: serializer.fromJson<int>(json['lessonCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'subjectId': serializer.toJson<String>(subjectId),
+      'gradeId': serializer.toJson<String>(gradeId),
+      'classId': serializer.toJson<String?>(classId),
+      'weekMode': serializer.toJson<String>(weekMode),
+      'lessonCount': serializer.toJson<int>(lessonCount),
+    };
+  }
+
+  SubjectRequirement copyWith({
+    String? id,
+    String? subjectId,
+    String? gradeId,
+    Value<String?> classId = const Value.absent(),
+    String? weekMode,
+    int? lessonCount,
+  }) => SubjectRequirement(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    gradeId: gradeId ?? this.gradeId,
+    classId: classId.present ? classId.value : this.classId,
+    weekMode: weekMode ?? this.weekMode,
+    lessonCount: lessonCount ?? this.lessonCount,
+  );
+  SubjectRequirement copyWithCompanion(SubjectRequirementsCompanion data) {
+    return SubjectRequirement(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      gradeId: data.gradeId.present ? data.gradeId.value : this.gradeId,
+      classId: data.classId.present ? data.classId.value : this.classId,
+      weekMode: data.weekMode.present ? data.weekMode.value : this.weekMode,
+      lessonCount: data.lessonCount.present
+          ? data.lessonCount.value
+          : this.lessonCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectRequirement(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('gradeId: $gradeId, ')
+          ..write('classId: $classId, ')
+          ..write('weekMode: $weekMode, ')
+          ..write('lessonCount: $lessonCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, subjectId, gradeId, classId, weekMode, lessonCount);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectRequirement &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.gradeId == this.gradeId &&
+          other.classId == this.classId &&
+          other.weekMode == this.weekMode &&
+          other.lessonCount == this.lessonCount);
+}
+
+class SubjectRequirementsCompanion extends UpdateCompanion<SubjectRequirement> {
+  final Value<String> id;
+  final Value<String> subjectId;
+  final Value<String> gradeId;
+  final Value<String?> classId;
+  final Value<String> weekMode;
+  final Value<int> lessonCount;
+  final Value<int> rowid;
+  const SubjectRequirementsCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.gradeId = const Value.absent(),
+    this.classId = const Value.absent(),
+    this.weekMode = const Value.absent(),
+    this.lessonCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectRequirementsCompanion.insert({
+    required String id,
+    required String subjectId,
+    required String gradeId,
+    this.classId = const Value.absent(),
+    this.weekMode = const Value.absent(),
+    this.lessonCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       subjectId = Value(subjectId),
+       gradeId = Value(gradeId);
+  static Insertable<SubjectRequirement> custom({
+    Expression<String>? id,
+    Expression<String>? subjectId,
+    Expression<String>? gradeId,
+    Expression<String>? classId,
+    Expression<String>? weekMode,
+    Expression<int>? lessonCount,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (gradeId != null) 'grade_id': gradeId,
+      if (classId != null) 'class_id': classId,
+      if (weekMode != null) 'week_mode': weekMode,
+      if (lessonCount != null) 'lesson_count': lessonCount,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectRequirementsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? subjectId,
+    Value<String>? gradeId,
+    Value<String?>? classId,
+    Value<String>? weekMode,
+    Value<int>? lessonCount,
+    Value<int>? rowid,
+  }) {
+    return SubjectRequirementsCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      gradeId: gradeId ?? this.gradeId,
+      classId: classId ?? this.classId,
+      weekMode: weekMode ?? this.weekMode,
+      lessonCount: lessonCount ?? this.lessonCount,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (gradeId.present) {
+      map['grade_id'] = Variable<String>(gradeId.value);
+    }
+    if (classId.present) {
+      map['class_id'] = Variable<String>(classId.value);
+    }
+    if (weekMode.present) {
+      map['week_mode'] = Variable<String>(weekMode.value);
+    }
+    if (lessonCount.present) {
+      map['lesson_count'] = Variable<int>(lessonCount.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectRequirementsCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('gradeId: $gradeId, ')
+          ..write('classId: $classId, ')
+          ..write('weekMode: $weekMode, ')
+          ..write('lessonCount: $lessonCount, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SubjectPresetsTable extends SubjectPresets
+    with TableInfo<$SubjectPresetsTable, SubjectPreset> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectPresetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scopeTypeMeta = const VerificationMeta(
+    'scopeType',
+  );
+  @override
+  late final GeneratedColumn<String> scopeType = GeneratedColumn<String>(
+    'scope_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeIdMeta = const VerificationMeta(
+    'scopeId',
+  );
+  @override
+  late final GeneratedColumn<String> scopeId = GeneratedColumn<String>(
+    'scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stageIdMeta = const VerificationMeta(
+    'stageId',
+  );
+  @override
+  late final GeneratedColumn<String> stageId = GeneratedColumn<String>(
+    'stage_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES school_stages (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _weekdayMeta = const VerificationMeta(
+    'weekday',
+  );
+  @override
+  late final GeneratedColumn<int> weekday = GeneratedColumn<int>(
+    'weekday',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _periodTypeIdMeta = const VerificationMeta(
+    'periodTypeId',
+  );
+  @override
+  late final GeneratedColumn<String> periodTypeId = GeneratedColumn<String>(
+    'period_type_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES lesson_period_types (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _lessonIndexMeta = const VerificationMeta(
+    'lessonIndex',
+  );
+  @override
+  late final GeneratedColumn<int> lessonIndex = GeneratedColumn<int>(
+    'lesson_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('auto'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    subjectId,
+    scopeType,
+    scopeId,
+    stageId,
+    weekday,
+    periodTypeId,
+    lessonIndex,
+    value,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_presets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubjectPreset> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('scope_type')) {
+      context.handle(
+        _scopeTypeMeta,
+        scopeType.isAcceptableOrUnknown(data['scope_type']!, _scopeTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeTypeMeta);
+    }
+    if (data.containsKey('scope_id')) {
+      context.handle(
+        _scopeIdMeta,
+        scopeId.isAcceptableOrUnknown(data['scope_id']!, _scopeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeIdMeta);
+    }
+    if (data.containsKey('stage_id')) {
+      context.handle(
+        _stageIdMeta,
+        stageId.isAcceptableOrUnknown(data['stage_id']!, _stageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stageIdMeta);
+    }
+    if (data.containsKey('weekday')) {
+      context.handle(
+        _weekdayMeta,
+        weekday.isAcceptableOrUnknown(data['weekday']!, _weekdayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_weekdayMeta);
+    }
+    if (data.containsKey('period_type_id')) {
+      context.handle(
+        _periodTypeIdMeta,
+        periodTypeId.isAcceptableOrUnknown(
+          data['period_type_id']!,
+          _periodTypeIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_periodTypeIdMeta);
+    }
+    if (data.containsKey('lesson_index')) {
+      context.handle(
+        _lessonIndexMeta,
+        lessonIndex.isAcceptableOrUnknown(
+          data['lesson_index']!,
+          _lessonIndexMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lessonIndexMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SubjectPreset map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectPreset(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      scopeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_type'],
+      )!,
+      scopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_id'],
+      )!,
+      stageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage_id'],
+      )!,
+      weekday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}weekday'],
+      )!,
+      periodTypeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}period_type_id'],
+      )!,
+      lessonIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}lesson_index'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $SubjectPresetsTable createAlias(String alias) {
+    return $SubjectPresetsTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectPreset extends DataClass implements Insertable<SubjectPreset> {
+  final String id;
+  final String subjectId;
+
+  /// school/stage/grade/class；全校 scopeId = 学期 ID。
+  final String scopeType;
+  final String scopeId;
+
+  /// 所属学段（全校范围行按学段展开存储）。
+  final String stageId;
+  final int weekday;
+  final String periodTypeId;
+  final int lessonIndex;
+
+  /// auto/prefer/must/forbid。
+  final String value;
+  const SubjectPreset({
+    required this.id,
+    required this.subjectId,
+    required this.scopeType,
+    required this.scopeId,
+    required this.stageId,
+    required this.weekday,
+    required this.periodTypeId,
+    required this.lessonIndex,
+    required this.value,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['subject_id'] = Variable<String>(subjectId);
+    map['scope_type'] = Variable<String>(scopeType);
+    map['scope_id'] = Variable<String>(scopeId);
+    map['stage_id'] = Variable<String>(stageId);
+    map['weekday'] = Variable<int>(weekday);
+    map['period_type_id'] = Variable<String>(periodTypeId);
+    map['lesson_index'] = Variable<int>(lessonIndex);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  SubjectPresetsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectPresetsCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      scopeType: Value(scopeType),
+      scopeId: Value(scopeId),
+      stageId: Value(stageId),
+      weekday: Value(weekday),
+      periodTypeId: Value(periodTypeId),
+      lessonIndex: Value(lessonIndex),
+      value: Value(value),
+    );
+  }
+
+  factory SubjectPreset.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectPreset(
+      id: serializer.fromJson<String>(json['id']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+      scopeType: serializer.fromJson<String>(json['scopeType']),
+      scopeId: serializer.fromJson<String>(json['scopeId']),
+      stageId: serializer.fromJson<String>(json['stageId']),
+      weekday: serializer.fromJson<int>(json['weekday']),
+      periodTypeId: serializer.fromJson<String>(json['periodTypeId']),
+      lessonIndex: serializer.fromJson<int>(json['lessonIndex']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'subjectId': serializer.toJson<String>(subjectId),
+      'scopeType': serializer.toJson<String>(scopeType),
+      'scopeId': serializer.toJson<String>(scopeId),
+      'stageId': serializer.toJson<String>(stageId),
+      'weekday': serializer.toJson<int>(weekday),
+      'periodTypeId': serializer.toJson<String>(periodTypeId),
+      'lessonIndex': serializer.toJson<int>(lessonIndex),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  SubjectPreset copyWith({
+    String? id,
+    String? subjectId,
+    String? scopeType,
+    String? scopeId,
+    String? stageId,
+    int? weekday,
+    String? periodTypeId,
+    int? lessonIndex,
+    String? value,
+  }) => SubjectPreset(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    scopeType: scopeType ?? this.scopeType,
+    scopeId: scopeId ?? this.scopeId,
+    stageId: stageId ?? this.stageId,
+    weekday: weekday ?? this.weekday,
+    periodTypeId: periodTypeId ?? this.periodTypeId,
+    lessonIndex: lessonIndex ?? this.lessonIndex,
+    value: value ?? this.value,
+  );
+  SubjectPreset copyWithCompanion(SubjectPresetsCompanion data) {
+    return SubjectPreset(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      scopeType: data.scopeType.present ? data.scopeType.value : this.scopeType,
+      scopeId: data.scopeId.present ? data.scopeId.value : this.scopeId,
+      stageId: data.stageId.present ? data.stageId.value : this.stageId,
+      weekday: data.weekday.present ? data.weekday.value : this.weekday,
+      periodTypeId: data.periodTypeId.present
+          ? data.periodTypeId.value
+          : this.periodTypeId,
+      lessonIndex: data.lessonIndex.present
+          ? data.lessonIndex.value
+          : this.lessonIndex,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectPreset(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('stageId: $stageId, ')
+          ..write('weekday: $weekday, ')
+          ..write('periodTypeId: $periodTypeId, ')
+          ..write('lessonIndex: $lessonIndex, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    subjectId,
+    scopeType,
+    scopeId,
+    stageId,
+    weekday,
+    periodTypeId,
+    lessonIndex,
+    value,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectPreset &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.scopeType == this.scopeType &&
+          other.scopeId == this.scopeId &&
+          other.stageId == this.stageId &&
+          other.weekday == this.weekday &&
+          other.periodTypeId == this.periodTypeId &&
+          other.lessonIndex == this.lessonIndex &&
+          other.value == this.value);
+}
+
+class SubjectPresetsCompanion extends UpdateCompanion<SubjectPreset> {
+  final Value<String> id;
+  final Value<String> subjectId;
+  final Value<String> scopeType;
+  final Value<String> scopeId;
+  final Value<String> stageId;
+  final Value<int> weekday;
+  final Value<String> periodTypeId;
+  final Value<int> lessonIndex;
+  final Value<String> value;
+  final Value<int> rowid;
+  const SubjectPresetsCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.scopeType = const Value.absent(),
+    this.scopeId = const Value.absent(),
+    this.stageId = const Value.absent(),
+    this.weekday = const Value.absent(),
+    this.periodTypeId = const Value.absent(),
+    this.lessonIndex = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectPresetsCompanion.insert({
+    required String id,
+    required String subjectId,
+    required String scopeType,
+    required String scopeId,
+    required String stageId,
+    required int weekday,
+    required String periodTypeId,
+    required int lessonIndex,
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       subjectId = Value(subjectId),
+       scopeType = Value(scopeType),
+       scopeId = Value(scopeId),
+       stageId = Value(stageId),
+       weekday = Value(weekday),
+       periodTypeId = Value(periodTypeId),
+       lessonIndex = Value(lessonIndex);
+  static Insertable<SubjectPreset> custom({
+    Expression<String>? id,
+    Expression<String>? subjectId,
+    Expression<String>? scopeType,
+    Expression<String>? scopeId,
+    Expression<String>? stageId,
+    Expression<int>? weekday,
+    Expression<String>? periodTypeId,
+    Expression<int>? lessonIndex,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (scopeType != null) 'scope_type': scopeType,
+      if (scopeId != null) 'scope_id': scopeId,
+      if (stageId != null) 'stage_id': stageId,
+      if (weekday != null) 'weekday': weekday,
+      if (periodTypeId != null) 'period_type_id': periodTypeId,
+      if (lessonIndex != null) 'lesson_index': lessonIndex,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectPresetsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? subjectId,
+    Value<String>? scopeType,
+    Value<String>? scopeId,
+    Value<String>? stageId,
+    Value<int>? weekday,
+    Value<String>? periodTypeId,
+    Value<int>? lessonIndex,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return SubjectPresetsCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      scopeType: scopeType ?? this.scopeType,
+      scopeId: scopeId ?? this.scopeId,
+      stageId: stageId ?? this.stageId,
+      weekday: weekday ?? this.weekday,
+      periodTypeId: periodTypeId ?? this.periodTypeId,
+      lessonIndex: lessonIndex ?? this.lessonIndex,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (scopeType.present) {
+      map['scope_type'] = Variable<String>(scopeType.value);
+    }
+    if (scopeId.present) {
+      map['scope_id'] = Variable<String>(scopeId.value);
+    }
+    if (stageId.present) {
+      map['stage_id'] = Variable<String>(stageId.value);
+    }
+    if (weekday.present) {
+      map['weekday'] = Variable<int>(weekday.value);
+    }
+    if (periodTypeId.present) {
+      map['period_type_id'] = Variable<String>(periodTypeId.value);
+    }
+    if (lessonIndex.present) {
+      map['lesson_index'] = Variable<int>(lessonIndex.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectPresetsCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('stageId: $stageId, ')
+          ..write('weekday: $weekday, ')
+          ..write('periodTypeId: $periodTypeId, ')
+          ..write('lessonIndex: $lessonIndex, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SubjectPairingsTable extends SubjectPairings
+    with TableInfo<$SubjectPairingsTable, SubjectPairing> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectPairingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _classIdMeta = const VerificationMeta(
+    'classId',
+  );
+  @override
+  late final GeneratedColumn<String> classId = GeneratedColumn<String>(
+    'class_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES class_groups (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _oddSubjectIdMeta = const VerificationMeta(
+    'oddSubjectId',
+  );
+  @override
+  late final GeneratedColumn<String> oddSubjectId = GeneratedColumn<String>(
+    'odd_subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _evenSubjectIdMeta = const VerificationMeta(
+    'evenSubjectId',
+  );
+  @override
+  late final GeneratedColumn<String> evenSubjectId = GeneratedColumn<String>(
+    'even_subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    classId,
+    oddSubjectId,
+    evenSubjectId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_pairings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubjectPairing> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('class_id')) {
+      context.handle(
+        _classIdMeta,
+        classId.isAcceptableOrUnknown(data['class_id']!, _classIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_classIdMeta);
+    }
+    if (data.containsKey('odd_subject_id')) {
+      context.handle(
+        _oddSubjectIdMeta,
+        oddSubjectId.isAcceptableOrUnknown(
+          data['odd_subject_id']!,
+          _oddSubjectIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_oddSubjectIdMeta);
+    }
+    if (data.containsKey('even_subject_id')) {
+      context.handle(
+        _evenSubjectIdMeta,
+        evenSubjectId.isAcceptableOrUnknown(
+          data['even_subject_id']!,
+          _evenSubjectIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_evenSubjectIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SubjectPairing map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectPairing(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      classId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}class_id'],
+      )!,
+      oddSubjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}odd_subject_id'],
+      )!,
+      evenSubjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}even_subject_id'],
+      )!,
+    );
+  }
+
+  @override
+  $SubjectPairingsTable createAlias(String alias) {
+    return $SubjectPairingsTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectPairing extends DataClass implements Insertable<SubjectPairing> {
+  final String id;
+  final String classId;
+  final String oddSubjectId;
+  final String evenSubjectId;
+  const SubjectPairing({
+    required this.id,
+    required this.classId,
+    required this.oddSubjectId,
+    required this.evenSubjectId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['class_id'] = Variable<String>(classId);
+    map['odd_subject_id'] = Variable<String>(oddSubjectId);
+    map['even_subject_id'] = Variable<String>(evenSubjectId);
+    return map;
+  }
+
+  SubjectPairingsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectPairingsCompanion(
+      id: Value(id),
+      classId: Value(classId),
+      oddSubjectId: Value(oddSubjectId),
+      evenSubjectId: Value(evenSubjectId),
+    );
+  }
+
+  factory SubjectPairing.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectPairing(
+      id: serializer.fromJson<String>(json['id']),
+      classId: serializer.fromJson<String>(json['classId']),
+      oddSubjectId: serializer.fromJson<String>(json['oddSubjectId']),
+      evenSubjectId: serializer.fromJson<String>(json['evenSubjectId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'classId': serializer.toJson<String>(classId),
+      'oddSubjectId': serializer.toJson<String>(oddSubjectId),
+      'evenSubjectId': serializer.toJson<String>(evenSubjectId),
+    };
+  }
+
+  SubjectPairing copyWith({
+    String? id,
+    String? classId,
+    String? oddSubjectId,
+    String? evenSubjectId,
+  }) => SubjectPairing(
+    id: id ?? this.id,
+    classId: classId ?? this.classId,
+    oddSubjectId: oddSubjectId ?? this.oddSubjectId,
+    evenSubjectId: evenSubjectId ?? this.evenSubjectId,
+  );
+  SubjectPairing copyWithCompanion(SubjectPairingsCompanion data) {
+    return SubjectPairing(
+      id: data.id.present ? data.id.value : this.id,
+      classId: data.classId.present ? data.classId.value : this.classId,
+      oddSubjectId: data.oddSubjectId.present
+          ? data.oddSubjectId.value
+          : this.oddSubjectId,
+      evenSubjectId: data.evenSubjectId.present
+          ? data.evenSubjectId.value
+          : this.evenSubjectId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectPairing(')
+          ..write('id: $id, ')
+          ..write('classId: $classId, ')
+          ..write('oddSubjectId: $oddSubjectId, ')
+          ..write('evenSubjectId: $evenSubjectId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, classId, oddSubjectId, evenSubjectId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectPairing &&
+          other.id == this.id &&
+          other.classId == this.classId &&
+          other.oddSubjectId == this.oddSubjectId &&
+          other.evenSubjectId == this.evenSubjectId);
+}
+
+class SubjectPairingsCompanion extends UpdateCompanion<SubjectPairing> {
+  final Value<String> id;
+  final Value<String> classId;
+  final Value<String> oddSubjectId;
+  final Value<String> evenSubjectId;
+  final Value<int> rowid;
+  const SubjectPairingsCompanion({
+    this.id = const Value.absent(),
+    this.classId = const Value.absent(),
+    this.oddSubjectId = const Value.absent(),
+    this.evenSubjectId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectPairingsCompanion.insert({
+    required String id,
+    required String classId,
+    required String oddSubjectId,
+    required String evenSubjectId,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       classId = Value(classId),
+       oddSubjectId = Value(oddSubjectId),
+       evenSubjectId = Value(evenSubjectId);
+  static Insertable<SubjectPairing> custom({
+    Expression<String>? id,
+    Expression<String>? classId,
+    Expression<String>? oddSubjectId,
+    Expression<String>? evenSubjectId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (classId != null) 'class_id': classId,
+      if (oddSubjectId != null) 'odd_subject_id': oddSubjectId,
+      if (evenSubjectId != null) 'even_subject_id': evenSubjectId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectPairingsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? classId,
+    Value<String>? oddSubjectId,
+    Value<String>? evenSubjectId,
+    Value<int>? rowid,
+  }) {
+    return SubjectPairingsCompanion(
+      id: id ?? this.id,
+      classId: classId ?? this.classId,
+      oddSubjectId: oddSubjectId ?? this.oddSubjectId,
+      evenSubjectId: evenSubjectId ?? this.evenSubjectId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (classId.present) {
+      map['class_id'] = Variable<String>(classId.value);
+    }
+    if (oddSubjectId.present) {
+      map['odd_subject_id'] = Variable<String>(oddSubjectId.value);
+    }
+    if (evenSubjectId.present) {
+      map['even_subject_id'] = Variable<String>(evenSubjectId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectPairingsCompanion(')
+          ..write('id: $id, ')
+          ..write('classId: $classId, ')
+          ..write('oddSubjectId: $oddSubjectId, ')
+          ..write('evenSubjectId: $evenSubjectId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4487,6 +6135,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $CalendarExceptionsTable(this);
   late final $FreeSlotsTable freeSlots = $FreeSlotsTable(this);
   late final $CommonPeriodsTable commonPeriods = $CommonPeriodsTable(this);
+  late final $SubjectsTable subjects = $SubjectsTable(this);
+  late final $SubjectRequirementsTable subjectRequirements =
+      $SubjectRequirementsTable(this);
+  late final $SubjectPresetsTable subjectPresets = $SubjectPresetsTable(this);
+  late final $SubjectPairingsTable subjectPairings = $SubjectPairingsTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4503,6 +6158,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     calendarExceptions,
     freeSlots,
     commonPeriods,
+    subjects,
+    subjectRequirements,
+    subjectPresets,
+    subjectPairings,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -4589,6 +6248,69 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('common_periods', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_requirements', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'grade_groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_requirements', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'class_groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_requirements', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_presets', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'school_stages',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_presets', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'lesson_period_types',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_presets', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'class_groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_pairings', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_pairings', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_pairings', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -5226,6 +6948,24 @@ final class $$SchoolStagesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SubjectPresetsTable, List<SubjectPreset>>
+  _subjectPresetsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.subjectPresets,
+    aliasName: 'school_stages__id__subject_presets__stage_id',
+  );
+
+  $$SubjectPresetsTableProcessedTableManager get subjectPresetsRefs {
+    final manager = $$SubjectPresetsTableTableManager(
+      $_db,
+      $_db.subjectPresets,
+    ).filter((f) => f.stageId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_subjectPresetsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SchoolStagesTableFilterComposer
@@ -5416,6 +7156,31 @@ class $$SchoolStagesTableFilterComposer
           }) => $$CommonPeriodsTableFilterComposer(
             $db: $db,
             $table: $db.commonPeriods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> subjectPresetsRefs(
+    Expression<bool> Function($$SubjectPresetsTableFilterComposer f) f,
+  ) {
+    final $$SubjectPresetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPresets,
+      getReferencedColumn: (t) => t.stageId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPresetsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjectPresets,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -5667,6 +7432,31 @@ class $$SchoolStagesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> subjectPresetsRefs<T extends Object>(
+    Expression<T> Function($$SubjectPresetsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectPresetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPresets,
+      getReferencedColumn: (t) => t.stageId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPresetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjectPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SchoolStagesTableTableManager
@@ -5690,6 +7480,7 @@ class $$SchoolStagesTableTableManager
             bool dailyLessonOverridesRefs,
             bool freeSlotsRefs,
             bool commonPeriodsRefs,
+            bool subjectPresetsRefs,
           })
         > {
   $$SchoolStagesTableTableManager(_$AppDatabase db, $SchoolStagesTable table)
@@ -5748,6 +7539,7 @@ class $$SchoolStagesTableTableManager
                 dailyLessonOverridesRefs = false,
                 freeSlotsRefs = false,
                 commonPeriodsRefs = false,
+                subjectPresetsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -5758,6 +7550,7 @@ class $$SchoolStagesTableTableManager
                     if (dailyLessonOverridesRefs) db.dailyLessonOverrides,
                     if (freeSlotsRefs) db.freeSlots,
                     if (commonPeriodsRefs) db.commonPeriods,
+                    if (subjectPresetsRefs) db.subjectPresets,
                   ],
                   addJoins:
                       <
@@ -5917,6 +7710,27 @@ class $$SchoolStagesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subjectPresetsRefs)
+                        await $_getPrefetchedData<
+                          SchoolStage,
+                          $SchoolStagesTable,
+                          SubjectPreset
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SchoolStagesTableReferences
+                              ._subjectPresetsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SchoolStagesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectPresetsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.stageId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -5945,6 +7759,7 @@ typedef $$SchoolStagesTableProcessedTableManager =
         bool dailyLessonOverridesRefs,
         bool freeSlotsRefs,
         bool commonPeriodsRefs,
+        bool subjectPresetsRefs,
       })
     >;
 typedef $$GradeGroupsTableCreateCompanionBuilder =
@@ -5998,6 +7813,30 @@ final class $$GradeGroupsTableReferences
     ).filter((f) => f.gradeId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_classGroupsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SubjectRequirementsTable,
+    List<SubjectRequirement>
+  >
+  _subjectRequirementsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectRequirements,
+        aliasName: 'grade_groups__id__subject_requirements__grade_id',
+      );
+
+  $$SubjectRequirementsTableProcessedTableManager get subjectRequirementsRefs {
+    final manager = $$SubjectRequirementsTableTableManager(
+      $_db,
+      $_db.subjectRequirements,
+    ).filter((f) => f.gradeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectRequirementsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -6067,6 +7906,31 @@ class $$GradeGroupsTableFilterComposer
           }) => $$ClassGroupsTableFilterComposer(
             $db: $db,
             $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> subjectRequirementsRefs(
+    Expression<bool> Function($$SubjectRequirementsTableFilterComposer f) f,
+  ) {
+    final $$SubjectRequirementsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectRequirements,
+      getReferencedColumn: (t) => t.gradeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectRequirementsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjectRequirements,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -6190,6 +8054,32 @@ class $$GradeGroupsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> subjectRequirementsRefs<T extends Object>(
+    Expression<T> Function($$SubjectRequirementsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectRequirementsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRequirements,
+          getReferencedColumn: (t) => t.gradeId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRequirementsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectRequirements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$GradeGroupsTableTableManager
@@ -6205,7 +8095,11 @@ class $$GradeGroupsTableTableManager
           $$GradeGroupsTableUpdateCompanionBuilder,
           (GradeGroup, $$GradeGroupsTableReferences),
           GradeGroup,
-          PrefetchHooks Function({bool stageId, bool classGroupsRefs})
+          PrefetchHooks Function({
+            bool stageId,
+            bool classGroupsRefs,
+            bool subjectRequirementsRefs,
+          })
         > {
   $$GradeGroupsTableTableManager(_$AppDatabase db, $GradeGroupsTable table)
     : super(
@@ -6254,65 +8148,96 @@ class $$GradeGroupsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({stageId = false, classGroupsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (classGroupsRefs) db.classGroups],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (stageId) {
-                      state = state.withJoin(
-                        currentTable: table,
-                        currentColumn: table.stageId,
-                        referencedTable: $$GradeGroupsTableReferences
-                            ._stageIdTable(db),
-                        referencedColumn: $$GradeGroupsTableReferences
-                            ._stageIdTable(db)
-                            .id,
-                      ) as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                stageId = false,
+                classGroupsRefs = false,
+                subjectRequirementsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (classGroupsRefs) db.classGroups,
+                    if (subjectRequirementsRefs) db.subjectRequirements,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (stageId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.stageId,
+                            referencedTable: $$GradeGroupsTableReferences
+                                ._stageIdTable(db),
+                            referencedColumn: $$GradeGroupsTableReferences
+                                ._stageIdTable(db)
+                                .id,
+                          ) as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (classGroupsRefs)
+                        await $_getPrefetchedData<
+                          GradeGroup,
+                          $GradeGroupsTable,
+                          ClassGroup
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GradeGroupsTableReferences
+                              ._classGroupsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GradeGroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).classGroupsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.gradeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subjectRequirementsRefs)
+                        await $_getPrefetchedData<
+                          GradeGroup,
+                          $GradeGroupsTable,
+                          SubjectRequirement
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GradeGroupsTableReferences
+                              ._subjectRequirementsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GradeGroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectRequirementsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.gradeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (classGroupsRefs)
-                    await $_getPrefetchedData<
-                      GradeGroup,
-                      $GradeGroupsTable,
-                      ClassGroup
-                    >(
-                      currentTable: table,
-                      referencedTable: $$GradeGroupsTableReferences
-                          ._classGroupsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$GradeGroupsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).classGroupsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.gradeId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -6329,7 +8254,11 @@ typedef $$GradeGroupsTableProcessedTableManager =
       $$GradeGroupsTableUpdateCompanionBuilder,
       (GradeGroup, $$GradeGroupsTableReferences),
       GradeGroup,
-      PrefetchHooks Function({bool stageId, bool classGroupsRefs})
+      PrefetchHooks Function({
+        bool stageId,
+        bool classGroupsRefs,
+        bool subjectRequirementsRefs,
+      })
     >;
 typedef $$ClassGroupsTableCreateCompanionBuilder =
     ClassGroupsCompanion Function({
@@ -6366,6 +8295,50 @@ final class $$ClassGroupsTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SubjectRequirementsTable,
+    List<SubjectRequirement>
+  >
+  _subjectRequirementsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectRequirements,
+        aliasName: 'class_groups__id__subject_requirements__class_id',
+      );
+
+  $$SubjectRequirementsTableProcessedTableManager get subjectRequirementsRefs {
+    final manager = $$SubjectRequirementsTableTableManager(
+      $_db,
+      $_db.subjectRequirements,
+    ).filter((f) => f.classId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectRequirementsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SubjectPairingsTable, List<SubjectPairing>>
+  _subjectPairingsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.subjectPairings,
+    aliasName: 'class_groups__id__subject_pairings__class_id',
+  );
+
+  $$SubjectPairingsTableProcessedTableManager get subjectPairingsRefs {
+    final manager = $$SubjectPairingsTableTableManager(
+      $_db,
+      $_db.subjectPairings,
+    ).filter((f) => f.classId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectPairingsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
@@ -6415,6 +8388,56 @@ class $$ClassGroupsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> subjectRequirementsRefs(
+    Expression<bool> Function($$SubjectRequirementsTableFilterComposer f) f,
+  ) {
+    final $$SubjectRequirementsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectRequirements,
+      getReferencedColumn: (t) => t.classId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectRequirementsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjectRequirements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> subjectPairingsRefs(
+    Expression<bool> Function($$SubjectPairingsTableFilterComposer f) f,
+  ) {
+    final $$SubjectPairingsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPairings,
+      getReferencedColumn: (t) => t.classId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPairingsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjectPairings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -6506,6 +8529,57 @@ class $$ClassGroupsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> subjectRequirementsRefs<T extends Object>(
+    Expression<T> Function($$SubjectRequirementsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectRequirementsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRequirements,
+          getReferencedColumn: (t) => t.classId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRequirementsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectRequirements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> subjectPairingsRefs<T extends Object>(
+    Expression<T> Function($$SubjectPairingsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectPairingsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPairings,
+      getReferencedColumn: (t) => t.classId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPairingsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjectPairings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ClassGroupsTableTableManager
@@ -6521,7 +8595,11 @@ class $$ClassGroupsTableTableManager
           $$ClassGroupsTableUpdateCompanionBuilder,
           (ClassGroup, $$ClassGroupsTableReferences),
           ClassGroup,
-          PrefetchHooks Function({bool gradeId})
+          PrefetchHooks Function({
+            bool gradeId,
+            bool subjectRequirementsRefs,
+            bool subjectPairingsRefs,
+          })
         > {
   $$ClassGroupsTableTableManager(_$AppDatabase db, $ClassGroupsTable table)
     : super(
@@ -6570,45 +8648,96 @@ class $$ClassGroupsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({gradeId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (gradeId) {
-                      state = state.withJoin(
-                        currentTable: table,
-                        currentColumn: table.gradeId,
-                        referencedTable: $$ClassGroupsTableReferences
-                            ._gradeIdTable(db),
-                        referencedColumn: $$ClassGroupsTableReferences
-                            ._gradeIdTable(db)
-                            .id,
-                      ) as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                gradeId = false,
+                subjectRequirementsRefs = false,
+                subjectPairingsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (subjectRequirementsRefs) db.subjectRequirements,
+                    if (subjectPairingsRefs) db.subjectPairings,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (gradeId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.gradeId,
+                            referencedTable: $$ClassGroupsTableReferences
+                                ._gradeIdTable(db),
+                            referencedColumn: $$ClassGroupsTableReferences
+                                ._gradeIdTable(db)
+                                .id,
+                          ) as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (subjectRequirementsRefs)
+                        await $_getPrefetchedData<
+                          ClassGroup,
+                          $ClassGroupsTable,
+                          SubjectRequirement
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClassGroupsTableReferences
+                              ._subjectRequirementsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClassGroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectRequirementsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.classId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subjectPairingsRefs)
+                        await $_getPrefetchedData<
+                          ClassGroup,
+                          $ClassGroupsTable,
+                          SubjectPairing
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClassGroupsTableReferences
+                              ._subjectPairingsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClassGroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectPairingsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.classId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -6625,7 +8754,11 @@ typedef $$ClassGroupsTableProcessedTableManager =
       $$ClassGroupsTableUpdateCompanionBuilder,
       (ClassGroup, $$ClassGroupsTableReferences),
       ClassGroup,
-      PrefetchHooks Function({bool gradeId})
+      PrefetchHooks Function({
+        bool gradeId,
+        bool subjectRequirementsRefs,
+        bool subjectPairingsRefs,
+      })
     >;
 typedef $$StageTeachingDaysTableCreateCompanionBuilder =
     StageTeachingDaysCompanion Function({
@@ -7049,6 +9182,24 @@ final class $$LessonPeriodTypesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SubjectPresetsTable, List<SubjectPreset>>
+  _subjectPresetsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.subjectPresets,
+    aliasName: 'lesson_period_types__id__subject_presets__period_type_id',
+  );
+
+  $$SubjectPresetsTableProcessedTableManager get subjectPresetsRefs {
+    final manager = $$SubjectPresetsTableTableManager(
+      $_db,
+      $_db.subjectPresets,
+    ).filter((f) => f.periodTypeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_subjectPresetsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$LessonPeriodTypesTableFilterComposer
@@ -7169,6 +9320,31 @@ class $$LessonPeriodTypesTableFilterComposer
           }) => $$FreeSlotsTableFilterComposer(
             $db: $db,
             $table: $db.freeSlots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> subjectPresetsRefs(
+    Expression<bool> Function($$SubjectPresetsTableFilterComposer f) f,
+  ) {
+    final $$SubjectPresetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPresets,
+      getReferencedColumn: (t) => t.periodTypeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPresetsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjectPresets,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7353,6 +9529,31 @@ class $$LessonPeriodTypesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> subjectPresetsRefs<T extends Object>(
+    Expression<T> Function($$SubjectPresetsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectPresetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPresets,
+      getReferencedColumn: (t) => t.periodTypeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPresetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjectPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$LessonPeriodTypesTableTableManager
@@ -7373,6 +9574,7 @@ class $$LessonPeriodTypesTableTableManager
             bool dailyLessonOverridesRefs,
             bool lessonTimesRefs,
             bool freeSlotsRefs,
+            bool subjectPresetsRefs,
           })
         > {
   $$LessonPeriodTypesTableTableManager(
@@ -7437,6 +9639,7 @@ class $$LessonPeriodTypesTableTableManager
                 dailyLessonOverridesRefs = false,
                 lessonTimesRefs = false,
                 freeSlotsRefs = false,
+                subjectPresetsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -7444,6 +9647,7 @@ class $$LessonPeriodTypesTableTableManager
                     if (dailyLessonOverridesRefs) db.dailyLessonOverrides,
                     if (lessonTimesRefs) db.lessonTimes,
                     if (freeSlotsRefs) db.freeSlots,
+                    if (subjectPresetsRefs) db.subjectPresets,
                   ],
                   addJoins:
                       <
@@ -7540,6 +9744,27 @@ class $$LessonPeriodTypesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subjectPresetsRefs)
+                        await $_getPrefetchedData<
+                          LessonPeriodType,
+                          $LessonPeriodTypesTable,
+                          SubjectPreset
+                        >(
+                          currentTable: table,
+                          referencedTable: $$LessonPeriodTypesTableReferences
+                              ._subjectPresetsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$LessonPeriodTypesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectPresetsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.periodTypeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7565,6 +9790,7 @@ typedef $$LessonPeriodTypesTableProcessedTableManager =
         bool dailyLessonOverridesRefs,
         bool lessonTimesRefs,
         bool freeSlotsRefs,
+        bool subjectPresetsRefs,
       })
     >;
 typedef $$DailyLessonOverridesTableCreateCompanionBuilder =
@@ -9524,6 +11750,1978 @@ typedef $$CommonPeriodsTableProcessedTableManager =
       CommonPeriod,
       PrefetchHooks Function({bool stageId})
     >;
+typedef $$SubjectsTableCreateCompanionBuilder = SubjectsCompanion Function({
+  required String id,
+  required String name,
+  required String shortName,
+  required int sortOrder,
+  Value<int> rowid,
+});
+typedef $$SubjectsTableUpdateCompanionBuilder = SubjectsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> shortName,
+  Value<int> sortOrder,
+  Value<int> rowid,
+});
+
+final class $$SubjectsTableReferences
+    extends BaseReferences<_$AppDatabase, $SubjectsTable, Subject> {
+  $$SubjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<
+    $SubjectRequirementsTable,
+    List<SubjectRequirement>
+  >
+  _subjectRequirementsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectRequirements,
+        aliasName: 'subjects__id__subject_requirements__subject_id',
+      );
+
+  $$SubjectRequirementsTableProcessedTableManager get subjectRequirementsRefs {
+    final manager = $$SubjectRequirementsTableTableManager(
+      $_db,
+      $_db.subjectRequirements,
+    ).filter((f) => f.subjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectRequirementsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SubjectPresetsTable, List<SubjectPreset>>
+  _subjectPresetsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.subjectPresets,
+    aliasName: 'subjects__id__subject_presets__subject_id',
+  );
+
+  $$SubjectPresetsTableProcessedTableManager get subjectPresetsRefs {
+    final manager = $$SubjectPresetsTableTableManager(
+      $_db,
+      $_db.subjectPresets,
+    ).filter((f) => f.subjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_subjectPresetsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$SubjectsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectsTable> {
+  $$SubjectsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get shortName => $composableBuilder(
+    column: $table.shortName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> subjectRequirementsRefs(
+    Expression<bool> Function($$SubjectRequirementsTableFilterComposer f) f,
+  ) {
+    final $$SubjectRequirementsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectRequirements,
+      getReferencedColumn: (t) => t.subjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectRequirementsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjectRequirements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> subjectPresetsRefs(
+    Expression<bool> Function($$SubjectPresetsTableFilterComposer f) f,
+  ) {
+    final $$SubjectPresetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPresets,
+      getReferencedColumn: (t) => t.subjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPresetsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjectPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SubjectsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectsTable> {
+  $$SubjectsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get shortName => $composableBuilder(
+    column: $table.shortName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SubjectsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectsTable> {
+  $$SubjectsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get shortName =>
+      $composableBuilder(column: $table.shortName, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  Expression<T> subjectRequirementsRefs<T extends Object>(
+    Expression<T> Function($$SubjectRequirementsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectRequirementsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRequirements,
+          getReferencedColumn: (t) => t.subjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRequirementsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectRequirements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> subjectPresetsRefs<T extends Object>(
+    Expression<T> Function($$SubjectPresetsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectPresetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjectPresets,
+      getReferencedColumn: (t) => t.subjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectPresetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjectPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SubjectsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectsTable,
+          Subject,
+          $$SubjectsTableFilterComposer,
+          $$SubjectsTableOrderingComposer,
+          $$SubjectsTableAnnotationComposer,
+          $$SubjectsTableCreateCompanionBuilder,
+          $$SubjectsTableUpdateCompanionBuilder,
+          (Subject, $$SubjectsTableReferences),
+          Subject,
+          PrefetchHooks Function({
+            bool subjectRequirementsRefs,
+            bool subjectPresetsRefs,
+          })
+        > {
+  $$SubjectsTableTableManager(_$AppDatabase db, $SubjectsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SubjectsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SubjectsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> shortName = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectsCompanion(
+                id: id,
+                name: name,
+                shortName: shortName,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String shortName,
+                required int sortOrder,
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectsCompanion.insert(
+                id: id,
+                name: name,
+                shortName: shortName,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SubjectsTable, Subject>(table),
+                  $$SubjectsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({subjectRequirementsRefs = false, subjectPresetsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (subjectRequirementsRefs) db.subjectRequirements,
+                    if (subjectPresetsRefs) db.subjectPresets,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (subjectRequirementsRefs)
+                        await $_getPrefetchedData<
+                          Subject,
+                          $SubjectsTable,
+                          SubjectRequirement
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SubjectsTableReferences
+                              ._subjectRequirementsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SubjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectRequirementsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.subjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subjectPresetsRefs)
+                        await $_getPrefetchedData<
+                          Subject,
+                          $SubjectsTable,
+                          SubjectPreset
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SubjectsTableReferences
+                              ._subjectPresetsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SubjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectPresetsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.subjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SubjectsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectsTable,
+      Subject,
+      $$SubjectsTableFilterComposer,
+      $$SubjectsTableOrderingComposer,
+      $$SubjectsTableAnnotationComposer,
+      $$SubjectsTableCreateCompanionBuilder,
+      $$SubjectsTableUpdateCompanionBuilder,
+      (Subject, $$SubjectsTableReferences),
+      Subject,
+      PrefetchHooks Function({
+        bool subjectRequirementsRefs,
+        bool subjectPresetsRefs,
+      })
+    >;
+typedef $$SubjectRequirementsTableCreateCompanionBuilder =
+    SubjectRequirementsCompanion Function({
+      required String id,
+      required String subjectId,
+      required String gradeId,
+      Value<String?> classId,
+      Value<String> weekMode,
+      Value<int> lessonCount,
+      Value<int> rowid,
+    });
+typedef $$SubjectRequirementsTableUpdateCompanionBuilder =
+    SubjectRequirementsCompanion Function({
+      Value<String> id,
+      Value<String> subjectId,
+      Value<String> gradeId,
+      Value<String?> classId,
+      Value<String> weekMode,
+      Value<int> lessonCount,
+      Value<int> rowid,
+    });
+
+final class $$SubjectRequirementsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SubjectRequirementsTable,
+          SubjectRequirement
+        > {
+  $$SubjectRequirementsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SubjectsTable _subjectIdTable(_$AppDatabase db) =>
+      db.subjects.createAlias('subject_requirements__subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get subjectId {
+    final $_column = $_itemColumn<String>('subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_subjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $GradeGroupsTable _gradeIdTable(_$AppDatabase db) => db.gradeGroups
+      .createAlias('subject_requirements__grade_id__grade_groups__id');
+
+  $$GradeGroupsTableProcessedTableManager get gradeId {
+    final $_column = $_itemColumn<String>('grade_id')!;
+
+    final manager = $$GradeGroupsTableTableManager(
+      $_db,
+      $_db.gradeGroups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_gradeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ClassGroupsTable _classIdTable(_$AppDatabase db) => db.classGroups
+      .createAlias('subject_requirements__class_id__class_groups__id');
+
+  $$ClassGroupsTableProcessedTableManager? get classId {
+    final $_column = $_itemColumn<String>('class_id');
+    if ($_column == null) return null;
+    final manager = $$ClassGroupsTableTableManager(
+      $_db,
+      $_db.classGroups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_classIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubjectRequirementsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectRequirementsTable> {
+  $$SubjectRequirementsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get weekMode => $composableBuilder(
+    column: $table.weekMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lessonCount => $composableBuilder(
+    column: $table.lessonCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SubjectsTableFilterComposer get subjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GradeGroupsTableFilterComposer get gradeId {
+    final $$GradeGroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.gradeId,
+      referencedTable: $db.gradeGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GradeGroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.gradeGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClassGroupsTableFilterComposer get classId {
+    final $$ClassGroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectRequirementsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectRequirementsTable> {
+  $$SubjectRequirementsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get weekMode => $composableBuilder(
+    column: $table.weekMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lessonCount => $composableBuilder(
+    column: $table.lessonCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SubjectsTableOrderingComposer get subjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GradeGroupsTableOrderingComposer get gradeId {
+    final $$GradeGroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.gradeId,
+      referencedTable: $db.gradeGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GradeGroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.gradeGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClassGroupsTableOrderingComposer get classId {
+    final $$ClassGroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectRequirementsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectRequirementsTable> {
+  $$SubjectRequirementsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get weekMode =>
+      $composableBuilder(column: $table.weekMode, builder: (column) => column);
+
+  GeneratedColumn<int> get lessonCount => $composableBuilder(
+    column: $table.lessonCount,
+    builder: (column) => column,
+  );
+
+  $$SubjectsTableAnnotationComposer get subjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GradeGroupsTableAnnotationComposer get gradeId {
+    final $$GradeGroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.gradeId,
+      referencedTable: $db.gradeGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GradeGroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.gradeGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClassGroupsTableAnnotationComposer get classId {
+    final $$ClassGroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectRequirementsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectRequirementsTable,
+          SubjectRequirement,
+          $$SubjectRequirementsTableFilterComposer,
+          $$SubjectRequirementsTableOrderingComposer,
+          $$SubjectRequirementsTableAnnotationComposer,
+          $$SubjectRequirementsTableCreateCompanionBuilder,
+          $$SubjectRequirementsTableUpdateCompanionBuilder,
+          (SubjectRequirement, $$SubjectRequirementsTableReferences),
+          SubjectRequirement,
+          PrefetchHooks Function({bool subjectId, bool gradeId, bool classId})
+        > {
+  $$SubjectRequirementsTableTableManager(
+    _$AppDatabase db,
+    $SubjectRequirementsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectRequirementsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SubjectRequirementsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SubjectRequirementsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<String> gradeId = const Value.absent(),
+                Value<String?> classId = const Value.absent(),
+                Value<String> weekMode = const Value.absent(),
+                Value<int> lessonCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectRequirementsCompanion(
+                id: id,
+                subjectId: subjectId,
+                gradeId: gradeId,
+                classId: classId,
+                weekMode: weekMode,
+                lessonCount: lessonCount,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String subjectId,
+                required String gradeId,
+                Value<String?> classId = const Value.absent(),
+                Value<String> weekMode = const Value.absent(),
+                Value<int> lessonCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectRequirementsCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                gradeId: gradeId,
+                classId: classId,
+                weekMode: weekMode,
+                lessonCount: lessonCount,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SubjectRequirementsTable, SubjectRequirement>(
+                    table,
+                  ),
+                  $$SubjectRequirementsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({subjectId = false, gradeId = false, classId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (subjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.subjectId,
+                            referencedTable:
+                                $$SubjectRequirementsTableReferences
+                                    ._subjectIdTable(db),
+                            referencedColumn:
+                                $$SubjectRequirementsTableReferences
+                                    ._subjectIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+                        if (gradeId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.gradeId,
+                            referencedTable:
+                                $$SubjectRequirementsTableReferences
+                                    ._gradeIdTable(db),
+                            referencedColumn:
+                                $$SubjectRequirementsTableReferences
+                                    ._gradeIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+                        if (classId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.classId,
+                            referencedTable:
+                                $$SubjectRequirementsTableReferences
+                                    ._classIdTable(db),
+                            referencedColumn:
+                                $$SubjectRequirementsTableReferences
+                                    ._classIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SubjectRequirementsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectRequirementsTable,
+      SubjectRequirement,
+      $$SubjectRequirementsTableFilterComposer,
+      $$SubjectRequirementsTableOrderingComposer,
+      $$SubjectRequirementsTableAnnotationComposer,
+      $$SubjectRequirementsTableCreateCompanionBuilder,
+      $$SubjectRequirementsTableUpdateCompanionBuilder,
+      (SubjectRequirement, $$SubjectRequirementsTableReferences),
+      SubjectRequirement,
+      PrefetchHooks Function({bool subjectId, bool gradeId, bool classId})
+    >;
+typedef $$SubjectPresetsTableCreateCompanionBuilder =
+    SubjectPresetsCompanion Function({
+      required String id,
+      required String subjectId,
+      required String scopeType,
+      required String scopeId,
+      required String stageId,
+      required int weekday,
+      required String periodTypeId,
+      required int lessonIndex,
+      Value<String> value,
+      Value<int> rowid,
+    });
+typedef $$SubjectPresetsTableUpdateCompanionBuilder =
+    SubjectPresetsCompanion Function({
+      Value<String> id,
+      Value<String> subjectId,
+      Value<String> scopeType,
+      Value<String> scopeId,
+      Value<String> stageId,
+      Value<int> weekday,
+      Value<String> periodTypeId,
+      Value<int> lessonIndex,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+final class $$SubjectPresetsTableReferences
+    extends BaseReferences<_$AppDatabase, $SubjectPresetsTable, SubjectPreset> {
+  $$SubjectPresetsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SubjectsTable _subjectIdTable(_$AppDatabase db) =>
+      db.subjects.createAlias('subject_presets__subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get subjectId {
+    final $_column = $_itemColumn<String>('subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_subjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SchoolStagesTable _stageIdTable(_$AppDatabase db) => db.schoolStages
+      .createAlias('subject_presets__stage_id__school_stages__id');
+
+  $$SchoolStagesTableProcessedTableManager get stageId {
+    final $_column = $_itemColumn<String>('stage_id')!;
+
+    final manager = $$SchoolStagesTableTableManager(
+      $_db,
+      $_db.schoolStages,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_stageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $LessonPeriodTypesTable _periodTypeIdTable(_$AppDatabase db) => db
+      .lessonPeriodTypes
+      .createAlias('subject_presets__period_type_id__lesson_period_types__id');
+
+  $$LessonPeriodTypesTableProcessedTableManager get periodTypeId {
+    final $_column = $_itemColumn<String>('period_type_id')!;
+
+    final manager = $$LessonPeriodTypesTableTableManager(
+      $_db,
+      $_db.lessonPeriodTypes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_periodTypeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubjectPresetsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectPresetsTable> {
+  $$SubjectPresetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lessonIndex => $composableBuilder(
+    column: $table.lessonIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SubjectsTableFilterComposer get subjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableFilterComposer get stageId {
+    final $$SchoolStagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableFilterComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableFilterComposer get periodTypeId {
+    final $$LessonPeriodTypesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.periodTypeId,
+      referencedTable: $db.lessonPeriodTypes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LessonPeriodTypesTableFilterComposer(
+            $db: $db,
+            $table: $db.lessonPeriodTypes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectPresetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectPresetsTable> {
+  $$SubjectPresetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lessonIndex => $composableBuilder(
+    column: $table.lessonIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SubjectsTableOrderingComposer get subjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableOrderingComposer get stageId {
+    final $$SchoolStagesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableOrderingComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableOrderingComposer get periodTypeId {
+    final $$LessonPeriodTypesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.periodTypeId,
+      referencedTable: $db.lessonPeriodTypes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LessonPeriodTypesTableOrderingComposer(
+            $db: $db,
+            $table: $db.lessonPeriodTypes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectPresetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectPresetsTable> {
+  $$SubjectPresetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeType =>
+      $composableBuilder(column: $table.scopeType, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeId =>
+      $composableBuilder(column: $table.scopeId, builder: (column) => column);
+
+  GeneratedColumn<int> get weekday =>
+      $composableBuilder(column: $table.weekday, builder: (column) => column);
+
+  GeneratedColumn<int> get lessonIndex => $composableBuilder(
+    column: $table.lessonIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  $$SubjectsTableAnnotationComposer get subjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableAnnotationComposer get stageId {
+    final $$SchoolStagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableAnnotationComposer get periodTypeId {
+    final $$LessonPeriodTypesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.periodTypeId,
+          referencedTable: $db.lessonPeriodTypes,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LessonPeriodTypesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.lessonPeriodTypes,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$SubjectPresetsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectPresetsTable,
+          SubjectPreset,
+          $$SubjectPresetsTableFilterComposer,
+          $$SubjectPresetsTableOrderingComposer,
+          $$SubjectPresetsTableAnnotationComposer,
+          $$SubjectPresetsTableCreateCompanionBuilder,
+          $$SubjectPresetsTableUpdateCompanionBuilder,
+          (SubjectPreset, $$SubjectPresetsTableReferences),
+          SubjectPreset,
+          PrefetchHooks Function({
+            bool subjectId,
+            bool stageId,
+            bool periodTypeId,
+          })
+        > {
+  $$SubjectPresetsTableTableManager(
+    _$AppDatabase db,
+    $SubjectPresetsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectPresetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SubjectPresetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SubjectPresetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<String> scopeType = const Value.absent(),
+                Value<String> scopeId = const Value.absent(),
+                Value<String> stageId = const Value.absent(),
+                Value<int> weekday = const Value.absent(),
+                Value<String> periodTypeId = const Value.absent(),
+                Value<int> lessonIndex = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectPresetsCompanion(
+                id: id,
+                subjectId: subjectId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                stageId: stageId,
+                weekday: weekday,
+                periodTypeId: periodTypeId,
+                lessonIndex: lessonIndex,
+                value: value,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String subjectId,
+                required String scopeType,
+                required String scopeId,
+                required String stageId,
+                required int weekday,
+                required String periodTypeId,
+                required int lessonIndex,
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectPresetsCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                stageId: stageId,
+                weekday: weekday,
+                periodTypeId: periodTypeId,
+                lessonIndex: lessonIndex,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SubjectPresetsTable, SubjectPreset>(table),
+                  $$SubjectPresetsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({subjectId = false, stageId = false, periodTypeId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (subjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.subjectId,
+                            referencedTable: $$SubjectPresetsTableReferences
+                                ._subjectIdTable(db),
+                            referencedColumn: $$SubjectPresetsTableReferences
+                                ._subjectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (stageId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.stageId,
+                            referencedTable: $$SubjectPresetsTableReferences
+                                ._stageIdTable(db),
+                            referencedColumn: $$SubjectPresetsTableReferences
+                                ._stageIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (periodTypeId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.periodTypeId,
+                            referencedTable: $$SubjectPresetsTableReferences
+                                ._periodTypeIdTable(db),
+                            referencedColumn: $$SubjectPresetsTableReferences
+                                ._periodTypeIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SubjectPresetsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectPresetsTable,
+      SubjectPreset,
+      $$SubjectPresetsTableFilterComposer,
+      $$SubjectPresetsTableOrderingComposer,
+      $$SubjectPresetsTableAnnotationComposer,
+      $$SubjectPresetsTableCreateCompanionBuilder,
+      $$SubjectPresetsTableUpdateCompanionBuilder,
+      (SubjectPreset, $$SubjectPresetsTableReferences),
+      SubjectPreset,
+      PrefetchHooks Function({bool subjectId, bool stageId, bool periodTypeId})
+    >;
+typedef $$SubjectPairingsTableCreateCompanionBuilder =
+    SubjectPairingsCompanion Function({
+      required String id,
+      required String classId,
+      required String oddSubjectId,
+      required String evenSubjectId,
+      Value<int> rowid,
+    });
+typedef $$SubjectPairingsTableUpdateCompanionBuilder =
+    SubjectPairingsCompanion Function({
+      Value<String> id,
+      Value<String> classId,
+      Value<String> oddSubjectId,
+      Value<String> evenSubjectId,
+      Value<int> rowid,
+    });
+
+final class $$SubjectPairingsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $SubjectPairingsTable, SubjectPairing> {
+  $$SubjectPairingsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ClassGroupsTable _classIdTable(_$AppDatabase db) => db.classGroups
+      .createAlias('subject_pairings__class_id__class_groups__id');
+
+  $$ClassGroupsTableProcessedTableManager get classId {
+    final $_column = $_itemColumn<String>('class_id')!;
+
+    final manager = $$ClassGroupsTableTableManager(
+      $_db,
+      $_db.classGroups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_classIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SubjectsTable _oddSubjectIdTable(_$AppDatabase db) =>
+      db.subjects.createAlias('subject_pairings__odd_subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get oddSubjectId {
+    final $_column = $_itemColumn<String>('odd_subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_oddSubjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SubjectsTable _evenSubjectIdTable(_$AppDatabase db) => db.subjects
+      .createAlias('subject_pairings__even_subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get evenSubjectId {
+    final $_column = $_itemColumn<String>('even_subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_evenSubjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubjectPairingsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectPairingsTable> {
+  $$SubjectPairingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ClassGroupsTableFilterComposer get classId {
+    final $$ClassGroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableFilterComposer get oddSubjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.oddSubjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableFilterComposer get evenSubjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.evenSubjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectPairingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectPairingsTable> {
+  $$SubjectPairingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ClassGroupsTableOrderingComposer get classId {
+    final $$ClassGroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableOrderingComposer get oddSubjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.oddSubjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableOrderingComposer get evenSubjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.evenSubjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectPairingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectPairingsTable> {
+  $$SubjectPairingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  $$ClassGroupsTableAnnotationComposer get classId {
+    final $$ClassGroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableAnnotationComposer get oddSubjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.oddSubjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableAnnotationComposer get evenSubjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.evenSubjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectPairingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectPairingsTable,
+          SubjectPairing,
+          $$SubjectPairingsTableFilterComposer,
+          $$SubjectPairingsTableOrderingComposer,
+          $$SubjectPairingsTableAnnotationComposer,
+          $$SubjectPairingsTableCreateCompanionBuilder,
+          $$SubjectPairingsTableUpdateCompanionBuilder,
+          (SubjectPairing, $$SubjectPairingsTableReferences),
+          SubjectPairing,
+          PrefetchHooks Function({
+            bool classId,
+            bool oddSubjectId,
+            bool evenSubjectId,
+          })
+        > {
+  $$SubjectPairingsTableTableManager(
+    _$AppDatabase db,
+    $SubjectPairingsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectPairingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SubjectPairingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SubjectPairingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> classId = const Value.absent(),
+                Value<String> oddSubjectId = const Value.absent(),
+                Value<String> evenSubjectId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectPairingsCompanion(
+                id: id,
+                classId: classId,
+                oddSubjectId: oddSubjectId,
+                evenSubjectId: evenSubjectId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String classId,
+                required String oddSubjectId,
+                required String evenSubjectId,
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectPairingsCompanion.insert(
+                id: id,
+                classId: classId,
+                oddSubjectId: oddSubjectId,
+                evenSubjectId: evenSubjectId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SubjectPairingsTable, SubjectPairing>(table),
+                  $$SubjectPairingsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({classId = false, oddSubjectId = false, evenSubjectId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (classId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.classId,
+                            referencedTable: $$SubjectPairingsTableReferences
+                                ._classIdTable(db),
+                            referencedColumn: $$SubjectPairingsTableReferences
+                                ._classIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (oddSubjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.oddSubjectId,
+                            referencedTable: $$SubjectPairingsTableReferences
+                                ._oddSubjectIdTable(db),
+                            referencedColumn: $$SubjectPairingsTableReferences
+                                ._oddSubjectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (evenSubjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.evenSubjectId,
+                            referencedTable: $$SubjectPairingsTableReferences
+                                ._evenSubjectIdTable(db),
+                            referencedColumn: $$SubjectPairingsTableReferences
+                                ._evenSubjectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SubjectPairingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectPairingsTable,
+      SubjectPairing,
+      $$SubjectPairingsTableFilterComposer,
+      $$SubjectPairingsTableOrderingComposer,
+      $$SubjectPairingsTableAnnotationComposer,
+      $$SubjectPairingsTableCreateCompanionBuilder,
+      $$SubjectPairingsTableUpdateCompanionBuilder,
+      (SubjectPairing, $$SubjectPairingsTableReferences),
+      SubjectPairing,
+      PrefetchHooks Function({
+        bool classId,
+        bool oddSubjectId,
+        bool evenSubjectId,
+      })
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9550,4 +13748,12 @@ class $AppDatabaseManager {
       $$FreeSlotsTableTableManager(_db, _db.freeSlots);
   $$CommonPeriodsTableTableManager get commonPeriods =>
       $$CommonPeriodsTableTableManager(_db, _db.commonPeriods);
+  $$SubjectsTableTableManager get subjects =>
+      $$SubjectsTableTableManager(_db, _db.subjects);
+  $$SubjectRequirementsTableTableManager get subjectRequirements =>
+      $$SubjectRequirementsTableTableManager(_db, _db.subjectRequirements);
+  $$SubjectPresetsTableTableManager get subjectPresets =>
+      $$SubjectPresetsTableTableManager(_db, _db.subjectPresets);
+  $$SubjectPairingsTableTableManager get subjectPairings =>
+      $$SubjectPairingsTableTableManager(_db, _db.subjectPairings);
 }

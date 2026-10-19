@@ -3,15 +3,17 @@ import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/features/classes/classes_page.dart';
 import 'package:class_set/features/routines/routine_page.dart';
+import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/terms/term_page.dart';
+import 'package:class_set/features/workbench/workbench_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart' as f;
 
-enum AppSection { terms, classes, routines }
+enum AppSection { workbench, terms, classes, routines, subjects }
 
 final selectedSectionProvider = StateProvider<AppSection>(
-  (ref) => AppSection.terms,
+  (ref) => AppSection.workbench,
 );
 final activeTermIdProvider = StateProvider<String?>((ref) => null);
 
@@ -62,9 +64,11 @@ class _AppShell extends ConsumerWidget {
         builder: (context, constraints) {
           final compactNavigation = constraints.maxWidth < 1040;
           final pageTitle = switch (section) {
+            AppSection.workbench => '工作台',
             AppSection.terms => '学期与日历',
             AppSection.classes => '班级与学段',
             AppSection.routines => '作息设置',
+            AppSection.subjects => '科目节数',
           };
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -108,6 +112,7 @@ class _AppShell extends ConsumerWidget {
                         child: KeyedSubtree(
                           key: ValueKey(section),
                           child: switch (section) {
+                            AppSection.workbench => const WorkbenchPage(),
                             AppSection.terms => TermPage(
                               databasePath: databasePath,
                             ),
@@ -119,6 +124,10 @@ class _AppShell extends ConsumerWidget {
                               activeTermId == null
                                   ? const _ChooseTermMessage()
                                   : RoutinePage(termId: activeTermId),
+                            AppSection.subjects =>
+                              activeTermId == null
+                                  ? const _ChooseTermMessage()
+                                  : SubjectsPage(termId: activeTermId),
                           },
                         ),
                       ),
@@ -275,6 +284,15 @@ class _Sidebar extends ConsumerWidget {
                 if (!isCompact) const _NavGroupLabel('排课准备'),
                 _NavItem(
                   isCompact: isCompact,
+                  icon: Icons.space_dashboard_outlined,
+                  label: '工作台',
+                  isSelected: section == AppSection.workbench,
+                  onTap: () =>
+                      ref.read(selectedSectionProvider.notifier).state =
+                          AppSection.workbench,
+                ),
+                _NavItem(
+                  isCompact: isCompact,
                   icon: Icons.event_note_rounded,
                   label: '学期与日历',
                   isSelected: section == AppSection.terms,
@@ -302,10 +320,14 @@ class _Sidebar extends ConsumerWidget {
                 ),
                 if (!isCompact) const _NavDivider(),
                 if (!isCompact) const _NavGroupLabel('排课与课表'),
-                _NavComingSoon(
-                  label: '科目节数',
-                  icon: Icons.calculate_outlined,
+                _NavItem(
                   isCompact: isCompact,
+                  icon: Icons.calculate_outlined,
+                  label: '科目节数',
+                  isSelected: section == AppSection.subjects,
+                  onTap: () =>
+                      ref.read(selectedSectionProvider.notifier).state =
+                          AppSection.subjects,
                 ),
                 _NavComingSoon(
                   label: '教师任课',
