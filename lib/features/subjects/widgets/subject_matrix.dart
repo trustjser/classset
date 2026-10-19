@@ -11,7 +11,6 @@ import 'package:flutter/services.dart'
     show
         Clipboard,
         ClipboardData,
-        HardwareKeyboard,
         KeyDownEvent,
         KeyRepeatEvent,
         LogicalKeyboardKey;
@@ -36,6 +35,7 @@ class SubjectMatrix extends StatefulWidget {
     required this.onCellCommit,
     required this.onEditRequest,
     required this.onMessage,
+    required this.alternatingWeeks,
     this.scrollable = true,
     super.key,
   });
@@ -81,6 +81,9 @@ class SubjectMatrix extends StatefulWidget {
   /// 轻提示（复制 / 粘贴 / 格式错误）。
   final void Function(String message) onMessage;
 
+  /// 当前学期是否开启单双周交替：未开启时内联编辑只接受每周节数。
+  final bool alternatingWeeks;
+
   /// true（宽屏）：科目行在受限高度内内部滚动；false（窄屏整页滚动时）：
   /// 行自然铺开、不内部滚动，交给外层单一滚动容器。
   final bool scrollable;
@@ -104,6 +107,11 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
   String? _editingCell;
   TextEditingController? _editController;
   FocusNode? _editFocus;
+
+  /// 编辑中单元格的上下文：点击其它单元格提交时需要科目 / 年级 / 班级。
+  Subject? _editingSubject;
+  GradeGroup? _editingGrade;
+  List<ClassBrief>? _editingClasses;
 
   /// 选中单元格的键盘焦点节点：方向键切换、Ctrl/Cmd+C/V 复制粘贴。
   final FocusNode cellFocusNode = FocusNode(debugLabel: 'matrix-cell');
@@ -135,7 +143,9 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
 
   /// 单击：选中单元格（无弹窗）。
   void selectCell(Subject subject, GradeGroup grade) {
-    _cancelEdit();
+    // 点击其它单元格：先把进行中的内联编辑按回车语义提交，
+    // 避免已输入内容被丢弃或被误提交为清空。
+    _commitPendingEdit();
     setState(() => _selectedCell = _cellKey(subject.id, grade.id));
     _focusSelectedCell();
     unawaited(prefetchClipboard());
@@ -200,6 +210,9 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
     setState(() {
       _selectedCell = _cellKey(subject.id, grade.id);
       _editingCell = _cellKey(subject.id, grade.id);
+      _editingSubject = subject;
+      _editingGrade = grade;
+      _editingClasses = classes;
     });
     // autofocus 在路由 scope 已有聚焦子节点（选中格）时是空操作，
     // 须等编辑框挂载后显式 requestFocus 抢回。
@@ -223,18 +236,37 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
     }
   }
 
+  /// 提交进行中的内联编辑（若有）：点击其它单元格 / 失焦时按回车语义提交，
+  /// 避免未提交内容被丢弃或被误提交为清空。
+  void _commitPendingEdit() {
+    final subject = _editingSubject;
+    final grade = _editingGrade;
+    final classes = _editingClasses;
+    if (subject == null || grade == null || classes == null) return;
+    commitEdit(subject, grade, classes);
+  }
+
   /// 提交内联编辑：合法则交页面写入草稿，否则提示格式。
   void commitEdit(Subject subject, GradeGroup grade, List<ClassBrief> classes) {
+    // 无进行中的编辑（如重复的 onTapOutside / 提交后延迟回调）直接忽略。
+    if (_editingCell == null) return;
     final text = _editController?.text ?? '';
     _editController = null;
     _editFocus = null;
+    _editingSubject = null;
+    _editingGrade = null;
+    _editingClasses = null;
     setState(() => _editingCell = null);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) cellFocusNode.requestFocus();
     });
     final parsed = parseLessonInput(text);
     if (parsed == null) {
-      widget.onMessage('节数格式不正确：单班用 3 或 3|1|1，多班用半角逗号分隔');
+      widget.onMessage(
+        widget.alternatingWeeks
+            ? '节数格式不正确：单班用 3 或 3|1|1，多班用半角逗号分隔'
+            : '节数格式不正确：单班用 3，多班用半角逗号分隔',
+      );
       return;
     }
     widget.onCellCommit(subject, grade, classes, parsed);
@@ -363,6 +395,7 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
             _CapacityFooterRow(
               visibleGrades: widget.visibleGrades,
               summaries: widget.summaries,
+              alternatingWeeks: widget.alternatingWeeks,
               horizontal: _horizontalScrollArea,
             ),
           ],
@@ -729,10 +762,6 @@ class _MatrixCellState extends State<_MatrixCell> {
 
   /// 选中格上的键盘操作：方向键移动选中，Ctrl/Cmd+C/V 复制粘贴。
   KeyEventResult _handleCellKey(FocusNode node, KeyEvent event) {
-    // ignore: avoid_print
-    print(
-      'KEYDBG ${event.runtimeType} ${event.logicalKey.keyLabel} ctrl=${HardwareKeyboard.instance.isControlPressed}',
-    );
     final state = widget.state;
     if (state.isEditing(widget.subject, widget.grade)) {
       return KeyEventResult.ignored;
@@ -798,14 +827,15 @@ class _MatrixCellState extends State<_MatrixCell> {
         autofocus: true,
         style: const TextStyle(color: AppTheme.ink, fontSize: 12.5),
         // 显式覆盖全局 inputDecorationTheme（白底 + 描边），编辑框须无框。
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           isCollapsed: true,
           filled: false,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
           contentPadding: EdgeInsets.zero,
-          hintText: '3 或 3|1|1',
+          // 未开启单双周交替的学期不接受 w|o|e 格式。
+          hintText: widget.state.widget.alternatingWeeks ? '3 或 3|1|1' : '3',
         ),
         onSubmitted: (_) =>
             state.commitEdit(widget.subject, widget.grade, widget.classes),
@@ -852,11 +882,13 @@ class _CapacityFooterRow extends StatelessWidget {
   const _CapacityFooterRow({
     required this.visibleGrades,
     required this.summaries,
+    required this.alternatingWeeks,
     required this.horizontal,
   });
 
   final List<GradeGroup> visibleGrades;
   final Map<String, GradeCapacitySummary> summaries;
+  final bool alternatingWeeks;
   final HorizontalScrollAreaBuilder horizontal;
 
   @override
@@ -887,7 +919,10 @@ class _CapacityFooterRow extends StatelessWidget {
             child: Row(
               children: [
                 for (final grade in visibleGrades) ...[
-                  _FooterCell(summary: summaries[grade.id]),
+                  _FooterCell(
+                    summary: summaries[grade.id],
+                    alternatingWeeks: alternatingWeeks,
+                  ),
                 ],
               ],
             ),
@@ -900,15 +935,21 @@ class _CapacityFooterRow extends StatelessWidget {
 }
 
 class _FooterCell extends StatelessWidget {
-  const _FooterCell({required this.summary});
+  const _FooterCell({
+    required this.summary,
+    required this.alternatingWeeks,
+  });
 
   final GradeCapacitySummary? summary;
+
+  /// 未开启单双周交替时只以「需求 / 容量」短式呈现，不展示单/双周。
+  final bool alternatingWeeks;
 
   @override
   Widget build(BuildContext context) {
     final text = summary == null
         ? '—'
-        : summary!.oddDemand == summary!.evenDemand
+        : (!alternatingWeeks || summary!.oddDemand == summary!.evenDemand)
         ? '${summary!.oddDemand} / ${summary!.oddCapacity}'
         : '单 ${summary!.oddDemand}/${summary!.oddCapacity}'
               ' · 双 ${summary!.evenDemand}/${summary!.evenCapacity}';

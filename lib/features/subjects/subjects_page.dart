@@ -41,6 +41,9 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   /// 草稿：scopeKey → 节数；未命中时回退到流数据。
   final Map<String, int> _draft = {};
 
+  /// 当前学期是否开启单双周交替（build 时随学期刷新）。
+  bool _alternatingWeeks = true;
+
   /// 暂存的新增科目（保存时落库）。
   final List<Subject> _newSubjects = [];
 
@@ -68,6 +71,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   }
 
   Widget _buildContent(AcademicTerm term) {
+    // 未开启单双周交替的学期只提供每周节数配置。
+    _alternatingWeeks = term.cycleMode == AcademicTermCycle.alternating;
     final stages = ref.watch(stagesProvider(term.id)).valueOrNull ?? const [];
     if (stages.isEmpty) {
       return _NoStages(
@@ -137,7 +142,9 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         children: [
           AppPageHeader(
             title: '科目节数',
-            subtitle: '默认录入每周节数；单双周与科目预设点击单元格设置。',
+            subtitle: _alternatingWeeks
+                ? '默认录入每周节数；单双周与科目预设点击单元格设置。'
+                : '默认录入每周节数；科目预设点击单元格设置。',
             actions: [
               AppGhostButton(
                 onPressed: _openAddSubject,
@@ -274,6 +281,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                   onCellCommit: _applyCellInput,
                   onEditRequest: _openClassDetail,
                   onMessage: _showMessage,
+                  alternatingWeeks: _alternatingWeeks,
                   onPresetTap: (subject, grade) {
                     setState(() => _presetGradeId = grade.id);
                     _openSubjectPreset(subject, grade);
@@ -430,6 +438,12 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     List<ClassBrief> classes,
     List<ClassSubjectValues> values,
   ) {
+    // 未开启单双周交替的学期不接受单 / 双周节数（w|o|e 格式）。
+    if (!_alternatingWeeks &&
+        values.any((value) => value.odd != 0 || value.even != 0)) {
+      _showMessage('当前学期未开启单双周交替，请直接填写每周节数');
+      return;
+    }
     setState(() {
       void apply(ClassBrief classBrief, ClassSubjectValues value) {
         _draft[_scopeKey(subject.id, classBrief.id, WeekMode.weekly)] =
@@ -504,6 +518,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         classes: classes,
         initialValues: initialValues,
         capacities: capacities,
+        alternatingWeeks: _alternatingWeeks,
       ),
     );
     if (result == null) return;

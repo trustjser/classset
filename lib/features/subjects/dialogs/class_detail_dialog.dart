@@ -8,6 +8,8 @@ import 'package:forui/forui.dart' as f;
 
 /// 「各班不同」下钻弹窗：逐班填写 每周 / 单周 / 双周节数。
 ///
+/// 学期未开启单双周交替（[alternatingWeeks] = false）时只展示每周一列。
+///
 /// 返回值：班级 ID → 三档节数（仅返回有改动的班级由调用方合并）。
 class ClassDetailDialog extends StatefulWidget {
   const ClassDetailDialog({
@@ -16,6 +18,7 @@ class ClassDetailDialog extends StatefulWidget {
     required this.classes,
     required this.initialValues,
     required this.capacities,
+    required this.alternatingWeeks,
     super.key,
   });
 
@@ -28,6 +31,9 @@ class ClassDetailDialog extends StatefulWidget {
 
   /// 班级 ID → 单 / 双周容量。
   final Map<String, ClassCapacity> capacities;
+
+  /// 当前学期是否开启单双周交替；未开启时隐藏单 / 双周配置列。
+  final bool alternatingWeeks;
 
   @override
   State<ClassDetailDialog> createState() => _ClassDetailDialogState();
@@ -84,20 +90,23 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
     });
   }
 
-  ({int odd, int even}) get _totals {
+  ({int weekly, int odd, int even}) get _totals {
+    var weekly = 0;
     var odd = 0;
     var even = 0;
     for (final values in _values.values) {
+      weekly += values.weekly;
       odd += values.oddWeekDemand;
       even += values.evenWeekDemand;
     }
-    return (odd: odd, even: even);
+    return (weekly: weekly, odd: odd, even: even);
   }
 
   @override
   Widget build(BuildContext context) {
     final totals = _totals;
     final overClasses = _overCapacityClasses();
+    final alternating = widget.alternatingWeeks;
     return AppDialog(
       title: Text('${widget.subject.name} · ${widget.gradeName}'),
       content: SizedBox(
@@ -109,7 +118,9 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '共 ${widget.classes.length} 个班；每周节数计入单双周，单周 / 双周仅计入对应周次。',
+                alternating
+                    ? '共 ${widget.classes.length} 个班；每周节数计入单双周，单周 / 双周仅计入对应周次。'
+                    : '共 ${widget.classes.length} 个班；录入每周节数，所有周使用同一套课表。',
                 style: const TextStyle(color: AppTheme.muted, fontSize: 11.5),
               ),
               const SizedBox(height: 12),
@@ -118,7 +129,7 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
                 child: ListView(
                   shrinkWrap: true,
                   children: [
-                    const _DetailHeader(),
+                    _DetailHeader(alternatingWeeks: alternating),
                     for (final classBrief in widget.classes)
                       _DetailRow(
                         classBrief: classBrief,
@@ -126,6 +137,7 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
                             _values[classBrief.id] ??
                             const ClassSubjectValues(),
                         capacity: widget.capacities[classBrief.id],
+                        alternatingWeeks: alternating,
                         onChanged: ({weekly, odd, even}) => _setValue(
                           classBrief.id,
                           weekly: weekly,
@@ -140,7 +152,9 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
               Row(
                 children: [
                   Text(
-                    '合计 单周 ${totals.odd} · 双周 ${totals.even} 节',
+                    alternating
+                        ? '合计 单周 ${totals.odd} · 双周 ${totals.even} 节'
+                        : '合计每周 ${totals.weekly} 节',
                     style: const TextStyle(
                       color: AppTheme.inkSecondary,
                       fontSize: 12,
@@ -202,7 +216,9 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
 }
 
 class _DetailHeader extends StatelessWidget {
-  const _DetailHeader();
+  const _DetailHeader({required this.alternatingWeeks});
+
+  final bool alternatingWeeks;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -210,9 +226,9 @@ class _DetailHeader extends StatelessWidget {
       border: Border(bottom: BorderSide(color: AppTheme.border)),
     ),
     padding: const EdgeInsets.only(bottom: 8),
-    child: const Row(
+    child: Row(
       children: [
-        Expanded(
+        const Expanded(
           child: Padding(
             padding: EdgeInsets.only(left: 4),
             child: Text(
@@ -225,7 +241,7 @@ class _DetailHeader extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(
+        const SizedBox(
           width: 62,
           child: Center(
             child: Text(
@@ -238,32 +254,34 @@ class _DetailHeader extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(
-          width: 62,
-          child: Center(
-            child: Text(
-              '单周',
-              style: TextStyle(
-                color: AppTheme.muted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+        if (alternatingWeeks) ...[
+          const SizedBox(
+            width: 62,
+            child: Center(
+              child: Text(
+                '单周',
+                style: TextStyle(
+                  color: AppTheme.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
-        ),
-        SizedBox(
-          width: 62,
-          child: Center(
-            child: Text(
-              '双周',
-              style: TextStyle(
-                color: AppTheme.muted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+          const SizedBox(
+            width: 62,
+            child: Center(
+              child: Text(
+                '双周',
+                style: TextStyle(
+                  color: AppTheme.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ],
     ),
   );
@@ -274,12 +292,14 @@ class _DetailRow extends StatelessWidget {
     required this.classBrief,
     required this.values,
     required this.capacity,
+    required this.alternatingWeeks,
     required this.onChanged,
   });
 
   final ClassBrief classBrief;
   final ClassSubjectValues values;
   final ClassCapacity? capacity;
+  final bool alternatingWeeks;
 
   final void Function({int? weekly, int? odd, int? even}) onChanged;
 
@@ -307,16 +327,18 @@ class _DetailRow extends StatelessWidget {
             value: values.weekly,
             onChanged: (value) => onChanged(weekly: value),
           ),
-          _CountField(
-            value: values.odd,
-            isOver: overOdd,
-            onChanged: (value) => onChanged(odd: value),
-          ),
-          _CountField(
-            value: values.even,
-            isOver: overEven,
-            onChanged: (value) => onChanged(even: value),
-          ),
+          if (alternatingWeeks) ...[
+            _CountField(
+              value: values.odd,
+              isOver: overOdd,
+              onChanged: (value) => onChanged(odd: value),
+            ),
+            _CountField(
+              value: values.even,
+              isOver: overEven,
+              onChanged: (value) => onChanged(even: value),
+            ),
+          ],
         ],
       ),
     );

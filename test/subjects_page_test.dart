@@ -52,7 +52,9 @@ void main() {
   });
 
   /// 建学期（自动带默认学段）+ 初中学段（一年级 3 个班，容量 5×4=20）。
-  Future<void> seedData() async {
+  Future<void> seedData({
+    AcademicTermCycle cycleMode = AcademicTermCycle.alternating,
+  }) async {
     await repository.saveTerm(
       AcademicTerm(
         id: 't1',
@@ -61,6 +63,7 @@ void main() {
         semesterLabel: '第一学期',
         firstTeachingWeekStart: DateTime(2026, 9, 1),
         teachingWeekCount: 20,
+        cycleMode: cycleMode,
         createdAt: DateTime(2026, 8, 1),
       ),
     );
@@ -215,6 +218,51 @@ void main() {
           .where((row) => row.weekMode == WeekMode.even)
           .map((row) => row.lessonCount),
       everyElement(1),
+    );
+  });
+
+  testWidgets('内联编辑中点击其它单元格保留已输入内容（不丢失）', (tester) async {
+    await seedData();
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    final cellA = find.byKey(const ValueKey('subject-cell-s_chinese-g1'));
+    final cellB = find.byKey(const ValueKey('subject-cell-s_math-g1'));
+    // 双击进入内联编辑并输入 5（不按回车提交）。
+    await tester.tap(cellA);
+    await tester.pump(const Duration(milliseconds: 80));
+    await tester.tap(cellA);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '5');
+    await tester.pumpAndSettle();
+    // 直接点击另一个单元格：应把进行中的编辑按回车语义提交，而非清空。
+    await tester.tap(cellB);
+    await tester.pumpAndSettle();
+    // A 格内容保留为 5，而非被清空为「—」。
+    expect(
+      find.descendant(of: cellA, matching: find.text('5')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: cellA, matching: find.text('—')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('未开启单双周的学期，下钻弹窗不显示单/双周列', (tester) async {
+    await seedData(cycleMode: AcademicTermCycle.everyWeek);
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    await openCellDialog(tester, const ValueKey('subject-cell-s_chinese-g1'));
+    // 仅「每周」一列，无「单周」「双周」。
+    expect(find.text('每周'), findsWidgets);
+    expect(find.text('单周'), findsNothing);
+    expect(find.text('双周'), findsNothing);
+    // 副标题也不含单双周配置提示。
+    expect(
+      find.text('默认录入每周节数；科目预设点击单元格设置。'),
+      findsOneWidget,
     );
   });
 
