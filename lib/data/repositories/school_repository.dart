@@ -115,10 +115,10 @@ abstract interface class SchoolRepository {
   /// 全校预设行流（按范围 / 学段客户端过滤）。
   Stream<List<SubjectPreset>> watchAllPresets();
 
-  /// 以给定网格整体替换某科目某范围某学段的预设。
+  /// 以给定网格整体替换某科目在 [stageId] 作息上下文中的某范围预设。
   ///
-  /// [scope] 为全校时按学段展开：把 [presets] 的时段按名称匹配到该学期
-  /// 所有学段，各学段各存一份（US-015 AC7/AC8）。
+  /// 全校范围仍按学段分别保存；此方法只替换 [stageId] 对应的记录，避免
+  /// 保存一个学段时影响其他学段的预设。
   Future<void> replaceSubjectPresets({
     required String subjectId,
     required String termId,

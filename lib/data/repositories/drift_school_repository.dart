@@ -1210,19 +1210,15 @@ class DriftSchoolRepository implements SchoolRepository {
   Future<void> saveSubjects(List<domain.Subject> subjects) async {
     if (subjects.isEmpty) return;
     await _database.batch((batch) {
-      batch.insertAll(
-        _database.subjects,
-        [
-          for (final subject in subjects)
-            SubjectsCompanion.insert(
-              id: subject.id,
-              name: subject.name.trim(),
-              shortName: subject.shortName.trim(),
-              sortOrder: subject.sortOrder,
-            ),
-        ],
-        mode: InsertMode.insertOrReplace,
-      );
+      batch.insertAll(_database.subjects, [
+        for (final subject in subjects)
+          SubjectsCompanion.insert(
+            id: subject.id,
+            name: subject.name.trim(),
+            shortName: subject.shortName.trim(),
+            sortOrder: subject.sortOrder,
+          ),
+      ], mode: InsertMode.insertOrReplace);
     });
   }
 
@@ -1235,20 +1231,17 @@ class DriftSchoolRepository implements SchoolRepository {
   Stream<List<domain.SubjectRequirement>> watchRequirementsForGrade(
     String gradeId,
   ) =>
-      (_database.select(_database.subjectRequirements)
-            ..where((row) => row.gradeId.equals(gradeId)))
-          .watch()
-          .map(
-            (rows) => rows.map(_toDomainRequirement).toList(growable: false),
-          );
+      (_database.select(
+        _database.subjectRequirements,
+      )..where((row) => row.gradeId.equals(gradeId))).watch().map(
+        (rows) => rows.map(_toDomainRequirement).toList(growable: false),
+      );
 
   @override
   Stream<List<domain.SubjectRequirement>> watchAllRequirements() =>
-      (_database.select(_database.subjectRequirements))
-          .watch()
-          .map(
-            (rows) => rows.map(_toDomainRequirement).toList(growable: false),
-          );
+      (_database.select(_database.subjectRequirements)).watch().map(
+        (rows) => rows.map(_toDomainRequirement).toList(growable: false),
+      );
 
   @override
   Stream<List<domain.ClassBrief>> watchClassesForStage(String stageId) =>
@@ -1284,10 +1277,9 @@ class DriftSchoolRepository implements SchoolRepository {
           );
 
   @override
-  Stream<List<domain.GradeGroup>> watchGradesForTerm(String termId) =>
-      _database
-          .customSelect(
-            '''
+  Stream<List<domain.GradeGroup>> watchGradesForTerm(String termId) => _database
+      .customSelect(
+        '''
             SELECT g.id AS g_id, g.stage_id AS g_stage_id,
                    g.name AS g_name, g.sort_order AS g_sort
             FROM grade_groups g
@@ -1295,21 +1287,21 @@ class DriftSchoolRepository implements SchoolRepository {
             WHERE s.term_id = ?
             ORDER BY s.sort_order ASC, g.sort_order ASC
             ''',
-            variables: [Variable<String>(termId)],
-            readsFrom: {_database.gradeGroups, _database.schoolStages},
-          )
-          .watch()
-          .map(
-            (rows) => [
-              for (final row in rows)
-                domain.GradeGroup(
-                  id: row.read<String>('g_id'),
-                  stageId: row.read<String>('g_stage_id'),
-                  name: row.read<String>('g_name'),
-                  sortOrder: row.read<int>('g_sort'),
-                ),
-            ],
-          );
+        variables: [Variable<String>(termId)],
+        readsFrom: {_database.gradeGroups, _database.schoolStages},
+      )
+      .watch()
+      .map(
+        (rows) => [
+          for (final row in rows)
+            domain.GradeGroup(
+              id: row.read<String>('g_id'),
+              stageId: row.read<String>('g_stage_id'),
+              name: row.read<String>('g_name'),
+              sortOrder: row.read<int>('g_sort'),
+            ),
+        ],
+      );
 
   @override
   Stream<List<domain.ClassBrief>> watchClassesForTerm(String termId) =>
@@ -1347,37 +1339,39 @@ class DriftSchoolRepository implements SchoolRepository {
   @override
   Stream<Map<String, domain.StageRoutine>> watchRoutinesForTerm(
     String termId,
-  ) =>
-      _database
-          .customSelect(
-            'SELECT id FROM school_stages WHERE term_id = ?',
-            variables: [Variable<String>(termId)],
-            readsFrom: {_database.schoolStages},
-          )
-          .watch()
-          .asyncMap((rows) async => {
-            for (final row in rows)
-              row.read<String>('id'): await _loadRoutine(
-                row.read<String>('id'),
-              ),
-          });
+  ) => _database
+      .customSelect(
+        'SELECT id FROM school_stages WHERE term_id = ?',
+        variables: [Variable<String>(termId)],
+        readsFrom: {
+          _database.schoolStages,
+          _database.stageTeachingDays,
+          _database.lessonPeriodTypes,
+          _database.dailyLessonOverrides,
+          _database.lessonTimes,
+        },
+      )
+      .watch()
+      .asyncMap(
+        (rows) async => {
+          for (final row in rows)
+            row.read<String>('id'): await _loadRoutine(row.read<String>('id')),
+        },
+      );
 
   @override
   Stream<List<domain.FreeSlot>> watchFreeSlotsForTerm(String termId) =>
       (_database.select(_database.freeSlots).join([
-            innerJoin(
-              _database.schoolStages,
-              _database.schoolStages.id.equalsExp(_database.freeSlots.stageId),
-            ),
-          ])
-            ..where(_database.schoolStages.termId.equals(termId)))
-          .watch()
-          .map(
-            (rows) => [
-              for (final row in rows)
-                _toDomainFreeSlot(row.readTable(_database.freeSlots)),
-            ],
-          );
+        innerJoin(
+          _database.schoolStages,
+          _database.schoolStages.id.equalsExp(_database.freeSlots.stageId),
+        ),
+      ])..where(_database.schoolStages.termId.equals(termId))).watch().map(
+        (rows) => [
+          for (final row in rows)
+            _toDomainFreeSlot(row.readTable(_database.freeSlots)),
+        ],
+      );
 
   @override
   Future<void> replaceGradeRequirements({
@@ -1390,20 +1384,17 @@ class DriftSchoolRepository implements SchoolRepository {
       )..where((row) => row.gradeId.equals(gradeId))).go();
       if (requirements.isEmpty) return;
       await _database.batch((batch) {
-        batch.insertAll(
-          _database.subjectRequirements,
-          [
-            for (final requirement in requirements)
-              SubjectRequirementsCompanion.insert(
-                id: requirement.id,
-                subjectId: requirement.subjectId,
-                gradeId: requirement.gradeId,
-                classId: Value(requirement.classId),
-                weekMode: Value(requirement.weekMode.storageValue),
-                lessonCount: Value(requirement.lessonCount),
-              ),
-          ],
-        );
+        batch.insertAll(_database.subjectRequirements, [
+          for (final requirement in requirements)
+            SubjectRequirementsCompanion.insert(
+              id: requirement.id,
+              subjectId: requirement.subjectId,
+              gradeId: requirement.gradeId,
+              classId: Value(requirement.classId),
+              weekMode: Value(requirement.weekMode.storageValue),
+              lessonCount: Value(requirement.lessonCount),
+            ),
+        ]);
       });
     });
   }
@@ -1418,9 +1409,7 @@ class DriftSchoolRepository implements SchoolRepository {
   // —— 科目预设与课程配对 ——
 
   @override
-  Stream<List<domain.SubjectPreset>> watchPresetsForSubject(
-    String subjectId,
-  ) =>
+  Stream<List<domain.SubjectPreset>> watchPresetsForSubject(String subjectId) =>
       (_database.select(_database.subjectPresets)
             ..where((row) => row.subjectId.equals(subjectId)))
           .watch()
@@ -1442,19 +1431,8 @@ class DriftSchoolRepository implements SchoolRepository {
     required List<domain.SubjectPreset> presets,
   }) async {
     await _database.transaction(() async {
-      if (scope == domain.FreeSlotScope.school) {
-        // 全校范围按学段展开存储：时段按名称匹配到该学期每个学段。
-        final stages = await (_database.select(_database.schoolStages)
-              ..where((row) => row.termId.equals(termId)))
-            .get();
-        for (final stage in stages) {
-          await _deleteSubjectPresets(subjectId, scope, scopeId, stage.id);
-          if (presets.isEmpty) continue;
-          final expanded = await _expandPresetsToStage(presets, stage.id);
-          await _insertSubjectPresets(expanded);
-        }
-        return;
-      }
+      // 范围网格总是对应单个学段的作息；即使 scope 为 school，也只替换
+      // 当前学段的数据，避免把某一套作息的星期与时段映射到其他学段。
       await _deleteSubjectPresets(subjectId, scope, scopeId, stageId);
       if (presets.isEmpty) return;
       await _insertSubjectPresets(presets);
@@ -1466,19 +1444,17 @@ class DriftSchoolRepository implements SchoolRepository {
     domain.FreeSlotScope scope,
     String scopeId,
     String stageId,
-  ) => (_database.delete(_database.subjectPresets)
-        ..where(
-          (row) =>
-              row.subjectId.equals(subjectId) &
-              row.scopeType.equals(scope.storageValue) &
-              row.scopeId.equals(scopeId) &
-              row.stageId.equals(stageId),
-        ))
-      .go();
+  ) =>
+      (_database.delete(_database.subjectPresets)..where(
+            (row) =>
+                row.subjectId.equals(subjectId) &
+                row.scopeType.equals(scope.storageValue) &
+                row.scopeId.equals(scopeId) &
+                row.stageId.equals(stageId),
+          ))
+          .go();
 
-  Future<void> _insertSubjectPresets(
-    List<domain.SubjectPreset> presets,
-  ) async {
+  Future<void> _insertSubjectPresets(List<domain.SubjectPreset> presets) async {
     if (presets.isEmpty) return;
     await _database.batch((batch) {
       batch.insertAll(_database.subjectPresets, [
@@ -1498,39 +1474,6 @@ class DriftSchoolRepository implements SchoolRepository {
     });
   }
 
-  /// 把针对某学段网格的预设按「同时段名称」展开到目标学段。
-  Future<List<domain.SubjectPreset>> _expandPresetsToStage(
-    List<domain.SubjectPreset> presets,
-    String targetStageId,
-  ) async {
-    final targetPeriods = await (_database.select(_database.lessonPeriodTypes)
-          ..where((row) => row.stageId.equals(targetStageId)))
-        .get();
-    final nameToId = {for (final period in targetPeriods) period.name: period.id};
-    final sourceNames = <String, String>{};
-    for (final periodId in presets.map((preset) => preset.periodTypeId).toSet()) {
-      final row = await (_database.select(_database.lessonPeriodTypes)
-            ..where((row) => row.id.equals(periodId)))
-          .getSingleOrNull();
-      if (row != null) sourceNames[periodId] = row.name;
-    }
-    return [
-      for (final preset in presets)
-        if (nameToId[sourceNames[preset.periodTypeId]] != null)
-          domain.SubjectPreset(
-            id: '',
-            subjectId: preset.subjectId,
-            scope: preset.scope,
-            scopeId: preset.scopeId,
-            stageId: targetStageId,
-            weekday: preset.weekday,
-            periodTypeId: nameToId[sourceNames[preset.periodTypeId]]!,
-            lessonIndex: preset.lessonIndex,
-            value: preset.value,
-          ),
-    ];
-  }
-
   @override
   Stream<List<domain.SubjectPairing>> watchAllPairings() =>
       (_database.select(_database.subjectPairings))
@@ -1543,9 +1486,9 @@ class DriftSchoolRepository implements SchoolRepository {
     required List<domain.SubjectPairing> pairings,
   }) async {
     await _database.transaction(() async {
-      await (_database.delete(_database.subjectPairings)
-            ..where((row) => row.classId.equals(classId)))
-          .go();
+      await (_database.delete(
+        _database.subjectPairings,
+      )..where((row) => row.classId.equals(classId))).go();
       if (pairings.isEmpty) return;
       await _database.batch((batch) {
         batch.insertAll(_database.subjectPairings, [

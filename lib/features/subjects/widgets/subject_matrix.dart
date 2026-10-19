@@ -52,8 +52,8 @@ class SubjectMatrix extends StatefulWidget {
   /// 年级 ID → 容量概要。
   final Map<String, GradeCapacitySummary> summaries;
 
-  /// 科目 ID → 预设摘要（null = 无预设）。
-  final Map<String, String?> presetSummaries;
+  /// 科目 ID → 预设摘要与完整提示内容（null = 无预设）。
+  final Map<String, SubjectPresetSummary?> presetSummaries;
 
   final void Function(Subject subject, GradeGroup grade) onCellTap;
 
@@ -517,8 +517,8 @@ class _SubjectRow extends StatelessWidget {
   final Map<String, List<ClassBrief>> classesByGrade;
   final ClassSubjectValues Function(String subjectId, String classId) valuesFor;
 
-  /// 预设摘要（null = 无预设）。
-  final String? presetSummary;
+  /// 预设摘要与完整提示内容（null = 无预设）。
+  final SubjectPresetSummary? presetSummary;
   final void Function(Subject subject, GradeGroup grade) onCellTap;
   final void Function(Subject subject, GradeGroup grade) onPresetTap;
   final HorizontalScrollAreaBuilder horizontal;
@@ -569,7 +569,6 @@ class _SubjectRow extends StatelessWidget {
           height: 40,
           child: _PresetCell(
             key: ValueKey('preset-summary-${subject.id}'),
-            subjectId: subject.id,
             summary: presetSummary,
             onTap: visibleGrades.isEmpty
                 ? null
@@ -581,46 +580,76 @@ class _SubjectRow extends StatelessWidget {
   );
 }
 
-/// 「科目预设」列：有预设显示摘要 chip，无预设显示「—」。
+/// 「科目预设」列：展示预设摘要，点击进入编辑。
 class _PresetCell extends StatelessWidget {
-  const _PresetCell({
-    required this.subjectId,
-    required this.summary,
-    required this.onTap,
-    super.key,
-  });
+  const _PresetCell({required this.summary, required this.onTap, super.key});
 
-  final String subjectId;
-  final String? summary;
+  final SubjectPresetSummary? summary;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final Widget content = summary == null
-        ? const Text('—', style: TextStyle(color: AppTheme.muted, fontSize: 12))
-        : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppTheme.selectedBlue,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              summary!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppTheme.blue,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
+    final canEdit = onTap != null;
+    final summaryText = summary?.text;
+    final Widget content = summaryText == null
+        ? Text('—', style: TextStyle(color: AppTheme.muted, fontSize: 10.5))
+        : Row(
+            children: [
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.selectedBlue,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    summaryText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.blue,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           );
     return Padding(
       padding: const EdgeInsets.only(left: 14, right: 8),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Align(alignment: Alignment.centerLeft, child: content),
+      child: Tooltip(
+        message: canEdit
+            ? summary == null
+                  ? '点击设置科目预设'
+                  : '${summary!.tooltip}\n点击编辑科目预设'
+            : summary?.tooltip ?? '',
+        child: MouseRegion(
+          cursor: canEdit ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          child: Semantics(
+            button: canEdit,
+            label: summaryText == null
+                ? (canEdit ? '设置科目预设' : '无科目预设')
+                : '科目预设：$summaryText',
+            hint: canEdit ? '点击编辑科目预设' : null,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(6),
+                hoverColor: AppTheme.selectedBlue,
+                focusColor: AppTheme.selectedBlue,
+                child: SizedBox(
+                  height: 40,
+                  child: Align(alignment: Alignment.centerLeft, child: content),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -935,10 +964,7 @@ class _CapacityFooterRow extends StatelessWidget {
 }
 
 class _FooterCell extends StatelessWidget {
-  const _FooterCell({
-    required this.summary,
-    required this.alternatingWeeks,
-  });
+  const _FooterCell({required this.summary, required this.alternatingWeeks});
 
   final GradeCapacitySummary? summary;
 

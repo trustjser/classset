@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/widgets/app_badges.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
@@ -10,36 +12,94 @@ import 'package:class_set/features/subjects/subjects_data.dart';
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart' as f;
 
+typedef SubjectPresetEdit = ({
+  FreeSlotScope scope,
+  String scopeId,
+  String stageId,
+  List<PresetCell> cells,
+});
+
+typedef SubjectPresetDialogResult = List<SubjectPresetEdit>;
+
+typedef _PresetDraftKey = ({
+  FreeSlotScope scope,
+  String scopeId,
+  String stageId,
+});
+
+typedef _PresetEntryKey = ({
+  FreeSlotScope scope,
+  String scopeId,
+  String stageId,
+  int weekday,
+  String periodTypeId,
+  int lessonIndex,
+});
+
+typedef _PresetCellAddress = ({
+  int weekday,
+  String periodTypeId,
+  int lessonIndex,
+});
+
+typedef _PresetListEntry = ({
+  _PresetEntryKey key,
+  String rangeLabel,
+  String cellLabel,
+  String valueLabel,
+  bool pending,
+  bool deleted,
+  int stageOrder,
+  int scopeOrder,
+  int weekday,
+  int periodOrder,
+  int lessonIndex,
+});
+
+typedef _DeletedPresetCellDraft = ({
+  PresetValue? value,
+  bool wasChanged,
+  bool wasDirty,
+});
+
 /// 科目预设弹窗（US-015 / 设计稿 03b）。
 ///
 /// 节次 × 周一~周五 四态方格：单击在 自动 → 尽量排 → 一定排 → 不排
-/// 间循环，右键直选；范围四级（全校 / 学段 / 年级 / 班级），默认矩阵
+/// 间循环，右键直选；范围三级（学段 / 年级 / 班级），默认矩阵
 /// 当前列；预设不区分单双周；「一定排」格数超过该周需求节数时，
 /// 保存按周次列出警告（AC6）。
 class SubjectPresetDialog extends StatefulWidget {
   const SubjectPresetDialog({
     required this.subject,
     required this.termId,
-    required this.stage,
-    required this.grade,
+    required this.initialStageId,
+    required this.initialGradeId,
+    required this.stages,
+    required this.grades,
     required this.classes,
-    required this.routine,
+    required this.routines,
     required this.presets,
+    required this.freeSlots,
     required this.classDemands,
     super.key,
   });
 
   final Subject subject;
   final String termId;
-  final SchoolStage stage;
-  final GradeGroup grade;
+  final String initialStageId;
+  final String initialGradeId;
+  final List<SchoolStage> stages;
+  final List<GradeGroup> grades;
 
-  /// 当前年级的班级（供班级级范围与容量警告使用）。
+  /// 当前学期的全部班级，用于范围树和容量警告。
   final List<ClassBrief> classes;
-  final StageRoutine routine;
+  final Map<String, StageRoutine> routines;
 
   /// 该科目全部预设行。
   final List<SubjectPreset> presets;
+
+  /// 当前学期的免任课标记，用于显示并禁用相应预排格。
+  final List<FreeSlot> freeSlots;
 
   /// 班级 ID → 单 / 双周需求节数（用于 AC6 警告）。
   final Map<String, ClassSubjectValues> classDemands;
@@ -49,77 +109,254 @@ class SubjectPresetDialog extends StatefulWidget {
 }
 
 class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
-  late _ScopeOption _scope;
+  late FreeSlotScope _scope;
+  late String _scopeId;
+  late String _activeStageId;
   late Map<String, PresetValue> _grid;
+  late final Set<String> _expandedStageIds;
+  final Set<String> _expandedGradeIds = {};
+  final Map<_PresetDraftKey, Map<String, PresetValue>> _drafts = {};
+  final Set<_PresetDraftKey> _dirtyDrafts = {};
+  final Map<_PresetDraftKey, Set<String>> _changedCells = {};
+  final Map<_PresetDraftKey, Set<String>> _deletedCells = {};
+  final Map<_PresetDraftKey, Map<String, _DeletedPresetCellDraft>>
+  _deletedSnapshots = {};
 
   @override
   void initState() {
     super.initState();
-    // 默认矩阵当前列（年级）。
-    _scope = _ScopeOption(
-      scope: FreeSlotScope.grade,
-      scopeId: widget.grade.id,
-      label: '${widget.grade.name}（矩阵当前列）',
-    );
-    _grid = _effectiveForScope();
+    _scope = FreeSlotScope.stage;
+    _scopeId = widget.initialStageId;
+    _activeStageId = widget.initialStageId;
+    _expandedStageIds = {widget.initialStageId};
+    _grid = _loadDraft(_currentDraftKey);
   }
 
-  Map<String, PresetValue> _effectiveForScope() => effectivePresetMap(
-    presets: widget.presets,
-    stageId: widget.stage.id,
-    scope: _scope.scope,
-    scopeId: _scope.scopeId,
-  );
+  StageRoutine? get _activeRoutine => widget.routines[_activeStageId];
 
-  List<_ScopeOption> get _scopeOptions => [
-    const _ScopeOption(
-      scope: FreeSlotScope.school,
-      scopeId: '',
-      label: '全校（对本未单独设置的年级生效）',
-    ),
-    _ScopeOption(
-      scope: FreeSlotScope.stage,
-      scopeId: widget.stage.id,
-      label: '${widget.stage.name}（本学段）',
-    ),
-    _ScopeOption(
-      scope: FreeSlotScope.grade,
-      scopeId: widget.grade.id,
-      label: '${widget.grade.name}（矩阵当前列）',
-    ),
-    for (final classBrief in widget.classes)
-      _ScopeOption(
-        scope: FreeSlotScope.schoolClass,
-        scopeId: classBrief.id,
-        label: '${classBrief.name}（精确到班）',
-      ),
-  ];
+  _PresetDraftKey get _currentDraftKey =>
+      (scope: _scope, scopeId: _scopeId, stageId: _activeStageId);
 
-  /// 实际写入的 scopeId：全校用学期 ID。
-  String get _effectiveScopeId =>
-      _scope.scope == FreeSlotScope.school ? widget.termId : _scope.scopeId;
+  Map<String, PresetValue> _loadDraft(_PresetDraftKey key) =>
+      _drafts.putIfAbsent(
+        key,
+        () => effectivePresetMap(
+          presets: widget.presets,
+          stageId: key.stageId,
+          scope: key.scope,
+          scopeId: key.scopeId,
+          parentGradeId: key.scope == FreeSlotScope.schoolClass
+              ? widget.classes
+                    .where((item) => item.id == key.scopeId)
+                    .firstOrNull
+                    ?.gradeId
+              : null,
+        ),
+      );
+
+  List<SchoolStage> get _orderedStages =>
+      [...widget.stages]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+  List<GradeGroup> _gradesForStage(String stageId) =>
+      widget.grades.where((grade) => grade.stageId == stageId).toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+  List<ClassBrief> _classesForGrade(String gradeId) =>
+      widget.classes
+          .where((classBrief) => classBrief.gradeId == gradeId)
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
+
+  void _selectScope({
+    required FreeSlotScope scope,
+    required String scopeId,
+    required String stageId,
+  }) {
+    setState(() {
+      _scope = scope;
+      _scopeId = scopeId;
+      _activeStageId = stageId;
+      _grid = _loadDraft(_currentDraftKey);
+    });
+  }
 
   void _cycleCell(int weekday, String periodTypeId, int lessonIndex) {
+    if (_effectiveFreeSlot(
+          _currentDraftKey,
+          weekday,
+          periodTypeId,
+          lessonIndex,
+        ) !=
+        null) {
+      return;
+    }
     final key = presetCellKey(weekday, periodTypeId, lessonIndex);
     setState(() {
       final current = _grid[key] ?? PresetValue.auto;
       _grid[key] = current.next;
+      _changedCells.putIfAbsent(_currentDraftKey, () => <String>{}).add(key);
+      _dirtyDrafts.add(_currentDraftKey);
     });
   }
 
-  void _setCell(int weekday, String periodTypeId, int lessonIndex, PresetValue value) {
+  void _setCell(
+    int weekday,
+    String periodTypeId,
+    int lessonIndex,
+    PresetValue value,
+  ) {
+    if (_effectiveFreeSlot(
+          _currentDraftKey,
+          weekday,
+          periodTypeId,
+          lessonIndex,
+        ) !=
+        null) {
+      return;
+    }
     final key = presetCellKey(weekday, periodTypeId, lessonIndex);
-    setState(() => _grid[key] = value);
+    setState(() {
+      _grid[key] = value;
+      _changedCells.putIfAbsent(_currentDraftKey, () => <String>{}).add(key);
+      _dirtyDrafts.add(_currentDraftKey);
+    });
+  }
+
+  void _clearPresetCell(int weekday, String periodTypeId, int lessonIndex) {
+    final cellKey = presetCellKey(weekday, periodTypeId, lessonIndex);
+    final deleted = _deletedCells[_currentDraftKey] ?? const <String>{};
+    if (deleted.contains(cellKey)) return;
+
+    final hasLocalPreset = widget.presets.any(
+      (preset) =>
+          preset.scope == _scope &&
+          preset.scopeId == _scopeId &&
+          preset.stageId == _activeStageId &&
+          preset.weekday == weekday &&
+          preset.periodTypeId == periodTypeId &&
+          preset.lessonIndex == lessonIndex,
+    );
+    final hasPendingOverride =
+        _changedCells[_currentDraftKey]?.contains(cellKey) ?? false;
+    if (!hasLocalPreset && !hasPendingOverride) return;
+
+    _togglePresetDeletion((
+      scope: _scope,
+      scopeId: _scopeId,
+      stageId: _activeStageId,
+      weekday: weekday,
+      periodTypeId: periodTypeId,
+      lessonIndex: lessonIndex,
+    ));
+  }
+
+  void _togglePresetDeletion(_PresetEntryKey entryKey) {
+    final draftKey = (
+      scope: entryKey.scope,
+      scopeId: entryKey.scopeId,
+      stageId: entryKey.stageId,
+    );
+    final cellKey = presetCellKey(
+      entryKey.weekday,
+      entryKey.periodTypeId,
+      entryKey.lessonIndex,
+    );
+    final deleted = _deletedCells.putIfAbsent(draftKey, () => <String>{});
+    final snapshots = _deletedSnapshots.putIfAbsent(
+      draftKey,
+      () => <String, _DeletedPresetCellDraft>{},
+    );
+    setState(() {
+      final draft = _loadDraft(draftKey);
+      if (deleted.remove(cellKey)) {
+        final snapshot = snapshots.remove(cellKey);
+        if (snapshot?.value == null) {
+          draft.remove(cellKey);
+        } else {
+          draft[cellKey] = snapshot!.value!;
+        }
+        final changed = _changedCells.putIfAbsent(draftKey, () => <String>{});
+        if (snapshot?.wasChanged == true) {
+          changed.add(cellKey);
+        } else {
+          changed.remove(cellKey);
+        }
+        if (snapshot?.wasDirty == true ||
+            changed.isNotEmpty ||
+            deleted.isNotEmpty) {
+          _dirtyDrafts.add(draftKey);
+        } else {
+          _dirtyDrafts.remove(draftKey);
+        }
+      } else {
+        final changed = _changedCells[draftKey] ?? const <String>{};
+        snapshots[cellKey] = (
+          value: draft[cellKey],
+          wasChanged: changed.contains(cellKey),
+          wasDirty: _dirtyDrafts.contains(draftKey),
+        );
+        final inherited = effectivePresetMap(
+          presets: widget.presets
+              .where(
+                (preset) =>
+                    !(preset.scope == entryKey.scope &&
+                        preset.scopeId == entryKey.scopeId &&
+                        preset.stageId == entryKey.stageId &&
+                        preset.weekday == entryKey.weekday &&
+                        preset.periodTypeId == entryKey.periodTypeId &&
+                        preset.lessonIndex == entryKey.lessonIndex),
+              )
+              .toList(),
+          stageId: entryKey.stageId,
+          scope: entryKey.scope,
+          scopeId: entryKey.scopeId,
+          parentGradeId: entryKey.scope == FreeSlotScope.schoolClass
+              ? widget.classes
+                    .where((item) => item.id == entryKey.scopeId)
+                    .firstOrNull
+                    ?.gradeId
+              : null,
+        );
+        final inheritedValue = inherited[cellKey];
+        if (inheritedValue == null) {
+          draft.remove(cellKey);
+        } else {
+          draft[cellKey] = inheritedValue;
+        }
+        _changedCells[draftKey]?.remove(cellKey);
+        deleted.add(cellKey);
+        _dirtyDrafts.add(draftKey);
+      }
+      if (draftKey == _currentDraftKey) _grid = draft;
+    });
   }
 
   /// 「一定排」格数超过该周需求节数的班级（AC6）。
-  List<String> _overDemandWarnings() {
-    final mustCount = _grid.values
-        .where((value) => value == PresetValue.must)
-        .length;
+  List<String> _overDemandWarnings(
+    _PresetDraftKey draftKey,
+    Map<String, PresetValue> grid,
+  ) {
+    final routine = widget.routines[draftKey.stageId];
+    if (routine == null) return const [];
+    var mustCount = 0;
+    for (final weekday in routine.teachingWeekdays) {
+      for (final period in routine.periodTypes) {
+        final count = routine.effectiveLessonCount(period.id, weekday);
+        for (var lesson = 1; lesson <= count; lesson++) {
+          if (_effectiveFreeSlot(draftKey, weekday, period.id, lesson) !=
+              null) {
+            continue;
+          }
+          if (grid[presetCellKey(weekday, period.id, lesson)] ==
+              PresetValue.must) {
+            mustCount++;
+          }
+        }
+      }
+    }
     if (mustCount == 0) return const [];
     final warnings = <String>[];
-    for (final classBrief in widget.classes) {
+    for (final classBrief in _classesInScope(draftKey)) {
       final demand = widget.classDemands[classBrief.id];
       if (demand == null) continue;
       if (mustCount > demand.oddWeekDemand) {
@@ -135,8 +372,73 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
     return warnings;
   }
 
+  List<ClassBrief> _classesInScope(_PresetDraftKey draftKey) =>
+      widget.classes.where((item) {
+        return switch (draftKey.scope) {
+          FreeSlotScope.school ||
+          FreeSlotScope.stage => item.stageId == draftKey.stageId,
+          FreeSlotScope.grade =>
+            item.stageId == draftKey.stageId &&
+                item.gradeId == draftKey.scopeId,
+          FreeSlotScope.schoolClass => item.id == draftKey.scopeId,
+        };
+      }).toList();
+
+  FreeSlot? _effectiveFreeSlot(
+    _PresetDraftKey draftKey,
+    int weekday,
+    String periodTypeId,
+    int lessonIndex,
+  ) {
+    FreeSlot? best;
+    var bestPriority = -1;
+    for (final slot in widget.freeSlots) {
+      if (slot.stageId != draftKey.stageId ||
+          slot.weekday != weekday ||
+          slot.periodTypeId != periodTypeId ||
+          slot.lessonIndex != lessonIndex) {
+        continue;
+      }
+      final priority = _freeSlotScopePriority(slot, draftKey);
+      if (priority > bestPriority) {
+        best = slot;
+        bestPriority = priority;
+      }
+    }
+    return bestPriority < 0 ? null : best;
+  }
+
+  int _freeSlotScopePriority(FreeSlot slot, _PresetDraftKey draftKey) {
+    if (slot.scope == draftKey.scope && slot.scopeId == draftKey.scopeId) {
+      return 4;
+    }
+    if (draftKey.scope == FreeSlotScope.school) return -1;
+    if (slot.scope == FreeSlotScope.school && slot.scopeId == widget.termId) {
+      return 1;
+    }
+    if (slot.scope == FreeSlotScope.stage && slot.scopeId == draftKey.stageId) {
+      return 2;
+    }
+    if (draftKey.scope == FreeSlotScope.schoolClass &&
+        slot.scope == FreeSlotScope.grade) {
+      final classBrief = widget.classes
+          .where((item) => item.id == draftKey.scopeId)
+          .firstOrNull;
+      if (classBrief?.gradeId == slot.scopeId) return 3;
+    }
+    return -1;
+  }
+
   Future<void> _save() async {
-    final warnings = _overDemandWarnings();
+    final draftKeys = _dirtyDrafts.toList();
+    if (draftKeys.isEmpty) {
+      Navigator.pop<SubjectPresetDialogResult>(context, const []);
+      return;
+    }
+    final warnings = [
+      for (final draftKey in draftKeys)
+        ..._overDemandWarnings(draftKey, _drafts[draftKey]!),
+    ];
     if (warnings.isNotEmpty) {
       final proceed = await showAppDialog<bool>(
         context: context,
@@ -182,166 +484,712 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
       if (proceed != true) return;
     }
     if (!mounted) return;
-    final weekdays = widget.routine.teachingWeekdays.toList()..sort();
-    final periods = widget.routine.periodTypes.toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    final cells = <PresetCell>[];
-    for (final period in periods) {
-      for (var lesson = 1; lesson <= period.defaultLessonCount; lesson++) {
+    final edits = <SubjectPresetEdit>[];
+    for (final draftKey in draftKeys) {
+      final routine = widget.routines[draftKey.stageId];
+      if (routine == null) continue;
+      final weekdays = routine.teachingWeekdays.toList()..sort();
+      final periods = routine.periodTypes.toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      final grid = _drafts[draftKey]!;
+      final localOverrides = <String, PresetValue>{
+        for (final preset in widget.presets)
+          if (preset.scope == draftKey.scope &&
+              preset.scopeId == draftKey.scopeId &&
+              preset.stageId == draftKey.stageId)
+            presetCellKey(
+              preset.weekday,
+              preset.periodTypeId,
+              preset.lessonIndex,
+            ): preset.value,
+      };
+      for (final key in _deletedCells[draftKey] ?? const <String>{}) {
+        localOverrides.remove(key);
+      }
+      for (final key in _changedCells[draftKey] ?? const <String>{}) {
+        if ((_deletedCells[draftKey] ?? const <String>{}).contains(key)) {
+          continue;
+        }
+        final value = grid[key];
+        if (value != null) localOverrides[key] = value;
+      }
+      final cells = <PresetCell>[];
+      for (final period in periods) {
         for (final weekday in weekdays) {
-          final value =
-              _grid[presetCellKey(weekday, period.id, lesson)] ??
-              PresetValue.auto;
-          if (value == PresetValue.auto) continue;
-          cells.add(
-            PresetCell(
-              weekday: weekday,
-              periodTypeId: period.id,
-              lessonIndex: lesson,
-              value: value,
-            ),
-          );
+          final lessonCount = routine.effectiveLessonCount(period.id, weekday);
+          for (var lesson = 1; lesson <= lessonCount; lesson++) {
+            if (_effectiveFreeSlot(draftKey, weekday, period.id, lesson) !=
+                null) {
+              continue;
+            }
+            final value =
+                localOverrides[presetCellKey(weekday, period.id, lesson)];
+            // 只保存本范围自己的覆盖值。空白表示继续继承较宽范围；
+            // 显式存储的自动值则用于清除继承预设。
+            if (value == null) continue;
+            cells.add(
+              PresetCell(
+                weekday: weekday,
+                periodTypeId: period.id,
+                lessonIndex: lesson,
+                value: value,
+              ),
+            );
+          }
         }
       }
+      edits.add((
+        scope: draftKey.scope,
+        scopeId: draftKey.scopeId,
+        stageId: draftKey.stageId,
+        cells: cells,
+      ));
     }
-    Navigator.pop(context, (
-      scope: _scope.scope,
-      scopeId: _effectiveScopeId,
-      cells: cells,
-    ));
+    Navigator.pop<SubjectPresetDialogResult>(context, edits);
   }
 
   @override
   Widget build(BuildContext context) {
-    final weekdays = widget.routine.teachingWeekdays.toList()..sort();
-    final periods = widget.routine.periodTypes.toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    final scopeItems = {
-      for (final option in _scopeOptions) option.label: option.label,
-    };
     return AppDialog(
-      maxWidth: 680,
-      title: Row(
-        children: [
-          Expanded(child: Text('科目预设 · ${widget.subject.name}')),
-          SizedBox(
-            width: 220,
-            child: AppSelectField<String>(
-              items: scopeItems,
-              value: _scope.label,
-              onChanged: (label) {
-                if (label == null) return;
-                final option = _scopeOptions.firstWhere(
-                  (item) => item.label == label,
-                );
-                setState(() {
-                  _scope = option;
-                  _grid = _effectiveForScope();
-                });
-              },
+      maxWidth: 1080,
+      title: Text('科目预设 · ${widget.subject.name}'),
+      content: LayoutBuilder(
+        builder: (context, constraints) {
+          final scopeTree = _buildScopeTree();
+          final editor = _buildEditor();
+          if (constraints.maxWidth >= 800) {
+            return SizedBox(
+              width: 1032,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 236, height: 490, child: scopeTree),
+                  const SizedBox(width: 16),
+                  Expanded(child: editor),
+                ],
+              ),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: 210, child: scopeTree),
+              const SizedBox(height: 12),
+              editor,
+            ],
+          );
+        },
+      ),
+      actions: [
+        AppGhostButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        AppPrimaryButton(
+          onPressed: _activeRoutine == null ? null : _save,
+          child: const Text('保存预设'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditor() {
+    final routine = _activeRoutine;
+    final weekdays = routine == null
+        ? <int>[]
+        : routine.teachingWeekdays.toList();
+    weekdays.sort();
+    final periods = routine == null
+        ? <LessonPeriodType>[]
+        : routine.periodTypes.toList();
+    periods.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const labelWidth = 88.0;
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 720.0;
+        final dayWidth = weekdays.isEmpty
+            ? 72.0
+            : math.max(72.0, (availableWidth - labelWidth) / weekdays.length);
+        final tableWidth = labelWidth + dayWidth * weekdays.length;
+        var lessonSequence = 0;
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 490),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  '预设不区分单双周；空白格为自动。节次和上课日按当前范围学段的作息显示。保存会提交本次修改的范围。',
+                  style: TextStyle(color: AppTheme.muted, fontSize: 11.5),
+                ),
+                const SizedBox(height: 10),
+                if (routine == null)
+                  const SizedBox(
+                    height: 120,
+                    child: Center(
+                      child: Text(
+                        '该学段尚未配置作息，无法编辑预设。',
+                        style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                      ),
+                    ),
+                  )
+                else if (weekdays.isEmpty)
+                  const SizedBox(
+                    height: 80,
+                    child: Center(
+                      child: Text(
+                        '该学段暂无上课日',
+                        style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                      ),
+                    ),
+                  )
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Column(
+                        children: [
+                          _GridHeader(
+                            weekdays: weekdays,
+                            labelWidth: labelWidth,
+                            dayWidth: dayWidth,
+                          ),
+                          for (final period in periods)
+                            for (
+                              var lesson = 1;
+                              lesson <=
+                                  _maxLessonCount(routine, period.id, weekdays);
+                              lesson++
+                            )
+                              _LessonRow(
+                                label: period.name.contains('早')
+                                    ? '早$lesson'
+                                    : period.name.contains('晚')
+                                    ? '晚$lesson'
+                                    : '第 ${++lessonSequence} 节',
+                                labelWidth: labelWidth,
+                                dayWidth: dayWidth,
+                                visual: periodVisualFor(
+                                  period.name,
+                                  period.sortOrder,
+                                ),
+                                lessonIndex: lesson,
+                                weekdays: weekdays,
+                                lessonCounts: {
+                                  for (final weekday in weekdays)
+                                    weekday: routine.effectiveLessonCount(
+                                      period.id,
+                                      weekday,
+                                    ),
+                                },
+                                periodTypeId: period.id,
+                                grid: _grid,
+                                resolveExemption: (weekday, lessonIndex) =>
+                                    _effectiveFreeSlot(
+                                      _currentDraftKey,
+                                      weekday,
+                                      period.id,
+                                      lessonIndex,
+                                    ),
+                                onCycle: _cycleCell,
+                                onSet: _setCell,
+                                onClear: _clearPresetCell,
+                              ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 14),
+                _buildAllPresetsSection(),
+              ],
             ),
           ),
-        ],
-      ),
-      content: SizedBox(
-        width: 640,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        );
+      },
+    );
+  }
+
+  Widget _buildAllPresetsSection() {
+    final entries = _allPresetEntries();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 1, color: AppTheme.border),
+        const SizedBox(height: 12),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 4,
           children: [
             const Text(
-              '预设不区分单双周（同一格对两种周次均生效）；「一定排」超出该周需求节数时，保存按周次列出警告。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11.5),
-            ),
-            const SizedBox(height: 14),
-            // AppDialog 的 content 处于无界高度（外层可滚动），网格需自带
-            // 有界高度，不能用 Flexible（会触发 unbounded constraints 断言）。
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 480),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _GridHeader(weekdays: weekdays),
-                    for (final period in periods) ...[
-                      if (period.defaultLessonCount > 0) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 2),
-                          child: Text(
-                            period.name,
-                            style: const TextStyle(
-                              color: AppTheme.muted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        for (var lesson = 1;
-                            lesson <= period.defaultLessonCount;
-                            lesson++)
-                          _LessonRow(
-                            lessonIndex: lesson,
-                            weekdays: weekdays,
-                            periodTypeId: period.id,
-                            grid: _grid,
-                            onCycle: _cycleCell,
-                            onSet: _setCell,
-                          ),
-                      ],
-                    ],
-                  ],
-                ),
+              '当前学期全部预设',
+              style: TextStyle(
+                color: AppTheme.inkSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Spacer(),
-                AppGhostButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
-                ),
-                const SizedBox(width: 10),
-                AppPrimaryButton(
-                  onPressed: _save,
-                  child: const Text('保存预设'),
-                ),
-              ],
+            Text(
+              '${entries.length} 项',
+              style: const TextStyle(color: AppTheme.muted, fontSize: 11),
             ),
           ],
         ),
+        const SizedBox(height: 6),
+        if (entries.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Text(
+              '暂无预设',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+            ),
+          )
+        else
+          for (final entry in entries) ...[
+            if (entry != entries.first)
+              const Divider(height: 1, color: AppTheme.border),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                entry.rangeLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppTheme.ink,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: entry.deleted
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            if (entry.pending || entry.deleted) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                entry.deleted ? '待删除' : '未保存',
+                                style: TextStyle(
+                                  color: entry.deleted
+                                      ? AppTheme.destructive
+                                      : AppTheme.warning,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          entry.cellLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppTheme.muted,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    entry.valueLabel,
+                    style: const TextStyle(
+                      color: AppTheme.inkSecondary,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                  IconButton(
+                    key: ValueKey(
+                      'preset-delete-${entry.key.scope.name}-${entry.key.scopeId}-${entry.key.stageId}-${entry.key.weekday}-${entry.key.periodTypeId}-${entry.key.lessonIndex}',
+                    ),
+                    tooltip: entry.deleted ? '撤销删除' : '删除预设',
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 17,
+                    onPressed: () => _togglePresetDeletion(entry.key),
+                    icon: Icon(
+                      entry.deleted ? Icons.undo : Icons.delete_outline,
+                      color: entry.deleted
+                          ? AppTheme.warning
+                          : AppTheme.destructive,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+      ],
+    );
+  }
+
+  List<_PresetListEntry> _allPresetEntries() {
+    final stageById = {for (final stage in widget.stages) stage.id: stage};
+    final gradeById = {for (final grade in widget.grades) grade.id: grade};
+    final classById = {for (final item in widget.classes) item.id: item};
+    final stageIds = stageById.keys.toSet();
+    final entries = <_PresetEntryKey, _PresetListEntry>{};
+
+    void addEntry({
+      required FreeSlotScope scope,
+      required String scopeId,
+      required String stageId,
+      required int weekday,
+      required String periodTypeId,
+      required int lessonIndex,
+      required PresetValue value,
+      required bool pending,
+      bool deleted = false,
+    }) {
+      final stage = stageById[stageId];
+      if (stage == null) return;
+      final grade = scope == FreeSlotScope.grade
+          ? gradeById[scopeId]
+          : scope == FreeSlotScope.schoolClass
+          ? gradeById[classById[scopeId]?.gradeId]
+          : null;
+      final classBrief = scope == FreeSlotScope.schoolClass
+          ? classById[scopeId]
+          : null;
+      final scopeOrder = switch (scope) {
+        FreeSlotScope.school => 0,
+        FreeSlotScope.stage => 1,
+        FreeSlotScope.grade => 2,
+        FreeSlotScope.schoolClass => 3,
+      };
+      final rangeLabel = switch (scope) {
+        // 旧数据继续可见，但不再把“全校”作为可选择的应用范围。
+        FreeSlotScope.school => '${stage.name} · 历史预设',
+        FreeSlotScope.stage => stage.name,
+        FreeSlotScope.grade => '${stage.name} · ${grade?.name ?? scopeId}',
+        FreeSlotScope.schoolClass =>
+          '${stage.name} · ${grade?.name ?? ''} · ${classBrief?.name ?? scopeId}',
+      };
+      final routine = widget.routines[stageId];
+      final periodName =
+          routine?.periodTypes
+              .where((period) => period.id == periodTypeId)
+              .firstOrNull
+              ?.name ??
+          periodTypeId;
+      final weekdays = const {
+        1: '周一',
+        2: '周二',
+        3: '周三',
+        4: '周四',
+        5: '周五',
+        6: '周六',
+        7: '周日',
+      };
+      final periodOrder =
+          routine?.periodTypes
+              .where((period) => period.id == periodTypeId)
+              .firstOrNull
+              ?.sortOrder ??
+          0;
+      final key = (
+        scope: scope,
+        scopeId: scopeId,
+        stageId: stageId,
+        weekday: weekday,
+        periodTypeId: periodTypeId,
+        lessonIndex: lessonIndex,
+      );
+      entries[key] = (
+        key: key,
+        rangeLabel: rangeLabel,
+        cellLabel:
+            '${weekdays[weekday] ?? '星期$weekday'} $periodName 第 $lessonIndex 节',
+        valueLabel: value == PresetValue.auto ? '自动（覆盖）' : '${value.label}（预设）',
+        pending: pending,
+        deleted: deleted,
+        stageOrder: stage.sortOrder,
+        scopeOrder: scopeOrder,
+        weekday: weekday,
+        periodOrder: periodOrder,
+        lessonIndex: lessonIndex,
+      );
+    }
+
+    for (final preset in widget.presets) {
+      if (!stageIds.contains(preset.stageId)) continue;
+      addEntry(
+        scope: preset.scope,
+        scopeId: preset.scopeId,
+        stageId: preset.stageId,
+        weekday: preset.weekday,
+        periodTypeId: preset.periodTypeId,
+        lessonIndex: preset.lessonIndex,
+        value: preset.value,
+        pending: false,
+        deleted:
+            _deletedCells[(
+                  scope: preset.scope,
+                  scopeId: preset.scopeId,
+                  stageId: preset.stageId,
+                )]
+                ?.contains(
+                  presetCellKey(
+                    preset.weekday,
+                    preset.periodTypeId,
+                    preset.lessonIndex,
+                  ),
+                ) ??
+            false,
+      );
+    }
+
+    for (final draftKey in _dirtyDrafts) {
+      final draft = _drafts[draftKey];
+      if (draft == null) continue;
+      for (final cellKey in _changedCells[draftKey] ?? const <String>{}) {
+        if ((_deletedCells[draftKey] ?? const <String>{}).contains(cellKey)) {
+          continue;
+        }
+        final address = _decodePresetCellKey(cellKey);
+        final value = draft[cellKey];
+        if (address == null || value == null) continue;
+        addEntry(
+          scope: draftKey.scope,
+          scopeId: draftKey.scopeId,
+          stageId: draftKey.stageId,
+          weekday: address.weekday,
+          periodTypeId: address.periodTypeId,
+          lessonIndex: address.lessonIndex,
+          value: value,
+          pending: true,
+        );
+      }
+    }
+
+    for (final draftKey in _dirtyDrafts) {
+      for (final cellKey in _deletedCells[draftKey] ?? const <String>{}) {
+        final address = _decodePresetCellKey(cellKey);
+        if (address == null) continue;
+        final entryKey = (
+          scope: draftKey.scope,
+          scopeId: draftKey.scopeId,
+          stageId: draftKey.stageId,
+          weekday: address.weekday,
+          periodTypeId: address.periodTypeId,
+          lessonIndex: address.lessonIndex,
+        );
+        if (entries.containsKey(entryKey)) continue;
+        final value = _deletedSnapshots[draftKey]?[cellKey]?.value;
+        addEntry(
+          scope: draftKey.scope,
+          scopeId: draftKey.scopeId,
+          stageId: draftKey.stageId,
+          weekday: address.weekday,
+          periodTypeId: address.periodTypeId,
+          lessonIndex: address.lessonIndex,
+          value: value ?? PresetValue.auto,
+          pending: false,
+          deleted: true,
+        );
+      }
+    }
+
+    final result = entries.values.toList()
+      ..sort((a, b) {
+        var order = a.stageOrder.compareTo(b.stageOrder);
+        if (order != 0) return order;
+        order = a.scopeOrder.compareTo(b.scopeOrder);
+        if (order != 0) return order;
+        order = a.rangeLabel.compareTo(b.rangeLabel);
+        if (order != 0) return order;
+        order = a.weekday.compareTo(b.weekday);
+        if (order != 0) return order;
+        order = a.periodOrder.compareTo(b.periodOrder);
+        if (order != 0) return order;
+        return a.lessonIndex.compareTo(b.lessonIndex);
+      });
+    return result;
+  }
+
+  _PresetCellAddress? _decodePresetCellKey(String key) {
+    final parts = key.split('_');
+    if (parts.length < 3) return null;
+    final weekday = int.tryParse(parts.first);
+    final lessonIndex = int.tryParse(parts.last);
+    if (weekday == null || lessonIndex == null) return null;
+    return (
+      weekday: weekday,
+      periodTypeId: parts.sublist(1, parts.length - 1).join('_'),
+      lessonIndex: lessonIndex,
+    );
+  }
+
+  int _maxLessonCount(
+    StageRoutine routine,
+    String periodId,
+    List<int> weekdays,
+  ) {
+    var result = 0;
+    for (final weekday in weekdays) {
+      final count = routine.effectiveLessonCount(periodId, weekday);
+      if (count > result) result = count;
+    }
+    return result;
+  }
+
+  Widget _buildScopeTree() => AppSectionPanel(
+    title: '应用范围',
+    padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+    expandChild: true,
+    child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [for (final stage in _orderedStages) _buildStageNode(stage)],
       ),
+    ),
+  );
+
+  Widget _buildStageNode(SchoolStage stage) {
+    final expanded = _expandedStageIds.contains(stage.id);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTreeTile(
+          key: ValueKey('preset-scope-stage-${stage.id}'),
+          height: 30,
+          contentPadding: const EdgeInsets.only(left: 8, right: 8),
+          title: Text(stage.name, style: const TextStyle(fontSize: 13)),
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                key: ValueKey('preset-expand-stage-${stage.id}'),
+                onTap: () => setState(() {
+                  if (expanded) {
+                    _expandedStageIds.remove(stage.id);
+                  } else {
+                    _expandedStageIds.add(stage.id);
+                  }
+                }),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    expanded ? Icons.expand_more : Icons.chevron_right,
+                    size: 14,
+                    color: AppTheme.muted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(
+                Icons.layers_outlined,
+                size: 15,
+                color: AppTheme.sidebarMuted,
+              ),
+            ],
+          ),
+          isSelected: _activeStageId == stage.id,
+          onTap: () => _selectScope(
+            scope: FreeSlotScope.stage,
+            scopeId: stage.id,
+            stageId: stage.id,
+          ),
+        ),
+        if (expanded)
+          for (final grade in _gradesForStage(stage.id)) _buildGradeNode(grade),
+      ],
+    );
+  }
+
+  Widget _buildGradeNode(GradeGroup grade) {
+    final expanded = _expandedGradeIds.contains(grade.id);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTreeTile(
+          key: ValueKey('preset-scope-grade-${grade.id}'),
+          height: 28,
+          contentPadding: const EdgeInsets.only(left: 20, right: 8),
+          title: Text(grade.name, style: const TextStyle(fontSize: 12)),
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                key: ValueKey('preset-expand-grade-${grade.id}'),
+                onTap: () => setState(() {
+                  if (expanded) {
+                    _expandedGradeIds.remove(grade.id);
+                  } else {
+                    _expandedGradeIds.add(grade.id);
+                  }
+                }),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    expanded ? Icons.expand_more : Icons.chevron_right,
+                    size: 13,
+                    color: AppTheme.muted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(Icons.school_outlined, size: 14),
+            ],
+          ),
+          isSelected: _scope == FreeSlotScope.grade && _scopeId == grade.id,
+          onTap: () => _selectScope(
+            scope: FreeSlotScope.grade,
+            scopeId: grade.id,
+            stageId: grade.stageId,
+          ),
+        ),
+        if (expanded)
+          for (final classBrief in _classesForGrade(grade.id))
+            AppTreeTile(
+              key: ValueKey('preset-scope-class-${classBrief.id}'),
+              height: 26,
+              contentPadding: const EdgeInsets.only(left: 8, right: 8),
+              title: Text(
+                classBrief.name,
+                style: const TextStyle(fontSize: 11),
+              ),
+              leading: const Padding(
+                padding: EdgeInsets.only(left: 26),
+                child: Icon(Icons.class_outlined, size: 13),
+              ),
+              isSelected:
+                  _scope == FreeSlotScope.schoolClass &&
+                  _scopeId == classBrief.id,
+              onTap: () => _selectScope(
+                scope: FreeSlotScope.schoolClass,
+                scopeId: classBrief.id,
+                stageId: classBrief.stageId,
+              ),
+            ),
+      ],
     );
   }
 }
 
-class _ScopeOption {
-  const _ScopeOption({
-    required this.scope,
-    required this.scopeId,
-    required this.label,
+class _GridHeader extends StatelessWidget {
+  const _GridHeader({
+    required this.weekdays,
+    required this.labelWidth,
+    required this.dayWidth,
   });
 
-  final FreeSlotScope scope;
-
-  /// 全校范围在保存时替换为学期 ID（此处固定为空串以保持值语义一致）。
-  final String scopeId;
-  final String label;
-
-  @override
-  bool operator ==(Object other) =>
-      other is _ScopeOption &&
-      other.scope == scope &&
-      other.scopeId == scopeId;
-
-  @override
-  int get hashCode => Object.hash(scope, scopeId);
-}
-
-class _GridHeader extends StatelessWidget {
-  const _GridHeader({required this.weekdays});
-
   final List<int> weekdays;
+  final double labelWidth;
+  final double dayWidth;
 
   static const List<String> _weekdayNames = [
     '周一',
@@ -354,87 +1202,124 @@ class _GridHeader extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => Row(
+    children: [
+      _heading('节次', labelWidth, 11),
+      for (final weekday in weekdays)
+        _heading(_weekdayNames[weekday - 1], dayWidth, 12),
+    ],
+  );
+
+  Widget _heading(String label, double width, double fontSize) => Container(
+    width: width,
+    height: 32,
+    alignment: Alignment.center,
     decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: AppTheme.border)),
+      color: AppTheme.tableHeader,
+      border: Border(
+        right: BorderSide(color: Colors.white),
+        bottom: BorderSide(color: Colors.white),
+      ),
     ),
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(
-      children: [
-        const SizedBox(
-          width: 52,
-          child: Text(
-            '节次',
-            style: TextStyle(
-              color: AppTheme.muted,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        for (final weekday in weekdays)
-          Expanded(
-            child: Center(
-              child: Text(
-                _weekdayNames[weekday - 1],
-                style: const TextStyle(
-                  color: AppTheme.muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-      ],
+    child: Text(
+      label,
+      style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600),
     ),
   );
 }
 
 class _LessonRow extends StatelessWidget {
   const _LessonRow({
+    required this.label,
+    required this.labelWidth,
+    required this.dayWidth,
+    required this.visual,
     required this.lessonIndex,
     required this.weekdays,
+    required this.lessonCounts,
     required this.periodTypeId,
     required this.grid,
+    required this.resolveExemption,
     required this.onCycle,
     required this.onSet,
+    required this.onClear,
   });
 
+  final String label;
+  final double labelWidth;
+  final double dayWidth;
+  final PeriodVisual visual;
   final int lessonIndex;
   final List<int> weekdays;
+  final Map<int, int> lessonCounts;
   final String periodTypeId;
   final Map<String, PresetValue> grid;
+  final FreeSlot? Function(int weekday, int lessonIndex) resolveExemption;
   final void Function(int weekday, String periodTypeId, int lessonIndex)
   onCycle;
-  final void Function(int weekday, String periodTypeId, int lessonIndex, PresetValue value)
+  final void Function(
+    int weekday,
+    String periodTypeId,
+    int lessonIndex,
+    PresetValue value,
+  )
   onSet;
+  final void Function(int weekday, String periodTypeId, int lessonIndex)
+  onClear;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 52,
-          child: Text(
-            '第 $lessonIndex 节',
-            style: const TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: labelWidth,
+        height: 44,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: visual.labelTint,
+          border: const Border(
+            right: BorderSide(color: Colors.white),
+            bottom: BorderSide(color: Colors.white),
           ),
         ),
-        for (final weekday in weekdays)
-          Expanded(
-            child: _PresetCell(
-              key: ValueKey('preset-cell-$weekday-$periodTypeId-$lessonIndex'),
-              value:
-                  grid[presetCellKey(weekday, periodTypeId, lessonIndex)] ??
-                  PresetValue.auto,
-              onCycle: () => onCycle(weekday, periodTypeId, lessonIndex),
-              onSet: (value) =>
-                  onSet(weekday, periodTypeId, lessonIndex, value),
-            ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: visual.color,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
           ),
-      ],
-    ),
+        ),
+      ),
+      for (final weekday in weekdays)
+        if (lessonIndex > (lessonCounts[weekday] ?? 0))
+          Container(
+            width: dayWidth,
+            height: 44,
+            decoration: BoxDecoration(
+              color: visual.cellTint,
+              border: const Border(
+                right: BorderSide(color: Colors.white),
+                bottom: BorderSide(color: Colors.white),
+              ),
+            ),
+          )
+        else
+          _PresetCell(
+            key: ValueKey('preset-cell-$weekday-$periodTypeId-$lessonIndex'),
+            width: dayWidth,
+            tint: visual.cellTint,
+            exemptLabel: resolveExemption(weekday, lessonIndex)?.label,
+            value:
+                grid[presetCellKey(weekday, periodTypeId, lessonIndex)] ??
+                PresetValue.auto,
+            onCycle: () => onCycle(weekday, periodTypeId, lessonIndex),
+            onSet: (value) => onSet(weekday, periodTypeId, lessonIndex, value),
+            onClear: () => onClear(weekday, periodTypeId, lessonIndex),
+          ),
+    ],
   );
 }
 
@@ -443,61 +1328,86 @@ class _PresetCell extends StatelessWidget {
     required this.value,
     required this.onCycle,
     required this.onSet,
+    required this.onClear,
+    required this.width,
+    required this.tint,
+    this.exemptLabel,
     super.key,
   });
 
   final PresetValue value;
+  final double width;
+  final Color tint;
   final VoidCallback onCycle;
   final ValueChanged<PresetValue> onSet;
+  final VoidCallback onClear;
+  final String? exemptLabel;
 
   @override
   Widget build(BuildContext context) {
-    final (background, foreground, border) = switch (value) {
-      // 自动 = 无偏好（空态）：仅浅边框的空白格（设计稿），网格可见可点。
-      PresetValue.auto => (Colors.transparent, AppTheme.muted, AppTheme.border),
-      // 尽量排 = 软性优先：淡蓝底 + 蓝字。
-      PresetValue.prefer => (
-        AppTheme.selectedBlue,
-        AppTheme.blue,
-        AppTheme.selectedBlue,
-      ),
-      // 一定排 = 硬性必须：实蓝底 + 白字。
-      PresetValue.must => (AppTheme.blue, Colors.white, AppTheme.blue),
-      // 不排 = 硬性禁止：淡红底 + 红字。
-      PresetValue.forbid => (
-        AppTheme.destructiveSurface,
-        AppTheme.destructive,
-        AppTheme.destructiveSurface,
-      ),
-    };
-    final cell = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onCycle,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          height: 38,
+    if (exemptLabel != null) {
+      return Tooltip(
+        message: '免任课：$exemptLabel',
+        child: Container(
+          width: width,
+          height: 44,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: border),
+          decoration: const BoxDecoration(
+            color: FreeSlotVisual.cellTint,
+            border: Border(
+              right: BorderSide(color: Colors.white),
+              bottom: BorderSide(color: Colors.white),
+            ),
           ),
-          child: value == PresetValue.auto
-              ? null
-              : Text(
-                  value.label,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 12,
-                    fontWeight: value == PresetValue.must
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                  ),
-                ),
+          child: Text(
+            exemptLabel!,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppTheme.muted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
+      );
+    }
+    final (background, foreground) = switch (value) {
+      // 自动延续作息表格的时段底色；预设用状态色区分。
+      PresetValue.auto => (tint, AppTheme.muted),
+      // 尽量排 = 软性优先：淡蓝底 + 蓝字。
+      PresetValue.prefer => (AppTheme.selectedBlue, AppTheme.blue),
+      // 一定排 = 硬性必须：实蓝底 + 白字。
+      PresetValue.must => (AppTheme.blue, Colors.white),
+      // 不排 = 硬性禁止：淡红底 + 红字。
+      PresetValue.forbid => (AppTheme.destructiveSurface, AppTheme.destructive),
+    };
+    final cell = InkWell(
+      onTap: onCycle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        width: width,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: background,
+          border: const Border(
+            right: BorderSide(color: Colors.white),
+            bottom: BorderSide(color: Colors.white),
+          ),
+        ),
+        child: value == PresetValue.auto
+            ? null
+            : Text(
+                value.label,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 12,
+                  fontWeight: value == PresetValue.must
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                ),
+              ),
       ),
     );
     return f.FContextMenu(
@@ -516,6 +1426,20 @@ class _PresetCell extends StatelessWidget {
                   },
                 ),
               ),
+          ],
+        ),
+        f.FItemGroup(
+          divider: .none,
+          children: [
+            AppMenuTile(
+              item: AppMenuItem(
+                label: '清除预设',
+                onPressed: () {
+                  unawaited(controller.hide());
+                  onClear();
+                },
+              ),
+            ),
           ],
         ),
       ],

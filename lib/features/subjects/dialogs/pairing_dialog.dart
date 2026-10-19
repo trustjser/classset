@@ -9,7 +9,7 @@ import 'package:forui/forui.dart' as f;
 ///
 /// 同班两门课（一单一双）共用同一时段；不配对也可由求解器分别安排。
 /// 配对只约束「两门课必须占同一时段」，不改变各自节数与周模式；
-/// 解除后立即恢复分别排课。
+/// 在弹窗内暂存更改，页面点击「保存」后生效。
 class PairingDialog extends StatefulWidget {
   const PairingDialog({
     required this.classes,
@@ -17,7 +17,6 @@ class PairingDialog extends StatefulWidget {
     required this.pairings,
     required this.subjectNames,
     required this.classLabels,
-    required this.onReplacePairings,
     super.key,
   });
 
@@ -35,10 +34,6 @@ class PairingDialog extends StatefulWidget {
 
   /// 班级 ID → 下拉显示标签（同名班级已按学段/年级消歧）。
   final Map<String, String> classLabels;
-
-  /// 持久化某班级的配对（新增 / 解除时立即写入）。
-  final void Function(String classId, List<SubjectPairing> pairings)
-  onReplacePairings;
 
   @override
   State<PairingDialog> createState() => _PairingDialogState();
@@ -110,24 +105,13 @@ class _PairingDialogState extends State<PairingDialog> {
       _oddSubjectId = null;
       _evenSubjectId = null;
     });
-    _persist(classId);
   }
 
   void _removePairing(SubjectPairing pairing) {
-    final classId = pairing.classId;
     setState(() {
       _pairings.remove(pairing);
       _error = null;
     });
-    _persist(classId);
-  }
-
-  /// 立即持久化该班级的配对（解除后立即恢复分别排课）。
-  void _persist(String classId) {
-    final forClass = _pairings
-        .where((pairing) => pairing.classId == classId)
-        .toList();
-    widget.onReplacePairings(classId, forClass);
   }
 
   @override
@@ -159,7 +143,8 @@ class _PairingDialogState extends State<PairingDialog> {
                 _PairingRow(
                   pairing: pairing,
                   oddName: widget.subjectNames[pairing.oddSubjectId] ?? '未知科目',
-                  evenName: widget.subjectNames[pairing.evenSubjectId] ?? '未知科目',
+                  evenName:
+                      widget.subjectNames[pairing.evenSubjectId] ?? '未知科目',
                   className: _className(pairing.classId),
                   onRemove: () => _removePairing(pairing),
                 ),
@@ -182,8 +167,8 @@ class _PairingDialogState extends State<PairingDialog> {
                   child: AppSelectField<String>(
                     items: {
                       for (final classBrief in widget.classes)
-                        widget.classLabels[classBrief.id] ??
-                            classBrief.name: classBrief.id,
+                        widget.classLabels[classBrief.id] ?? classBrief.name:
+                            classBrief.id,
                     },
                     value: _classId,
                     hint: '班级',
@@ -211,7 +196,8 @@ class _PairingDialogState extends State<PairingDialog> {
                     },
                     value: _evenSubjectId,
                     hint: '科目 B（双周）',
-                    onChanged: (value) => setState(() => _evenSubjectId = value),
+                    onChanged: (value) =>
+                        setState(() => _evenSubjectId = value),
                   ),
                 ),
                 AppSecondaryButton(
@@ -232,15 +218,19 @@ class _PairingDialogState extends State<PairingDialog> {
             ],
             const SizedBox(height: 14),
             const Text(
-              '配对只约束「两门课必须占同一时段」，不改变各自节数与周模式；解除后立即恢复分别排课。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11, height: 1.5),
+              '配对只约束「两门课必须占同一时段」，不改变各自节数与周模式；完成后仍需点击页面「保存」才会生效。',
+              style: TextStyle(
+                color: AppTheme.muted,
+                fontSize: 11,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
                 const Spacer(),
                 AppPrimaryButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _pairings),
                   child: const Text('完成'),
                 ),
               ],

@@ -2,6 +2,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+
 /// 某班级某科目的三档周模式节数（草稿值 / 生效值）。
 class ClassSubjectValues {
   const ClassSubjectValues({this.weekly = 0, this.odd = 0, this.even = 0});
@@ -82,8 +83,8 @@ List<ClassSubjectValues>? parseLessonInput(String input) {
 /// 单组格式化：无单双周 → 'w'；否则 'w|o|e'。
 String formatLessonValues(ClassSubjectValues values) =>
     values.odd == 0 && values.even == 0
-        ? '${values.weekly}'
-        : '${values.weekly}|${values.odd}|${values.even}';
+    ? '${values.weekly}'
+    : '${values.weekly}|${values.odd}|${values.even}';
 
 /// 整格格式化：各班一致 → 单组；否则按班级顺序逗号分隔。
 String formatLessonInput(Iterable<ClassSubjectValues> values) {
@@ -106,8 +107,7 @@ ClassSubjectValues valuesForClass({
   var odd = 0;
   var even = 0;
   for (final requirement in requirements) {
-    if (requirement.subjectId != subjectId ||
-        requirement.classId != classId) {
+    if (requirement.subjectId != subjectId || requirement.classId != classId) {
       continue;
     }
     switch (requirement.weekMode) {
@@ -282,9 +282,7 @@ GradeCapacitySummary summarizeGradeCapacity({
     }
     final excess = oddDemand > capacity.oddWeek
         ? oddDemand - capacity.oddWeek
-        : (evenDemand > capacity.evenWeek
-              ? evenDemand - capacity.evenWeek
-              : 0);
+        : (evenDemand > capacity.evenWeek ? evenDemand - capacity.evenWeek : 0);
     if (excess > worstExcess) {
       worstExcess = excess;
       overClassName = classBrief.name;
@@ -334,6 +332,9 @@ String presetCellKey(int weekday, String periodTypeId, int lessonIndex) =>
 
 /// 解析某科目在某范围语境下的生效预设（更具体范围优先）。
 ///
+/// 显式的 [PresetValue.auto] 会覆盖较宽范围的值，用于清除继承预设；
+/// 未出现在结果中的格子才表示该范围没有设置。
+///
 /// [scopeId] 语义随 [scope]：全校 = 学期 ID，学段 = 学段 ID，
 /// 年级 = 年级 ID，班级 = 班级 ID；班级范围只解析该班级的行。
 Map<String, PresetValue> effectivePresetMap({
@@ -341,24 +342,30 @@ Map<String, PresetValue> effectivePresetMap({
   required String stageId,
   required FreeSlotScope scope,
   required String scopeId,
+  String? parentGradeId,
 }) {
   final result = <String, PresetValue>{};
   // 优先级低的先写入，优先级高的后写入覆盖（班级 4 > 年级 3 > 学段 2 > 全校 1）。
   final ordered = presets.toList()
-    ..sort((a, b) => _scopePriority(a.scope).compareTo(_scopePriority(b.scope)));
+    ..sort(
+      (a, b) => _scopePriority(a.scope).compareTo(_scopePriority(b.scope)),
+    );
   for (final preset in ordered) {
     if (preset.stageId != stageId) continue;
-    if (!_scopeMatches(preset, scope: scope, scopeId: scopeId)) continue;
+    if (!_scopeMatches(
+      preset,
+      scope: scope,
+      scopeId: scopeId,
+      parentGradeId: parentGradeId,
+    )) {
+      continue;
+    }
     final key = presetCellKey(
       preset.weekday,
       preset.periodTypeId,
       preset.lessonIndex,
     );
-    if (preset.value == PresetValue.auto) {
-      result.remove(key);
-    } else {
-      result[key] = preset.value;
-    }
+    result[key] = preset.value;
   }
   return result;
 }
@@ -375,11 +382,19 @@ bool _scopeMatches(
   SubjectPreset preset, {
   required FreeSlotScope scope,
   required String scopeId,
+  required String? parentGradeId,
 }) {
   if (preset.scope == scope) return preset.scopeId == scopeId;
+  if (scope == FreeSlotScope.schoolClass &&
+      preset.scope == FreeSlotScope.grade) {
+    return preset.scopeId == parentGradeId;
+  }
   // 更宽范围对更具体范围生效；更具体范围不影响更宽范围。
   return _scopePriority(preset.scope) < _scopePriority(scope);
 }
+
+/// 矩阵「科目预设」列的显示文本与完整提示。
+typedef SubjectPresetSummary = ({String text, String tooltip});
 
 /// 矩阵「科目预设」列摘要：如「5 固定 · 3 不排」；无预设返回 null。
 String? presetSummaryText(Map<String, PresetValue> effective) {
@@ -396,6 +411,5 @@ String? presetSummaryText(Map<String, PresetValue> effective) {
 }
 
 /// 某科目在某范围已存在预设行（用于「各范围不同时标注」）。
-bool hasPresetsForSubject(List<SubjectPreset> presets) => presets.any(
-  (preset) => preset.value != PresetValue.auto,
-);
+bool hasPresetsForSubject(List<SubjectPreset> presets) =>
+    presets.any((preset) => preset.value != PresetValue.auto);

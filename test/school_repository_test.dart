@@ -6,6 +6,7 @@ import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
+import 'package:class_set/domain/models/subject.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -35,6 +36,99 @@ void main() {
     await repository.saveTerm(term);
     return term;
   }
+
+  test('全校科目预设只替换对应学段并保留其他学段', () async {
+    await createTerm();
+    await repository.saveSubjects([
+      const Subject(id: 'subject1', name: '语文', shortName: '语', sortOrder: 0),
+    ]);
+    final firstStage = (await repository.watchStages('term1').first).single;
+    await repository.saveStage(
+      const SchoolStage(
+        id: 'stage2',
+        termId: 'term1',
+        name: '高中部',
+        sortOrder: 1,
+      ),
+    );
+    final firstRoutine = (await repository.watchRoutine(firstStage.id).first)!;
+    final secondRoutine = (await repository.watchRoutine('stage2').first)!;
+    final firstMorning = firstRoutine.periodTypes.firstWhere(
+      (period) => period.name == '上午',
+    );
+    final secondMorning = secondRoutine.periodTypes.firstWhere(
+      (period) => period.name == '上午',
+    );
+
+    await repository.replaceSubjectPresets(
+      subjectId: 'subject1',
+      termId: 'term1',
+      scope: FreeSlotScope.school,
+      scopeId: 'term1',
+      stageId: firstStage.id,
+      presets: [
+        SubjectPreset(
+          id: '',
+          subjectId: 'subject1',
+          scope: FreeSlotScope.school,
+          scopeId: 'term1',
+          stageId: firstStage.id,
+          weekday: 1,
+          periodTypeId: firstMorning.id,
+          lessonIndex: 1,
+          value: PresetValue.prefer,
+        ),
+      ],
+    );
+    await repository.replaceSubjectPresets(
+      subjectId: 'subject1',
+      termId: 'term1',
+      scope: FreeSlotScope.school,
+      scopeId: 'term1',
+      stageId: 'stage2',
+      presets: [
+        SubjectPreset(
+          id: '',
+          subjectId: 'subject1',
+          scope: FreeSlotScope.school,
+          scopeId: 'term1',
+          stageId: 'stage2',
+          weekday: 2,
+          periodTypeId: secondMorning.id,
+          lessonIndex: 2,
+          value: PresetValue.forbid,
+        ),
+      ],
+    );
+
+    var presets = await repository.watchAllPresets().first;
+    expect(presets, hasLength(2));
+    expect(
+      presets.singleWhere((preset) => preset.stageId == firstStage.id),
+      isA<SubjectPreset>()
+          .having((preset) => preset.weekday, 'weekday', 1)
+          .having((preset) => preset.value, 'value', PresetValue.prefer),
+    );
+    expect(
+      presets.singleWhere((preset) => preset.stageId == 'stage2'),
+      isA<SubjectPreset>()
+          .having((preset) => preset.weekday, 'weekday', 2)
+          .having((preset) => preset.periodTypeId, 'period', secondMorning.id)
+          .having((preset) => preset.value, 'value', PresetValue.forbid),
+    );
+
+    await repository.replaceSubjectPresets(
+      subjectId: 'subject1',
+      termId: 'term1',
+      scope: FreeSlotScope.school,
+      scopeId: 'term1',
+      stageId: firstStage.id,
+      presets: const [],
+    );
+    presets = await repository.watchAllPresets().first;
+    expect(presets, hasLength(1));
+    expect(presets.single.stageId, 'stage2');
+  });
 
   test('新建学期自动建立默认学段与作息', () async {
     await createTerm();

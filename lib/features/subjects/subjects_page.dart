@@ -32,7 +32,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   /// 当前范围：null = 全校，否则学段 ID。
   String? _scopeStageId;
 
-  /// 「科目预设」列的上下文年级（最近点击的矩阵列；默认首个可见年级）。
+  /// 「科目预设」列的上下文年级；默认首个可见年级，仅预设操作更新。
   String? _presetGradeId;
 
   /// 可见年级列；空 = 全部显示。
@@ -47,21 +47,23 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   /// 暂存的新增科目（保存时落库）。
   final List<Subject> _newSubjects = [];
 
+  /// 新增科目的科目预设暂存到页面保存，避免预设先于科目写入并触发外键错误。
+  final Map<String, List<SubjectPresetEdit>> _newSubjectPresetDrafts = {};
+
+  /// 配对课程按班级暂存，等新增科目保存后再写入配对表。
+  final Map<String, List<SubjectPairing>> _pairingDrafts = {};
+
   bool _saving = false;
 
-  static String _scopeKey(
-    String subjectId,
-    String classId,
-    WeekMode mode,
-  ) => '${subjectId}_${classId}_${mode.storageValue}';
+  static String _scopeKey(String subjectId, String classId, WeekMode mode) =>
+      '${subjectId}_${classId}_${mode.storageValue}';
 
   @override
   Widget build(BuildContext context) {
     final terms = ref.watch(termsProvider);
     return terms.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) =>
-          _ErrorPanel(message: '读取本地学期数据失败：$error'),
+      error: (error, stack) => _ErrorPanel(message: '读取本地学期数据失败：$error'),
       data: (items) {
         final selected = items.where((item) => item.id == widget.termId);
         final term = selected.isEmpty ? items.first : selected.first;
@@ -76,9 +78,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final stages = ref.watch(stagesProvider(term.id)).valueOrNull ?? const [];
     if (stages.isEmpty) {
       return _NoStages(
-        onGoToClasses: () =>
-            ref.read(selectedSectionProvider.notifier).state =
-                AppSection.classes,
+        onGoToClasses: () => ref.read(selectedSectionProvider.notifier).state =
+            AppSection.classes,
       );
     }
     final allGrades =
@@ -93,8 +94,12 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final requirements =
         ref.watch(allRequirementsProvider).valueOrNull ??
         const <SubjectRequirement>[];
-    final presets =
-        ref.watch(allPresetsProvider).valueOrNull ?? const <SubjectPreset>[];
+    final presets = [
+      ...ref.watch(allPresetsProvider).valueOrNull ?? const <SubjectPreset>[],
+      ..._newSubjectPresetDrafts.entries.expand(
+        (entry) => _presetsFromEdits(entry.key, entry.value),
+      ),
+    ];
     final routines =
         ref.watch(routinesForTermProvider(term.id)).valueOrNull ??
         const <String, StageRoutine>{};
@@ -104,15 +109,11 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
 
     final gradeCountByStage = <String, int>{
       for (final stage in stages)
-        stage.id: allGrades
-            .where((grade) => grade.stageId == stage.id)
-            .length,
+        stage.id: allGrades.where((grade) => grade.stageId == stage.id).length,
     };
     final scopeGrades = _scopeStageId == null
         ? allGrades
-        : allGrades
-              .where((grade) => grade.stageId == _scopeStageId)
-              .toList();
+        : allGrades.where((grade) => grade.stageId == _scopeStageId).toList();
     final visibleGrades = scopeGrades
         .where(
           (grade) =>
@@ -158,18 +159,9 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
               ),
               AppMenuButton(
                 items: [
-                  AppMenuItem(
-                    label: '配对课程',
-                    onPressed: _openPairing,
-                  ),
-                  AppMenuItem(
-                    label: '生成模板',
-                    onPressed: _showComingSoon,
-                  ),
-                  AppMenuItem(
-                    label: '导入 Excel',
-                    onPressed: _showComingSoon,
-                  ),
+                  AppMenuItem(label: '配对课程', onPressed: _openPairing),
+                  AppMenuItem(label: '生成模板', onPressed: _showComingSoon),
+                  AppMenuItem(label: '导入 Excel', onPressed: _showComingSoon),
                 ],
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -201,7 +193,10 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
               ),
               AppPrimaryButton(
                 onPressed:
-                    (_draft.isEmpty && _newSubjects.isEmpty) || _saving
+                    (_draft.isEmpty &&
+                            _newSubjects.isEmpty &&
+                            _pairingDrafts.isEmpty) ||
+                        _saving
                     ? null
                     : _save,
                 child: Text(_saving ? '保存中' : '保存'),
@@ -270,13 +265,14 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                   presetSummaries: _presetSummaries(
                     subjects: subjects,
                     presets: presets,
+                    stages: stages,
                     allGrades: allGrades,
                     contextGrade: contextGrade,
                     classBriefs: classBriefs,
                   ),
                   onCellTap: (subject, grade) {
-                    // 单击仅选中；表单改为右键「编辑」进入。
-                    setState(() => _presetGradeId = grade.id);
+                    // 普通课时格的选择不改变预设摘要上下文，避免编辑节数
+                    // 时让同一条预设在「范围摘要」和「年级生效摘要」间跳变。
                   },
                   onCellCommit: _applyCellInput,
                   onEditRequest: _openClassDetail,
@@ -448,8 +444,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       void apply(ClassBrief classBrief, ClassSubjectValues value) {
         _draft[_scopeKey(subject.id, classBrief.id, WeekMode.weekly)] =
             value.weekly;
-        _draft[_scopeKey(subject.id, classBrief.id, WeekMode.odd)] =
-            value.odd;
+        _draft[_scopeKey(subject.id, classBrief.id, WeekMode.odd)] = value.odd;
         _draft[_scopeKey(subject.id, classBrief.id, WeekMode.even)] =
             value.even;
       }
@@ -457,7 +452,10 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       if (values.isEmpty) {
         // 空输入 → 整年级清零。
         for (final classBrief in classes) {
-          apply(classBrief, const ClassSubjectValues(weekly: 0, odd: 0, even: 0));
+          apply(
+            classBrief,
+            const ClassSubjectValues(weekly: 0, odd: 0, even: 0),
+          );
         }
       } else if (values.length == 1) {
         for (final classBrief in classes) {
@@ -496,7 +494,11 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final termId = ref.read(activeTermIdProvider) ?? widget.termId;
     final initialValues = <String, ClassSubjectValues>{
       for (final classBrief in classes)
-        classBrief.id: _effectiveValues(subject.id, classBrief.id, requirements),
+        classBrief.id: _effectiveValues(
+          subject.id,
+          classBrief.id,
+          requirements,
+        ),
     };
     final capacities = <String, ClassCapacity>{
       for (final classBrief in classes)
@@ -547,129 +549,311 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     return visibleGrades.isEmpty ? null : visibleGrades.first;
   }
 
-  /// 矩阵「科目预设」列摘要：科目 ID → 摘要文本（null = 无预设）。
-  /// 按上下文年级所在学段的预设行解析。
-  Map<String, String?> _presetSummaries({
+  /// 矩阵「科目预设」列摘要：优先展示上下文年级，班级覆盖写入提示详情。
+  Map<String, SubjectPresetSummary?> _presetSummaries({
     required List<Subject> subjects,
     required List<SubjectPreset> presets,
+    required List<SchoolStage> stages,
     required List<GradeGroup> allGrades,
     required GradeGroup? contextGrade,
     required List<ClassBrief> classBriefs,
   }) {
     if (contextGrade == null) return const {};
-    final gradeClassIds = classBriefs
+    final activeStageIds = stages.map((stage) => stage.id).toSet();
+    final gradeClasses = classBriefs
         .where((classBrief) => classBrief.gradeId == contextGrade.id)
-        .map((classBrief) => classBrief.id)
-        .toSet();
+        .toList();
     return {
       for (final subject in subjects)
         subject.id: () {
           final subjectPresets = presets
-              .where((preset) => preset.subjectId == subject.id)
+              .where(
+                (preset) =>
+                    preset.subjectId == subject.id &&
+                    activeStageIds.contains(preset.stageId),
+              )
               .toList();
-          final summary = presetSummaryText(
-            effectivePresetMap(
+          final groupedValues =
+              <
+                ({FreeSlotScope scope, String scopeId, String stageId}),
+                Map<String, PresetValue>
+              >{};
+          for (final preset in subjectPresets) {
+            groupedValues.putIfAbsent((
+                  scope: preset.scope,
+                  scopeId: preset.scopeId,
+                  stageId: preset.stageId,
+                ), () => <String, PresetValue>{})[presetCellKey(
+                  preset.weekday,
+                  preset.periodTypeId,
+                  preset.lessonIndex,
+                )] =
+                preset.value;
+          }
+          final rangeDetails = [
+            for (final entry in groupedValues.entries)
+              (
+                key: entry.key,
+                label: switch (entry.key.scope) {
+                  FreeSlotScope.school =>
+                    '${stages.where((item) => item.id == entry.key.stageId).firstOrNull?.name ?? entry.key.stageId} · 全校',
+                  FreeSlotScope.stage =>
+                    '${stages.where((item) => item.id == entry.key.stageId).firstOrNull?.name ?? entry.key.stageId}（学段）',
+                  FreeSlotScope.grade => () {
+                    final grade = allGrades
+                        .where((item) => item.id == entry.key.scopeId)
+                        .firstOrNull;
+                    final stageName = stages
+                        .where((item) => item.id == entry.key.stageId)
+                        .firstOrNull
+                        ?.name;
+                    return '${stageName == null ? '' : '$stageName · '}${grade?.name ?? entry.key.scopeId}';
+                  }(),
+                  FreeSlotScope.schoolClass => () {
+                    final classBrief = classBriefs
+                        .where((item) => item.id == entry.key.scopeId)
+                        .firstOrNull;
+                    final grade = allGrades
+                        .where((item) => item.id == classBrief?.gradeId)
+                        .firstOrNull;
+                    final stageName = stages
+                        .where((item) => item.id == entry.key.stageId)
+                        .firstOrNull
+                        ?.name;
+                    final gradeLabel = grade?.name;
+                    final classLabel = classBrief?.name ?? entry.key.scopeId;
+                    return [?stageName, ?gradeLabel, classLabel].join(' · ');
+                  }(),
+                },
+                summary:
+                    presetSummaryText(entry.value) ??
+                    '自动覆盖（${entry.value.length} 格）',
+              ),
+          ]..sort((a, b) => a.label.compareTo(b.label));
+          final gradeValues = effectivePresetMap(
+            presets: subjectPresets,
+            stageId: contextGrade.stageId,
+            scope: FreeSlotScope.grade,
+            scopeId: contextGrade.id,
+          );
+          final stageValues = effectivePresetMap(
+            presets: subjectPresets,
+            stageId: contextGrade.stageId,
+            scope: FreeSlotScope.stage,
+            scopeId: contextGrade.stageId,
+          );
+          final gradeDiffersFromStage =
+              gradeValues.length != stageValues.length ||
+              stageValues.entries.any(
+                (entry) => gradeValues[entry.key] != entry.value,
+              );
+          final summary = presetSummaryText(gradeValues);
+          final classDetails = <String>[];
+          var hasClassDifferences = false;
+          for (final classBrief in gradeClasses) {
+            final classValues = effectivePresetMap(
               presets: subjectPresets,
               stageId: contextGrade.stageId,
-              scope: FreeSlotScope.grade,
-              scopeId: contextGrade.id,
-            ),
-          );
-          if (summary == null) return null;
-          // 各范围不同时标注：当前年级有班级级预设。
-          final hasClassPresets = subjectPresets.any(
-            (preset) =>
-                preset.scope == FreeSlotScope.schoolClass &&
-                gradeClassIds.contains(preset.scopeId) &&
-                preset.value != PresetValue.auto,
-          );
-          return hasClassPresets ? '$summary · 各班不同' : summary;
+              scope: FreeSlotScope.schoolClass,
+              scopeId: classBrief.id,
+              parentGradeId: contextGrade.id,
+            );
+            final differsFromGrade =
+                classValues.length != gradeValues.length ||
+                gradeValues.entries.any(
+                  (entry) => classValues[entry.key] != entry.value,
+                );
+            if (!differsFromGrade) continue;
+            hasClassDifferences = true;
+            final classSummary = presetSummaryText(classValues);
+            classDetails.add(
+              '${classBrief.name}：${classSummary ?? (classValues.isEmpty ? '无预设' : '自动覆盖')}',
+            );
+          }
+
+          final gradeSummary =
+              summary ?? (gradeValues.isNotEmpty ? '自动覆盖' : null);
+          if (gradeSummary == null &&
+              classDetails.isEmpty &&
+              rangeDetails.isEmpty) {
+            return null;
+          }
+
+          final currentClassIds = gradeClasses.map((item) => item.id).toSet();
+          final otherRangeDetails = rangeDetails.where((detail) {
+            final key = detail.key;
+            if (key.scope == FreeSlotScope.school) return false;
+            if (key.stageId != contextGrade.stageId) return true;
+            return switch (key.scope) {
+              FreeSlotScope.school => false,
+              FreeSlotScope.stage => key.scopeId != contextGrade.stageId,
+              FreeSlotScope.grade => key.scopeId != contextGrade.id,
+              FreeSlotScope.schoolClass => !currentClassIds.contains(
+                key.scopeId,
+              ),
+            };
+          }).toList();
+
+          var displayText = gradeSummary != null
+              ? hasClassDifferences
+                    ? '$gradeSummary · 各班不同'
+                    : gradeSummary
+              : classDetails.isNotEmpty
+              ? classDetails.join(' · ')
+              : rangeDetails
+                    .map((detail) => '${detail.label}：${detail.summary}')
+                    .join(' · ');
+          if (gradeSummary != null && otherRangeDetails.isNotEmpty) {
+            displayText = '$displayText · 其他范围';
+          }
+          final tooltipLines = <String>[
+            // Do not present inherited stage values as a separate grade preset.
+            if (gradeSummary != null && gradeDiffersFromStage)
+              '${contextGrade.name}（生效）：$gradeSummary',
+            ...classDetails,
+            for (final detail in rangeDetails)
+              '${detail.label}：${detail.summary}',
+          ];
+          return (text: displayText, tooltip: tooltipLines.toSet().join('\n'));
         }(),
     };
   }
 
   /// 打开科目预设弹窗（US-015；范围默认矩阵当前列）。
-  /// 预设网格与保存都使用年级所在学段的作息。
   Future<void> _openSubjectPreset(Subject subject, GradeGroup grade) async {
-    final stage =
-        (ref.read(stagesProvider(widget.termId)).valueOrNull ??
-                const <SchoolStage>[])
-            .where((item) => item.id == grade.stageId)
-            .firstOrNull;
+    final stages =
+        ref.read(stagesProvider(widget.termId)).valueOrNull ??
+        const <SchoolStage>[];
+    final initialStage = stages
+        .where((item) => item.id == grade.stageId)
+        .firstOrNull;
     final routines =
         ref.read(routinesForTermProvider(widget.termId)).valueOrNull ??
         const <String, StageRoutine>{};
-    final routine = routines[grade.stageId];
-    if (stage == null || routine == null) {
+    if (initialStage == null || routines[grade.stageId] == null) {
       _showMessage('该年级所在学段暂无作息，无法编辑科目预设');
       return;
     }
+    final grades =
+        ref.read(gradesForTermProvider(widget.termId)).valueOrNull ??
+        const <GradeGroup>[];
     final classBriefs =
         ref.read(classesForTermProvider(widget.termId)).valueOrNull ??
         const <ClassBrief>[];
-    final classes = classBriefs
-        .where((classBrief) => classBrief.gradeId == grade.id)
-        .toList();
     final requirements =
         ref.read(allRequirementsProvider).valueOrNull ??
         const <SubjectRequirement>[];
-    final subjectPresets =
+    final savedSubjectPresets =
         (ref.read(allPresetsProvider).valueOrNull ?? const <SubjectPreset>[])
             .where((preset) => preset.subjectId == subject.id)
             .toList();
+    final subjectPresets = [
+      ...savedSubjectPresets,
+      ..._presetsFromEdits(
+        subject.id,
+        _newSubjectPresetDrafts[subject.id] ?? const <SubjectPresetEdit>[],
+      ),
+    ];
+    final freeSlots =
+        ref.read(freeSlotsForTermProvider(widget.termId)).valueOrNull ??
+        const <FreeSlot>[];
     final termId = ref.read(activeTermIdProvider) ?? widget.termId;
     final classDemands = <String, ClassSubjectValues>{
-      for (final classBrief in classes)
+      for (final classBrief in classBriefs)
         classBrief.id: valuesForClass(
           subjectId: subject.id,
           classId: classBrief.id,
           requirements: requirements,
         ),
     };
-    final result =
-        await showAppDialog<({FreeSlotScope scope, String scopeId, List<PresetCell> cells})>(
-          context: context,
-          builder: (context) => SubjectPresetDialog(
-            subject: subject,
-            termId: termId,
-            stage: stage,
-            grade: grade,
-            classes: classes,
-            routine: routine,
-            presets: subjectPresets,
-            classDemands: classDemands,
-          ),
-        );
-    if (result == null) return;
+    final result = await showAppDialog<SubjectPresetDialogResult>(
+      context: context,
+      builder: (context) => SubjectPresetDialog(
+        subject: subject,
+        termId: termId,
+        initialStageId: initialStage.id,
+        initialGradeId: grade.id,
+        stages: stages,
+        grades: grades,
+        classes: classBriefs,
+        routines: routines,
+        presets: subjectPresets,
+        freeSlots: freeSlots,
+        classDemands: classDemands,
+      ),
+    );
+    if (result == null || result.isEmpty) return;
+    if (_newSubjects.any((item) => item.id == subject.id)) {
+      setState(() {
+        final drafts = [...?_newSubjectPresetDrafts[subject.id]];
+        for (final edit in result) {
+          final index = drafts.indexWhere(
+            (draft) =>
+                draft.scope == edit.scope &&
+                draft.scopeId == edit.scopeId &&
+                draft.stageId == edit.stageId,
+          );
+          if (index == -1) {
+            drafts.add(edit);
+          } else {
+            drafts[index] = edit;
+          }
+        }
+        _newSubjectPresetDrafts[subject.id] = drafts;
+      });
+      _showMessage('科目预设已暂存，点击右上角“保存”后生效');
+      return;
+    }
     try {
       final repository = ref.read(schoolRepositoryProvider);
-      await repository.replaceSubjectPresets(
-        subjectId: subject.id,
-        termId: termId,
-        scope: result.scope,
-        scopeId: result.scopeId,
-        stageId: grade.stageId,
-        presets: [
-          for (final cell in result.cells)
-            SubjectPreset(
-              id: '',
-              subjectId: subject.id,
-              scope: result.scope,
-              scopeId: result.scopeId,
-              stageId: grade.stageId,
-              weekday: cell.weekday,
-              periodTypeId: cell.periodTypeId,
-              lessonIndex: cell.lessonIndex,
-              value: cell.value,
-            ),
-        ],
-      );
+      for (final edit in result) {
+        await repository.replaceSubjectPresets(
+          subjectId: subject.id,
+          termId: termId,
+          scope: edit.scope,
+          scopeId: edit.scopeId,
+          stageId: edit.stageId,
+          presets: [
+            for (final cell in edit.cells)
+              SubjectPreset(
+                id: '',
+                subjectId: subject.id,
+                scope: edit.scope,
+                scopeId: edit.scopeId,
+                stageId: edit.stageId,
+                weekday: cell.weekday,
+                periodTypeId: cell.periodTypeId,
+                lessonIndex: cell.lessonIndex,
+                value: cell.value,
+              ),
+          ],
+        );
+      }
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
       _showMessage('科目预设已保存');
     } on Object catch (error) {
       _showMessage('保存科目预设失败：$error');
     }
   }
+
+  List<SubjectPreset> _presetsFromEdits(
+    String subjectId,
+    List<SubjectPresetEdit> edits,
+  ) => [
+    for (final edit in edits)
+      for (final cell in edit.cells)
+        SubjectPreset(
+          id: '',
+          subjectId: subjectId,
+          scope: edit.scope,
+          scopeId: edit.scopeId,
+          stageId: edit.stageId,
+          weekday: cell.weekday,
+          periodTypeId: cell.periodTypeId,
+          lessonIndex: cell.lessonIndex,
+          value: cell.value,
+        ),
+  ];
 
   /// 打开配对课程弹窗（US-013 AC2）。
   Future<void> _openPairing() async {
@@ -700,23 +884,30 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     };
     final classLabels = <String, String>{
       for (final classBrief in classBriefs)
-        classBrief.id:
-            (nameCounts[classBrief.name] ?? 0) > 1
-                ? '${stageById[classBrief.stageId]?.name ?? ''}'
-                    ' ${gradeById[classBrief.gradeId]?.name ?? ''}'
-                    ' ${classBrief.name}'
-                : classBrief.name,
+        classBrief.id: (nameCounts[classBrief.name] ?? 0) > 1
+            ? '${stageById[classBrief.stageId]?.name ?? ''}'
+                  ' ${gradeById[classBrief.gradeId]?.name ?? ''}'
+                  ' ${classBrief.name}'
+            : classBrief.name,
     };
     final subjects = [
       ...ref.read(subjectsProvider).valueOrNull ?? const <Subject>[],
       ..._newSubjects,
     ];
-    final stageClassIds = classBriefs.map((classBrief) => classBrief.id).toSet();
-    final pairings =
+    final savedPairings =
         (ref.read(allPairingsProvider).valueOrNull ?? const <SubjectPairing>[])
-            .where((pairing) => stageClassIds.contains(pairing.classId))
+            .where((pairing) => classLabels.containsKey(pairing.classId))
             .toList();
-    await showAppDialog<void>(
+    final pairingsByClass = <String, List<SubjectPairing>>{
+      for (final classBrief in classBriefs)
+        classBrief.id:
+            _pairingDrafts[classBrief.id] ??
+            savedPairings
+                .where((pairing) => pairing.classId == classBrief.id)
+                .toList(),
+    };
+    final pairings = pairingsByClass.values.expand((items) => items).toList();
+    final result = await showAppDialog<List<SubjectPairing>>(
       context: context,
       builder: (context) => PairingDialog(
         classes: classBriefs,
@@ -726,35 +917,61 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           for (final subject in subjects) subject.id: subject.name,
         },
         classLabels: classLabels,
-        onReplacePairings: (classId, pairingsForClass) async {
-          try {
-            final repository = ref.read(schoolRepositoryProvider);
-            await repository.replaceClassPairings(
-              classId: classId,
-              pairings: pairingsForClass,
-            );
-            ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
-          } on Object catch (error) {
-            if (!mounted) return;
-            _showMessage('保存配对失败：$error');
-          }
-        },
       ),
     );
+    if (result == null) return;
+    var changed = false;
+    setState(() {
+      for (final classBrief in classBriefs) {
+        final classId = classBrief.id;
+        final savedForClass = savedPairings
+            .where((pairing) => pairing.classId == classId)
+            .toList();
+        final editedForClass = result
+            .where((pairing) => pairing.classId == classId)
+            .toList();
+        if (_samePairings(savedForClass, editedForClass)) {
+          _pairingDrafts.remove(classId);
+        } else if (!_samePairings(pairingsByClass[classId]!, editedForClass)) {
+          _pairingDrafts[classId] = editedForClass;
+          changed = true;
+        }
+      }
+    });
+    if (changed) _showMessage('配对更改已暂存，点击右上角“保存”后生效');
+  }
+
+  bool _samePairings(List<SubjectPairing> first, List<SubjectPairing> second) {
+    if (first.length != second.length) return false;
+    final firstKeys = first
+        .map(
+          (pairing) =>
+              (pairing.classId, pairing.oddSubjectId, pairing.evenSubjectId),
+        )
+        .toSet();
+    final secondKeys = second
+        .map(
+          (pairing) =>
+              (pairing.classId, pairing.oddSubjectId, pairing.evenSubjectId),
+        )
+        .toSet();
+    return firstKeys.length == secondKeys.length &&
+        firstKeys.containsAll(secondKeys);
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openAddSubject() async {
-    final existing =
-        (ref.read(subjectsProvider).valueOrNull ?? const <Subject>[])
-            .map((subject) => subject.name)
-            .toSet();
+    final savedSubjects =
+        ref.read(subjectsProvider).valueOrNull ?? const <Subject>[];
+    final existing = {
+      ...savedSubjects.map((subject) => subject.name),
+      ..._newSubjects.map((subject) => subject.name),
+    };
     final result = await showAppDialog<({String name, String shortName})>(
       context: context,
       builder: (context) => AddSubjectDialog(existingNames: existing),
@@ -766,7 +983,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           id: 'subject_${DateTime.now().microsecondsSinceEpoch}_${_newSubjects.length}',
           name: result.name,
           shortName: result.shortName,
-          sortOrder: existing.length + _newSubjects.length,
+          sortOrder: savedSubjects.length + _newSubjects.length,
         ),
       );
     });
@@ -778,9 +995,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         const <GradeGroup>[];
     final scopeGrades = _scopeStageId == null
         ? allGrades
-        : allGrades
-              .where((grade) => grade.stageId == _scopeStageId)
-              .toList();
+        : allGrades.where((grade) => grade.stageId == _scopeStageId).toList();
     // 只保存当前可见的年级列（编辑所见即所存）。
     final grades = scopeGrades
         .where(
@@ -885,6 +1100,24 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       if (_newSubjects.isNotEmpty) {
         await repository.saveSubjects(_newSubjects);
       }
+      for (final entry in _newSubjectPresetDrafts.entries) {
+        for (final edit in entry.value) {
+          await repository.replaceSubjectPresets(
+            subjectId: entry.key,
+            termId: termId,
+            scope: edit.scope,
+            scopeId: edit.scopeId,
+            stageId: edit.stageId,
+            presets: _presetsFromEdits(entry.key, [edit]),
+          );
+        }
+      }
+      for (final entry in _pairingDrafts.entries) {
+        await repository.replaceClassPairings(
+          classId: entry.key,
+          pairings: entry.value,
+        );
+      }
       for (final grade in grades) {
         final rows = effective
             .where((requirement) => requirement.gradeId == grade.id)
@@ -899,24 +1132,23 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       setState(() {
         _draft.clear();
         _newSubjects.clear();
+        _newSubjectPresetDrafts.clear();
+        _pairingDrafts.clear();
         _saving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('科目节数已保存')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('科目设置已保存')));
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败：$error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('保存失败：$error')));
     }
   }
 
   void _showComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('该功能将在后续版本提供')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('该功能将在后续版本提供')));
   }
 }
 
@@ -930,7 +1162,11 @@ class _NoStages extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.account_tree_outlined, size: 42, color: AppTheme.muted),
+        const Icon(
+          Icons.account_tree_outlined,
+          size: 42,
+          color: AppTheme.muted,
+        ),
         const SizedBox(height: 12),
         const Text(
           '请先添加学段',
