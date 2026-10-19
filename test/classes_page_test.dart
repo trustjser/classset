@@ -244,6 +244,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('单个班级可从列表删除且需二次确认', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_wrap(container));
+    await tester.pumpAndSettle();
+
+    expect(find.text('一班'), findsOneWidget);
+    final deleteIcon = find.descendant(
+      of: find.byType(AppClassChip),
+      matching: find.byIcon(Icons.close),
+    );
+    expect(deleteIcon, findsOneWidget);
+
+    await tester.tap(deleteIcon);
+    await tester.pumpAndSettle();
+    expect(find.text('删除班级「一班」？'), findsOneWidget);
+    expect(find.textContaining('科目节数、任课、课表数据'), findsOneWidget);
+
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('一班'), findsOneWidget);
+
+    await tester.tap(deleteIcon);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认删除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('一班'), findsNothing);
+    // drift 流不能在 testWidgets 假异步区直接 await，需 runAsync 逃出。
+    await tester.runAsync(() async {
+      expect(await repository.watchClasses('g1').first, isEmpty);
+    });
+  });
+
   testWidgets('重复的学段名称显示校验错误', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;

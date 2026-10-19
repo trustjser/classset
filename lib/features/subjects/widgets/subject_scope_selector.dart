@@ -56,9 +56,12 @@ class SubjectScopeSelector extends StatelessWidget {
     return AppSurface(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        // 宽屏下面板被拉伸到与矩阵等高；窗口较矮时内容超出可视高度，
+        // 面板内部滚动（窄屏外层是整页滚动，高度无界时自然展开不滚动）。
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             _ScopeOptionRow(
               label: '全校（$totalGradeCount 个年级）',
               selected: selectedScopeStageId == null,
@@ -124,6 +127,7 @@ class SubjectScopeSelector extends StatelessWidget {
               style: TextStyle(color: AppTheme.muted, fontSize: 10.5),
             ),
           ],
+        ),
         ),
       ),
     );

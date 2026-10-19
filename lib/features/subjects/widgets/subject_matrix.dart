@@ -912,23 +912,41 @@ class _FooterCell extends StatelessWidget {
         ? '${summary!.oddDemand} / ${summary!.oddCapacity}'
         : '单 ${summary!.oddDemand}/${summary!.oddCapacity}'
               ' · 双 ${summary!.evenDemand}/${summary!.evenCapacity}';
+    const style = TextStyle(
+      color: AppTheme.inkSecondary,
+      fontSize: 11.5,
+      fontWeight: FontWeight.w400,
+    );
     return SizedBox(
       width: SubjectMatrix._gradeColumnWidth,
       child: Padding(
         padding: const EdgeInsets.only(left: 14),
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: (summary?.isOver ?? false)
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // 仅在单行放不下、被省略号截断时，悬浮展示完整内容。
+            final textPainter = TextPainter(
+              text: TextSpan(text: text, style: style),
+              maxLines: 1,
+              textDirection: TextDirection.ltr,
+            )..layout(maxWidth: constraints.maxWidth);
+            final truncated = textPainter.didExceedMaxLines;
+            final color = (summary?.isOver ?? false)
                 ? AppTheme.destructive
-                : AppTheme.inkSecondary,
-            fontSize: 11.5,
-            fontWeight: (summary?.isOver ?? false)
-                ? FontWeight.w600
-                : FontWeight.w400,
-          ),
+                : AppTheme.inkSecondary;
+            final body = Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style.copyWith(
+                color: color,
+                fontWeight: (summary?.isOver ?? false)
+                    ? FontWeight.w600
+                    : FontWeight.w400,
+              ),
+            );
+            if (!truncated) return body;
+            return Tooltip(message: text, child: body);
+          },
         ),
       ),
     );

@@ -139,26 +139,6 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(
-                    child: AppTextFormField(
-                      controller: _quickFillController,
-                      keyboardType: TextInputType.text,
-                      decoration: const InputDecoration(
-                        labelText: '每周快速填入',
-                        hintText: '如 3,2,3,3,3',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  AppSecondaryButton(
-                    onPressed: _applyQuickFill,
-                    child: const Text('填入'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
                   Text(
                     '合计 单周 ${totals.odd} · 双周 ${totals.even} 节',
                     style: const TextStyle(
@@ -166,12 +146,6 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
-                  ),
-                  const Spacer(),
-                  AppGhostButton(
-                    size: f.FButtonSizeVariant.xs,
-                    onPressed: _clearAll,
-                    child: const Text('全部清零'),
                   ),
                 ],
               ),

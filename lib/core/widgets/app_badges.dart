@@ -97,12 +97,15 @@ class AppClassChip extends StatelessWidget {
               ),
               if (showDeleteIcon) ...[
                 const SizedBox(width: 4),
-                InkWell(
-                  onTap: onDelete,
-                  borderRadius: BorderRadius.circular(8),
-                  child: const Padding(
-                    padding: EdgeInsets.all(2),
-                    child: Icon(Icons.close, size: 11, color: AppTheme.muted),
+                Tooltip(
+                  message: '删除班级',
+                  child: InkWell(
+                    onTap: onDelete,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Icon(Icons.close, size: 11, color: AppTheme.muted),
+                    ),
                   ),
                 ),
               ],

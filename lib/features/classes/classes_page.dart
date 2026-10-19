@@ -815,7 +815,7 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                     grade.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -882,7 +882,6 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                           name: classList[index].name,
                           background: _stageTint(stageIndex),
                           borderColor: _stageChipBorder(stageIndex),
-                          showDeleteIcon: false,
                           onTap: () => setState(() {
                             _editingClassId = classList[index].id;
                             _inlineError = null;

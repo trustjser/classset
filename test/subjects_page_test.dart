@@ -643,6 +643,75 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('矮窗口下年级选择面板内部滚动不溢出', (tester) async {
+    await seedData();
+    // 多加两个年级，让选择面板内容更高，矮窗口下更易触发溢出。
+    await repository.saveGrade(
+      const GradeGroup(id: 'g2', stageId: 'jr', name: '二年级', sortOrder: 1),
+    );
+    await repository.saveGrade(
+      const GradeGroup(id: 'g3', stageId: 'jr', name: '三年级', sortOrder: 2),
+    );
+    // 宽度落在宽屏布局（>=1040），高度压到不足以容纳选择面板全部内容。
+    tester.view.physicalSize = const Size(1100, 460);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    container.read(activeTermIdProvider.notifier).state = 't1';
+    await tester.pumpWidget(_wrap(container, 't1'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('三年级'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('班级周课时汇总被截断时悬浮显示完整内容', (tester) async {
+    await seedData();
+    // 一（1）班语文：单周 30 节、双周 8 节 → 汇总「单 30/20 · 双 8/20」
+    // 超出 92px 年级列宽被省略号截断。
+    await repository.replaceGradeRequirements(
+      gradeId: 'g1',
+      requirements: const [
+        SubjectRequirement(
+          id: 'req_odd',
+          subjectId: 's_chinese',
+          gradeId: 'g1',
+          classId: 'c1',
+          weekMode: WeekMode.odd,
+          lessonCount: 30,
+        ),
+        SubjectRequirement(
+          id: 'req_even',
+          subjectId: 's_chinese',
+          gradeId: 'g1',
+          classId: 'c1',
+          weekMode: WeekMode.even,
+          lessonCount: 8,
+        ),
+      ],
+    );
+    // 高中部加一个无需求的年级：页脚汇总「0 / 20」较短、不截断。
+    await repository.saveGrade(
+      const GradeGroup(id: 'g2', stageId: 'jr', name: '二年级', sortOrder: 1),
+    );
+    await repository.saveClass(
+      const ClassGroup(id: 'c_g2', gradeId: 'g2', name: '二（1）班', sortOrder: 0),
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    // 未截断的汇总不包 Tooltip。
+    final short = find.text('0 / 20');
+    expect(short, findsOneWidget);
+    expect(find.ancestor(of: short, matching: find.byType(Tooltip)), findsNothing);
+
+    // 被截断的汇总包 Tooltip，悬浮内容为完整文本。
+    final truncated = find.text('单 30/20 · 双 8/20');
+    expect(truncated, findsOneWidget);
+    final tooltip = find.ancestor(of: truncated, matching: find.byType(Tooltip));
+    expect(tooltip, findsOneWidget);
+    expect(tester.widget<Tooltip>(tooltip).message, '单 30/20 · 双 8/20');
+  });
+
   testWidgets('科目预设四态循环并保存落库（一定排触发预警）', (tester) async {
     await seedData();
     await pumpPage(tester);
