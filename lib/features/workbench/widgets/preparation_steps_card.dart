@@ -14,6 +14,7 @@ class PreparationStepsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final doneCount = completedPreparationCount(summary);
     final currentStep = currentPreparationStep(summary);
+    final total = PreparationStep.values.length;
     return AppSurface(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
@@ -29,14 +30,14 @@ class PreparationStepsCard extends StatelessWidget {
                   ),
                 ),
                 AppBadge(
-                  label: '$doneCount / 6 完成',
+                  label: '$doneCount / $total 完成',
                   foreground: AppTheme.inkSecondary,
                   background: AppTheme.tableHeader,
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            _PreparationProgress(value: doneCount / 6),
+            const SizedBox(height: 12),
+            _PreparationProgress(done: doneCount, total: total),
             const SizedBox(height: 14),
             // IntrinsicHeight：滚动容器内的 Column 高度无界，stretch 前需定高。
             IntrinsicHeight(
@@ -74,29 +75,40 @@ class PreparationStepsCard extends StatelessWidget {
 
 enum _StepStatus { done, current, locked }
 
+/// 准备进度条：标题下方的胶囊进度条（蓝填充 / 浅灰轨道），进度变化时平滑过渡。
 class _PreparationProgress extends StatelessWidget {
-  const _PreparationProgress({required this.value});
+  const _PreparationProgress({required this.done, required this.total});
 
-  final double value;
+  final int done;
+  final int total;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(4),
-    child: SizedBox(
-      height: 4,
-      child: Row(
-        children: [
-          if (value > 0)
-            Expanded(
-              flex: (value * 100).round().clamp(1, 100),
-              child: ColoredBox(color: AppTheme.blue),
-            ),
-          if (value < 1)
-            Expanded(
-              flex: (100 - value * 100).round().clamp(1, 100),
-              child: const ColoredBox(color: AppTheme.tableDivider),
-            ),
-        ],
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween<double>(begin: 0, end: total == 0 ? 0 : done / total),
+    duration: const Duration(milliseconds: 300),
+    curve: Curves.easeOutCubic,
+    builder: (context, value, _) => ClipRRect(
+      key: const Key('preparation-progress'),
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        height: 8,
+        // stretch：ColoredBox 无子节点时按 constraints.smallest 布局会得到零高度
+        // （同 _BrandLogo 的注意事项），必须让 Row 在交叉轴给紧约束才能撑开填充。
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (value > 0)
+              Expanded(
+                flex: (value * 100).round().clamp(1, 100),
+                child: const ColoredBox(color: AppTheme.blue),
+              ),
+            if (value < 1)
+              Expanded(
+                flex: (100 - value * 100).round().clamp(1, 100),
+                child: const ColoredBox(color: AppTheme.tableDivider),
+              ),
+          ],
+        ),
       ),
     ),
   );

@@ -119,6 +119,7 @@ void main() {
     await pumpPage(tester);
 
     expect(find.text('0 / 6 完成'), findsOneWidget);
+    expect(find.byKey(const Key('preparation-progress')), findsOneWidget);
     expect(find.text('创建学段与班级'), findsOneWidget);
     expect(find.text('去创建学段与班级'), findsOneWidget);
     expect(find.text('当前步骤'), findsOneWidget);
@@ -155,6 +156,24 @@ void main() {
     await pumpPage(tester);
 
     expect(find.text('2 / 6 完成'), findsOneWidget);
+    expect(find.byKey(const Key('preparation-progress')), findsOneWidget);
+    // 进度条渲染校验：高 8px，蓝色填充约占 1/3。
+    final bar = tester.getSize(
+      find.byKey(const Key('preparation-progress')),
+    );
+    expect(bar.height, 8);
+    final blueFill = tester.getSize(
+      find.descendant(
+        of: find.byKey(const Key('preparation-progress')),
+        matching: find.byWidgetPredicate(
+          (w) => w is ColoredBox && w.color == AppTheme.blue,
+        ),
+      ),
+    );
+    expect(blueFill.width, closeTo(bar.width * 33 / 100, 1));
+    // 高度必须撑满：ColoredBox 无子节点时若 Row 不给交叉轴紧约束会得到零高度，
+    // 零面积 drawRect 不产生任何可见像素（曾出现「占位不绘制」问题）。
+    expect(blueFill.height, 8);
     expect(find.text('填写各年级的科目节数'), findsOneWidget);
     expect(find.text('已准备 3 个年级'), findsOneWidget);
     expect(find.text('学段与班级 · 已完成'), findsOneWidget);
@@ -214,6 +233,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('2 / 6 完成'), findsOneWidget);
+    expect(find.byKey(const Key('preparation-progress')), findsOneWidget);
+    // 进度条渲染校验：高 8px，蓝色填充约占 1/3。
+    final bar = tester.getSize(
+      find.byKey(const Key('preparation-progress')),
+    );
+    expect(bar.height, 8);
+    final blueFill = tester.getSize(
+      find.descendant(
+        of: find.byKey(const Key('preparation-progress')),
+        matching: find.byWidgetPredicate(
+          (w) => w is ColoredBox && w.color == AppTheme.blue,
+        ),
+      ),
+    );
+    expect(blueFill.width, closeTo(bar.width * 33 / 100, 1));
+    // 高度必须撑满：ColoredBox 无子节点时若 Row 不给交叉轴紧约束会得到零高度，
+    // 零面积 drawRect 不产生任何可见像素（曾出现「占位不绘制」问题）。
+    expect(blueFill.height, 8);
     expect(find.text('填写各年级的科目节数'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
