@@ -9,6 +9,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/features/subjects/dialogs/class_detail_dialog.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/subjects/widgets/subject_matrix.dart';
@@ -118,12 +119,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> selectSettingsTab(WidgetTester tester, String tabKey) async {
+    await tester.tap(find.byKey(ValueKey(tabKey)));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('矩阵展示科目行与年级列，无需求时显示占位', (tester) async {
     await seedData();
     await pumpPage(tester);
     await selectJuniorStage(tester);
 
     expect(find.text('科目节数'), findsOneWidget);
+    expect(find.text('科目高级设置'), findsOneWidget);
     expect(find.text('语文'), findsOneWidget);
     expect(find.text('数学'), findsOneWidget);
     // 「一年级」同时出现在矩阵表头、范围树与容量卡。
@@ -456,7 +463,7 @@ void main() {
     expect(requirements, isEmpty);
   });
 
-  testWidgets('下钻快速填入节数后矩阵更新并可保存落库', (tester) async {
+  testWidgets('下钻逐班填入节数后矩阵更新并可保存落库', (tester) async {
     await seedData();
     await pumpPage(tester);
     await selectJuniorStage(tester);
@@ -464,14 +471,13 @@ void main() {
     await openCellDialog(tester, const ValueKey('subject-cell-s_chinese-g1'));
     expect(find.text('语文 · 一年级'), findsOneWidget);
 
-    // 每周快速填入「3,3」→ 两个班都是每周 3 节（快速填入是弹窗内最后一个输入框）。
+    // 分别填写两个班的每周节数。
     final fields = find.descendant(
       of: find.byType(f.FDialog),
       matching: find.byType(AppTextFormField),
     );
-    await tester.enterText(fields.last, '3,3');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('填入'));
+    await tester.enterText(fields.at(0), '3');
+    await tester.enterText(fields.at(3), '3');
     await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(of: find.byType(f.FDialog), matching: find.text('保存')),
@@ -770,10 +776,12 @@ void main() {
     await pumpPage(tester);
     await selectJuniorStage(tester);
 
-    // 打开预设弹窗（默认范围 = 矩阵当前列年级）。
+    // 打开预设弹窗后显式选择要编辑的年级范围。
     await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
     await tester.pumpAndSettle();
-    expect(find.text('科目预设 · 语文'), findsOneWidget);
+    expect(find.text('科目高级设置 · 语文'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
 
     // 第 1 节 × 周一：自动 → 尽量排 → 一定排（两次单击）。
     final cell = find.byKey(const ValueKey('preset-cell-1-p_am-1'));
@@ -785,7 +793,7 @@ void main() {
     expect(find.text('一定排'), findsOneWidget);
 
     // 一定排 1 格 > 单周需求 0 节 → 保存预警（逐班列出）。
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
     expect(find.text('一定排超出需求节数'), findsOneWidget);
     expect(find.textContaining('一定排 1 格'), findsWidgets);
@@ -810,6 +818,504 @@ void main() {
           .having((row) => row.lessonIndex, 'lessonIndex', 1)
           .having((row) => row.value, 'value', PresetValue.must),
     );
+  });
+
+  testWidgets('科目高级设置可在科目预设与课节限制间切换', (tester) async {
+    await seedData();
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('科目预设'), findsOneWidget);
+    expect(find.text('课节限制'), findsOneWidget);
+    final tabsBackground = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('subject-settings-tabs-container')),
+    );
+    final tabsDecoration = tabsBackground.decoration as BoxDecoration;
+    expect(tabsDecoration.color, AppTheme.tableHeader);
+    expect(tabsDecoration.borderRadius, BorderRadius.circular(6));
+    final selectedTabLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('subject-settings-tab-presets')),
+        matching: find.text('科目预设'),
+      ),
+    );
+    expect(selectedTabLabel.style?.color, AppTheme.blue);
+    expect(selectedTabLabel.style?.fontSize, 13);
+    expect(selectedTabLabel.style?.fontWeight, FontWeight.w600);
+    expect(
+      find.byKey(const ValueKey('subject-settings-content-divider')),
+      findsOneWidget,
+    );
+    final presetDescription = tester.widget<Text>(
+      find.byKey(const ValueKey('subject-settings-presets-description')),
+    );
+    final presetDescriptionPadding = tester.widget<Padding>(
+      find.byKey(
+        const ValueKey('subject-settings-presets-description-padding'),
+      ),
+    );
+    expect(presetDescription.style?.fontSize, 13);
+    expect(presetDescription.style?.height, 1.45);
+    expect(find.text('当前学期全部预设'), findsOneWidget);
+    expect(find.text('当前科目全部课节限制'), findsNothing);
+    expect(find.byKey(const ValueKey('preset-scope-stage-jr')), findsOneWidget);
+
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+    expect(find.text('当前学期全部预设'), findsNothing);
+    expect(find.text('当前科目全部课节限制'), findsOneWidget);
+    expect(find.text('科目课节限制'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('subject-settings-content-divider')),
+      findsOneWidget,
+    );
+    final constraintDescription = tester.widget<Text>(
+      find.byKey(const ValueKey('subject-settings-constraints-description')),
+    );
+    final constraintDescriptionPadding = tester.widget<Padding>(
+      find.byKey(
+        const ValueKey('subject-settings-constraints-description-padding'),
+      ),
+    );
+    expect(constraintDescription.style, presetDescription.style);
+    expect(
+      constraintDescriptionPadding.padding,
+      presetDescriptionPadding.padding,
+    );
+    expect(
+      tester
+          .getRect(
+            find.byKey(
+              const ValueKey('subject-settings-constraints-description'),
+            ),
+          )
+          .bottom,
+      lessThan(tester.getRect(find.text('每天')).top),
+    );
+    expect(
+      find.byKey(const ValueKey('constraint-stage-jr-daily-minDaily')),
+      findsOneWidget,
+    );
+
+    await selectSettingsTab(tester, 'subject-settings-tab-presets');
+    expect(find.text('当前学期全部预设'), findsOneWidget);
+    expect(find.text('当前科目全部课节限制'), findsNothing);
+  });
+
+  testWidgets('科目高级设置窄屏仅使用弹窗外层纵向滚动', (tester) async {
+    await seedData();
+    tester.view.physicalSize = const Size(800, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    container.read(activeTermIdProvider.notifier).state = 't1';
+    await tester.pumpWidget(_wrap(container, 't1'));
+    await tester.pumpAndSettle();
+    await selectJuniorStage(tester);
+
+    final summary = find.byKey(const ValueKey('preset-summary-s_chinese'));
+    await tester.ensureVisible(summary);
+    await tester.tap(summary);
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(AppDialog);
+    final verticalScrollViews = tester
+        .widgetList<SingleChildScrollView>(
+          find.descendant(
+            of: dialog,
+            matching: find.byType(SingleChildScrollView),
+          ),
+        )
+        .where((scrollView) => scrollView.scrollDirection == Axis.vertical);
+    expect(verticalScrollViews, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('科目课节限制切换范围保留草稿并在保存时生效', (tester) async {
+    await seedData();
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
+
+    final minimum = find.byKey(
+      const ValueKey('constraint-grade-g1-daily-minDaily'),
+    );
+    await tester.ensureVisible(minimum);
+    await tester.enterText(minimum, '0');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('preset-expand-grade-g1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-scope-class-c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextFormField>(minimum).initialValue, '0');
+
+    expect(
+      await tester.runAsync(
+        () => repository.watchLessonConstraintsForSubject('s_chinese').first,
+      ),
+      isEmpty,
+    );
+    await tester.tap(find.text('保存设置'));
+    await tester.pumpAndSettle();
+
+    final saved = await tester.runAsync(
+      () => repository.watchLessonConstraintsForSubject('s_chinese').first,
+    );
+    expect(saved, hasLength(1));
+    expect(saved!.single.scope, FreeSlotScope.grade);
+    expect(saved.single.weekday, isNull);
+    expect(saved.single.minimumDailyLessons, 0);
+  });
+
+  testWidgets('单日限制的星期列与作息表格星期列对齐', (tester) async {
+    await seedData();
+    await repository.replaceSubjectLessonConstraints(
+      subjectId: 's_chinese',
+      scope: FreeSlotScope.stage,
+      scopeId: 'jr',
+      stageId: 'jr',
+      constraints: const [
+        SubjectLessonConstraint(
+          id: '',
+          subjectId: 's_chinese',
+          scope: FreeSlotScope.stage,
+          scopeId: 'jr',
+          stageId: 'jr',
+          weekday: null,
+          maximumDailyLessons: 3,
+        ),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+
+    final mondayHeaders = find.text('周一');
+    expect(mondayHeaders, findsOneWidget);
+    final constraintMonday = tester.getRect(mondayHeaders);
+    final dailyHeader = find.text('每天');
+    expect(dailyHeader, findsOneWidget);
+    expect(tester.widget<Text>(dailyHeader).textAlign, TextAlign.center);
+
+    InputDecoration fieldDecoration(Finder field) => tester
+        .widget<InputDecorator>(
+          find
+              .descendant(of: field, matching: find.byType(InputDecorator))
+              .first,
+        )
+        .decoration;
+
+    final inheritedLabel = fieldDecoration(
+      find.byKey(const ValueKey('constraint-stage-jr-daily-minDaily')),
+    );
+    final inheritedNumber = fieldDecoration(
+      find.byKey(const ValueKey('constraint-stage-jr-1-maxDaily')),
+    );
+    expect(inheritedLabel.hintText, isNull);
+    expect(inheritedNumber.hintText, '3');
+    expect(inheritedLabel.hintStyle?.color, AppTheme.helpIcon);
+    expect(inheritedNumber.hintStyle?.color, AppTheme.helpIcon);
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey('constraint-stage-jr-daily-minDaily')),
+          )
+          .width,
+      lessThanOrEqualTo(28),
+    );
+    expect(inheritedNumber.fillColor, AppTheme.selectedBlue);
+
+    const fields = ['minDaily', 'maxDaily', 'maxDailyPairs', 'minDailyPairs'];
+    final labelRects = [
+      for (final field in fields)
+        tester.getRect(find.byKey(ValueKey('constraint-daily-label-$field'))),
+    ];
+    final inputRects = [
+      for (final field in fields)
+        tester.getRect(
+          find.byKey(ValueKey('constraint-stage-jr-daily-$field')),
+        ),
+    ];
+    final unitRects = [
+      for (final field in fields)
+        tester.getRect(find.byKey(ValueKey('constraint-daily-unit-$field'))),
+    ];
+    expect(labelRects.map((rect) => rect.left).toSet(), hasLength(1));
+    expect(inputRects.map((rect) => rect.left).toSet(), hasLength(1));
+    expect(unitRects.map((rect) => rect.right).toSet(), hasLength(1));
+
+    await selectSettingsTab(tester, 'subject-settings-tab-presets');
+    final presetMonday = tester.getRect(find.text('周一'));
+    expect(presetMonday.center.dx, closeTo(constraintMonday.center.dx, 0.1));
+  });
+
+  testWidgets('科目课节限制列表展示各范围规则并暂存单条删除', (tester) async {
+    await seedData();
+    await repository.replaceSubjectLessonConstraints(
+      subjectId: 's_chinese',
+      scope: FreeSlotScope.stage,
+      scopeId: 'jr',
+      stageId: 'jr',
+      constraints: const [
+        SubjectLessonConstraint(
+          id: '',
+          subjectId: 's_chinese',
+          scope: FreeSlotScope.stage,
+          scopeId: 'jr',
+          stageId: 'jr',
+          weekday: null,
+          maximumDailyLessons: 3,
+        ),
+      ],
+    );
+    await repository.replaceSubjectLessonConstraints(
+      subjectId: 's_chinese',
+      scope: FreeSlotScope.grade,
+      scopeId: 'g1',
+      stageId: 'jr',
+      constraints: const [
+        SubjectLessonConstraint(
+          id: '',
+          subjectId: 's_chinese',
+          scope: FreeSlotScope.grade,
+          scopeId: 'g1',
+          stageId: 'jr',
+          weekday: 1,
+          minimumDailyLessons: 2,
+        ),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+
+    expect(find.text('当前科目全部课节限制'), findsOneWidget);
+    expect(find.text('初中部'), findsWidgets);
+    expect(find.text('初中部 · 一年级'), findsOneWidget);
+    expect(find.textContaining('周一 · 最少 2 节'), findsOneWidget);
+
+    final deleteGradeRule = find.byKey(
+      const ValueKey('constraint-delete-grade-g1-jr-1'),
+    );
+    await tester.ensureVisible(deleteGradeRule);
+    await tester.tap(deleteGradeRule);
+    await tester.pumpAndSettle();
+    expect(find.text('待删除'), findsOneWidget);
+    var saved = await tester.runAsync(
+      () => repository.watchLessonConstraintsForSubject('s_chinese').first,
+    );
+    expect(saved, hasLength(2));
+
+    await tester.tap(find.text('保存设置'));
+    await tester.pumpAndSettle();
+    saved = await tester.runAsync(
+      () => repository.watchLessonConstraintsForSubject('s_chinese').first,
+    );
+    expect(saved, hasLength(1));
+    expect(saved!.single.scope, FreeSlotScope.stage);
+  });
+
+  testWidgets('每日连堂次数可使用每天默认值和星期覆盖', (tester) async {
+    await seedData();
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+
+    final dailyMaximum = find.byKey(
+      const ValueKey('constraint-stage-jr-daily-maxDailyPairs'),
+    );
+    final mondayMinimum = find.byKey(
+      const ValueKey('constraint-stage-jr-1-minDailyPairs'),
+    );
+    await tester.enterText(dailyMaximum, '4');
+    await tester.enterText(mondayMinimum, '1');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存设置'));
+    await tester.pumpAndSettle();
+
+    final saved = await tester.runAsync(
+      () => repository.watchLessonConstraintsForSubject('s_chinese').first,
+    );
+    expect(saved, hasLength(2));
+    expect(
+      saved!
+          .singleWhere((row) => row.weekday == null)
+          .maximumDailyConsecutivePairs,
+      4,
+    );
+    expect(
+      saved.singleWhere((row) => row.weekday == 1).minimumDailyConsecutivePairs,
+      1,
+    );
+  });
+
+  testWidgets('取消科目限制编辑会丢弃草稿', (tester) async {
+    await seedData();
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
+
+    final minimum = find.byKey(
+      const ValueKey('constraint-grade-g1-daily-minDaily'),
+    );
+    await tester.ensureVisible(minimum);
+    await tester.enterText(minimum, '3');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+
+    final saved = await tester.runAsync(
+      () => repository.watchLessonConstraintsForSubject('s_chinese').first,
+    );
+    expect(saved, isEmpty);
+  });
+
+  testWidgets('上级限制修改后校验继承该限制的下级范围', (tester) async {
+    await seedData();
+    await repository.replaceSubjectLessonConstraints(
+      subjectId: 's_chinese',
+      scope: FreeSlotScope.grade,
+      scopeId: 'g1',
+      stageId: 'jr',
+      constraints: const [
+        SubjectLessonConstraint(
+          id: '',
+          subjectId: 's_chinese',
+          scope: FreeSlotScope.grade,
+          scopeId: 'g1',
+          stageId: 'jr',
+          weekday: null,
+          maximumDailyLessons: 2,
+        ),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+    await tester.tap(find.byKey(const ValueKey('preset-scope-stage-jr')));
+    await tester.pumpAndSettle();
+
+    final minimum = find.byKey(
+      const ValueKey('constraint-stage-jr-daily-minDaily'),
+    );
+    await tester.ensureVisible(minimum);
+    await tester.enterText(minimum, '3');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存设置'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('单日最少课节数不能大于最多课节数'), findsOneWidget);
+    await tester.tap(find.text('知道了'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+
+    final saved = await tester.runAsync(
+      () => repository.watchLessonConstraintsForSubject('s_chinese').first,
+    );
+    expect(saved, hasLength(1));
+    expect(saved!.single.scope, FreeSlotScope.grade);
+    expect(saved.single.maximumDailyLessons, 2);
+  });
+
+  testWidgets('没有上课日时仍显示每周连堂限制', (tester) async {
+    await seedData();
+    await repository.saveRoutine(
+      const StageRoutine(
+        stageId: 'jr',
+        teachingWeekdays: {},
+        periodTypes: [
+          LessonPeriodType(
+            id: 'p_am',
+            name: '上午',
+            defaultLessonCount: 4,
+            sortOrder: 0,
+            lessonTimes: [],
+          ),
+        ],
+        overrides: [],
+      ),
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('该学段暂无上课日'), findsOneWidget);
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+    expect(find.text('每周连堂组数'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('constraint-stage-jr-daily-minWeekly')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('未保存新科目的限制会暂存到页面保存后再落库', (tester) async {
+    await seedData();
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+
+    await tester.tap(find.text('+ 添加科目'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('外语'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('点击设置科目高级设置').last);
+    await tester.pumpAndSettle();
+    await selectSettingsTab(tester, 'subject-settings-tab-constraints');
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
+
+    final minimum = find.byKey(
+      const ValueKey('constraint-grade-g1-daily-minDaily'),
+    );
+    await tester.ensureVisible(minimum);
+    await tester.enterText(minimum, '2');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存设置'));
+    await tester.pumpAndSettle();
+
+    final constraintsBeforeSave = await tester.runAsync(
+      () => repository.watchAllLessonConstraints().first,
+    );
+    expect(constraintsBeforeSave, isEmpty);
+    final subjectsBeforeSave = await tester.runAsync(
+      () => repository.watchSubjects().first,
+    );
+    expect(subjectsBeforeSave!.any((subject) => subject.name == '外语'), isFalse);
+
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final subjects = await tester.runAsync(
+      () => repository.watchSubjects().first,
+    );
+    final unsavedSubject = subjects!.singleWhere(
+      (subject) => subject.name == '外语',
+    );
+    final saved = await tester.runAsync(
+      () =>
+          repository.watchLessonConstraintsForSubject(unsavedSubject.id).first,
+    );
+    expect(saved, hasLength(1));
+    expect(saved!.single.minimumDailyLessons, 2);
   });
 
   testWidgets('科目预设常驻范围树并按学段作息切换', (tester) async {
@@ -863,7 +1369,7 @@ void main() {
     expect(
       tester
           .widget<AppTreeTile>(
-            find.byKey(const ValueKey('preset-scope-grade-g1')),
+            find.byKey(const ValueKey('preset-scope-stage-jr')),
           )
           .isSelected,
       isTrue,
@@ -908,7 +1414,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('preset-scope-stage-gz')));
     await tester.pumpAndSettle();
 
-    expect(find.text('周六'), findsOneWidget);
+    expect(find.text('周六'), findsWidgets);
     expect(
       find.byKey(ValueKey('preset-cell-6-${highMorning.id}-1')),
       findsOneWidget,
@@ -920,7 +1426,7 @@ void main() {
 
     await tester.tap(find.byKey(ValueKey('preset-cell-6-${highMorning.id}-1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
 
     final presets = (await tester.runAsync(
@@ -997,6 +1503,8 @@ void main() {
     await selectJuniorStage(tester);
     await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
     expect(find.text('尽量排'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('preset-expand-grade-g1')));
@@ -1024,6 +1532,8 @@ void main() {
     await selectJuniorStage(tester);
     await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
 
     final exemptCell = find.byKey(const ValueKey('preset-cell-1-p_am-1'));
     expect(exemptCell, findsOneWidget);
@@ -1041,7 +1551,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(FreeSlotLabels.none), findsOneWidget);
 
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
     final presets = (await tester.runAsync(
       () => repository.watchAllPresets().first,
@@ -1130,7 +1640,7 @@ void main() {
     await tester.tap(classCell);
     await tester.pumpAndSettle();
     expect(find.text('不排'), findsNothing);
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
     expect(find.textContaining('各班不同'), findsOneWidget);
     var presets = (await tester.runAsync(
@@ -1181,7 +1691,7 @@ void main() {
     await tester.tap(classCell);
     await tester.pumpAndSettle();
     expect(find.text('一定排'), findsOneWidget);
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
     if (find.text('一定排超出需求节数').evaluate().isNotEmpty) {
       await tester.tap(find.text('继续保存'));
@@ -1340,6 +1850,7 @@ void main() {
       const ValueKey('preset-delete-grade-g1-jr-1-p_am-1'),
     );
     expect(gradeDelete, findsOneWidget);
+    await tester.ensureVisible(gradeDelete);
     await tester.tap(gradeDelete);
     await tester.pumpAndSettle();
     expect(find.text('2 项'), findsOneWidget);
@@ -1348,9 +1859,11 @@ void main() {
       () => repository.watchAllPresets().first,
     ))!;
     expect(afterStaging, hasLength(4));
+    await tester.ensureVisible(gradeDelete);
     await tester.tap(gradeDelete);
     await tester.pumpAndSettle();
     expect(find.text('待删除'), findsNothing);
+    await tester.ensureVisible(gradeDelete);
     await tester.tap(gradeDelete);
     await tester.pumpAndSettle();
     expect(find.text('待删除'), findsOneWidget);
@@ -1369,10 +1882,11 @@ void main() {
       const ValueKey('preset-delete-schoolClass-c1-jr-2-p_am-2'),
     );
     expect(classDelete, findsOneWidget);
+    await tester.ensureVisible(classDelete);
     await tester.tap(classDelete);
     await tester.pumpAndSettle();
     expect(find.text('2 项'), findsOneWidget);
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
 
     presets = (await tester.runAsync(
@@ -1419,6 +1933,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('preset-summary-s_chinese')));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const ValueKey('preset-scope-grade-g1')));
+    await tester.pumpAndSettle();
+
     final gradeCell = find.byKey(const ValueKey('preset-cell-1-p_am-1'));
     await tester.tap(gradeCell);
     await tester.pumpAndSettle();
@@ -1440,7 +1957,7 @@ void main() {
     expect(find.byKey(const ValueKey('preset-cell-2-p_am-1')), findsOneWidget);
     expect(find.text('尽量排'), findsOneWidget);
 
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
     final presets = (await tester.runAsync(
       () => repository.watchAllPresets().first,
@@ -1484,7 +2001,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(cell);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('一（1）班单周需求'), findsOneWidget);
@@ -1507,7 +2024,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('不排'), findsOneWidget);
 
-    await tester.tap(find.text('保存预设'));
+    await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
     expect(find.text('一定排超出需求节数'), findsNothing);
     expect(find.text('1 不排'), findsOneWidget);
@@ -1545,10 +2062,15 @@ void main() {
     expect(find.text('还没有配对。新增配对后，两门课将占用同一时段。'), findsOneWidget);
   });
 
-  testWidgets('配对课程可新增并解除，立即落库', (tester) async {
+  testWidgets('未保存科目的配对先暂存，页面保存后落库', (tester) async {
     await seedData();
     await pumpPage(tester);
     await selectJuniorStage(tester);
+
+    await tester.tap(find.text('+ 添加科目'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('外语'));
+    await tester.pumpAndSettle();
 
     // 更多菜单 → 配对课程。
     await tester.tap(find.text('更多'));
@@ -1562,30 +2084,63 @@ void main() {
       of: find.byType(f.FDialog),
       matching: find.byType(AppSelectField<String>),
     );
+    final oddSubjectSelect = tester.widget<AppSelectField<String>>(
+      selects.at(1),
+    );
+    final unsavedSubjectId = oddSubjectSelect.items['外语']!;
     tester.widget<AppSelectField<String>>(selects.at(0)).onChanged('c1');
-    tester.widget<AppSelectField<String>>(selects.at(1)).onChanged('s_math');
+    oddSubjectSelect.onChanged(unsavedSubjectId);
     tester.widget<AppSelectField<String>>(selects.at(2)).onChanged('s_chinese');
     await tester.pumpAndSettle();
     await tester.tap(find.text('添加'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('数学（单周）'), findsOneWidget);
+    expect(find.textContaining('外语（单周）'), findsOneWidget);
     expect(find.textContaining('语文（双周）'), findsOneWidget);
     var pairings = (await tester.runAsync(
       () => repository.watchAllPairings().first,
     ))!;
-    expect(pairings.length, 1);
-    expect(pairings.single.classId, 'c1');
-    expect(pairings.single.oddSubjectId, 's_math');
-    expect(pairings.single.evenSubjectId, 's_chinese');
-
-    // 解除配对立即落库。
-    await tester.tap(find.text('解除配对'));
+    expect(pairings, isEmpty);
+    await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
     pairings = (await tester.runAsync(
       () => repository.watchAllPairings().first,
     ))!;
     expect(pairings, isEmpty);
-    expect(find.textContaining('数学（单周）'), findsNothing);
+
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final subjects = (await tester.runAsync(
+      () => repository.watchSubjects().first,
+    ))!;
+    expect(subjects.any((subject) => subject.id == unsavedSubjectId), isTrue);
+    pairings = (await tester.runAsync(
+      () => repository.watchAllPairings().first,
+    ))!;
+    expect(pairings.length, 1);
+    expect(pairings.single.classId, 'c1');
+    expect(pairings.single.oddSubjectId, unsavedSubjectId);
+    expect(pairings.single.evenSubjectId, 's_chinese');
+
+    // 解除配对也暂存，页面保存后才生效。
+    await tester.tap(find.text('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('配对课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('解除配对'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+    pairings = (await tester.runAsync(
+      () => repository.watchAllPairings().first,
+    ))!;
+    expect(pairings, hasLength(1));
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    pairings = (await tester.runAsync(
+      () => repository.watchAllPairings().first,
+    ))!;
+    expect(pairings, isEmpty);
+    expect(find.textContaining('外语（单周）'), findsNothing);
   });
 }

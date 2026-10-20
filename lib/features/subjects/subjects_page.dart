@@ -7,6 +7,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/features/subjects/dialogs/add_subject_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/class_detail_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/pairing_dialog.dart';
@@ -49,6 +50,10 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
 
   /// 新增科目的科目预设暂存到页面保存，避免预设先于科目写入并触发外键错误。
   final Map<String, List<SubjectPresetEdit>> _newSubjectPresetDrafts = {};
+
+  /// 新增科目的课节限制暂存到页面保存，确保科目先完成外键写入。
+  final Map<String, List<SubjectLessonConstraintEdit>>
+  _newSubjectConstraintDrafts = {};
 
   /// 配对课程按班级暂存，等新增科目保存后再写入配对表。
   final Map<String, List<SubjectPairing>> _pairingDrafts = {};
@@ -98,6 +103,13 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       ...ref.watch(allPresetsProvider).valueOrNull ?? const <SubjectPreset>[],
       ..._newSubjectPresetDrafts.entries.expand(
         (entry) => _presetsFromEdits(entry.key, entry.value),
+      ),
+    ];
+    final lessonConstraints = [
+      ...ref.watch(allSubjectLessonConstraintsProvider).valueOrNull ??
+          const <SubjectLessonConstraint>[],
+      ..._newSubjectConstraintDrafts.entries.expand(
+        (entry) => entry.value.expand((edit) => edit.constraints),
       ),
     ];
     final routines =
@@ -280,7 +292,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                   alternatingWeeks: _alternatingWeeks,
                   onPresetTap: (subject, grade) {
                     setState(() => _presetGradeId = grade.id);
-                    _openSubjectPreset(subject, grade);
+                    _openSubjectPreset(subject, grade, lessonConstraints);
                   },
                   scrollable: constraints.maxWidth >= 1040,
                 );
@@ -720,7 +732,11 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   }
 
   /// 打开科目预设弹窗（US-015；范围默认矩阵当前列）。
-  Future<void> _openSubjectPreset(Subject subject, GradeGroup grade) async {
+  Future<void> _openSubjectPreset(
+    Subject subject,
+    GradeGroup grade,
+    List<SubjectLessonConstraint> lessonConstraints,
+  ) async {
     final stages =
         ref.read(stagesProvider(widget.termId)).valueOrNull ??
         const <SchoolStage>[];
@@ -778,15 +794,21 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         classes: classBriefs,
         routines: routines,
         presets: subjectPresets,
+        constraints: lessonConstraints
+            .where((constraint) => constraint.subjectId == subject.id)
+            .toList(),
         freeSlots: freeSlots,
         classDemands: classDemands,
       ),
     );
-    if (result == null || result.isEmpty) return;
+    if (result == null ||
+        (result.presets.isEmpty && result.constraints.isEmpty)) {
+      return;
+    }
     if (_newSubjects.any((item) => item.id == subject.id)) {
       setState(() {
         final drafts = [...?_newSubjectPresetDrafts[subject.id]];
-        for (final edit in result) {
+        for (final edit in result.presets) {
           final index = drafts.indexWhere(
             (draft) =>
                 draft.scope == edit.scope &&
@@ -800,13 +822,28 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           }
         }
         _newSubjectPresetDrafts[subject.id] = drafts;
+        final constraintDrafts = [...?_newSubjectConstraintDrafts[subject.id]];
+        for (final edit in result.constraints) {
+          final index = constraintDrafts.indexWhere(
+            (draft) =>
+                draft.scope == edit.scope &&
+                draft.scopeId == edit.scopeId &&
+                draft.stageId == edit.stageId,
+          );
+          if (index == -1) {
+            constraintDrafts.add(edit);
+          } else {
+            constraintDrafts[index] = edit;
+          }
+        }
+        _newSubjectConstraintDrafts[subject.id] = constraintDrafts;
       });
       _showMessage('科目预设已暂存，点击右上角“保存”后生效');
       return;
     }
     try {
       final repository = ref.read(schoolRepositoryProvider);
-      for (final edit in result) {
+      for (final edit in result.presets) {
         await repository.replaceSubjectPresets(
           subjectId: subject.id,
           termId: termId,
@@ -827,6 +864,15 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                 value: cell.value,
               ),
           ],
+        );
+      }
+      for (final edit in result.constraints) {
+        await repository.replaceSubjectLessonConstraints(
+          subjectId: subject.id,
+          scope: edit.scope,
+          scopeId: edit.scopeId,
+          stageId: edit.stageId,
+          constraints: edit.constraints,
         );
       }
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
@@ -1112,6 +1158,17 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           );
         }
       }
+      for (final entry in _newSubjectConstraintDrafts.entries) {
+        for (final edit in entry.value) {
+          await repository.replaceSubjectLessonConstraints(
+            subjectId: entry.key,
+            scope: edit.scope,
+            scopeId: edit.scopeId,
+            stageId: edit.stageId,
+            constraints: edit.constraints,
+          );
+        }
+      }
       for (final entry in _pairingDrafts.entries) {
         await repository.replaceClassPairings(
           classId: entry.key,
@@ -1133,6 +1190,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         _draft.clear();
         _newSubjects.clear();
         _newSubjectPresetDrafts.clear();
+        _newSubjectConstraintDrafts.clear();
         _pairingDrafts.clear();
         _saving = false;
       });

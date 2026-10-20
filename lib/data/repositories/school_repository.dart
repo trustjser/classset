@@ -5,6 +5,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 
 abstract interface class SchoolRepository {
   Stream<List<AcademicTerm>> watchTerms();
@@ -126,6 +127,23 @@ abstract interface class SchoolRepository {
     required String scopeId,
     required String stageId,
     required List<SubjectPreset> presets,
+  });
+
+  /// 某科目的所有范围限制；全校范围不参与科目限制。
+  Stream<List<SubjectLessonConstraint>> watchLessonConstraintsForSubject(
+    String subjectId,
+  );
+
+  /// 全部科目限制，供科目页面汇总显示与打开弹窗时读取。
+  Stream<List<SubjectLessonConstraint>> watchAllLessonConstraints();
+
+  /// 整体替换该科目在指定学段、范围下的限制记录。
+  Future<void> replaceSubjectLessonConstraints({
+    required String subjectId,
+    required FreeSlotScope scope,
+    required String scopeId,
+    required String stageId,
+    required List<SubjectLessonConstraint> constraints,
   });
 
   /// 全校课程配对流（按班级客户端过滤）。

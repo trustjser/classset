@@ -484,7 +484,7 @@ class _MatrixHeaderRow extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.only(left: 14),
               child: Text(
-                '科目预设',
+                '科目高级设置',
                 style: TextStyle(
                   color: AppTheme.muted,
                   fontSize: 11,
@@ -624,17 +624,17 @@ class _PresetCell extends StatelessWidget {
       child: Tooltip(
         message: canEdit
             ? summary == null
-                  ? '点击设置科目预设'
-                  : '${summary!.tooltip}\n点击编辑科目预设'
+                  ? '点击设置科目高级设置'
+                  : '${summary!.tooltip}\n点击编辑科目高级设置'
             : summary?.tooltip ?? '',
         child: MouseRegion(
           cursor: canEdit ? SystemMouseCursors.click : SystemMouseCursors.basic,
           child: Semantics(
             button: canEdit,
             label: summaryText == null
-                ? (canEdit ? '设置科目预设' : '无科目预设')
-                : '科目预设：$summaryText',
-            hint: canEdit ? '点击编辑科目预设' : null,
+                ? (canEdit ? '设置科目高级设置' : '无科目高级设置')
+                : '科目高级设置：$summaryText',
+            hint: canEdit ? '点击编辑科目高级设置' : null,
             child: Material(
               color: Colors.transparent,
               child: InkWell(

@@ -34,4 +34,53 @@ void main() {
         .get();
     expect(rows.single.read<String>('cycle_mode'), 'alternating');
   });
+
+  test('v5 数据库升级后创建科目课节限制表', () async {
+    final database = AppDatabase(
+      NativeDatabase.memory(
+        setup: (connection) => connection.execute('PRAGMA user_version = 5'),
+      ),
+    );
+    addTearDown(database.close);
+
+    final rows = await database
+        .customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'subject_lesson_constraints'",
+        )
+        .get();
+    expect(rows, hasLength(1));
+  });
+
+  test('v6 数据库升级后添加单日连堂限制列', () async {
+    final database = AppDatabase(
+      NativeDatabase.memory(
+        setup: (connection) {
+          connection.execute('''
+            CREATE TABLE subject_lesson_constraints (
+              id TEXT NOT NULL PRIMARY KEY,
+              subject_id TEXT NOT NULL,
+              scope_type TEXT NOT NULL,
+              scope_id TEXT NOT NULL,
+              stage_id TEXT NOT NULL,
+              weekday INTEGER,
+              minimum_daily_lessons INTEGER,
+              maximum_daily_lessons INTEGER,
+              minimum_weekly_consecutive_pairs INTEGER,
+              maximum_weekly_consecutive_pairs INTEGER
+            )
+          ''');
+          connection.execute('PRAGMA user_version = 6');
+        },
+      ),
+    );
+    addTearDown(database.close);
+
+    final rows = await database
+        .customSelect('PRAGMA table_info(subject_lesson_constraints)')
+        .get();
+    final columns = rows.map((row) => row.read<String>('name')).toSet();
+    expect(columns, contains('minimum_daily_consecutive_pairs'));
+    expect(columns, contains('maximum_daily_consecutive_pairs'));
+  });
 }

@@ -7,6 +7,8 @@ import 'package:class_set/domain/models/free_slot.dart' as domain;
 import 'package:class_set/domain/models/school_structure.dart' as domain;
 import 'package:class_set/domain/models/stage_routine.dart' as domain;
 import 'package:class_set/domain/models/subject.dart' as domain;
+import 'package:class_set/domain/models/subject_lesson_constraint.dart'
+    as domain;
 import 'package:drift/drift.dart';
 
 class DriftSchoolRepository implements SchoolRepository {
@@ -585,10 +587,22 @@ class DriftSchoolRepository implements SchoolRepository {
                 slot.scopeType.equals('class') & slot.scopeId.isIn(classIds),
           ))
           .go();
+      await (_database.delete(_database.subjectLessonConstraints)..where(
+            (constraint) =>
+                constraint.scopeType.equals('class') &
+                constraint.scopeId.isIn(classIds),
+          ))
+          .go();
     }
     await (_database.delete(_database.freeSlots)..where(
           (slot) =>
               slot.scopeType.equals('grade') & slot.scopeId.equals(gradeId),
+        ))
+        .go();
+    await (_database.delete(_database.subjectLessonConstraints)..where(
+          (constraint) =>
+              constraint.scopeType.equals('grade') &
+              constraint.scopeId.equals(gradeId),
         ))
         .go();
     await (_database.delete(
@@ -631,6 +645,12 @@ class DriftSchoolRepository implements SchoolRepository {
     await (_database.delete(_database.freeSlots)..where(
           (slot) =>
               slot.scopeType.equals('class') & slot.scopeId.equals(classId),
+        ))
+        .go();
+    await (_database.delete(_database.subjectLessonConstraints)..where(
+          (constraint) =>
+              constraint.scopeType.equals('class') &
+              constraint.scopeId.equals(classId),
         ))
         .go();
     await (_database.delete(
@@ -1439,6 +1459,86 @@ class DriftSchoolRepository implements SchoolRepository {
     });
   }
 
+  @override
+  Stream<List<domain.SubjectLessonConstraint>> watchLessonConstraintsForSubject(
+    String subjectId,
+  ) =>
+      (_database.select(_database.subjectLessonConstraints)
+            ..where((row) => row.subjectId.equals(subjectId)))
+          .watch()
+          .map((rows) => rows.map(_toDomainLessonConstraint).toList());
+
+  @override
+  Stream<List<domain.SubjectLessonConstraint>> watchAllLessonConstraints() =>
+      _database
+          .select(_database.subjectLessonConstraints)
+          .watch()
+          .map((rows) => rows.map(_toDomainLessonConstraint).toList());
+
+  @override
+  Future<void> replaceSubjectLessonConstraints({
+    required String subjectId,
+    required domain.FreeSlotScope scope,
+    required String scopeId,
+    required String stageId,
+    required List<domain.SubjectLessonConstraint> constraints,
+  }) async {
+    if (scope == domain.FreeSlotScope.school) {
+      throw ArgumentError.value(scope, 'scope', '科目限制不支持全校范围');
+    }
+    domain.SubjectLessonConstraint.validate(constraints);
+    final weekdays = <int?>{};
+    for (final constraint in constraints) {
+      if (constraint.subjectId != subjectId ||
+          constraint.scope != scope ||
+          constraint.scopeId != scopeId ||
+          constraint.stageId != stageId) {
+        throw ArgumentError('限制记录必须全部属于传入的科目和范围');
+      }
+      if (!weekdays.add(constraint.weekday)) {
+        throw ArgumentError('同一范围的同一天只能设置一条限制');
+      }
+    }
+    await _database.transaction(() async {
+      await (_database.delete(_database.subjectLessonConstraints)..where(
+            (row) =>
+                row.subjectId.equals(subjectId) &
+                row.scopeType.equals(scope.storageValue) &
+                row.scopeId.equals(scopeId) &
+                row.stageId.equals(stageId),
+          ))
+          .go();
+      if (constraints.isEmpty) return;
+      await _database.batch((batch) {
+        batch.insertAll(_database.subjectLessonConstraints, [
+          for (final constraint in constraints)
+            SubjectLessonConstraintsCompanion.insert(
+              id: _newId(),
+              subjectId: subjectId,
+              scopeType: scope.storageValue,
+              scopeId: scopeId,
+              stageId: stageId,
+              weekday: Value(constraint.weekday),
+              minimumDailyLessons: Value(constraint.minimumDailyLessons),
+              maximumDailyLessons: Value(constraint.maximumDailyLessons),
+              minimumDailyConsecutivePairs: Value(
+                constraint.minimumDailyConsecutivePairs,
+              ),
+              maximumDailyConsecutivePairs: Value(
+                constraint.maximumDailyConsecutivePairs,
+              ),
+              minimumWeeklyConsecutivePairs: Value(
+                constraint.minimumWeeklyConsecutivePairs,
+              ),
+              maximumWeeklyConsecutivePairs: Value(
+                constraint.maximumWeeklyConsecutivePairs,
+              ),
+            ),
+        ]);
+      });
+    });
+  }
+
   Future<void> _deleteSubjectPresets(
     String subjectId,
     domain.FreeSlotScope scope,
@@ -1516,6 +1616,23 @@ class DriftSchoolRepository implements SchoolRepository {
         lessonIndex: row.lessonIndex,
         value: domain.PresetValue.fromStorage(row.value),
       );
+
+  domain.SubjectLessonConstraint _toDomainLessonConstraint(
+    SubjectLessonConstraint row,
+  ) => domain.SubjectLessonConstraint(
+    id: row.id,
+    subjectId: row.subjectId,
+    scope: domain.FreeSlotScope.fromStorage(row.scopeType),
+    scopeId: row.scopeId,
+    stageId: row.stageId,
+    weekday: row.weekday,
+    minimumDailyLessons: row.minimumDailyLessons,
+    maximumDailyLessons: row.maximumDailyLessons,
+    minimumDailyConsecutivePairs: row.minimumDailyConsecutivePairs,
+    maximumDailyConsecutivePairs: row.maximumDailyConsecutivePairs,
+    minimumWeeklyConsecutivePairs: row.minimumWeeklyConsecutivePairs,
+    maximumWeeklyConsecutivePairs: row.maximumWeeklyConsecutivePairs,
+  );
 
   domain.SubjectPairing _toDomainPairing(SubjectPairing row) =>
       domain.SubjectPairing(

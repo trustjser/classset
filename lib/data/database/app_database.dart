@@ -146,8 +146,11 @@ class SubjectRequirements extends Table {
       text().references(GradeGroups, #id, onDelete: KeyAction.cascade)();
 
   /// 非 null = 按班覆盖；null = 年级默认。
-  TextColumn get classId =>
-      text().nullable().references(ClassGroups, #id, onDelete: KeyAction.cascade)();
+  TextColumn get classId => text().nullable().references(
+    ClassGroups,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   /// weekly / odd / even。
   TextColumn get weekMode => text().withDefault(const Constant('weekly'))();
@@ -171,11 +174,8 @@ class SubjectPresets extends Table {
   TextColumn get stageId =>
       text().references(SchoolStages, #id, onDelete: KeyAction.cascade)();
   IntColumn get weekday => integer()();
-  TextColumn get periodTypeId => text().references(
-    LessonPeriodTypes,
-    #id,
-    onDelete: KeyAction.cascade,
-  )();
+  TextColumn get periodTypeId =>
+      text().references(LessonPeriodTypes, #id, onDelete: KeyAction.cascade)();
   IntColumn get lessonIndex => integer()();
 
   /// auto/prefer/must/forbid。
@@ -197,6 +197,34 @@ class SubjectPairings extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+/// 科目单日课节、单日连堂与每周连堂限制（不含全校范围）。
+class SubjectLessonConstraints extends Table {
+  TextColumn get id => text()();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get scopeType => text()();
+  TextColumn get scopeId => text()();
+  TextColumn get stageId =>
+      text().references(SchoolStages, #id, onDelete: KeyAction.cascade)();
+
+  /// null 表示“每天”；1 到 7 覆盖某个星期。
+  IntColumn get weekday => integer().nullable()();
+  IntColumn get minimumDailyLessons => integer().nullable()();
+  IntColumn get maximumDailyLessons => integer().nullable()();
+  IntColumn get minimumDailyConsecutivePairs => integer().nullable()();
+  IntColumn get maximumDailyConsecutivePairs => integer().nullable()();
+  IntColumn get minimumWeeklyConsecutivePairs => integer().nullable()();
+  IntColumn get maximumWeeklyConsecutivePairs => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {subjectId, scopeType, scopeId, stageId, weekday},
+  ];
 }
 
 /// 免任课格子：按范围（全校/学段/年级/班级）标记具体节次不排课。
@@ -254,6 +282,7 @@ class CommonPeriods extends Table {
     SubjectRequirements,
     SubjectPresets,
     SubjectPairings,
+    SubjectLessonConstraints,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -262,7 +291,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -283,6 +312,21 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await migrator.createTable(subjectPresets);
         await migrator.createTable(subjectPairings);
+      }
+      if (from < 6) {
+        await migrator.createTable(subjectLessonConstraints);
+      }
+      // A newly-created table already includes these columns when upgrading
+      // from before v6; only add them to databases that already had the table.
+      if (from >= 6 && from < 7) {
+        await migrator.addColumn(
+          subjectLessonConstraints,
+          subjectLessonConstraints.minimumDailyConsecutivePairs,
+        );
+        await migrator.addColumn(
+          subjectLessonConstraints,
+          subjectLessonConstraints.maximumDailyConsecutivePairs,
+        );
       }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),

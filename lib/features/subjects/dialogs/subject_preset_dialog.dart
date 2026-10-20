@@ -8,8 +8,10 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/features/subjects/subjects_data.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:forui/forui.dart' as f;
 
 typedef SubjectPresetEdit = ({
@@ -19,7 +21,17 @@ typedef SubjectPresetEdit = ({
   List<PresetCell> cells,
 });
 
-typedef SubjectPresetDialogResult = List<SubjectPresetEdit>;
+typedef SubjectLessonConstraintEdit = ({
+  FreeSlotScope scope,
+  String scopeId,
+  String stageId,
+  List<SubjectLessonConstraint> constraints,
+});
+
+typedef SubjectPresetDialogResult = ({
+  List<SubjectPresetEdit> presets,
+  List<SubjectLessonConstraintEdit> constraints,
+});
 
 typedef _PresetDraftKey = ({
   FreeSlotScope scope,
@@ -34,6 +46,24 @@ typedef _PresetEntryKey = ({
   int weekday,
   String periodTypeId,
   int lessonIndex,
+});
+
+typedef _ConstraintEntryKey = ({
+  FreeSlotScope scope,
+  String scopeId,
+  String stageId,
+  int? weekday,
+});
+
+typedef _ConstraintListEntry = ({
+  _ConstraintEntryKey key,
+  SubjectLessonConstraint constraint,
+  String rangeLabel,
+  String ruleLabel,
+  bool pending,
+  bool deleted,
+  int stageOrder,
+  int scopeOrder,
 });
 
 typedef _PresetCellAddress = ({
@@ -79,6 +109,7 @@ class SubjectPresetDialog extends StatefulWidget {
     required this.classes,
     required this.routines,
     required this.presets,
+    required this.constraints,
     required this.freeSlots,
     required this.classDemands,
     super.key,
@@ -98,6 +129,9 @@ class SubjectPresetDialog extends StatefulWidget {
   /// 该科目全部预设行。
   final List<SubjectPreset> presets;
 
+  /// 该科目的所有范围课节与连堂限制。
+  final List<SubjectLessonConstraint> constraints;
+
   /// 当前学期的免任课标记，用于显示并禁用相应预排格。
   final List<FreeSlot> freeSlots;
 
@@ -109,6 +143,7 @@ class SubjectPresetDialog extends StatefulWidget {
 }
 
 class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
+  int _selectedEditorTabIndex = 0;
   late FreeSlotScope _scope;
   late String _scopeId;
   late String _activeStageId;
@@ -117,6 +152,11 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
   final Set<String> _expandedGradeIds = {};
   final Map<_PresetDraftKey, Map<String, PresetValue>> _drafts = {};
   final Set<_PresetDraftKey> _dirtyDrafts = {};
+  final Map<_PresetDraftKey, Map<int?, SubjectLessonConstraint>>
+  _constraintDrafts = {};
+  final Set<_PresetDraftKey> _dirtyConstraintDrafts = {};
+  final Map<_ConstraintEntryKey, SubjectLessonConstraint>
+  _deletedConstraintSnapshots = {};
   final Map<_PresetDraftKey, Set<String>> _changedCells = {};
   final Map<_PresetDraftKey, Set<String>> _deletedCells = {};
   final Map<_PresetDraftKey, Map<String, _DeletedPresetCellDraft>>
@@ -153,6 +193,18 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
               : null,
         ),
       );
+
+  Map<int?, SubjectLessonConstraint> _loadConstraintDraft(
+    _PresetDraftKey key,
+  ) => _constraintDrafts.putIfAbsent(key, () {
+    return {
+      for (final constraint in widget.constraints)
+        if (constraint.scope == key.scope &&
+            constraint.scopeId == key.scopeId &&
+            constraint.stageId == key.stageId)
+          constraint.weekday: constraint,
+    };
+  });
 
   List<SchoolStage> get _orderedStages =>
       [...widget.stages]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -431,8 +483,17 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
 
   Future<void> _save() async {
     final draftKeys = _dirtyDrafts.toList();
-    if (draftKeys.isEmpty) {
-      Navigator.pop<SubjectPresetDialogResult>(context, const []);
+    final constraintDraftKeys = _dirtyConstraintDrafts.toList();
+    if (draftKeys.isEmpty && constraintDraftKeys.isEmpty) {
+      Navigator.pop<SubjectPresetDialogResult>(context, (
+        presets: const [],
+        constraints: const [],
+      ));
+      return;
+    }
+    final validationMessage = _constraintValidationMessage();
+    if (validationMessage != null) {
+      _showConstraintValidation(validationMessage);
       return;
     }
     final warnings = [
@@ -545,19 +606,296 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
         cells: cells,
       ));
     }
-    Navigator.pop<SubjectPresetDialogResult>(context, edits);
+    Navigator.pop<SubjectPresetDialogResult>(context, (
+      presets: edits,
+      constraints: [
+        for (final draftKey in constraintDraftKeys)
+          (
+            scope: draftKey.scope,
+            scopeId: draftKey.scopeId,
+            stageId: draftKey.stageId,
+            constraints: [
+              for (final constraint in _constraintDrafts[draftKey]!.values)
+                if (_hasConstraintValue(constraint)) constraint,
+            ],
+          ),
+      ],
+    ));
+  }
+
+  bool _hasConstraintValue(SubjectLessonConstraint constraint) =>
+      constraint.minimumDailyLessons != null ||
+      constraint.maximumDailyLessons != null ||
+      constraint.minimumDailyConsecutivePairs != null ||
+      constraint.maximumDailyConsecutivePairs != null ||
+      constraint.minimumWeeklyConsecutivePairs != null ||
+      constraint.maximumWeeklyConsecutivePairs != null;
+
+  void _updateConstraintField(int? weekday, String field, String rawValue) {
+    final draft = _loadConstraintDraft(_currentDraftKey);
+    final old = draft[weekday];
+    final value = rawValue.isEmpty ? null : int.tryParse(rawValue);
+    final updated = SubjectLessonConstraint(
+      id: old?.id ?? '',
+      subjectId: widget.subject.id,
+      scope: _scope,
+      scopeId: _scopeId,
+      stageId: _activeStageId,
+      weekday: weekday,
+      minimumDailyLessons: field == 'minDaily'
+          ? value
+          : old?.minimumDailyLessons,
+      maximumDailyLessons: field == 'maxDaily'
+          ? value
+          : old?.maximumDailyLessons,
+      minimumDailyConsecutivePairs: field == 'minDailyPairs'
+          ? value
+          : old?.minimumDailyConsecutivePairs,
+      maximumDailyConsecutivePairs: field == 'maxDailyPairs'
+          ? value
+          : old?.maximumDailyConsecutivePairs,
+      minimumWeeklyConsecutivePairs: field == 'minWeekly'
+          ? value
+          : old?.minimumWeeklyConsecutivePairs,
+      maximumWeeklyConsecutivePairs: field == 'maxWeekly'
+          ? value
+          : old?.maximumWeeklyConsecutivePairs,
+    );
+    setState(() {
+      if (_hasConstraintValue(updated)) {
+        draft[weekday] = updated;
+      } else {
+        draft.remove(weekday);
+      }
+      _dirtyConstraintDrafts.add(_currentDraftKey);
+    });
+  }
+
+  void _toggleConstraintDeletion(SubjectLessonConstraint constraint) {
+    final draftKey = (
+      scope: constraint.scope,
+      scopeId: constraint.scopeId,
+      stageId: constraint.stageId,
+    );
+    final entryKey = (
+      scope: constraint.scope,
+      scopeId: constraint.scopeId,
+      stageId: constraint.stageId,
+      weekday: constraint.weekday,
+    );
+    final draft = _loadConstraintDraft(draftKey);
+    setState(() {
+      final deletedSnapshot = _deletedConstraintSnapshots.remove(entryKey);
+      if (deletedSnapshot != null) {
+        draft[constraint.weekday] = deletedSnapshot;
+      } else {
+        final current = draft[constraint.weekday] ?? constraint;
+        draft.remove(constraint.weekday);
+        final wasPersisted = widget.constraints.any(
+          (item) =>
+              item.scope == entryKey.scope &&
+              item.scopeId == entryKey.scopeId &&
+              item.stageId == entryKey.stageId &&
+              item.weekday == entryKey.weekday,
+        );
+        if (wasPersisted) _deletedConstraintSnapshots[entryKey] = current;
+      }
+      _dirtyConstraintDrafts.add(draftKey);
+    });
+  }
+
+  List<SubjectLessonConstraint> _constraintsWithDrafts() {
+    final result = widget.constraints
+        .where(
+          (constraint) => !_dirtyConstraintDrafts.any(
+            (key) =>
+                constraint.scope == key.scope &&
+                constraint.scopeId == key.scopeId &&
+                constraint.stageId == key.stageId,
+          ),
+        )
+        .toList();
+    for (final key in _dirtyConstraintDrafts) {
+      for (final constraint in _constraintDrafts[key]!.values) {
+        if (_hasConstraintValue(constraint)) result.add(constraint);
+      }
+    }
+    return result;
+  }
+
+  String? _constraintValidationMessage() {
+    final constraints = _constraintsWithDrafts();
+    try {
+      SubjectLessonConstraint.validate(constraints);
+    } on ArgumentError catch (error) {
+      return error.message.toString();
+    }
+
+    final affectedScopes =
+        <
+          ({
+            FreeSlotScope scope,
+            String scopeId,
+            String stageId,
+            String? parentGradeId,
+          })
+        >{};
+    for (final key in _dirtyConstraintDrafts) {
+      switch (key.scope) {
+        case FreeSlotScope.stage:
+          affectedScopes.add((
+            scope: key.scope,
+            scopeId: key.scopeId,
+            stageId: key.stageId,
+            parentGradeId: null,
+          ));
+          for (final grade in widget.grades.where(
+            (grade) => grade.stageId == key.scopeId,
+          )) {
+            affectedScopes.add((
+              scope: FreeSlotScope.grade,
+              scopeId: grade.id,
+              stageId: grade.stageId,
+              parentGradeId: null,
+            ));
+            for (final schoolClass in widget.classes.where(
+              (schoolClass) => schoolClass.gradeId == grade.id,
+            )) {
+              affectedScopes.add((
+                scope: FreeSlotScope.schoolClass,
+                scopeId: schoolClass.id,
+                stageId: grade.stageId,
+                parentGradeId: grade.id,
+              ));
+            }
+          }
+        case FreeSlotScope.grade:
+          affectedScopes.add((
+            scope: key.scope,
+            scopeId: key.scopeId,
+            stageId: key.stageId,
+            parentGradeId: null,
+          ));
+          for (final schoolClass in widget.classes.where(
+            (schoolClass) => schoolClass.gradeId == key.scopeId,
+          )) {
+            affectedScopes.add((
+              scope: FreeSlotScope.schoolClass,
+              scopeId: schoolClass.id,
+              stageId: key.stageId,
+              parentGradeId: key.scopeId,
+            ));
+          }
+        case FreeSlotScope.schoolClass:
+          final parentGradeId = widget.classes
+              .where((item) => item.id == key.scopeId)
+              .firstOrNull
+              ?.gradeId;
+          affectedScopes.add((
+            scope: key.scope,
+            scopeId: key.scopeId,
+            stageId: key.stageId,
+            parentGradeId: parentGradeId,
+          ));
+        case FreeSlotScope.school:
+          break;
+      }
+    }
+
+    final resolutionCache =
+        <
+          ({
+            FreeSlotScope scope,
+            String scopeId,
+            String stageId,
+            String? parentGradeId,
+            int? weekday,
+          }),
+          EffectiveSubjectLessonConstraints
+        >{};
+    EffectiveSubjectLessonConstraints resolve(
+      ({
+        FreeSlotScope scope,
+        String scopeId,
+        String stageId,
+        String? parentGradeId,
+      })
+      context,
+      int? weekday,
+    ) => resolutionCache.putIfAbsent(
+      (
+        scope: context.scope,
+        scopeId: context.scopeId,
+        stageId: context.stageId,
+        parentGradeId: context.parentGradeId,
+        weekday: weekday,
+      ),
+      () => resolveSubjectLessonConstraints(
+        constraints: constraints,
+        scope: context.scope,
+        scopeId: context.scopeId,
+        stageId: context.stageId,
+        parentGradeId: context.parentGradeId,
+        weekday: weekday,
+      ),
+    );
+
+    for (final scope in affectedScopes) {
+      final weekdays =
+          widget.routines[scope.stageId]?.teachingWeekdays ??
+          const <int>{1, 2, 3, 4, 5, 6, 7};
+      for (final weekday in weekdays) {
+        final effective = resolve(scope, weekday);
+        if (effective.minimumDailyLessons != null &&
+            effective.maximumDailyLessons != null &&
+            effective.minimumDailyLessons! > effective.maximumDailyLessons!) {
+          return '单日最少课节数不能大于最多课节数';
+        }
+        if (effective.minimumDailyConsecutivePairs != null &&
+            effective.maximumDailyConsecutivePairs != null &&
+            effective.minimumDailyConsecutivePairs! >
+                effective.maximumDailyConsecutivePairs!) {
+          return '单日最少连堂次数不能大于最多连堂次数';
+        }
+      }
+      final weekly = resolve(scope, null);
+      if (weekly.minimumWeeklyConsecutivePairs != null &&
+          weekly.maximumWeeklyConsecutivePairs != null &&
+          weekly.minimumWeeklyConsecutivePairs! >
+              weekly.maximumWeeklyConsecutivePairs!) {
+        return '每周最少连堂次数不能大于最多连堂次数';
+      }
+    }
+    return null;
+  }
+
+  void _showConstraintValidation(String message) {
+    showAppDialog<void>(
+      context: context,
+      builder: (context) => AppDialog(
+        title: const Text('限制数值有误'),
+        content: Text(message),
+        actions: [
+          AppPrimaryButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('知道了'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AppDialog(
       maxWidth: 1080,
-      title: Text('科目预设 · ${widget.subject.name}'),
+      title: Text('科目高级设置 · ${widget.subject.name}'),
       content: LayoutBuilder(
         builder: (context, constraints) {
-          final scopeTree = _buildScopeTree();
-          final editor = _buildEditor();
-          if (constraints.maxWidth >= 800) {
+          final isWideLayout = constraints.maxWidth >= 800;
+          final scopeTree = _buildScopeTree(scrollable: isWideLayout);
+          final editor = _buildEditor(scrollable: isWideLayout);
+          if (isWideLayout) {
             return SizedBox(
               width: 1032,
               child: Row(
@@ -571,12 +909,9 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
             );
           }
           return Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: 210, child: scopeTree),
-              const SizedBox(height: 12),
-              editor,
-            ],
+            children: [scopeTree, const SizedBox(height: 12), editor],
           );
         },
       ),
@@ -587,13 +922,13 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
         ),
         AppPrimaryButton(
           onPressed: _activeRoutine == null ? null : _save,
-          child: const Text('保存预设'),
+          child: const Text('保存设置'),
         ),
       ],
     );
   }
 
-  Widget _buildEditor() {
+  Widget _buildEditor({required bool scrollable}) {
     final routine = _activeRoutine;
     final weekdays = routine == null
         ? <int>[]
@@ -614,103 +949,536 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
             : math.max(72.0, (availableWidth - labelWidth) / weekdays.length);
         final tableWidth = labelWidth + dayWidth * weekdays.length;
         var lessonSequence = 0;
-        return ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 490),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  '预设不区分单双周；空白格为自动。节次和上课日按当前范围学段的作息显示。保存会提交本次修改的范围。',
-                  style: TextStyle(color: AppTheme.muted, fontSize: 11.5),
+        final presetsContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildEditorNote(
+              'subject-settings-presets-description',
+              '预设不区分单双周；空白格为自动。节次和上课日按当前范围学段的作息显示。保存会提交本次修改的范围。',
+            ),
+            const SizedBox(height: 8),
+            if (routine == null)
+              const SizedBox(
+                height: 120,
+                child: Center(
+                  child: Text(
+                    '该学段尚未配置作息，无法编辑预设。',
+                    style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                  ),
                 ),
-                const SizedBox(height: 10),
-                if (routine == null)
-                  const SizedBox(
-                    height: 120,
-                    child: Center(
-                      child: Text(
-                        '该学段尚未配置作息，无法编辑预设。',
-                        style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              )
+            else if (weekdays.isEmpty)
+              const SizedBox(
+                height: 80,
+                child: Center(
+                  child: Text(
+                    '该学段暂无上课日',
+                    style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                  ),
+                ),
+              )
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      _GridHeader(
+                        weekdays: weekdays,
+                        labelWidth: labelWidth,
+                        dayWidth: dayWidth,
                       ),
-                    ),
-                  )
-                else if (weekdays.isEmpty)
-                  const SizedBox(
-                    height: 80,
-                    child: Center(
-                      child: Text(
-                        '该学段暂无上课日',
-                        style: TextStyle(color: AppTheme.muted, fontSize: 12),
-                      ),
-                    ),
-                  )
-                else
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: tableWidth,
-                      child: Column(
-                        children: [
-                          _GridHeader(
-                            weekdays: weekdays,
+                      for (final period in periods)
+                        for (
+                          var lesson = 1;
+                          lesson <=
+                              _maxLessonCount(routine, period.id, weekdays);
+                          lesson++
+                        )
+                          _LessonRow(
+                            label: period.name.contains('早')
+                                ? '早$lesson'
+                                : period.name.contains('晚')
+                                ? '晚$lesson'
+                                : '第 ${++lessonSequence} 节',
                             labelWidth: labelWidth,
                             dayWidth: dayWidth,
-                          ),
-                          for (final period in periods)
-                            for (
-                              var lesson = 1;
-                              lesson <=
-                                  _maxLessonCount(routine, period.id, weekdays);
-                              lesson++
-                            )
-                              _LessonRow(
-                                label: period.name.contains('早')
-                                    ? '早$lesson'
-                                    : period.name.contains('晚')
-                                    ? '晚$lesson'
-                                    : '第 ${++lessonSequence} 节',
-                                labelWidth: labelWidth,
-                                dayWidth: dayWidth,
-                                visual: periodVisualFor(
-                                  period.name,
-                                  period.sortOrder,
+                            visual: periodVisualFor(
+                              period.name,
+                              period.sortOrder,
+                            ),
+                            lessonIndex: lesson,
+                            weekdays: weekdays,
+                            lessonCounts: {
+                              for (final weekday in weekdays)
+                                weekday: routine.effectiveLessonCount(
+                                  period.id,
+                                  weekday,
                                 ),
-                                lessonIndex: lesson,
-                                weekdays: weekdays,
-                                lessonCounts: {
-                                  for (final weekday in weekdays)
-                                    weekday: routine.effectiveLessonCount(
-                                      period.id,
-                                      weekday,
-                                    ),
-                                },
-                                periodTypeId: period.id,
-                                grid: _grid,
-                                resolveExemption: (weekday, lessonIndex) =>
-                                    _effectiveFreeSlot(
-                                      _currentDraftKey,
-                                      weekday,
-                                      period.id,
-                                      lessonIndex,
-                                    ),
-                                onCycle: _cycleCell,
-                                onSet: _setCell,
-                                onClear: _clearPresetCell,
-                              ),
-                        ],
-                      ),
-                    ),
+                            },
+                            periodTypeId: period.id,
+                            grid: _grid,
+                            resolveExemption: (weekday, lessonIndex) =>
+                                _effectiveFreeSlot(
+                                  _currentDraftKey,
+                                  weekday,
+                                  period.id,
+                                  lessonIndex,
+                                ),
+                            onCycle: _cycleCell,
+                            onSet: _setCell,
+                            onClear: _clearPresetCell,
+                          ),
+                    ],
                   ),
-                const SizedBox(height: 14),
-                _buildAllPresetsSection(),
+                ),
+              ),
+            const SizedBox(height: 14),
+            _buildAllPresetsSection(),
+          ],
+        );
+        final constraintsContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (routine != null)
+              _buildConstraintEditor(
+                weekdays: weekdays,
+                labelWidth: labelWidth,
+                dayWidth: dayWidth,
+              ),
+            _buildAllLessonConstraintsSection(),
+          ],
+        );
+        Widget settingsTab({
+          required int index,
+          required String label,
+          required String key,
+        }) {
+          final isSelected = _selectedEditorTabIndex == index;
+          return InkWell(
+            key: ValueKey(key),
+            onTap: () => setState(() {
+              _selectedEditorTabIndex = index;
+            }),
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppTheme.blue : AppTheme.muted,
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+          );
+        }
+
+        final tabs = DecoratedBox(
+          key: const ValueKey('subject-settings-tabs-container'),
+          decoration: BoxDecoration(
+            color: AppTheme.tableHeader,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                settingsTab(
+                  index: 0,
+                  label: '科目预设',
+                  key: 'subject-settings-tab-presets',
+                ),
+                settingsTab(
+                  index: 1,
+                  label: '课节限制',
+                  key: 'subject-settings-tab-constraints',
+                ),
               ],
             ),
+          ),
+        );
+        final selectedContent = _selectedEditorTabIndex == 0
+            ? presetsContent
+            : constraintsContent;
+
+        if (!scrollable) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              tabs,
+              const Divider(
+                key: ValueKey('subject-settings-content-divider'),
+                height: 1,
+                color: AppTheme.border,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: selectedContent,
+              ),
+            ],
+          );
+        }
+
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 490),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              tabs,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Divider(
+                      key: ValueKey('subject-settings-content-divider'),
+                      height: 1,
+                      color: AppTheme.border,
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: selectedContent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
     );
   }
+
+  Widget _buildConstraintEditor({
+    required List<int> weekdays,
+    required double labelWidth,
+    required double dayWidth,
+  }) {
+    final draft = _loadConstraintDraft(_currentDraftKey);
+    final effectiveConstraints = _constraintsWithDrafts();
+    final classBrief = _scope == FreeSlotScope.schoolClass
+        ? widget.classes.where((item) => item.id == _scopeId).firstOrNull
+        : null;
+    final width = labelWidth + dayWidth * weekdays.length;
+    final resolvedByWeekday = <int?, EffectiveSubjectLessonConstraints>{};
+
+    EffectiveSubjectLessonConstraints resolve(int? weekday) =>
+        resolvedByWeekday.putIfAbsent(
+          weekday,
+          () => resolveSubjectLessonConstraints(
+            constraints: effectiveConstraints,
+            scope: _scope,
+            scopeId: _scopeId,
+            stageId: _activeStageId,
+            parentGradeId: classBrief?.gradeId,
+            weekday: weekday,
+          ),
+        );
+
+    Widget labelCell(
+      String label, {
+      bool header = false,
+      bool centered = false,
+    }) => Container(
+      width: labelWidth,
+      height: 38,
+      alignment: centered ? Alignment.center : Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: header ? AppTheme.tableHeader : AppTheme.canvas,
+        border: const Border(
+          right: BorderSide(color: Colors.white),
+          bottom: BorderSide(color: Colors.white),
+        ),
+      ),
+      child: Text(
+        label,
+        textAlign: centered ? TextAlign.center : TextAlign.start,
+        style: TextStyle(
+          color: header ? AppTheme.inkSecondary : AppTheme.muted,
+          fontSize: 11,
+          fontWeight: header ? FontWeight.w600 : FontWeight.w500,
+        ),
+      ),
+    );
+
+    Widget headerCell(String label) => Container(
+      width: dayWidth,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: AppTheme.tableHeader,
+        border: Border(
+          right: BorderSide(color: Colors.white),
+          bottom: BorderSide(color: Colors.white),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+
+    int? localValue(SubjectLessonConstraint? constraint, String field) =>
+        switch (field) {
+          'minDaily' => constraint?.minimumDailyLessons,
+          'maxDaily' => constraint?.maximumDailyLessons,
+          'minDailyPairs' => constraint?.minimumDailyConsecutivePairs,
+          'maxDailyPairs' => constraint?.maximumDailyConsecutivePairs,
+          _ => null,
+        };
+
+    int? effectiveValue(
+      EffectiveSubjectLessonConstraints constraints,
+      String field,
+    ) => switch (field) {
+      'minDaily' => constraints.minimumDailyLessons,
+      'maxDaily' => constraints.maximumDailyLessons,
+      'minDailyPairs' => constraints.minimumDailyConsecutivePairs,
+      'maxDailyPairs' => constraints.maximumDailyConsecutivePairs,
+      _ => null,
+    };
+
+    Widget dailyRow(String label, String field, String unit) => Row(
+      children: [
+        Container(
+          width: labelWidth,
+          height: 38,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: const BoxDecoration(
+            color: AppTheme.selectedBlue,
+            border: Border(
+              right: BorderSide(color: Colors.white),
+              bottom: BorderSide(color: Colors.white),
+            ),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                key: ValueKey('constraint-daily-label-$field'),
+                width: 38,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.start,
+                  style: TextStyle(
+                    color: AppTheme.muted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              _constraintInput(
+                weekday: null,
+                field: field,
+                value: localValue(draft[null], field),
+                inherited: effectiveValue(resolve(null), field),
+                width: 28,
+                compact: true,
+                dailyCell: true,
+              ),
+              const SizedBox(width: 2),
+              SizedBox(
+                key: ValueKey('constraint-daily-unit-$field'),
+                width: 12,
+                child: Text(
+                  unit,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(color: AppTheme.muted, fontSize: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final weekday in weekdays)
+          Builder(
+            builder: (context) {
+              final local = draft[weekday];
+              final effective = resolve(weekday);
+              final value = localValue(local, field);
+              final inherited = effectiveValue(effective, field);
+              return Container(
+                width: dayWidth,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: AppTheme.selectedBlue,
+                  border: Border(
+                    right: BorderSide(color: Colors.white),
+                    bottom: BorderSide(color: Colors.white),
+                  ),
+                ),
+                child: _constraintInput(
+                  weekday: weekday,
+                  field: field,
+                  value: value,
+                  inherited: inherited,
+                  width: dayWidth,
+                  dailyCell: true,
+                ),
+              );
+            },
+          ),
+      ],
+    );
+
+    final defaultRow = draft[null];
+    final weekly = resolve(null);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: width,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildEditorNote(
+              'subject-settings-constraints-description',
+              '左侧“每天”值应用于所有上课日；星期输入覆盖该日对应字段。每日连堂按同一天、同一时段内的相邻双节组数计算，连续 3 节计 2 次。每周连堂上下限为全周总量，单双周共用。空白继承上级范围或“每天”设置，0 表示不设下限 / 不允许上限。',
+            ),
+            Row(
+              children: [
+                labelCell('每天', header: true, centered: true),
+                for (final weekday in weekdays)
+                  headerCell(_weekdayLabel(weekday)),
+              ],
+            ),
+            dailyRow('最少', 'minDaily', '节'),
+            dailyRow('最多', 'maxDaily', '节'),
+            dailyRow('最多连堂', 'maxDailyPairs', '次'),
+            dailyRow('最少连堂', 'minDailyPairs', '次'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                labelCell('每周连堂组数'),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('最少', style: TextStyle(fontSize: 11)),
+                        _constraintInput(
+                          weekday: null,
+                          field: 'minWeekly',
+                          value: defaultRow?.minimumWeeklyConsecutivePairs,
+                          inherited: weekly.minimumWeeklyConsecutivePairs,
+                          width: 72,
+                        ),
+                        const Text('最多', style: TextStyle(fontSize: 11)),
+                        _constraintInput(
+                          weekday: null,
+                          field: 'maxWeekly',
+                          value: defaultRow?.maximumWeeklyConsecutivePairs,
+                          inherited: weekly.maximumWeeklyConsecutivePairs,
+                          width: 72,
+                        ),
+                        const Text(
+                          '同一天、同一时段的相邻双节数',
+                          style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _constraintInput({
+    required int? weekday,
+    required String field,
+    required int? value,
+    required int? inherited,
+    required double width,
+    bool compact = false,
+    bool dailyCell = false,
+  }) => SizedBox(
+    width: width,
+    height: compact ? 24 : 38,
+    child: Padding(
+      padding: compact ? EdgeInsets.zero : const EdgeInsets.all(3),
+      child: TextFormField(
+        key: ValueKey(
+          'constraint-${_scope.storageValue}-$_scopeId-${weekday ?? 'daily'}-$field',
+        ),
+        initialValue: value?.toString() ?? '',
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: compact ? 11 : 12),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: inherited?.toString(),
+          hintStyle: TextStyle(
+            color: AppTheme.helpIcon,
+            fontSize: compact ? 9 : 12,
+          ),
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: compact ? 1 : 5,
+            vertical: compact ? 4 : 8,
+          ),
+          filled: true,
+          fillColor: dailyCell ? AppTheme.selectedBlue : Colors.white,
+          border: dailyCell
+              ? InputBorder.none
+              : OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: AppTheme.border),
+                ),
+          enabledBorder: dailyCell
+              ? InputBorder.none
+              : OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: AppTheme.border),
+                ),
+          focusedBorder: dailyCell
+              ? OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: const BorderSide(color: AppTheme.blue),
+                )
+              : OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(
+                    color: AppTheme.blue,
+                    width: 1.4,
+                  ),
+                ),
+        ),
+        onChanged: (value) => _updateConstraintField(weekday, field, value),
+      ),
+    ),
+  );
+
+  String _weekdayLabel(int weekday) =>
+      const ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][weekday - 1];
+
+  Widget _buildEditorNote(String key, String text) => Padding(
+    key: ValueKey('$key-padding'),
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Text(
+      text,
+      key: ValueKey(key),
+      style: const TextStyle(color: AppTheme.muted, fontSize: 11, height: 1.45),
+    ),
+  );
 
   Widget _buildAllPresetsSection() {
     final entries = _allPresetEntries();
@@ -725,7 +1493,7 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
           runSpacing: 4,
           children: [
             const Text(
-              '当前学期全部预设',
+              '当前学科全部预设',
               style: TextStyle(
                 color: AppTheme.inkSecondary,
                 fontSize: 12,
@@ -833,6 +1601,235 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
       ],
     );
   }
+
+  Widget _buildAllLessonConstraintsSection() {
+    final entries = _allConstraintEntries();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 1, color: AppTheme.border),
+        const SizedBox(height: 12),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 4,
+          children: [
+            const Text(
+              '当前科目全部课节限制',
+              style: TextStyle(
+                color: AppTheme.inkSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              '${entries.length} 项',
+              style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (entries.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Text(
+              '暂无课节限制',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+            ),
+          )
+        else
+          for (final entry in entries) ...[
+            if (entry != entries.first)
+              const Divider(height: 1, color: AppTheme.border),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                entry.rangeLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppTheme.ink,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: entry.deleted
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            if (entry.pending || entry.deleted) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                entry.deleted ? '待删除' : '未保存',
+                                style: TextStyle(
+                                  color: entry.deleted
+                                      ? AppTheme.destructive
+                                      : AppTheme.warning,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          entry.ruleLabel,
+                          style: const TextStyle(
+                            color: AppTheme.muted,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    key: ValueKey(
+                      'constraint-delete-${entry.key.scope.name}-${entry.key.scopeId}-${entry.key.stageId}-${entry.key.weekday ?? 'daily'}',
+                    ),
+                    tooltip: entry.deleted ? '撤销删除' : '删除限制',
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 17,
+                    onPressed: () =>
+                        _toggleConstraintDeletion(entry.constraint),
+                    icon: Icon(
+                      entry.deleted ? Icons.undo : Icons.delete_outline,
+                      color: entry.deleted
+                          ? AppTheme.warning
+                          : AppTheme.destructive,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+      ],
+    );
+  }
+
+  List<_ConstraintListEntry> _allConstraintEntries() {
+    final stageById = {for (final stage in widget.stages) stage.id: stage};
+    final gradeById = {for (final grade in widget.grades) grade.id: grade};
+    final classById = {for (final item in widget.classes) item.id: item};
+    final entries = <_ConstraintEntryKey, _ConstraintListEntry>{};
+
+    void addEntry(SubjectLessonConstraint constraint, {bool deleted = false}) {
+      final stage = stageById[constraint.stageId];
+      final stageLabel = stage?.name ?? constraint.stageId;
+      final grade = switch (constraint.scope) {
+        FreeSlotScope.grade => gradeById[constraint.scopeId],
+        FreeSlotScope.schoolClass =>
+          gradeById[classById[constraint.scopeId]?.gradeId],
+        _ => null,
+      };
+      final classBrief = constraint.scope == FreeSlotScope.schoolClass
+          ? classById[constraint.scopeId]
+          : null;
+      final rangeLabel = switch (constraint.scope) {
+        FreeSlotScope.school => '$stageLabel · 全校范围',
+        FreeSlotScope.stage => stageLabel,
+        FreeSlotScope.grade =>
+          '$stageLabel · ${grade?.name ?? constraint.scopeId}',
+        FreeSlotScope.schoolClass =>
+          '$stageLabel · ${grade?.name ?? ''} · ${classBrief?.name ?? constraint.scopeId}',
+      };
+      final dailyRules = <String>[
+        if (constraint.minimumDailyLessons case final value?) '最少 $value 节',
+        if (constraint.maximumDailyLessons case final value?) '最多 $value 节',
+        if (constraint.minimumDailyConsecutivePairs case final value?)
+          '最少连堂 $value 次',
+        if (constraint.maximumDailyConsecutivePairs case final value?)
+          '最多连堂 $value 次',
+      ];
+      final weeklyRules = <String>[
+        if (constraint.minimumWeeklyConsecutivePairs case final value?)
+          '最少 $value 次',
+        if (constraint.maximumWeeklyConsecutivePairs case final value?)
+          '最多 $value 次',
+      ];
+      final ruleParts = <String>[
+        if (dailyRules.isNotEmpty)
+          '${constraint.weekday == null ? '每天' : _weekdayLabel(constraint.weekday!)} · ${dailyRules.join(' · ')}',
+        if (weeklyRules.isNotEmpty) '每周连堂 ${weeklyRules.join(' · ')}',
+      ];
+      final original = widget.constraints
+          .where(
+            (item) =>
+                _constraintEntryKey(item) == _constraintEntryKey(constraint),
+          )
+          .firstOrNull;
+      final pending =
+          deleted ||
+          original == null ||
+          !_sameConstraintValues(original, constraint);
+      final scopeOrder = switch (constraint.scope) {
+        FreeSlotScope.school => 0,
+        FreeSlotScope.stage => 1,
+        FreeSlotScope.grade => 2,
+        FreeSlotScope.schoolClass => 3,
+      };
+      final key = _constraintEntryKey(constraint);
+      entries[key] = (
+        key: key,
+        constraint: constraint,
+        rangeLabel: rangeLabel,
+        ruleLabel: ruleParts.join('；'),
+        pending: pending,
+        deleted: deleted,
+        stageOrder: stage?.sortOrder ?? 0,
+        scopeOrder: scopeOrder,
+      );
+    }
+
+    for (final constraint in _constraintsWithDrafts()) {
+      addEntry(constraint);
+    }
+    for (final constraint in _deletedConstraintSnapshots.values) {
+      addEntry(constraint, deleted: true);
+    }
+
+    return entries.values.toList()..sort((a, b) {
+      var order = a.stageOrder.compareTo(b.stageOrder);
+      if (order != 0) return order;
+      order = a.scopeOrder.compareTo(b.scopeOrder);
+      if (order != 0) return order;
+      order = a.rangeLabel.compareTo(b.rangeLabel);
+      if (order != 0) return order;
+      return (a.key.weekday ?? 0).compareTo(b.key.weekday ?? 0);
+    });
+  }
+
+  _ConstraintEntryKey _constraintEntryKey(SubjectLessonConstraint constraint) =>
+      (
+        scope: constraint.scope,
+        scopeId: constraint.scopeId,
+        stageId: constraint.stageId,
+        weekday: constraint.weekday,
+      );
+
+  bool _sameConstraintValues(
+    SubjectLessonConstraint first,
+    SubjectLessonConstraint second,
+  ) =>
+      first.minimumDailyLessons == second.minimumDailyLessons &&
+      first.maximumDailyLessons == second.maximumDailyLessons &&
+      first.minimumDailyConsecutivePairs ==
+          second.minimumDailyConsecutivePairs &&
+      first.maximumDailyConsecutivePairs ==
+          second.maximumDailyConsecutivePairs &&
+      first.minimumWeeklyConsecutivePairs ==
+          second.minimumWeeklyConsecutivePairs &&
+      first.maximumWeeklyConsecutivePairs ==
+          second.maximumWeeklyConsecutivePairs;
 
   List<_PresetListEntry> _allPresetEntries() {
     final stageById = {for (final stage in widget.stages) stage.id: stage};
@@ -1044,16 +2041,25 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
     return result;
   }
 
-  Widget _buildScopeTree() => AppSectionPanel(
+  Widget _buildScopeTree({required bool scrollable}) => AppSectionPanel(
     title: '应用范围',
     padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-    expandChild: true,
-    child: SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [for (final stage in _orderedStages) _buildStageNode(stage)],
-      ),
-    ),
+    expandChild: scrollable,
+    child: scrollable
+        ? SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final stage in _orderedStages) _buildStageNode(stage),
+              ],
+            ),
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final stage in _orderedStages) _buildStageNode(stage),
+            ],
+          ),
   );
 
   Widget _buildStageNode(SchoolStage stage) {

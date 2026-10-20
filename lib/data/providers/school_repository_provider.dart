@@ -8,6 +8,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final schoolRepositoryProvider = Provider<SchoolRepository>(
@@ -56,8 +57,9 @@ final subjectsProvider = StreamProvider<List<Subject>>(
 /// 某年级的科目节数需求流（年级默认 + 按班覆盖）。
 final gradeRequirementsProvider =
     StreamProvider.family<List<SubjectRequirement>, String>(
-      (ref, gradeId) =>
-          ref.watch(schoolRepositoryProvider).watchRequirementsForGrade(gradeId),
+      (ref, gradeId) => ref
+          .watch(schoolRepositoryProvider)
+          .watchRequirementsForGrade(gradeId),
     );
 
 /// 全校科目节数需求流（客户端按学段/年级过滤）。
@@ -66,11 +68,10 @@ final allRequirementsProvider = StreamProvider<List<SubjectRequirement>>(
 );
 
 /// 某学段下班级简要信息流（按年级/班级顺序）。
-final stageClassesProvider =
-    StreamProvider.family<List<ClassBrief>, String>(
-      (ref, stageId) =>
-          ref.watch(schoolRepositoryProvider).watchClassesForStage(stageId),
-    );
+final stageClassesProvider = StreamProvider.family<List<ClassBrief>, String>(
+  (ref, stageId) =>
+      ref.watch(schoolRepositoryProvider).watchClassesForStage(stageId),
+);
 
 /// 某科目的预设行流（按范围 / 学段客户端过滤）。
 final subjectPresetsProvider =
@@ -84,24 +85,36 @@ final allPresetsProvider = StreamProvider<List<SubjectPreset>>(
   (ref) => ref.watch(schoolRepositoryProvider).watchAllPresets(),
 );
 
+/// 某科目的单日课节与每周连堂限制。
+final subjectLessonConstraintsProvider =
+    StreamProvider.family<List<SubjectLessonConstraint>, String>(
+      (ref, subjectId) => ref
+          .watch(schoolRepositoryProvider)
+          .watchLessonConstraintsForSubject(subjectId),
+    );
+
+/// 全部科目的单日课节与每周连堂限制。
+final allSubjectLessonConstraintsProvider =
+    StreamProvider<List<SubjectLessonConstraint>>(
+      (ref) => ref.watch(schoolRepositoryProvider).watchAllLessonConstraints(),
+    );
+
 /// 全校课程配对流（按班级客户端过滤）。
 final allPairingsProvider = StreamProvider<List<SubjectPairing>>(
   (ref) => ref.watch(schoolRepositoryProvider).watchAllPairings(),
 );
 
 /// 某学期全部年级流（按学段顺序）。
-final gradesForTermProvider =
-    StreamProvider.family<List<GradeGroup>, String>(
-      (ref, termId) =>
-          ref.watch(schoolRepositoryProvider).watchGradesForTerm(termId),
-    );
+final gradesForTermProvider = StreamProvider.family<List<GradeGroup>, String>(
+  (ref, termId) =>
+      ref.watch(schoolRepositoryProvider).watchGradesForTerm(termId),
+);
 
 /// 某学期全部班级简要信息流。
-final classesForTermProvider =
-    StreamProvider.family<List<ClassBrief>, String>(
-      (ref, termId) =>
-          ref.watch(schoolRepositoryProvider).watchClassesForTerm(termId),
-    );
+final classesForTermProvider = StreamProvider.family<List<ClassBrief>, String>(
+  (ref, termId) =>
+      ref.watch(schoolRepositoryProvider).watchClassesForTerm(termId),
+);
 
 /// 某学期各学段作息流（stageId → 作息）。
 final routinesForTermProvider =
@@ -111,8 +124,7 @@ final routinesForTermProvider =
     );
 
 /// 某学期全部免任课格流。
-final freeSlotsForTermProvider =
-    StreamProvider.family<List<FreeSlot>, String>(
-      (ref, termId) =>
-          ref.watch(schoolRepositoryProvider).watchFreeSlotsForTerm(termId),
-    );
+final freeSlotsForTermProvider = StreamProvider.family<List<FreeSlot>, String>(
+  (ref, termId) =>
+      ref.watch(schoolRepositoryProvider).watchFreeSlotsForTerm(termId),
+);

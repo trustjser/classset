@@ -6117,6 +6117,846 @@ class SubjectPairingsCompanion extends UpdateCompanion<SubjectPairing> {
   }
 }
 
+class $SubjectLessonConstraintsTable extends SubjectLessonConstraints
+    with TableInfo<$SubjectLessonConstraintsTable, SubjectLessonConstraint> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectLessonConstraintsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scopeTypeMeta = const VerificationMeta(
+    'scopeType',
+  );
+  @override
+  late final GeneratedColumn<String> scopeType = GeneratedColumn<String>(
+    'scope_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeIdMeta = const VerificationMeta(
+    'scopeId',
+  );
+  @override
+  late final GeneratedColumn<String> scopeId = GeneratedColumn<String>(
+    'scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stageIdMeta = const VerificationMeta(
+    'stageId',
+  );
+  @override
+  late final GeneratedColumn<String> stageId = GeneratedColumn<String>(
+    'stage_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES school_stages (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _weekdayMeta = const VerificationMeta(
+    'weekday',
+  );
+  @override
+  late final GeneratedColumn<int> weekday = GeneratedColumn<int>(
+    'weekday',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _minimumDailyLessonsMeta =
+      const VerificationMeta('minimumDailyLessons');
+  @override
+  late final GeneratedColumn<int> minimumDailyLessons = GeneratedColumn<int>(
+    'minimum_daily_lessons',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _maximumDailyLessonsMeta =
+      const VerificationMeta('maximumDailyLessons');
+  @override
+  late final GeneratedColumn<int> maximumDailyLessons = GeneratedColumn<int>(
+    'maximum_daily_lessons',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _minimumDailyConsecutivePairsMeta =
+      const VerificationMeta('minimumDailyConsecutivePairs');
+  @override
+  late final GeneratedColumn<int> minimumDailyConsecutivePairs =
+      GeneratedColumn<int>(
+        'minimum_daily_consecutive_pairs',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _maximumDailyConsecutivePairsMeta =
+      const VerificationMeta('maximumDailyConsecutivePairs');
+  @override
+  late final GeneratedColumn<int> maximumDailyConsecutivePairs =
+      GeneratedColumn<int>(
+        'maximum_daily_consecutive_pairs',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _minimumWeeklyConsecutivePairsMeta =
+      const VerificationMeta('minimumWeeklyConsecutivePairs');
+  @override
+  late final GeneratedColumn<int> minimumWeeklyConsecutivePairs =
+      GeneratedColumn<int>(
+        'minimum_weekly_consecutive_pairs',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _maximumWeeklyConsecutivePairsMeta =
+      const VerificationMeta('maximumWeeklyConsecutivePairs');
+  @override
+  late final GeneratedColumn<int> maximumWeeklyConsecutivePairs =
+      GeneratedColumn<int>(
+        'maximum_weekly_consecutive_pairs',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    subjectId,
+    scopeType,
+    scopeId,
+    stageId,
+    weekday,
+    minimumDailyLessons,
+    maximumDailyLessons,
+    minimumDailyConsecutivePairs,
+    maximumDailyConsecutivePairs,
+    minimumWeeklyConsecutivePairs,
+    maximumWeeklyConsecutivePairs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_lesson_constraints';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubjectLessonConstraint> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('scope_type')) {
+      context.handle(
+        _scopeTypeMeta,
+        scopeType.isAcceptableOrUnknown(data['scope_type']!, _scopeTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeTypeMeta);
+    }
+    if (data.containsKey('scope_id')) {
+      context.handle(
+        _scopeIdMeta,
+        scopeId.isAcceptableOrUnknown(data['scope_id']!, _scopeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeIdMeta);
+    }
+    if (data.containsKey('stage_id')) {
+      context.handle(
+        _stageIdMeta,
+        stageId.isAcceptableOrUnknown(data['stage_id']!, _stageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stageIdMeta);
+    }
+    if (data.containsKey('weekday')) {
+      context.handle(
+        _weekdayMeta,
+        weekday.isAcceptableOrUnknown(data['weekday']!, _weekdayMeta),
+      );
+    }
+    if (data.containsKey('minimum_daily_lessons')) {
+      context.handle(
+        _minimumDailyLessonsMeta,
+        minimumDailyLessons.isAcceptableOrUnknown(
+          data['minimum_daily_lessons']!,
+          _minimumDailyLessonsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('maximum_daily_lessons')) {
+      context.handle(
+        _maximumDailyLessonsMeta,
+        maximumDailyLessons.isAcceptableOrUnknown(
+          data['maximum_daily_lessons']!,
+          _maximumDailyLessonsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('minimum_daily_consecutive_pairs')) {
+      context.handle(
+        _minimumDailyConsecutivePairsMeta,
+        minimumDailyConsecutivePairs.isAcceptableOrUnknown(
+          data['minimum_daily_consecutive_pairs']!,
+          _minimumDailyConsecutivePairsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('maximum_daily_consecutive_pairs')) {
+      context.handle(
+        _maximumDailyConsecutivePairsMeta,
+        maximumDailyConsecutivePairs.isAcceptableOrUnknown(
+          data['maximum_daily_consecutive_pairs']!,
+          _maximumDailyConsecutivePairsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('minimum_weekly_consecutive_pairs')) {
+      context.handle(
+        _minimumWeeklyConsecutivePairsMeta,
+        minimumWeeklyConsecutivePairs.isAcceptableOrUnknown(
+          data['minimum_weekly_consecutive_pairs']!,
+          _minimumWeeklyConsecutivePairsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('maximum_weekly_consecutive_pairs')) {
+      context.handle(
+        _maximumWeeklyConsecutivePairsMeta,
+        maximumWeeklyConsecutivePairs.isAcceptableOrUnknown(
+          data['maximum_weekly_consecutive_pairs']!,
+          _maximumWeeklyConsecutivePairsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {subjectId, scopeType, scopeId, stageId, weekday},
+  ];
+  @override
+  SubjectLessonConstraint map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectLessonConstraint(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      scopeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_type'],
+      )!,
+      scopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_id'],
+      )!,
+      stageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage_id'],
+      )!,
+      weekday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}weekday'],
+      ),
+      minimumDailyLessons: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}minimum_daily_lessons'],
+      ),
+      maximumDailyLessons: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}maximum_daily_lessons'],
+      ),
+      minimumDailyConsecutivePairs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}minimum_daily_consecutive_pairs'],
+      ),
+      maximumDailyConsecutivePairs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}maximum_daily_consecutive_pairs'],
+      ),
+      minimumWeeklyConsecutivePairs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}minimum_weekly_consecutive_pairs'],
+      ),
+      maximumWeeklyConsecutivePairs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}maximum_weekly_consecutive_pairs'],
+      ),
+    );
+  }
+
+  @override
+  $SubjectLessonConstraintsTable createAlias(String alias) {
+    return $SubjectLessonConstraintsTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectLessonConstraint extends DataClass
+    implements Insertable<SubjectLessonConstraint> {
+  final String id;
+  final String subjectId;
+  final String scopeType;
+  final String scopeId;
+  final String stageId;
+
+  /// null 表示“每天”；1 到 7 覆盖某个星期。
+  final int? weekday;
+  final int? minimumDailyLessons;
+  final int? maximumDailyLessons;
+  final int? minimumDailyConsecutivePairs;
+  final int? maximumDailyConsecutivePairs;
+  final int? minimumWeeklyConsecutivePairs;
+  final int? maximumWeeklyConsecutivePairs;
+  const SubjectLessonConstraint({
+    required this.id,
+    required this.subjectId,
+    required this.scopeType,
+    required this.scopeId,
+    required this.stageId,
+    this.weekday,
+    this.minimumDailyLessons,
+    this.maximumDailyLessons,
+    this.minimumDailyConsecutivePairs,
+    this.maximumDailyConsecutivePairs,
+    this.minimumWeeklyConsecutivePairs,
+    this.maximumWeeklyConsecutivePairs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['subject_id'] = Variable<String>(subjectId);
+    map['scope_type'] = Variable<String>(scopeType);
+    map['scope_id'] = Variable<String>(scopeId);
+    map['stage_id'] = Variable<String>(stageId);
+    if (!nullToAbsent || weekday != null) {
+      map['weekday'] = Variable<int>(weekday);
+    }
+    if (!nullToAbsent || minimumDailyLessons != null) {
+      map['minimum_daily_lessons'] = Variable<int>(minimumDailyLessons);
+    }
+    if (!nullToAbsent || maximumDailyLessons != null) {
+      map['maximum_daily_lessons'] = Variable<int>(maximumDailyLessons);
+    }
+    if (!nullToAbsent || minimumDailyConsecutivePairs != null) {
+      map['minimum_daily_consecutive_pairs'] = Variable<int>(
+        minimumDailyConsecutivePairs,
+      );
+    }
+    if (!nullToAbsent || maximumDailyConsecutivePairs != null) {
+      map['maximum_daily_consecutive_pairs'] = Variable<int>(
+        maximumDailyConsecutivePairs,
+      );
+    }
+    if (!nullToAbsent || minimumWeeklyConsecutivePairs != null) {
+      map['minimum_weekly_consecutive_pairs'] = Variable<int>(
+        minimumWeeklyConsecutivePairs,
+      );
+    }
+    if (!nullToAbsent || maximumWeeklyConsecutivePairs != null) {
+      map['maximum_weekly_consecutive_pairs'] = Variable<int>(
+        maximumWeeklyConsecutivePairs,
+      );
+    }
+    return map;
+  }
+
+  SubjectLessonConstraintsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectLessonConstraintsCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      scopeType: Value(scopeType),
+      scopeId: Value(scopeId),
+      stageId: Value(stageId),
+      weekday: weekday == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weekday),
+      minimumDailyLessons: minimumDailyLessons == null && nullToAbsent
+          ? const Value.absent()
+          : Value(minimumDailyLessons),
+      maximumDailyLessons: maximumDailyLessons == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maximumDailyLessons),
+      minimumDailyConsecutivePairs:
+          minimumDailyConsecutivePairs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(minimumDailyConsecutivePairs),
+      maximumDailyConsecutivePairs:
+          maximumDailyConsecutivePairs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maximumDailyConsecutivePairs),
+      minimumWeeklyConsecutivePairs:
+          minimumWeeklyConsecutivePairs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(minimumWeeklyConsecutivePairs),
+      maximumWeeklyConsecutivePairs:
+          maximumWeeklyConsecutivePairs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maximumWeeklyConsecutivePairs),
+    );
+  }
+
+  factory SubjectLessonConstraint.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectLessonConstraint(
+      id: serializer.fromJson<String>(json['id']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+      scopeType: serializer.fromJson<String>(json['scopeType']),
+      scopeId: serializer.fromJson<String>(json['scopeId']),
+      stageId: serializer.fromJson<String>(json['stageId']),
+      weekday: serializer.fromJson<int?>(json['weekday']),
+      minimumDailyLessons: serializer.fromJson<int?>(
+        json['minimumDailyLessons'],
+      ),
+      maximumDailyLessons: serializer.fromJson<int?>(
+        json['maximumDailyLessons'],
+      ),
+      minimumDailyConsecutivePairs: serializer.fromJson<int?>(
+        json['minimumDailyConsecutivePairs'],
+      ),
+      maximumDailyConsecutivePairs: serializer.fromJson<int?>(
+        json['maximumDailyConsecutivePairs'],
+      ),
+      minimumWeeklyConsecutivePairs: serializer.fromJson<int?>(
+        json['minimumWeeklyConsecutivePairs'],
+      ),
+      maximumWeeklyConsecutivePairs: serializer.fromJson<int?>(
+        json['maximumWeeklyConsecutivePairs'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'subjectId': serializer.toJson<String>(subjectId),
+      'scopeType': serializer.toJson<String>(scopeType),
+      'scopeId': serializer.toJson<String>(scopeId),
+      'stageId': serializer.toJson<String>(stageId),
+      'weekday': serializer.toJson<int?>(weekday),
+      'minimumDailyLessons': serializer.toJson<int?>(minimumDailyLessons),
+      'maximumDailyLessons': serializer.toJson<int?>(maximumDailyLessons),
+      'minimumDailyConsecutivePairs': serializer.toJson<int?>(
+        minimumDailyConsecutivePairs,
+      ),
+      'maximumDailyConsecutivePairs': serializer.toJson<int?>(
+        maximumDailyConsecutivePairs,
+      ),
+      'minimumWeeklyConsecutivePairs': serializer.toJson<int?>(
+        minimumWeeklyConsecutivePairs,
+      ),
+      'maximumWeeklyConsecutivePairs': serializer.toJson<int?>(
+        maximumWeeklyConsecutivePairs,
+      ),
+    };
+  }
+
+  SubjectLessonConstraint copyWith({
+    String? id,
+    String? subjectId,
+    String? scopeType,
+    String? scopeId,
+    String? stageId,
+    Value<int?> weekday = const Value.absent(),
+    Value<int?> minimumDailyLessons = const Value.absent(),
+    Value<int?> maximumDailyLessons = const Value.absent(),
+    Value<int?> minimumDailyConsecutivePairs = const Value.absent(),
+    Value<int?> maximumDailyConsecutivePairs = const Value.absent(),
+    Value<int?> minimumWeeklyConsecutivePairs = const Value.absent(),
+    Value<int?> maximumWeeklyConsecutivePairs = const Value.absent(),
+  }) => SubjectLessonConstraint(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    scopeType: scopeType ?? this.scopeType,
+    scopeId: scopeId ?? this.scopeId,
+    stageId: stageId ?? this.stageId,
+    weekday: weekday.present ? weekday.value : this.weekday,
+    minimumDailyLessons: minimumDailyLessons.present
+        ? minimumDailyLessons.value
+        : this.minimumDailyLessons,
+    maximumDailyLessons: maximumDailyLessons.present
+        ? maximumDailyLessons.value
+        : this.maximumDailyLessons,
+    minimumDailyConsecutivePairs: minimumDailyConsecutivePairs.present
+        ? minimumDailyConsecutivePairs.value
+        : this.minimumDailyConsecutivePairs,
+    maximumDailyConsecutivePairs: maximumDailyConsecutivePairs.present
+        ? maximumDailyConsecutivePairs.value
+        : this.maximumDailyConsecutivePairs,
+    minimumWeeklyConsecutivePairs: minimumWeeklyConsecutivePairs.present
+        ? minimumWeeklyConsecutivePairs.value
+        : this.minimumWeeklyConsecutivePairs,
+    maximumWeeklyConsecutivePairs: maximumWeeklyConsecutivePairs.present
+        ? maximumWeeklyConsecutivePairs.value
+        : this.maximumWeeklyConsecutivePairs,
+  );
+  SubjectLessonConstraint copyWithCompanion(
+    SubjectLessonConstraintsCompanion data,
+  ) {
+    return SubjectLessonConstraint(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      scopeType: data.scopeType.present ? data.scopeType.value : this.scopeType,
+      scopeId: data.scopeId.present ? data.scopeId.value : this.scopeId,
+      stageId: data.stageId.present ? data.stageId.value : this.stageId,
+      weekday: data.weekday.present ? data.weekday.value : this.weekday,
+      minimumDailyLessons: data.minimumDailyLessons.present
+          ? data.minimumDailyLessons.value
+          : this.minimumDailyLessons,
+      maximumDailyLessons: data.maximumDailyLessons.present
+          ? data.maximumDailyLessons.value
+          : this.maximumDailyLessons,
+      minimumDailyConsecutivePairs: data.minimumDailyConsecutivePairs.present
+          ? data.minimumDailyConsecutivePairs.value
+          : this.minimumDailyConsecutivePairs,
+      maximumDailyConsecutivePairs: data.maximumDailyConsecutivePairs.present
+          ? data.maximumDailyConsecutivePairs.value
+          : this.maximumDailyConsecutivePairs,
+      minimumWeeklyConsecutivePairs: data.minimumWeeklyConsecutivePairs.present
+          ? data.minimumWeeklyConsecutivePairs.value
+          : this.minimumWeeklyConsecutivePairs,
+      maximumWeeklyConsecutivePairs: data.maximumWeeklyConsecutivePairs.present
+          ? data.maximumWeeklyConsecutivePairs.value
+          : this.maximumWeeklyConsecutivePairs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectLessonConstraint(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('stageId: $stageId, ')
+          ..write('weekday: $weekday, ')
+          ..write('minimumDailyLessons: $minimumDailyLessons, ')
+          ..write('maximumDailyLessons: $maximumDailyLessons, ')
+          ..write(
+            'minimumDailyConsecutivePairs: $minimumDailyConsecutivePairs, ',
+          )
+          ..write(
+            'maximumDailyConsecutivePairs: $maximumDailyConsecutivePairs, ',
+          )
+          ..write(
+            'minimumWeeklyConsecutivePairs: $minimumWeeklyConsecutivePairs, ',
+          )
+          ..write(
+            'maximumWeeklyConsecutivePairs: $maximumWeeklyConsecutivePairs',
+          )
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    subjectId,
+    scopeType,
+    scopeId,
+    stageId,
+    weekday,
+    minimumDailyLessons,
+    maximumDailyLessons,
+    minimumDailyConsecutivePairs,
+    maximumDailyConsecutivePairs,
+    minimumWeeklyConsecutivePairs,
+    maximumWeeklyConsecutivePairs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectLessonConstraint &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.scopeType == this.scopeType &&
+          other.scopeId == this.scopeId &&
+          other.stageId == this.stageId &&
+          other.weekday == this.weekday &&
+          other.minimumDailyLessons == this.minimumDailyLessons &&
+          other.maximumDailyLessons == this.maximumDailyLessons &&
+          other.minimumDailyConsecutivePairs ==
+              this.minimumDailyConsecutivePairs &&
+          other.maximumDailyConsecutivePairs ==
+              this.maximumDailyConsecutivePairs &&
+          other.minimumWeeklyConsecutivePairs ==
+              this.minimumWeeklyConsecutivePairs &&
+          other.maximumWeeklyConsecutivePairs ==
+              this.maximumWeeklyConsecutivePairs);
+}
+
+class SubjectLessonConstraintsCompanion
+    extends UpdateCompanion<SubjectLessonConstraint> {
+  final Value<String> id;
+  final Value<String> subjectId;
+  final Value<String> scopeType;
+  final Value<String> scopeId;
+  final Value<String> stageId;
+  final Value<int?> weekday;
+  final Value<int?> minimumDailyLessons;
+  final Value<int?> maximumDailyLessons;
+  final Value<int?> minimumDailyConsecutivePairs;
+  final Value<int?> maximumDailyConsecutivePairs;
+  final Value<int?> minimumWeeklyConsecutivePairs;
+  final Value<int?> maximumWeeklyConsecutivePairs;
+  final Value<int> rowid;
+  const SubjectLessonConstraintsCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.scopeType = const Value.absent(),
+    this.scopeId = const Value.absent(),
+    this.stageId = const Value.absent(),
+    this.weekday = const Value.absent(),
+    this.minimumDailyLessons = const Value.absent(),
+    this.maximumDailyLessons = const Value.absent(),
+    this.minimumDailyConsecutivePairs = const Value.absent(),
+    this.maximumDailyConsecutivePairs = const Value.absent(),
+    this.minimumWeeklyConsecutivePairs = const Value.absent(),
+    this.maximumWeeklyConsecutivePairs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectLessonConstraintsCompanion.insert({
+    required String id,
+    required String subjectId,
+    required String scopeType,
+    required String scopeId,
+    required String stageId,
+    this.weekday = const Value.absent(),
+    this.minimumDailyLessons = const Value.absent(),
+    this.maximumDailyLessons = const Value.absent(),
+    this.minimumDailyConsecutivePairs = const Value.absent(),
+    this.maximumDailyConsecutivePairs = const Value.absent(),
+    this.minimumWeeklyConsecutivePairs = const Value.absent(),
+    this.maximumWeeklyConsecutivePairs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       subjectId = Value(subjectId),
+       scopeType = Value(scopeType),
+       scopeId = Value(scopeId),
+       stageId = Value(stageId);
+  static Insertable<SubjectLessonConstraint> custom({
+    Expression<String>? id,
+    Expression<String>? subjectId,
+    Expression<String>? scopeType,
+    Expression<String>? scopeId,
+    Expression<String>? stageId,
+    Expression<int>? weekday,
+    Expression<int>? minimumDailyLessons,
+    Expression<int>? maximumDailyLessons,
+    Expression<int>? minimumDailyConsecutivePairs,
+    Expression<int>? maximumDailyConsecutivePairs,
+    Expression<int>? minimumWeeklyConsecutivePairs,
+    Expression<int>? maximumWeeklyConsecutivePairs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (scopeType != null) 'scope_type': scopeType,
+      if (scopeId != null) 'scope_id': scopeId,
+      if (stageId != null) 'stage_id': stageId,
+      if (weekday != null) 'weekday': weekday,
+      if (minimumDailyLessons != null)
+        'minimum_daily_lessons': minimumDailyLessons,
+      if (maximumDailyLessons != null)
+        'maximum_daily_lessons': maximumDailyLessons,
+      if (minimumDailyConsecutivePairs != null)
+        'minimum_daily_consecutive_pairs': minimumDailyConsecutivePairs,
+      if (maximumDailyConsecutivePairs != null)
+        'maximum_daily_consecutive_pairs': maximumDailyConsecutivePairs,
+      if (minimumWeeklyConsecutivePairs != null)
+        'minimum_weekly_consecutive_pairs': minimumWeeklyConsecutivePairs,
+      if (maximumWeeklyConsecutivePairs != null)
+        'maximum_weekly_consecutive_pairs': maximumWeeklyConsecutivePairs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectLessonConstraintsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? subjectId,
+    Value<String>? scopeType,
+    Value<String>? scopeId,
+    Value<String>? stageId,
+    Value<int?>? weekday,
+    Value<int?>? minimumDailyLessons,
+    Value<int?>? maximumDailyLessons,
+    Value<int?>? minimumDailyConsecutivePairs,
+    Value<int?>? maximumDailyConsecutivePairs,
+    Value<int?>? minimumWeeklyConsecutivePairs,
+    Value<int?>? maximumWeeklyConsecutivePairs,
+    Value<int>? rowid,
+  }) {
+    return SubjectLessonConstraintsCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      scopeType: scopeType ?? this.scopeType,
+      scopeId: scopeId ?? this.scopeId,
+      stageId: stageId ?? this.stageId,
+      weekday: weekday ?? this.weekday,
+      minimumDailyLessons: minimumDailyLessons ?? this.minimumDailyLessons,
+      maximumDailyLessons: maximumDailyLessons ?? this.maximumDailyLessons,
+      minimumDailyConsecutivePairs:
+          minimumDailyConsecutivePairs ?? this.minimumDailyConsecutivePairs,
+      maximumDailyConsecutivePairs:
+          maximumDailyConsecutivePairs ?? this.maximumDailyConsecutivePairs,
+      minimumWeeklyConsecutivePairs:
+          minimumWeeklyConsecutivePairs ?? this.minimumWeeklyConsecutivePairs,
+      maximumWeeklyConsecutivePairs:
+          maximumWeeklyConsecutivePairs ?? this.maximumWeeklyConsecutivePairs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (scopeType.present) {
+      map['scope_type'] = Variable<String>(scopeType.value);
+    }
+    if (scopeId.present) {
+      map['scope_id'] = Variable<String>(scopeId.value);
+    }
+    if (stageId.present) {
+      map['stage_id'] = Variable<String>(stageId.value);
+    }
+    if (weekday.present) {
+      map['weekday'] = Variable<int>(weekday.value);
+    }
+    if (minimumDailyLessons.present) {
+      map['minimum_daily_lessons'] = Variable<int>(minimumDailyLessons.value);
+    }
+    if (maximumDailyLessons.present) {
+      map['maximum_daily_lessons'] = Variable<int>(maximumDailyLessons.value);
+    }
+    if (minimumDailyConsecutivePairs.present) {
+      map['minimum_daily_consecutive_pairs'] = Variable<int>(
+        minimumDailyConsecutivePairs.value,
+      );
+    }
+    if (maximumDailyConsecutivePairs.present) {
+      map['maximum_daily_consecutive_pairs'] = Variable<int>(
+        maximumDailyConsecutivePairs.value,
+      );
+    }
+    if (minimumWeeklyConsecutivePairs.present) {
+      map['minimum_weekly_consecutive_pairs'] = Variable<int>(
+        minimumWeeklyConsecutivePairs.value,
+      );
+    }
+    if (maximumWeeklyConsecutivePairs.present) {
+      map['maximum_weekly_consecutive_pairs'] = Variable<int>(
+        maximumWeeklyConsecutivePairs.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectLessonConstraintsCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('stageId: $stageId, ')
+          ..write('weekday: $weekday, ')
+          ..write('minimumDailyLessons: $minimumDailyLessons, ')
+          ..write('maximumDailyLessons: $maximumDailyLessons, ')
+          ..write(
+            'minimumDailyConsecutivePairs: $minimumDailyConsecutivePairs, ',
+          )
+          ..write(
+            'maximumDailyConsecutivePairs: $maximumDailyConsecutivePairs, ',
+          )
+          ..write(
+            'minimumWeeklyConsecutivePairs: $minimumWeeklyConsecutivePairs, ',
+          )
+          ..write(
+            'maximumWeeklyConsecutivePairs: $maximumWeeklyConsecutivePairs, ',
+          )
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6142,6 +6982,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SubjectPairingsTable subjectPairings = $SubjectPairingsTable(
     this,
   );
+  late final $SubjectLessonConstraintsTable subjectLessonConstraints =
+      $SubjectLessonConstraintsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6162,6 +7004,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     subjectRequirements,
     subjectPresets,
     subjectPairings,
+    subjectLessonConstraints,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -6311,6 +7154,24 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('subject_pairings', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('subject_lesson_constraints', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'school_stages',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('subject_lesson_constraints', kind: UpdateKind.delete),
+      ],
     ),
   ]);
 }
@@ -6966,6 +7827,31 @@ final class $$SchoolStagesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $SubjectLessonConstraintsTable,
+    List<SubjectLessonConstraint>
+  >
+  _subjectLessonConstraintsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectLessonConstraints,
+        aliasName: 'school_stages__id__subject_lesson_constraints__stage_id',
+      );
+
+  $$SubjectLessonConstraintsTableProcessedTableManager
+  get subjectLessonConstraintsRefs {
+    final manager = $$SubjectLessonConstraintsTableTableManager(
+      $_db,
+      $_db.subjectLessonConstraints,
+    ).filter((f) => f.stageId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectLessonConstraintsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SchoolStagesTableFilterComposer
@@ -7187,6 +8073,33 @@ class $$SchoolStagesTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> subjectLessonConstraintsRefs(
+    Expression<bool> Function($$SubjectLessonConstraintsTableFilterComposer f)
+    f,
+  ) {
+    final $$SubjectLessonConstraintsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectLessonConstraints,
+          getReferencedColumn: (t) => t.stageId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectLessonConstraintsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectLessonConstraints,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -7457,6 +8370,33 @@ class $$SchoolStagesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> subjectLessonConstraintsRefs<T extends Object>(
+    Expression<T> Function($$SubjectLessonConstraintsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$SubjectLessonConstraintsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectLessonConstraints,
+          getReferencedColumn: (t) => t.stageId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectLessonConstraintsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectLessonConstraints,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$SchoolStagesTableTableManager
@@ -7481,6 +8421,7 @@ class $$SchoolStagesTableTableManager
             bool freeSlotsRefs,
             bool commonPeriodsRefs,
             bool subjectPresetsRefs,
+            bool subjectLessonConstraintsRefs,
           })
         > {
   $$SchoolStagesTableTableManager(_$AppDatabase db, $SchoolStagesTable table)
@@ -7540,6 +8481,7 @@ class $$SchoolStagesTableTableManager
                 freeSlotsRefs = false,
                 commonPeriodsRefs = false,
                 subjectPresetsRefs = false,
+                subjectLessonConstraintsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -7551,6 +8493,8 @@ class $$SchoolStagesTableTableManager
                     if (freeSlotsRefs) db.freeSlots,
                     if (commonPeriodsRefs) db.commonPeriods,
                     if (subjectPresetsRefs) db.subjectPresets,
+                    if (subjectLessonConstraintsRefs)
+                      db.subjectLessonConstraints,
                   ],
                   addJoins:
                       <
@@ -7731,6 +8675,27 @@ class $$SchoolStagesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subjectLessonConstraintsRefs)
+                        await $_getPrefetchedData<
+                          SchoolStage,
+                          $SchoolStagesTable,
+                          SubjectLessonConstraint
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SchoolStagesTableReferences
+                              ._subjectLessonConstraintsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SchoolStagesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectLessonConstraintsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.stageId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7760,6 +8725,7 @@ typedef $$SchoolStagesTableProcessedTableManager =
         bool freeSlotsRefs,
         bool commonPeriodsRefs,
         bool subjectPresetsRefs,
+        bool subjectLessonConstraintsRefs,
       })
     >;
 typedef $$GradeGroupsTableCreateCompanionBuilder =
@@ -11810,6 +12776,31 @@ final class $$SubjectsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $SubjectLessonConstraintsTable,
+    List<SubjectLessonConstraint>
+  >
+  _subjectLessonConstraintsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectLessonConstraints,
+        aliasName: 'subjects__id__subject_lesson_constraints__subject_id',
+      );
+
+  $$SubjectLessonConstraintsTableProcessedTableManager
+  get subjectLessonConstraintsRefs {
+    final manager = $$SubjectLessonConstraintsTableTableManager(
+      $_db,
+      $_db.subjectLessonConstraints,
+    ).filter((f) => f.subjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectLessonConstraintsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SubjectsTableFilterComposer
@@ -11888,6 +12879,33 @@ class $$SubjectsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> subjectLessonConstraintsRefs(
+    Expression<bool> Function($$SubjectLessonConstraintsTableFilterComposer f)
+    f,
+  ) {
+    final $$SubjectLessonConstraintsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectLessonConstraints,
+          getReferencedColumn: (t) => t.subjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectLessonConstraintsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectLessonConstraints,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -11993,6 +13011,33 @@ class $$SubjectsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> subjectLessonConstraintsRefs<T extends Object>(
+    Expression<T> Function($$SubjectLessonConstraintsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$SubjectLessonConstraintsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectLessonConstraints,
+          getReferencedColumn: (t) => t.subjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectLessonConstraintsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectLessonConstraints,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$SubjectsTableTableManager
@@ -12011,6 +13056,7 @@ class $$SubjectsTableTableManager
           PrefetchHooks Function({
             bool subjectRequirementsRefs,
             bool subjectPresetsRefs,
+            bool subjectLessonConstraintsRefs,
           })
         > {
   $$SubjectsTableTableManager(_$AppDatabase db, $SubjectsTable table)
@@ -12061,12 +13107,18 @@ class $$SubjectsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({subjectRequirementsRefs = false, subjectPresetsRefs = false}) {
+              ({
+                subjectRequirementsRefs = false,
+                subjectPresetsRefs = false,
+                subjectLessonConstraintsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (subjectRequirementsRefs) db.subjectRequirements,
                     if (subjectPresetsRefs) db.subjectPresets,
+                    if (subjectLessonConstraintsRefs)
+                      db.subjectLessonConstraints,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -12113,6 +13165,27 @@ class $$SubjectsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subjectLessonConstraintsRefs)
+                        await $_getPrefetchedData<
+                          Subject,
+                          $SubjectsTable,
+                          SubjectLessonConstraint
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SubjectsTableReferences
+                              ._subjectLessonConstraintsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SubjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectLessonConstraintsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.subjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -12136,6 +13209,7 @@ typedef $$SubjectsTableProcessedTableManager =
       PrefetchHooks Function({
         bool subjectRequirementsRefs,
         bool subjectPresetsRefs,
+        bool subjectLessonConstraintsRefs,
       })
     >;
 typedef $$SubjectRequirementsTableCreateCompanionBuilder =
@@ -13722,6 +14796,581 @@ typedef $$SubjectPairingsTableProcessedTableManager =
         bool evenSubjectId,
       })
     >;
+typedef $$SubjectLessonConstraintsTableCreateCompanionBuilder =
+    SubjectLessonConstraintsCompanion Function({
+      required String id,
+      required String subjectId,
+      required String scopeType,
+      required String scopeId,
+      required String stageId,
+      Value<int?> weekday,
+      Value<int?> minimumDailyLessons,
+      Value<int?> maximumDailyLessons,
+      Value<int?> minimumDailyConsecutivePairs,
+      Value<int?> maximumDailyConsecutivePairs,
+      Value<int?> minimumWeeklyConsecutivePairs,
+      Value<int?> maximumWeeklyConsecutivePairs,
+      Value<int> rowid,
+    });
+typedef $$SubjectLessonConstraintsTableUpdateCompanionBuilder =
+    SubjectLessonConstraintsCompanion Function({
+      Value<String> id,
+      Value<String> subjectId,
+      Value<String> scopeType,
+      Value<String> scopeId,
+      Value<String> stageId,
+      Value<int?> weekday,
+      Value<int?> minimumDailyLessons,
+      Value<int?> maximumDailyLessons,
+      Value<int?> minimumDailyConsecutivePairs,
+      Value<int?> maximumDailyConsecutivePairs,
+      Value<int?> minimumWeeklyConsecutivePairs,
+      Value<int?> maximumWeeklyConsecutivePairs,
+      Value<int> rowid,
+    });
+
+final class $$SubjectLessonConstraintsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SubjectLessonConstraintsTable,
+          SubjectLessonConstraint
+        > {
+  $$SubjectLessonConstraintsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SubjectsTable _subjectIdTable(_$AppDatabase db) => db.subjects
+      .createAlias('subject_lesson_constraints__subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get subjectId {
+    final $_column = $_itemColumn<String>('subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_subjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SchoolStagesTable _stageIdTable(_$AppDatabase db) => db.schoolStages
+      .createAlias('subject_lesson_constraints__stage_id__school_stages__id');
+
+  $$SchoolStagesTableProcessedTableManager get stageId {
+    final $_column = $_itemColumn<String>('stage_id')!;
+
+    final manager = $$SchoolStagesTableTableManager(
+      $_db,
+      $_db.schoolStages,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_stageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubjectLessonConstraintsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectLessonConstraintsTable> {
+  $$SubjectLessonConstraintsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get minimumDailyLessons => $composableBuilder(
+    column: $table.minimumDailyLessons,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maximumDailyLessons => $composableBuilder(
+    column: $table.maximumDailyLessons,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get minimumDailyConsecutivePairs => $composableBuilder(
+    column: $table.minimumDailyConsecutivePairs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maximumDailyConsecutivePairs => $composableBuilder(
+    column: $table.maximumDailyConsecutivePairs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get minimumWeeklyConsecutivePairs => $composableBuilder(
+    column: $table.minimumWeeklyConsecutivePairs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maximumWeeklyConsecutivePairs => $composableBuilder(
+    column: $table.maximumWeeklyConsecutivePairs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SubjectsTableFilterComposer get subjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableFilterComposer get stageId {
+    final $$SchoolStagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableFilterComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectLessonConstraintsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectLessonConstraintsTable> {
+  $$SubjectLessonConstraintsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get minimumDailyLessons => $composableBuilder(
+    column: $table.minimumDailyLessons,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maximumDailyLessons => $composableBuilder(
+    column: $table.maximumDailyLessons,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get minimumDailyConsecutivePairs => $composableBuilder(
+    column: $table.minimumDailyConsecutivePairs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maximumDailyConsecutivePairs => $composableBuilder(
+    column: $table.maximumDailyConsecutivePairs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get minimumWeeklyConsecutivePairs => $composableBuilder(
+    column: $table.minimumWeeklyConsecutivePairs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maximumWeeklyConsecutivePairs => $composableBuilder(
+    column: $table.maximumWeeklyConsecutivePairs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SubjectsTableOrderingComposer get subjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableOrderingComposer get stageId {
+    final $$SchoolStagesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableOrderingComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectLessonConstraintsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectLessonConstraintsTable> {
+  $$SubjectLessonConstraintsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeType =>
+      $composableBuilder(column: $table.scopeType, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeId =>
+      $composableBuilder(column: $table.scopeId, builder: (column) => column);
+
+  GeneratedColumn<int> get weekday =>
+      $composableBuilder(column: $table.weekday, builder: (column) => column);
+
+  GeneratedColumn<int> get minimumDailyLessons => $composableBuilder(
+    column: $table.minimumDailyLessons,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maximumDailyLessons => $composableBuilder(
+    column: $table.maximumDailyLessons,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get minimumDailyConsecutivePairs => $composableBuilder(
+    column: $table.minimumDailyConsecutivePairs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maximumDailyConsecutivePairs => $composableBuilder(
+    column: $table.maximumDailyConsecutivePairs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get minimumWeeklyConsecutivePairs => $composableBuilder(
+    column: $table.minimumWeeklyConsecutivePairs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maximumWeeklyConsecutivePairs => $composableBuilder(
+    column: $table.maximumWeeklyConsecutivePairs,
+    builder: (column) => column,
+  );
+
+  $$SubjectsTableAnnotationComposer get subjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableAnnotationComposer get stageId {
+    final $$SchoolStagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectLessonConstraintsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectLessonConstraintsTable,
+          SubjectLessonConstraint,
+          $$SubjectLessonConstraintsTableFilterComposer,
+          $$SubjectLessonConstraintsTableOrderingComposer,
+          $$SubjectLessonConstraintsTableAnnotationComposer,
+          $$SubjectLessonConstraintsTableCreateCompanionBuilder,
+          $$SubjectLessonConstraintsTableUpdateCompanionBuilder,
+          (SubjectLessonConstraint, $$SubjectLessonConstraintsTableReferences),
+          SubjectLessonConstraint,
+          PrefetchHooks Function({bool subjectId, bool stageId})
+        > {
+  $$SubjectLessonConstraintsTableTableManager(
+    _$AppDatabase db,
+    $SubjectLessonConstraintsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectLessonConstraintsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SubjectLessonConstraintsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SubjectLessonConstraintsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<String> scopeType = const Value.absent(),
+                Value<String> scopeId = const Value.absent(),
+                Value<String> stageId = const Value.absent(),
+                Value<int?> weekday = const Value.absent(),
+                Value<int?> minimumDailyLessons = const Value.absent(),
+                Value<int?> maximumDailyLessons = const Value.absent(),
+                Value<int?> minimumDailyConsecutivePairs = const Value.absent(),
+                Value<int?> maximumDailyConsecutivePairs = const Value.absent(),
+                Value<int?> minimumWeeklyConsecutivePairs =
+                    const Value.absent(),
+                Value<int?> maximumWeeklyConsecutivePairs =
+                    const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectLessonConstraintsCompanion(
+                id: id,
+                subjectId: subjectId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                stageId: stageId,
+                weekday: weekday,
+                minimumDailyLessons: minimumDailyLessons,
+                maximumDailyLessons: maximumDailyLessons,
+                minimumDailyConsecutivePairs: minimumDailyConsecutivePairs,
+                maximumDailyConsecutivePairs: maximumDailyConsecutivePairs,
+                minimumWeeklyConsecutivePairs: minimumWeeklyConsecutivePairs,
+                maximumWeeklyConsecutivePairs: maximumWeeklyConsecutivePairs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String subjectId,
+                required String scopeType,
+                required String scopeId,
+                required String stageId,
+                Value<int?> weekday = const Value.absent(),
+                Value<int?> minimumDailyLessons = const Value.absent(),
+                Value<int?> maximumDailyLessons = const Value.absent(),
+                Value<int?> minimumDailyConsecutivePairs = const Value.absent(),
+                Value<int?> maximumDailyConsecutivePairs = const Value.absent(),
+                Value<int?> minimumWeeklyConsecutivePairs =
+                    const Value.absent(),
+                Value<int?> maximumWeeklyConsecutivePairs =
+                    const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectLessonConstraintsCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                stageId: stageId,
+                weekday: weekday,
+                minimumDailyLessons: minimumDailyLessons,
+                maximumDailyLessons: maximumDailyLessons,
+                minimumDailyConsecutivePairs: minimumDailyConsecutivePairs,
+                maximumDailyConsecutivePairs: maximumDailyConsecutivePairs,
+                minimumWeeklyConsecutivePairs: minimumWeeklyConsecutivePairs,
+                maximumWeeklyConsecutivePairs: maximumWeeklyConsecutivePairs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SubjectLessonConstraintsTable,
+                    SubjectLessonConstraint
+                  >(table),
+                  $$SubjectLessonConstraintsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({subjectId = false, stageId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (subjectId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.subjectId,
+                        referencedTable:
+                            $$SubjectLessonConstraintsTableReferences
+                                ._subjectIdTable(db),
+                        referencedColumn:
+                            $$SubjectLessonConstraintsTableReferences
+                                ._subjectIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+                    if (stageId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.stageId,
+                        referencedTable:
+                            $$SubjectLessonConstraintsTableReferences
+                                ._stageIdTable(db),
+                        referencedColumn:
+                            $$SubjectLessonConstraintsTableReferences
+                                ._stageIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SubjectLessonConstraintsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectLessonConstraintsTable,
+      SubjectLessonConstraint,
+      $$SubjectLessonConstraintsTableFilterComposer,
+      $$SubjectLessonConstraintsTableOrderingComposer,
+      $$SubjectLessonConstraintsTableAnnotationComposer,
+      $$SubjectLessonConstraintsTableCreateCompanionBuilder,
+      $$SubjectLessonConstraintsTableUpdateCompanionBuilder,
+      (SubjectLessonConstraint, $$SubjectLessonConstraintsTableReferences),
+      SubjectLessonConstraint,
+      PrefetchHooks Function({bool subjectId, bool stageId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -13756,4 +15405,9 @@ class $AppDatabaseManager {
       $$SubjectPresetsTableTableManager(_db, _db.subjectPresets);
   $$SubjectPairingsTableTableManager get subjectPairings =>
       $$SubjectPairingsTableTableManager(_db, _db.subjectPairings);
+  $$SubjectLessonConstraintsTableTableManager get subjectLessonConstraints =>
+      $$SubjectLessonConstraintsTableTableManager(
+        _db,
+        _db.subjectLessonConstraints,
+      );
 }
