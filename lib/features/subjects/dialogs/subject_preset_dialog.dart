@@ -5,6 +5,11 @@ import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_badges.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/domain/models/free_slot.dart';
+import 'package:class_set/data/providers/school_repository_provider.dart';
+import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/subject_parallel_limit.dart';
+import 'package:class_set/features/public_rooms/public_rooms_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
@@ -28,9 +33,15 @@ typedef SubjectLessonConstraintEdit = ({
   List<SubjectLessonConstraint> constraints,
 });
 
+typedef SubjectRoomSettingsEdit = ({
+  List<SubjectRoomAssignment> assignments,
+  List<SubjectParallelLimit> limits,
+});
+
 typedef SubjectPresetDialogResult = ({
   List<SubjectPresetEdit> presets,
   List<SubjectLessonConstraintEdit> constraints,
+  SubjectRoomSettingsEdit? roomSettings,
 });
 
 typedef _PresetDraftKey = ({
@@ -98,7 +109,7 @@ typedef _DeletedPresetCellDraft = ({
 /// 间循环，右键直选；范围三级（学段 / 年级 / 班级），默认矩阵
 /// 当前列；预设不区分单双周；「一定排」格数超过该周需求节数时，
 /// 保存按周次列出警告（AC6）。
-class SubjectPresetDialog extends StatefulWidget {
+class SubjectPresetDialog extends ConsumerStatefulWidget {
   const SubjectPresetDialog({
     required this.subject,
     required this.termId,
@@ -112,6 +123,8 @@ class SubjectPresetDialog extends StatefulWidget {
     required this.constraints,
     required this.freeSlots,
     required this.classDemands,
+    this.roomAssignments = const [],
+    this.parallelLimits = const [],
     super.key,
   });
 
@@ -138,12 +151,20 @@ class SubjectPresetDialog extends StatefulWidget {
   /// 班级 ID → 单 / 双周需求节数（用于 AC6 警告）。
   final Map<String, ClassSubjectValues> classDemands;
 
+  final List<SubjectRoomAssignment> roomAssignments;
+  final List<SubjectParallelLimit> parallelLimits;
+
   @override
-  State<SubjectPresetDialog> createState() => _SubjectPresetDialogState();
+  ConsumerState<SubjectPresetDialog> createState() =>
+      _SubjectPresetDialogState();
 }
 
-class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
+class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
   int _selectedEditorTabIndex = 0;
+  late final List<SubjectRoomAssignment> _roomAssignments;
+  late final List<SubjectParallelLimit> _parallelLimits;
+  final Map<_PresetDraftKey, TextEditingController> _limitControllers = {};
+  bool _roomSettingsDirty = false;
   late FreeSlotScope _scope;
   late String _scopeId;
   late String _activeStageId;
@@ -165,11 +186,31 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
   @override
   void initState() {
     super.initState();
+    _roomAssignments = widget.roomAssignments
+        .where(
+          (row) =>
+              row.subjectId == widget.subject.id && row.termId == widget.termId,
+        )
+        .toList();
+    _parallelLimits = widget.parallelLimits
+        .where(
+          (row) =>
+              row.subjectId == widget.subject.id && row.termId == widget.termId,
+        )
+        .toList();
     _scope = FreeSlotScope.stage;
     _scopeId = widget.initialStageId;
     _activeStageId = widget.initialStageId;
     _expandedStageIds = {widget.initialStageId};
     _grid = _loadDraft(_currentDraftKey);
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _limitControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   StageRoutine? get _activeRoutine => widget.routines[_activeStageId];
@@ -484,11 +525,36 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
   Future<void> _save() async {
     final draftKeys = _dirtyDrafts.toList();
     final constraintDraftKeys = _dirtyConstraintDrafts.toList();
-    if (draftKeys.isEmpty && constraintDraftKeys.isEmpty) {
+    if (draftKeys.isEmpty &&
+        constraintDraftKeys.isEmpty &&
+        !_roomSettingsDirty) {
       Navigator.pop<SubjectPresetDialogResult>(context, (
         presets: const [],
         constraints: const [],
+        roomSettings: null,
       ));
+      return;
+    }
+    if (_roomSettingsDirty) {
+      try {
+        final rooms = await ref.read(publicRoomsProvider.future);
+        if (!mounted) return;
+        final roomIds = rooms.map((room) => room.id).toSet();
+        if (_roomAssignments.any(
+          (row) => row.roomId != null && !roomIds.contains(row.roomId),
+        )) {
+          _showConstraintValidation('所选场室已删除，请重新选择或重置为继承。', title: '场室设置有误');
+          return;
+        }
+      } catch (error) {
+        if (mounted) {
+          _showConstraintValidation('读取公共场室失败：$error', title: '场室设置有误');
+        }
+        return;
+      }
+    }
+    if (_parallelLimits.any((row) => row.maxParallelLessons <= 0)) {
+      _showConstraintValidation('同科目同时上课上限须为正整数');
       return;
     }
     final validationMessage = _constraintValidationMessage();
@@ -608,6 +674,12 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
     }
     Navigator.pop<SubjectPresetDialogResult>(context, (
       presets: edits,
+      roomSettings: _roomSettingsDirty
+          ? (
+              assignments: List<SubjectRoomAssignment>.of(_roomAssignments),
+              limits: List<SubjectParallelLimit>.of(_parallelLimits),
+            )
+          : null,
       constraints: [
         for (final draftKey in constraintDraftKeys)
           (
@@ -869,11 +941,11 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
     return null;
   }
 
-  void _showConstraintValidation(String message) {
+  void _showConstraintValidation(String message, {String title = '限制数值有误'}) {
     showAppDialog<void>(
       context: context,
       builder: (context) => AppDialog(
-        title: const Text('限制数值有误'),
+        title: Text(title),
         content: Text(message),
         actions: [
           AppPrimaryButton(
@@ -920,9 +992,260 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        AppPrimaryButton(
-          onPressed: _activeRoutine == null ? null : _save,
-          child: const Text('保存设置'),
+        AppPrimaryButton(onPressed: _save, child: const Text('保存设置')),
+      ],
+    );
+  }
+
+  bool _isCurrentScope(FreeSlotScope scope, String scopeId, String stageId) =>
+      scope == _scope && scopeId == _scopeId && stageId == _activeStageId;
+
+  String? get _parentGradeId => _scope == FreeSlotScope.schoolClass
+      ? widget.classes.where((row) => row.id == _scopeId).firstOrNull?.gradeId
+      : _scope == FreeSlotScope.grade
+      ? _scopeId
+      : null;
+
+  String _roomSettingSource(FreeSlotScope scope, String id) => switch (scope) {
+    FreeSlotScope.stage =>
+      '${widget.stages.where((row) => row.id == id).firstOrNull?.name ?? id}（学段）',
+    FreeSlotScope.grade =>
+      '${widget.grades.where((row) => row.id == id).firstOrNull?.name ?? id}（年级）',
+    FreeSlotScope.schoolClass =>
+      '${widget.classes.where((row) => row.id == id).firstOrNull?.name ?? id}（班级）',
+    FreeSlotScope.school => '',
+  };
+
+  void _setRoom(({bool inherit, String? roomId}) choice) {
+    setState(() {
+      _roomAssignments.removeWhere(
+        (row) => _isCurrentScope(row.scope, row.scopeId, row.stageId),
+      );
+      if (!choice.inherit) {
+        _roomAssignments.add(
+          SubjectRoomAssignment(
+            id: '',
+            subjectId: widget.subject.id,
+            termId: widget.termId,
+            stageId: _activeStageId,
+            scope: _scope,
+            scopeId: _scopeId,
+            roomId: choice.roomId,
+          ),
+        );
+      }
+      _roomSettingsDirty = true;
+    });
+  }
+
+  void _setParallelLimit(String value) {
+    setState(() {
+      _parallelLimits.removeWhere(
+        (row) => _isCurrentScope(row.scope, row.scopeId, row.stageId),
+      );
+      if (value.isNotEmpty) {
+        _parallelLimits.add(
+          SubjectParallelLimit(
+            id: '',
+            subjectId: widget.subject.id,
+            termId: widget.termId,
+            stageId: _activeStageId,
+            scope: _scope,
+            scopeId: _scopeId,
+            maxParallelLessons: int.tryParse(value) ?? 0,
+          ),
+        );
+      }
+      _roomSettingsDirty = true;
+    });
+  }
+
+  Future<void> _openPublicRooms() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('公共场室')),
+          body: PublicRoomsPage(termId: widget.termId),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoomsEditor() {
+    final roomsAsync = ref.watch(publicRoomsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildEditorNote(
+          'subject-settings-rooms-description',
+          '场室按学段、年级、班级逐级继承；“不设场室”会覆盖上级，重置后恢复继承。同科目上限仅在学段和年级设置，年级值替代学段值。修改在保存设置后生效。',
+        ),
+        const SizedBox(height: 8),
+        roomsAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, stack) => Text('读取公共场室失败：$error'),
+          data: (rooms) {
+            final local = _roomAssignments
+                .where(
+                  (row) => _isCurrentScope(row.scope, row.scopeId, row.stageId),
+                )
+                .firstOrNull;
+            final effective = resolveSubjectRoomAssignment(
+              assignments: _roomAssignments,
+              subjectId: widget.subject.id,
+              termId: widget.termId,
+              stageId: _activeStageId,
+              scope: _scope,
+              scopeId: _scopeId,
+              parentGradeId: _parentGradeId,
+            );
+            final roomName = effective?.roomId == null
+                ? '不设场室'
+                : rooms
+                          .where((room) => room.id == effective!.roomId)
+                          .firstOrNull
+                          ?.name ??
+                      '场室已删除，请重置';
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppSelectField<({bool inherit, String? roomId})>(
+                  key: const ValueKey('subject-room-selection'),
+                  label: '行课场室',
+                  items: {
+                    _scope == FreeSlotScope.stage ? '使用默认设置' : '继承上级场室': (
+                      inherit: true,
+                      roomId: null,
+                    ),
+                    '不设场室': (inherit: false, roomId: null),
+                    for (final room in rooms)
+                      '${room.name}（公共场室）': (inherit: false, roomId: room.id),
+                    if (local?.roomId != null &&
+                        !rooms.any((room) => room.id == local!.roomId))
+                      '场室已删除，请重置': (inherit: false, roomId: local!.roomId),
+                  },
+                  value: (inherit: local == null, roomId: local?.roomId),
+                  onChanged: (value) {
+                    if (value != null) _setRoom(value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '当前场室：$roomName',
+                  key: const ValueKey('subject-room-effective'),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  effective == null
+                      ? '来源：默认（不设场室）'
+                      : '来源：${_roomSettingSource(effective.scope, effective.scopeId)}',
+                  style: const TextStyle(fontSize: 12, color: AppTheme.muted),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: AppGhostButton(
+                    key: const ValueKey('subject-room-reset'),
+                    onPressed: local == null
+                        ? null
+                        : () => _setRoom((inherit: true, roomId: null)),
+                    child: Text(
+                      _scope == FreeSlotScope.stage ? '重置为默认' : '重置为继承上级',
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1, color: AppTheme.border),
+        const SizedBox(height: 12),
+        _buildParallelLimitEditor(),
+        const SizedBox(height: 12),
+        const Divider(height: 1, color: AppTheme.border),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AppGhostButton(
+            key: const ValueKey('subject-public-rooms-entry'),
+            onPressed: _openPublicRooms,
+            child: const Text('管理公共场室'),
+          ),
+        ),
+        const Text(
+          '公共场室目录全校共享，增删改会立即保存；返回后保留本弹窗草稿。',
+          style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParallelLimitEditor() {
+    final local = _parallelLimits
+        .where((row) => _isCurrentScope(row.scope, row.scopeId, row.stageId))
+        .firstOrNull;
+    final effective = resolveSubjectParallelLimit(
+      limits: _parallelLimits,
+      subjectId: widget.subject.id,
+      termId: widget.termId,
+      stageId: _activeStageId,
+      gradeId: _parentGradeId,
+    );
+    final source = effective == null
+        ? '来源：默认（不限）'
+        : '来源：${_roomSettingSource(effective.scope, effective.scopeId)}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_scope == FreeSlotScope.schoolClass) ...[
+          Text('同科目同时上课上限：${effective?.maxParallelLessons ?? '不限'}'),
+          const SizedBox(height: 4),
+          const Text(
+            '班级使用所属年级或学段的上限，只读。',
+            style: TextStyle(fontSize: 12, color: AppTheme.muted),
+          ),
+        ] else ...[
+          KeyedSubtree(
+            key: ValueKey(_currentDraftKey),
+            child: TextFormField(
+              key: const ValueKey('subject-parallel-limit'),
+              controller: _limitControllers.putIfAbsent(
+                _currentDraftKey,
+                () => TextEditingController(
+                  text: local?.maxParallelLessons.toString() ?? '',
+                ),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: '同科目同时上课上限',
+                hintText: effective?.maxParallelLessons.toString() ?? '不限',
+                helperText: _scope == FreeSlotScope.stage
+                    ? '正整数；留空表示不限。'
+                    : '正整数；留空继承学段，填写后替代学段值。',
+              ),
+              onChanged: _setParallelLimit,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AppGhostButton(
+              key: const ValueKey('subject-parallel-reset'),
+              onPressed: local == null
+                  ? null
+                  : () {
+                      _limitControllers[_currentDraftKey]?.clear();
+                      _setParallelLimit('');
+                    },
+              child: Text(_scope == FreeSlotScope.stage ? '重置为不限' : '重置为继承学段'),
+            ),
+          ),
+        ],
+        const SizedBox(height: 4),
+        Text(
+          source,
+          key: const ValueKey('subject-parallel-source'),
+          style: const TextStyle(fontSize: 12, color: AppTheme.muted),
         ),
       ],
     );
@@ -1101,13 +1424,20 @@ class _SubjectPresetDialogState extends State<SubjectPresetDialog> {
                   label: '课节限制',
                   key: 'subject-settings-tab-constraints',
                 ),
+                settingsTab(
+                  index: 2,
+                  label: '行课场室',
+                  key: 'subject-settings-tab-rooms',
+                ),
               ],
             ),
           ),
         );
-        final selectedContent = _selectedEditorTabIndex == 0
-            ? presetsContent
-            : constraintsContent;
+        final selectedContent = switch (_selectedEditorTabIndex) {
+          0 => presetsContent,
+          1 => constraintsContent,
+          _ => _buildRoomsEditor(),
+        };
 
         if (!scrollable) {
           return Column(

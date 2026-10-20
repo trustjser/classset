@@ -8,6 +8,8 @@ import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
+import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/subject_parallel_limit.dart';
 import 'package:class_set/features/subjects/dialogs/add_subject_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/class_detail_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/pairing_dialog.dart';
@@ -54,6 +56,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   /// 新增科目的课节限制暂存到页面保存，确保科目先完成外键写入。
   final Map<String, List<SubjectLessonConstraintEdit>>
   _newSubjectConstraintDrafts = {};
+
+  final Map<String, SubjectRoomSettingsEdit> _newSubjectRoomDrafts = {};
 
   /// 配对课程按班级暂存，等新增科目保存后再写入配对表。
   final Map<String, List<SubjectPairing>> _pairingDrafts = {};
@@ -112,6 +116,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         (entry) => entry.value.expand((edit) => edit.constraints),
       ),
     ];
+    ref.watch(subjectRoomAssignmentsProvider(term.id));
+    ref.watch(subjectParallelLimitsProvider(term.id));
     final routines =
         ref.watch(routinesForTermProvider(term.id)).valueOrNull ??
         const <String, StageRoutine>{};
@@ -737,6 +743,20 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     GradeGroup grade,
     List<SubjectLessonConstraint> lessonConstraints,
   ) async {
+    late final List<SubjectRoomAssignment> roomAssignments;
+    late final List<SubjectParallelLimit> parallelLimits;
+    try {
+      roomAssignments = await ref.read(
+        subjectRoomAssignmentsProvider(widget.termId).future,
+      );
+      parallelLimits = await ref.read(
+        subjectParallelLimitsProvider(widget.termId).future,
+      );
+    } catch (error) {
+      if (mounted) _showMessage('读取行课场室设置失败：$error');
+      return;
+    }
+    if (!mounted) return;
     final stages =
         ref.read(stagesProvider(widget.termId)).valueOrNull ??
         const <SchoolStage>[];
@@ -773,7 +793,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final freeSlots =
         ref.read(freeSlotsForTermProvider(widget.termId)).valueOrNull ??
         const <FreeSlot>[];
-    final termId = ref.read(activeTermIdProvider) ?? widget.termId;
+    final termId = widget.termId;
     final classDemands = <String, ClassSubjectValues>{
       for (final classBrief in classBriefs)
         classBrief.id: valuesForClass(
@@ -799,10 +819,20 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
             .toList(),
         freeSlots: freeSlots,
         classDemands: classDemands,
+        roomAssignments:
+            _newSubjectRoomDrafts[subject.id]?.assignments ??
+            roomAssignments
+                .where((row) => row.subjectId == subject.id)
+                .toList(),
+        parallelLimits:
+            _newSubjectRoomDrafts[subject.id]?.limits ??
+            parallelLimits.where((row) => row.subjectId == subject.id).toList(),
       ),
     );
     if (result == null ||
-        (result.presets.isEmpty && result.constraints.isEmpty)) {
+        (result.presets.isEmpty &&
+            result.constraints.isEmpty &&
+            result.roomSettings == null)) {
       return;
     }
     if (_newSubjects.any((item) => item.id == subject.id)) {
@@ -837,8 +867,11 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           }
         }
         _newSubjectConstraintDrafts[subject.id] = constraintDrafts;
+        if (result.roomSettings != null) {
+          _newSubjectRoomDrafts[subject.id] = result.roomSettings!;
+        }
       });
-      _showMessage('科目预设已暂存，点击右上角“保存”后生效');
+      _showMessage('科目高级设置已暂存，点击右上角“保存”后生效');
       return;
     }
     try {
@@ -875,10 +908,18 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           constraints: edit.constraints,
         );
       }
+      if (result.roomSettings case final settings?) {
+        await repository.replaceSubjectRoomSettings(
+          termId: termId,
+          subjectId: subject.id,
+          assignments: settings.assignments,
+          limits: settings.limits,
+        );
+      }
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
-      _showMessage('科目预设已保存');
+      _showMessage('科目高级设置已保存');
     } on Object catch (error) {
-      _showMessage('保存科目预设失败：$error');
+      _showMessage('保存科目高级设置失败：$error');
     }
   }
 
@@ -1069,7 +1110,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final freeSlots =
         ref.read(freeSlotsForTermProvider(widget.termId)).valueOrNull ??
         const <FreeSlot>[];
-    final termId = ref.read(activeTermIdProvider) ?? widget.termId;
+    final termId = widget.termId;
     final effective = _effectiveRequirements(
       subjects: subjects,
       classBriefs: classBriefs,
@@ -1169,6 +1210,14 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           );
         }
       }
+      for (final entry in _newSubjectRoomDrafts.entries) {
+        await repository.replaceSubjectRoomSettings(
+          termId: termId,
+          subjectId: entry.key,
+          assignments: entry.value.assignments,
+          limits: entry.value.limits,
+        );
+      }
       for (final entry in _pairingDrafts.entries) {
         await repository.replaceClassPairings(
           classId: entry.key,
@@ -1191,6 +1240,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         _newSubjects.clear();
         _newSubjectPresetDrafts.clear();
         _newSubjectConstraintDrafts.clear();
+        _newSubjectRoomDrafts.clear();
         _pairingDrafts.clear();
         _saving = false;
       });
