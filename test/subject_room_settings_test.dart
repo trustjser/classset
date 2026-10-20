@@ -391,6 +391,164 @@ void main() {
   );
 
   testWidgets(
+    'unchanged reopened new-subject room draft blocks dialog and page save after catalog deletion',
+    (tester) async {
+      await pumpPage(tester);
+      await tester.tap(find.text('+ 添加科目'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('外语'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('点击设置科目高级设置').last);
+      await tester.pumpAndSettle();
+      final newSubjectId = tester
+          .widget<SubjectPresetDialog>(find.byType(SubjectPresetDialog))
+          .subject
+          .id;
+      await tapKey(tester, 'preset-cell-1-p_am-1');
+      await tapKey(tester, 'subject-settings-tab-constraints');
+      final minimum = find.byKey(
+        const ValueKey('constraint-stage-jr-daily-minDaily'),
+      );
+      await tester.ensureVisible(minimum);
+      await tester.enterText(minimum, '1');
+      await tapKey(tester, 'subject-settings-tab-rooms');
+      await chooseRoom(tester, '音乐室');
+      await setLimit(tester, '3');
+      await tester.tap(find.text('保存设置'));
+      await tester.pumpAndSettle();
+
+      await tapKey(tester, 'preset-summary-$newSubjectId');
+      await tapKey(tester, 'subject-settings-tab-rooms');
+      expect(find.text('当前场室：音乐室'), findsOneWidget);
+      expect(
+        tester
+            .widget<SubjectPresetDialog>(find.byType(SubjectPresetDialog))
+            .roomAssignments
+            .single
+            .roomId,
+        'room_music',
+      );
+      await tapKey(tester, 'subject-public-rooms-entry');
+      await tapKey(tester, 'delete-room-room_music');
+      await tester.tap(find.text('删除场室及绑定'));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('当前场室：场室已删除，请重置'), findsOneWidget);
+      await tester.tap(find.text('保存设置'));
+      await tester.pumpAndSettle();
+      expect(find.text('所选场室已删除，请重新选择或重置为继承。'), findsOneWidget);
+      await tester.tap(find.text('知道了'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SubjectPresetDialog), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      final before = (await tester.runAsync(
+        () => repository.watchSubjects().first,
+      ))!;
+      expect(before.map((row) => row.name), ['音乐']);
+      expect(find.text('外语'), findsOneWidget);
+      expect(
+        await tester.runAsync(() => repository.watchAllPresets().first),
+        isEmpty,
+      );
+      expect(
+        await tester.runAsync(
+          () => repository.watchAllLessonConstraints().first,
+        ),
+        isEmpty,
+      );
+      expect(
+        await tester.runAsync(
+          () => repository.watchSubjectParallelLimits('t1').first,
+        ),
+        isEmpty,
+      );
+      expect(
+        await tester.runAsync(() => repository.watchAllRequirements().first),
+        isEmpty,
+      );
+
+      await tapKey(tester, 'preset-summary-$newSubjectId');
+      await tapKey(tester, 'subject-settings-tab-rooms');
+      await tapKey(tester, 'subject-room-reset');
+      await tester.tap(find.text('保存设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      final saved = (await tester.runAsync(
+        () => repository.watchSubjects().first,
+      ))!;
+      final foreignLanguage = saved.singleWhere((row) => row.name == '外语');
+      expect(saved, hasLength(2));
+      expect(find.text('外语'), findsOneWidget);
+      expect(
+        await tester.runAsync(
+          () => repository.watchPresetsForSubject(foreignLanguage.id).first,
+        ),
+        hasLength(1),
+      );
+      final constraints = (await tester.runAsync(
+        () => repository
+            .watchLessonConstraintsForSubject(foreignLanguage.id)
+            .first,
+      ))!;
+      expect(constraints.single.minimumDailyLessons, 1);
+      final limits = (await tester.runAsync(
+        () => repository.watchSubjectParallelLimits('t1').first,
+      ))!;
+      expect(limits.single.maxParallelLessons, 3);
+      expect(
+        await tester.runAsync(
+          () => repository.watchSubjectRoomAssignments('t1').first,
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'page preflight checks every new-subject room draft before inserting any subject',
+    (tester) async {
+      await pumpPage(tester);
+      for (final choice in [
+        (subject: '外语', room: '礼堂'),
+        (subject: '美术', room: '音乐室'),
+      ]) {
+        await tester.tap(find.text('+ 添加科目'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(choice.subject));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('点击设置科目高级设置').last);
+        await tester.pumpAndSettle();
+        await tapKey(tester, 'subject-settings-tab-rooms');
+        await chooseRoom(tester, choice.room);
+        await tester.tap(find.text('保存设置'));
+        await tester.pumpAndSettle();
+      }
+      await tester.runAsync(() => repository.deletePublicRoom('room_music'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      final subjects = (await tester.runAsync(
+        () => repository.watchSubjects().first,
+      ))!;
+      expect(subjects.map((row) => row.name), ['音乐']);
+      expect(find.text('外语'), findsOneWidget);
+      expect(find.text('美术'), findsOneWidget);
+      expect(
+        await tester.runAsync(
+          () => repository.watchSubjectRoomAssignments('t1').first,
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
     'explicit no-room remains selectable when a catalog room is named no-room',
     (tester) async {
       await repository.savePublicRooms(const [

@@ -525,17 +525,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
   Future<void> _save() async {
     final draftKeys = _dirtyDrafts.toList();
     final constraintDraftKeys = _dirtyConstraintDrafts.toList();
-    if (draftKeys.isEmpty &&
-        constraintDraftKeys.isEmpty &&
-        !_roomSettingsDirty) {
-      Navigator.pop<SubjectPresetDialogResult>(context, (
-        presets: const [],
-        constraints: const [],
-        roomSettings: null,
-      ));
-      return;
-    }
-    if (_roomSettingsDirty) {
+    if (_roomAssignments.any((row) => row.roomId != null)) {
       try {
         final rooms = await ref.read(publicRoomsProvider.future);
         if (!mounted) return;
@@ -552,6 +542,16 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
         }
         return;
       }
+    }
+    if (draftKeys.isEmpty &&
+        constraintDraftKeys.isEmpty &&
+        !_roomSettingsDirty) {
+      Navigator.pop<SubjectPresetDialogResult>(context, (
+        presets: const [],
+        constraints: const [],
+        roomSettings: null,
+      ));
+      return;
     }
     if (_parallelLimits.any((row) => row.maxParallelLessons <= 0)) {
       _showConstraintValidation('同科目同时上课上限须为正整数');

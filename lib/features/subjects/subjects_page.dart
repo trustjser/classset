@@ -1184,6 +1184,29 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     setState(() => _saving = true);
     try {
       final repository = ref.read(schoolRepositoryProvider);
+      if (_newSubjectRoomDrafts.isNotEmpty) {
+        final rooms = await ref.read(publicRoomsProvider.future);
+        if (!mounted) return;
+        final roomIds = rooms.map((room) => room.id).toSet();
+        final invalidSubjects = [
+          for (final entry in _newSubjectRoomDrafts.entries)
+            if (entry.value.assignments.any(
+              (row) => row.roomId != null && !roomIds.contains(row.roomId),
+            ))
+              _newSubjects
+                      .where((subject) => subject.id == entry.key)
+                      .firstOrNull
+                      ?.name ??
+                  entry.key,
+        ];
+        if (invalidSubjects.isNotEmpty) {
+          setState(() => _saving = false);
+          _showMessage(
+            '以下科目的场室已删除，请打开科目高级设置重新选择或重置：${invalidSubjects.join('、')}',
+          );
+          return;
+        }
+      }
       if (_newSubjects.isNotEmpty) {
         await repository.saveSubjects(_newSubjects);
       }
