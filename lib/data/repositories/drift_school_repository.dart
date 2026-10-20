@@ -364,26 +364,35 @@ class DriftSchoolRepository implements SchoolRepository {
       );
 
   @override
-  Future<void> saveStage(domain.SchoolStage stage) =>
-      _database.transaction(() async {
-        final existing = await (_database.select(
-          _database.schoolStages,
-        )..where((row) => row.id.equals(stage.id))).getSingleOrNull();
-        await _database
-            .into(_database.schoolStages)
-            .insertOnConflictUpdate(
-              SchoolStagesCompanion.insert(
-                id: stage.id,
-                termId: stage.termId,
-                name: stage.name.trim(),
-                sortOrder: stage.sortOrder,
-              ),
-            );
-        if (existing == null) {
-          await _createDefaultRoutine(stage.id);
-          await _inheritSchoolFreeSlots(stage.id, stage.termId);
-        }
-      });
+  Future<void> saveStage(
+    domain.SchoolStage stage,
+  ) => _database.transaction(() async {
+    final existing = await (_database.select(
+      _database.schoolStages,
+    )..where((row) => row.id.equals(stage.id))).getSingleOrNull();
+    await _database
+        .into(_database.schoolStages)
+        .insertOnConflictUpdate(
+          SchoolStagesCompanion.insert(
+            id: stage.id,
+            termId: stage.termId,
+            name: stage.name.trim(),
+            sortOrder: stage.sortOrder,
+          ),
+        );
+    if (existing == null) {
+      await _createDefaultRoutine(stage.id);
+      await _inheritSchoolFreeSlots(stage.id, stage.termId);
+    }
+    if (existing != null && existing.termId != stage.termId) {
+      await (_database.update(_database.subjectRoomAssignments)
+            ..where((row) => row.stageId.equals(stage.id)))
+          .write(SubjectRoomAssignmentsCompanion(termId: Value(stage.termId)));
+      await (_database.update(_database.subjectParallelLimits)
+            ..where((row) => row.stageId.equals(stage.id)))
+          .write(SubjectParallelLimitsCompanion(termId: Value(stage.termId)));
+    }
+  });
 
   /// 新建学段时，按「同时段名称 + 同节次」继承同学期的全校范围免任课，
   /// 使全校范围的标记对新学段同样生效。

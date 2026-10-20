@@ -504,4 +504,37 @@ void main() {
       );
     },
   );
+  test('moving a stage remaps all settings and source term deletion preserves them', () async {
+    for (final scope in [
+      FreeSlotScope.stage,
+      FreeSlotScope.grade,
+      FreeSlotScope.schoolClass,
+    ]) {
+      await saveAssignment(assignment(scope));
+    }
+    await saveLimit(limit(FreeSlotScope.stage, 2));
+    await saveLimit(limit(FreeSlotScope.grade, 3));
+    await repository.saveStage(
+      const SchoolStage(id: 'a_stage', termId: 'b', name: '初中', sortOrder: 1),
+    );
+    expect(await repository.watchSubjectRoomAssignments('a').first, isEmpty);
+    expect(await repository.watchSubjectParallelLimits('a').first, isEmpty);
+    final assignments = await repository.watchSubjectRoomAssignments('b').first;
+    expect(assignments, hasLength(3));
+    expect(assignments.map((row) => row.stageId).toSet(), {'a_stage'});
+    expect(assignments.map((row) => row.termId).toSet(), {'b'});
+    final limits = await repository.watchSubjectParallelLimits('b').first;
+    expect(limits, hasLength(2));
+    expect(limits.map((row) => row.stageId).toSet(), {'a_stage'});
+    expect(limits.map((row) => row.termId).toSet(), {'b'});
+    await repository.deleteTerm('a');
+    expect(
+      await repository.watchSubjectRoomAssignments('b').first,
+      hasLength(3),
+    );
+    expect(
+      await repository.watchSubjectParallelLimits('b').first,
+      hasLength(2),
+    );
+  });
 }
