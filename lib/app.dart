@@ -3,6 +3,7 @@ import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/features/classes/classes_page.dart';
 import 'package:class_set/features/routines/routine_page.dart';
+import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/terms/term_page.dart';
 import 'package:class_set/features/workbench/workbench_page.dart';
@@ -10,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart' as f;
 
-enum AppSection { workbench, terms, classes, routines, subjects }
+enum AppSection { workbench, terms, classes, routines, subjects, publicRooms }
 
 final selectedSectionProvider = StateProvider<AppSection>(
   (ref) => AppSection.workbench,
@@ -69,6 +70,7 @@ class _AppShell extends ConsumerWidget {
             AppSection.classes => '班级与学段',
             AppSection.routines => '作息设置',
             AppSection.subjects => '科目节数',
+            AppSection.publicRooms => '公共场室',
           };
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -113,6 +115,7 @@ class _AppShell extends ConsumerWidget {
                           key: ValueKey(section),
                           child: switch (section) {
                             AppSection.workbench => const WorkbenchPage(),
+                            AppSection.publicRooms => const PublicRoomsPage(),
                             AppSection.terms => TermPage(
                               databasePath: databasePath,
                             ),
@@ -346,10 +349,14 @@ class _Sidebar extends ConsumerWidget {
                 ),
                 if (!isCompact) const _NavDivider(),
                 if (!isCompact) const _NavGroupLabel('更多'),
-                _NavComingSoon(
+                _NavItem(
                   label: '公共场室',
                   icon: Icons.meeting_room_outlined,
                   isCompact: isCompact,
+                  isSelected: section == AppSection.publicRooms,
+                  onTap: () =>
+                      ref.read(selectedSectionProvider.notifier).state =
+                          AppSection.publicRooms,
                 ),
               ],
             ),
