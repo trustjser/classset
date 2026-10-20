@@ -11,6 +11,10 @@ import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:class_set/domain/models/public_room.dart';
+import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/subject_parallel_limit.dart';
+
 final schoolRepositoryProvider = Provider<SchoolRepository>(
   (ref) => DriftSchoolRepository(ref.watch(appDatabaseProvider)),
 );
@@ -128,3 +132,24 @@ final freeSlotsForTermProvider = StreamProvider.family<List<FreeSlot>, String>(
   (ref, termId) =>
       ref.watch(schoolRepositoryProvider).watchFreeSlotsForTerm(termId),
 );
+
+final publicRoomsProvider = StreamProvider<List<PublicRoom>>(
+  (ref) => ref.watch(schoolRepositoryProvider).watchPublicRooms(),
+);
+final subjectRoomAssignmentsProvider =
+    StreamProvider.family<List<SubjectRoomAssignment>, String>(
+      (ref, termId) => ref
+          .watch(schoolRepositoryProvider)
+          .watchSubjectRoomAssignments(termId),
+    );
+final subjectParallelLimitsProvider =
+    StreamProvider.family<List<SubjectParallelLimit>, String>(
+      (ref, termId) => ref
+          .watch(schoolRepositoryProvider)
+          .watchSubjectParallelLimits(termId),
+    );
+final roomReferencesProvider =
+    StreamProvider.family<List<SubjectRoomAssignment>, String>(
+      (ref, roomId) =>
+          ref.watch(schoolRepositoryProvider).watchRoomReferences(roomId),
+    );

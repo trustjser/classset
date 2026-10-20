@@ -9,6 +9,9 @@ import 'package:class_set/domain/models/stage_routine.dart' as domain;
 import 'package:class_set/domain/models/subject.dart' as domain;
 import 'package:class_set/domain/models/subject_lesson_constraint.dart'
     as domain;
+import 'package:class_set/domain/models/public_room.dart' as domain;
+import 'package:class_set/domain/models/subject_room_assignment.dart' as domain;
+import 'package:class_set/domain/models/subject_parallel_limit.dart' as domain;
 import 'package:drift/drift.dart';
 
 class DriftSchoolRepository implements SchoolRepository {
@@ -504,6 +507,17 @@ class DriftSchoolRepository implements SchoolRepository {
                 sortOrder: grade.sortOrder,
               ),
             );
+        if (existing != null && existing.stageId != grade.stageId) {
+          final classes = await (_database.select(
+            _database.classGroups,
+          )..where((row) => row.gradeId.equals(grade.id))).get();
+          await _remapRoomScope('grade', [grade.id], grade.stageId);
+          await _remapRoomScope(
+            'class',
+            classes.map((row) => row.id).toList(),
+            grade.stageId,
+          );
+        }
       });
 
   @override
@@ -581,6 +595,8 @@ class DriftSchoolRepository implements SchoolRepository {
       _database.classGroups,
     )..where((schoolClass) => schoolClass.gradeId.equals(gradeId))).get();
     final classIds = childClasses.map((schoolClass) => schoolClass.id).toList();
+    await _deleteRoomScope('grade', [gradeId]);
+    await _deleteRoomScope('class', classIds);
     if (classIds.isNotEmpty) {
       await (_database.delete(_database.freeSlots)..where(
             (slot) =>
@@ -621,16 +637,23 @@ class DriftSchoolRepository implements SchoolRepository {
           .map((rows) => rows.map(_toDomainClass).toList(growable: false));
 
   @override
-  Future<void> saveClass(domain.ClassGroup classGroup) => _database
-      .into(_database.classGroups)
-      .insertOnConflictUpdate(
-        ClassGroupsCompanion.insert(
-          id: classGroup.id,
-          gradeId: classGroup.gradeId,
-          name: classGroup.name.trim(),
-          sortOrder: classGroup.sortOrder,
-        ),
-      );
+  Future<void> saveClass(domain.ClassGroup classGroup) =>
+      _database.transaction(() async {
+        await _database
+            .into(_database.classGroups)
+            .insertOnConflictUpdate(
+              ClassGroupsCompanion.insert(
+                id: classGroup.id,
+                gradeId: classGroup.gradeId,
+                name: classGroup.name.trim(),
+                sortOrder: classGroup.sortOrder,
+              ),
+            );
+        final grade = await (_database.select(
+          _database.gradeGroups,
+        )..where((row) => row.id.equals(classGroup.gradeId))).getSingle();
+        await _remapRoomScope('class', [classGroup.id], grade.stageId);
+      });
 
   @override
   Future<void> saveClasses(List<domain.ClassGroup> classes) =>
@@ -642,6 +665,7 @@ class DriftSchoolRepository implements SchoolRepository {
 
   @override
   Future<void> deleteClass(String classId) => _database.transaction(() async {
+    await _deleteRoomScope('class', [classId]);
     await (_database.delete(_database.freeSlots)..where(
           (slot) =>
               slot.scopeType.equals('class') & slot.scopeId.equals(classId),
@@ -1651,4 +1675,367 @@ class DriftSchoolRepository implements SchoolRepository {
         lessonCount: row.lessonCount,
         classId: row.classId,
       );
+  @override
+  Stream<List<domain.PublicRoom>> watchPublicRooms() =>
+      (_database.select(_database.publicRooms)..orderBy([
+            (row) => OrderingTerm.asc(row.sortOrder),
+            (row) => OrderingTerm.asc(row.id),
+          ]))
+          .watch()
+          .map(
+            (rows) => rows
+                .map(
+                  (row) => domain.PublicRoom(
+                    id: row.id,
+                    name: row.name,
+                    roomCount: row.roomCount,
+                    capacityPerRoom: row.capacityPerRoom,
+                    sortOrder: row.sortOrder,
+                  ),
+                )
+                .toList(),
+          );
+
+  @override
+  Future<void> savePublicRooms(List<domain.PublicRoom> rooms) async {
+    final ids = <String>{};
+    for (final room in rooms) {
+      room.validate();
+      if (!ids.add(room.id)) throw ArgumentError('公共教室 ID 重复');
+    }
+    await _database.transaction(() async {
+      for (final room in rooms) {
+        await _database
+            .into(_database.publicRooms)
+            .insertOnConflictUpdate(
+              PublicRoomsCompanion.insert(
+                id: room.id,
+                name: room.name.trim(),
+                roomCount: room.roomCount,
+                capacityPerRoom: room.capacityPerRoom,
+                sortOrder: room.sortOrder,
+              ),
+            );
+      }
+    });
+  }
+
+  @override
+  Future<void> deletePublicRoom(String roomId) =>
+      _database.transaction(() async {
+        await (_database.delete(
+          _database.subjectRoomAssignments,
+        )..where((row) => row.roomId.equals(roomId))).go();
+        await (_database.delete(
+          _database.publicRooms,
+        )..where((row) => row.id.equals(roomId))).go();
+      });
+
+  domain.SubjectRoomAssignment _toDomainRoomAssignment(
+    SubjectRoomAssignment row,
+  ) => domain.SubjectRoomAssignment(
+    id: row.id,
+    subjectId: row.subjectId,
+    termId: row.termId,
+    stageId: row.stageId,
+    scope: domain.FreeSlotScope.fromStorage(row.scopeType),
+    scopeId: row.scopeId,
+    roomId: row.roomId,
+  );
+
+  domain.SubjectParallelLimit _toDomainParallelLimit(
+    SubjectParallelLimit row,
+  ) => domain.SubjectParallelLimit(
+    id: row.id,
+    subjectId: row.subjectId,
+    termId: row.termId,
+    stageId: row.stageId,
+    scope: domain.FreeSlotScope.fromStorage(row.scopeType),
+    scopeId: row.scopeId,
+    maxParallelLessons: row.maxParallelLessons,
+  );
+
+  @override
+  Stream<List<domain.SubjectRoomAssignment>> watchRoomReferences(
+    String roomId,
+  ) =>
+      (_database.select(_database.subjectRoomAssignments)
+            ..where((row) => row.roomId.equals(roomId)))
+          .watch()
+          .map((rows) => rows.map(_toDomainRoomAssignment).toList());
+
+  @override
+  Stream<List<domain.SubjectRoomAssignment>> watchSubjectRoomAssignments(
+    String termId,
+  ) =>
+      (_database.select(_database.subjectRoomAssignments)
+            ..where((row) => row.termId.equals(termId)))
+          .watch()
+          .map((rows) => rows.map(_toDomainRoomAssignment).toList());
+
+  @override
+  Stream<List<domain.SubjectParallelLimit>> watchSubjectParallelLimits(
+    String termId,
+  ) =>
+      (_database.select(_database.subjectParallelLimits)
+            ..where((row) => row.termId.equals(termId)))
+          .watch()
+          .map((rows) => rows.map(_toDomainParallelLimit).toList());
+
+  Future<void> _validateRoomScope({
+    required String termId,
+    required String stageId,
+    required domain.FreeSlotScope scope,
+    required String scopeId,
+    bool allowClass = true,
+  }) async {
+    if (scope == domain.FreeSlotScope.school ||
+        (!allowClass && scope == domain.FreeSlotScope.schoolClass)) {
+      throw ArgumentError('不支持此设置范围');
+    }
+    final stage = await (_database.select(
+      _database.schoolStages,
+    )..where((row) => row.id.equals(stageId))).getSingleOrNull();
+    if (stage == null || stage.termId != termId) {
+      throw ArgumentError('学段不属于指定学期');
+    }
+    if (scope == domain.FreeSlotScope.stage) {
+      if (scopeId != stageId) throw ArgumentError('范围必须属于指定学段');
+    } else {
+      String? gradeId;
+      if (scope == domain.FreeSlotScope.schoolClass) {
+        final schoolClass = await (_database.select(
+          _database.classGroups,
+        )..where((row) => row.id.equals(scopeId))).getSingleOrNull();
+        if (schoolClass == null) throw ArgumentError('班级不存在');
+        gradeId = schoolClass.gradeId;
+      } else {
+        gradeId = scopeId;
+      }
+      final grade = await (_database.select(
+        _database.gradeGroups,
+      )..where((row) => row.id.equals(gradeId!))).getSingleOrNull();
+      if (grade == null || grade.stageId != stageId) {
+        throw ArgumentError('范围必须属于指定学段');
+      }
+    }
+  }
+
+  Future<void> _validateSubjectTerm(String subjectId, String termId) async {
+    final subject = await (_database.select(
+      _database.subjects,
+    )..where((row) => row.id.equals(subjectId))).getSingleOrNull();
+    final term = await (_database.select(
+      _database.academicTerms,
+    )..where((row) => row.id.equals(termId))).getSingleOrNull();
+    if (subject == null || term == null) throw ArgumentError('科目或学期不存在');
+  }
+
+  Future<void> _insertRoomAssignments(
+    List<domain.SubjectRoomAssignment> assignments,
+  ) async {
+    for (final row in assignments) {
+      await _database
+          .into(_database.subjectRoomAssignments)
+          .insert(
+            SubjectRoomAssignmentsCompanion.insert(
+              id: _newId(),
+              subjectId: row.subjectId,
+              termId: row.termId,
+              stageId: row.stageId,
+              scopeType: row.scope.storageValue,
+              scopeId: row.scopeId,
+              roomId: Value(row.roomId),
+            ),
+          );
+    }
+  }
+
+  Future<void> _insertParallelLimits(
+    List<domain.SubjectParallelLimit> limits,
+  ) async {
+    for (final row in limits) {
+      await _database
+          .into(_database.subjectParallelLimits)
+          .insert(
+            SubjectParallelLimitsCompanion.insert(
+              id: _newId(),
+              subjectId: row.subjectId,
+              termId: row.termId,
+              stageId: row.stageId,
+              scopeType: row.scope.storageValue,
+              scopeId: row.scopeId,
+              maxParallelLessons: row.maxParallelLessons,
+            ),
+          );
+    }
+  }
+
+  @override
+  Future<void> replaceSubjectRoomSettings({
+    required String termId,
+    required String subjectId,
+    required List<domain.SubjectRoomAssignment> assignments,
+    required List<domain.SubjectParallelLimit> limits,
+  }) => _database.transaction(() async {
+    await _validateSubjectTerm(subjectId, termId);
+    final assignmentScopes = <(domain.FreeSlotScope, String)>{};
+    for (final row in assignments) {
+      if (row.subjectId != subjectId ||
+          row.termId != termId ||
+          !assignmentScopes.add((row.scope, row.scopeId))) {
+        throw ArgumentError('公共教室记录必须属于指定科目和学期，且范围不能重复');
+      }
+      await _validateRoomScope(
+        termId: termId,
+        stageId: row.stageId,
+        scope: row.scope,
+        scopeId: row.scopeId,
+      );
+    }
+    final limitScopes = <(domain.FreeSlotScope, String)>{};
+    for (final row in limits) {
+      if (row.subjectId != subjectId ||
+          row.termId != termId ||
+          row.maxParallelLessons <= 0 ||
+          !limitScopes.add((row.scope, row.scopeId))) {
+        throw ArgumentError('并行课节限制必须为正数并属于指定科目和学期，且范围不能重复');
+      }
+      await _validateRoomScope(
+        termId: termId,
+        stageId: row.stageId,
+        scope: row.scope,
+        scopeId: row.scopeId,
+        allowClass: false,
+      );
+    }
+    await (_database.delete(_database.subjectRoomAssignments)..where(
+          (row) => row.termId.equals(termId) & row.subjectId.equals(subjectId),
+        ))
+        .go();
+    await (_database.delete(_database.subjectParallelLimits)..where(
+          (row) => row.termId.equals(termId) & row.subjectId.equals(subjectId),
+        ))
+        .go();
+    await _insertRoomAssignments(assignments);
+    await _insertParallelLimits(limits);
+  });
+
+  @override
+  Future<void> replaceSubjectRoomAssignments({
+    required String subjectId,
+    required String termId,
+    required String stageId,
+    required domain.FreeSlotScope scope,
+    required String scopeId,
+    required List<domain.SubjectRoomAssignment> assignments,
+  }) => _database.transaction(() async {
+    await _validateSubjectTerm(subjectId, termId);
+    await _validateRoomScope(
+      termId: termId,
+      stageId: stageId,
+      scope: scope,
+      scopeId: scopeId,
+    );
+    if (assignments.length > 1 ||
+        assignments.any(
+          (row) =>
+              row.subjectId != subjectId ||
+              row.termId != termId ||
+              row.stageId != stageId ||
+              row.scope != scope ||
+              row.scopeId != scopeId,
+        )) {
+      throw ArgumentError('同一范围只能保存一条公共教室设置');
+    }
+    await (_database.delete(_database.subjectRoomAssignments)..where(
+          (row) =>
+              row.subjectId.equals(subjectId) &
+              row.termId.equals(termId) &
+              row.scopeType.equals(scope.storageValue) &
+              row.scopeId.equals(scopeId),
+        ))
+        .go();
+    await _insertRoomAssignments(assignments);
+  });
+
+  @override
+  Future<void> replaceSubjectParallelLimits({
+    required String subjectId,
+    required String termId,
+    required String stageId,
+    required domain.FreeSlotScope scope,
+    required String scopeId,
+    required List<domain.SubjectParallelLimit> limits,
+  }) => _database.transaction(() async {
+    await _validateSubjectTerm(subjectId, termId);
+    await _validateRoomScope(
+      termId: termId,
+      stageId: stageId,
+      scope: scope,
+      scopeId: scopeId,
+      allowClass: false,
+    );
+    if (limits.length > 1 ||
+        limits.any(
+          (row) =>
+              row.subjectId != subjectId ||
+              row.termId != termId ||
+              row.stageId != stageId ||
+              row.scope != scope ||
+              row.scopeId != scopeId ||
+              row.maxParallelLessons <= 0,
+        )) {
+      throw ArgumentError('同一范围只能保存一条正数并行课节限制');
+    }
+    await (_database.delete(_database.subjectParallelLimits)..where(
+          (row) =>
+              row.subjectId.equals(subjectId) &
+              row.termId.equals(termId) &
+              row.scopeType.equals(scope.storageValue) &
+              row.scopeId.equals(scopeId),
+        ))
+        .go();
+    await _insertParallelLimits(limits);
+  });
+
+  Future<void> _deleteRoomScope(String scopeType, List<String> scopeIds) async {
+    await (_database.delete(_database.subjectRoomAssignments)..where(
+          (row) => row.scopeType.equals(scopeType) & row.scopeId.isIn(scopeIds),
+        ))
+        .go();
+    await (_database.delete(_database.subjectParallelLimits)..where(
+          (row) => row.scopeType.equals(scopeType) & row.scopeId.isIn(scopeIds),
+        ))
+        .go();
+  }
+
+  Future<void> _remapRoomScope(
+    String scopeType,
+    List<String> scopeIds,
+    String stageId,
+  ) async {
+    if (scopeIds.isEmpty) return;
+    final stage = await (_database.select(
+      _database.schoolStages,
+    )..where((row) => row.id.equals(stageId))).getSingle();
+    await (_database.update(_database.subjectRoomAssignments)..where(
+          (row) => row.scopeType.equals(scopeType) & row.scopeId.isIn(scopeIds),
+        ))
+        .write(
+          SubjectRoomAssignmentsCompanion(
+            stageId: Value(stageId),
+            termId: Value(stage.termId),
+          ),
+        );
+    await (_database.update(_database.subjectParallelLimits)..where(
+          (row) => row.scopeType.equals(scopeType) & row.scopeId.isIn(scopeIds),
+        ))
+        .write(
+          SubjectParallelLimitsCompanion(
+            stageId: Value(stageId),
+            termId: Value(stage.termId),
+          ),
+        );
+  }
 }

@@ -6957,6 +6957,1328 @@ class SubjectLessonConstraintsCompanion
   }
 }
 
+class $PublicRoomsTable extends PublicRooms
+    with TableInfo<$PublicRoomsTable, PublicRoom> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PublicRoomsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roomCountMeta = const VerificationMeta(
+    'roomCount',
+  );
+  @override
+  late final GeneratedColumn<int> roomCount = GeneratedColumn<int>(
+    'room_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _capacityPerRoomMeta = const VerificationMeta(
+    'capacityPerRoom',
+  );
+  @override
+  late final GeneratedColumn<int> capacityPerRoom = GeneratedColumn<int>(
+    'capacity_per_room',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    roomCount,
+    capacityPerRoom,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'public_rooms';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PublicRoom> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('room_count')) {
+      context.handle(
+        _roomCountMeta,
+        roomCount.isAcceptableOrUnknown(data['room_count']!, _roomCountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roomCountMeta);
+    }
+    if (data.containsKey('capacity_per_room')) {
+      context.handle(
+        _capacityPerRoomMeta,
+        capacityPerRoom.isAcceptableOrUnknown(
+          data['capacity_per_room']!,
+          _capacityPerRoomMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_capacityPerRoomMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sortOrderMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PublicRoom map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PublicRoom(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      roomCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}room_count'],
+      )!,
+      capacityPerRoom: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}capacity_per_room'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $PublicRoomsTable createAlias(String alias) {
+    return $PublicRoomsTable(attachedDatabase, alias);
+  }
+}
+
+class PublicRoom extends DataClass implements Insertable<PublicRoom> {
+  final String id;
+  final String name;
+  final int roomCount;
+  final int capacityPerRoom;
+  final int sortOrder;
+  const PublicRoom({
+    required this.id,
+    required this.name,
+    required this.roomCount,
+    required this.capacityPerRoom,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['room_count'] = Variable<int>(roomCount);
+    map['capacity_per_room'] = Variable<int>(capacityPerRoom);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  PublicRoomsCompanion toCompanion(bool nullToAbsent) {
+    return PublicRoomsCompanion(
+      id: Value(id),
+      name: Value(name),
+      roomCount: Value(roomCount),
+      capacityPerRoom: Value(capacityPerRoom),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory PublicRoom.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PublicRoom(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      roomCount: serializer.fromJson<int>(json['roomCount']),
+      capacityPerRoom: serializer.fromJson<int>(json['capacityPerRoom']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'roomCount': serializer.toJson<int>(roomCount),
+      'capacityPerRoom': serializer.toJson<int>(capacityPerRoom),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  PublicRoom copyWith({
+    String? id,
+    String? name,
+    int? roomCount,
+    int? capacityPerRoom,
+    int? sortOrder,
+  }) => PublicRoom(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    roomCount: roomCount ?? this.roomCount,
+    capacityPerRoom: capacityPerRoom ?? this.capacityPerRoom,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  PublicRoom copyWithCompanion(PublicRoomsCompanion data) {
+    return PublicRoom(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      roomCount: data.roomCount.present ? data.roomCount.value : this.roomCount,
+      capacityPerRoom: data.capacityPerRoom.present
+          ? data.capacityPerRoom.value
+          : this.capacityPerRoom,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PublicRoom(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('roomCount: $roomCount, ')
+          ..write('capacityPerRoom: $capacityPerRoom, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, roomCount, capacityPerRoom, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PublicRoom &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.roomCount == this.roomCount &&
+          other.capacityPerRoom == this.capacityPerRoom &&
+          other.sortOrder == this.sortOrder);
+}
+
+class PublicRoomsCompanion extends UpdateCompanion<PublicRoom> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int> roomCount;
+  final Value<int> capacityPerRoom;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const PublicRoomsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.roomCount = const Value.absent(),
+    this.capacityPerRoom = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PublicRoomsCompanion.insert({
+    required String id,
+    required String name,
+    required int roomCount,
+    required int capacityPerRoom,
+    required int sortOrder,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       roomCount = Value(roomCount),
+       capacityPerRoom = Value(capacityPerRoom),
+       sortOrder = Value(sortOrder);
+  static Insertable<PublicRoom> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? roomCount,
+    Expression<int>? capacityPerRoom,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (roomCount != null) 'room_count': roomCount,
+      if (capacityPerRoom != null) 'capacity_per_room': capacityPerRoom,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PublicRoomsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<int>? roomCount,
+    Value<int>? capacityPerRoom,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return PublicRoomsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      roomCount: roomCount ?? this.roomCount,
+      capacityPerRoom: capacityPerRoom ?? this.capacityPerRoom,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (roomCount.present) {
+      map['room_count'] = Variable<int>(roomCount.value);
+    }
+    if (capacityPerRoom.present) {
+      map['capacity_per_room'] = Variable<int>(capacityPerRoom.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PublicRoomsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('roomCount: $roomCount, ')
+          ..write('capacityPerRoom: $capacityPerRoom, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SubjectRoomAssignmentsTable extends SubjectRoomAssignments
+    with TableInfo<$SubjectRoomAssignmentsTable, SubjectRoomAssignment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectRoomAssignmentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _stageIdMeta = const VerificationMeta(
+    'stageId',
+  );
+  @override
+  late final GeneratedColumn<String> stageId = GeneratedColumn<String>(
+    'stage_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES school_stages (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scopeTypeMeta = const VerificationMeta(
+    'scopeType',
+  );
+  @override
+  late final GeneratedColumn<String> scopeType = GeneratedColumn<String>(
+    'scope_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeIdMeta = const VerificationMeta(
+    'scopeId',
+  );
+  @override
+  late final GeneratedColumn<String> scopeId = GeneratedColumn<String>(
+    'scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roomIdMeta = const VerificationMeta('roomId');
+  @override
+  late final GeneratedColumn<String> roomId = GeneratedColumn<String>(
+    'room_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES public_rooms (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    subjectId,
+    termId,
+    stageId,
+    scopeType,
+    scopeId,
+    roomId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_room_assignments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubjectRoomAssignment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('stage_id')) {
+      context.handle(
+        _stageIdMeta,
+        stageId.isAcceptableOrUnknown(data['stage_id']!, _stageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stageIdMeta);
+    }
+    if (data.containsKey('scope_type')) {
+      context.handle(
+        _scopeTypeMeta,
+        scopeType.isAcceptableOrUnknown(data['scope_type']!, _scopeTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeTypeMeta);
+    }
+    if (data.containsKey('scope_id')) {
+      context.handle(
+        _scopeIdMeta,
+        scopeId.isAcceptableOrUnknown(data['scope_id']!, _scopeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeIdMeta);
+    }
+    if (data.containsKey('room_id')) {
+      context.handle(
+        _roomIdMeta,
+        roomId.isAcceptableOrUnknown(data['room_id']!, _roomIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {subjectId, termId, scopeType, scopeId},
+  ];
+  @override
+  SubjectRoomAssignment map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectRoomAssignment(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      stageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage_id'],
+      )!,
+      scopeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_type'],
+      )!,
+      scopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_id'],
+      )!,
+      roomId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}room_id'],
+      ),
+    );
+  }
+
+  @override
+  $SubjectRoomAssignmentsTable createAlias(String alias) {
+    return $SubjectRoomAssignmentsTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectRoomAssignment extends DataClass
+    implements Insertable<SubjectRoomAssignment> {
+  final String id;
+  final String subjectId;
+  final String termId;
+  final String stageId;
+  final String scopeType;
+  final String scopeId;
+  final String? roomId;
+  const SubjectRoomAssignment({
+    required this.id,
+    required this.subjectId,
+    required this.termId,
+    required this.stageId,
+    required this.scopeType,
+    required this.scopeId,
+    this.roomId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['subject_id'] = Variable<String>(subjectId);
+    map['term_id'] = Variable<String>(termId);
+    map['stage_id'] = Variable<String>(stageId);
+    map['scope_type'] = Variable<String>(scopeType);
+    map['scope_id'] = Variable<String>(scopeId);
+    if (!nullToAbsent || roomId != null) {
+      map['room_id'] = Variable<String>(roomId);
+    }
+    return map;
+  }
+
+  SubjectRoomAssignmentsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectRoomAssignmentsCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      termId: Value(termId),
+      stageId: Value(stageId),
+      scopeType: Value(scopeType),
+      scopeId: Value(scopeId),
+      roomId: roomId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(roomId),
+    );
+  }
+
+  factory SubjectRoomAssignment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectRoomAssignment(
+      id: serializer.fromJson<String>(json['id']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+      termId: serializer.fromJson<String>(json['termId']),
+      stageId: serializer.fromJson<String>(json['stageId']),
+      scopeType: serializer.fromJson<String>(json['scopeType']),
+      scopeId: serializer.fromJson<String>(json['scopeId']),
+      roomId: serializer.fromJson<String?>(json['roomId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'subjectId': serializer.toJson<String>(subjectId),
+      'termId': serializer.toJson<String>(termId),
+      'stageId': serializer.toJson<String>(stageId),
+      'scopeType': serializer.toJson<String>(scopeType),
+      'scopeId': serializer.toJson<String>(scopeId),
+      'roomId': serializer.toJson<String?>(roomId),
+    };
+  }
+
+  SubjectRoomAssignment copyWith({
+    String? id,
+    String? subjectId,
+    String? termId,
+    String? stageId,
+    String? scopeType,
+    String? scopeId,
+    Value<String?> roomId = const Value.absent(),
+  }) => SubjectRoomAssignment(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    termId: termId ?? this.termId,
+    stageId: stageId ?? this.stageId,
+    scopeType: scopeType ?? this.scopeType,
+    scopeId: scopeId ?? this.scopeId,
+    roomId: roomId.present ? roomId.value : this.roomId,
+  );
+  SubjectRoomAssignment copyWithCompanion(
+    SubjectRoomAssignmentsCompanion data,
+  ) {
+    return SubjectRoomAssignment(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      termId: data.termId.present ? data.termId.value : this.termId,
+      stageId: data.stageId.present ? data.stageId.value : this.stageId,
+      scopeType: data.scopeType.present ? data.scopeType.value : this.scopeType,
+      scopeId: data.scopeId.present ? data.scopeId.value : this.scopeId,
+      roomId: data.roomId.present ? data.roomId.value : this.roomId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectRoomAssignment(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('termId: $termId, ')
+          ..write('stageId: $stageId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('roomId: $roomId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, subjectId, termId, stageId, scopeType, scopeId, roomId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectRoomAssignment &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.termId == this.termId &&
+          other.stageId == this.stageId &&
+          other.scopeType == this.scopeType &&
+          other.scopeId == this.scopeId &&
+          other.roomId == this.roomId);
+}
+
+class SubjectRoomAssignmentsCompanion
+    extends UpdateCompanion<SubjectRoomAssignment> {
+  final Value<String> id;
+  final Value<String> subjectId;
+  final Value<String> termId;
+  final Value<String> stageId;
+  final Value<String> scopeType;
+  final Value<String> scopeId;
+  final Value<String?> roomId;
+  final Value<int> rowid;
+  const SubjectRoomAssignmentsCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.termId = const Value.absent(),
+    this.stageId = const Value.absent(),
+    this.scopeType = const Value.absent(),
+    this.scopeId = const Value.absent(),
+    this.roomId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectRoomAssignmentsCompanion.insert({
+    required String id,
+    required String subjectId,
+    required String termId,
+    required String stageId,
+    required String scopeType,
+    required String scopeId,
+    this.roomId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       subjectId = Value(subjectId),
+       termId = Value(termId),
+       stageId = Value(stageId),
+       scopeType = Value(scopeType),
+       scopeId = Value(scopeId);
+  static Insertable<SubjectRoomAssignment> custom({
+    Expression<String>? id,
+    Expression<String>? subjectId,
+    Expression<String>? termId,
+    Expression<String>? stageId,
+    Expression<String>? scopeType,
+    Expression<String>? scopeId,
+    Expression<String>? roomId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (termId != null) 'term_id': termId,
+      if (stageId != null) 'stage_id': stageId,
+      if (scopeType != null) 'scope_type': scopeType,
+      if (scopeId != null) 'scope_id': scopeId,
+      if (roomId != null) 'room_id': roomId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectRoomAssignmentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? subjectId,
+    Value<String>? termId,
+    Value<String>? stageId,
+    Value<String>? scopeType,
+    Value<String>? scopeId,
+    Value<String?>? roomId,
+    Value<int>? rowid,
+  }) {
+    return SubjectRoomAssignmentsCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      termId: termId ?? this.termId,
+      stageId: stageId ?? this.stageId,
+      scopeType: scopeType ?? this.scopeType,
+      scopeId: scopeId ?? this.scopeId,
+      roomId: roomId ?? this.roomId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (stageId.present) {
+      map['stage_id'] = Variable<String>(stageId.value);
+    }
+    if (scopeType.present) {
+      map['scope_type'] = Variable<String>(scopeType.value);
+    }
+    if (scopeId.present) {
+      map['scope_id'] = Variable<String>(scopeId.value);
+    }
+    if (roomId.present) {
+      map['room_id'] = Variable<String>(roomId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectRoomAssignmentsCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('termId: $termId, ')
+          ..write('stageId: $stageId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('roomId: $roomId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SubjectParallelLimitsTable extends SubjectParallelLimits
+    with TableInfo<$SubjectParallelLimitsTable, SubjectParallelLimit> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectParallelLimitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _stageIdMeta = const VerificationMeta(
+    'stageId',
+  );
+  @override
+  late final GeneratedColumn<String> stageId = GeneratedColumn<String>(
+    'stage_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES school_stages (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scopeTypeMeta = const VerificationMeta(
+    'scopeType',
+  );
+  @override
+  late final GeneratedColumn<String> scopeType = GeneratedColumn<String>(
+    'scope_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeIdMeta = const VerificationMeta(
+    'scopeId',
+  );
+  @override
+  late final GeneratedColumn<String> scopeId = GeneratedColumn<String>(
+    'scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _maxParallelLessonsMeta =
+      const VerificationMeta('maxParallelLessons');
+  @override
+  late final GeneratedColumn<int> maxParallelLessons = GeneratedColumn<int>(
+    'max_parallel_lessons',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    subjectId,
+    termId,
+    stageId,
+    scopeType,
+    scopeId,
+    maxParallelLessons,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_parallel_limits';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubjectParallelLimit> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('stage_id')) {
+      context.handle(
+        _stageIdMeta,
+        stageId.isAcceptableOrUnknown(data['stage_id']!, _stageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stageIdMeta);
+    }
+    if (data.containsKey('scope_type')) {
+      context.handle(
+        _scopeTypeMeta,
+        scopeType.isAcceptableOrUnknown(data['scope_type']!, _scopeTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeTypeMeta);
+    }
+    if (data.containsKey('scope_id')) {
+      context.handle(
+        _scopeIdMeta,
+        scopeId.isAcceptableOrUnknown(data['scope_id']!, _scopeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeIdMeta);
+    }
+    if (data.containsKey('max_parallel_lessons')) {
+      context.handle(
+        _maxParallelLessonsMeta,
+        maxParallelLessons.isAcceptableOrUnknown(
+          data['max_parallel_lessons']!,
+          _maxParallelLessonsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_maxParallelLessonsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {subjectId, termId, scopeType, scopeId},
+  ];
+  @override
+  SubjectParallelLimit map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectParallelLimit(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      stageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage_id'],
+      )!,
+      scopeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_type'],
+      )!,
+      scopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_id'],
+      )!,
+      maxParallelLessons: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_parallel_lessons'],
+      )!,
+    );
+  }
+
+  @override
+  $SubjectParallelLimitsTable createAlias(String alias) {
+    return $SubjectParallelLimitsTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectParallelLimit extends DataClass
+    implements Insertable<SubjectParallelLimit> {
+  final String id;
+  final String subjectId;
+  final String termId;
+  final String stageId;
+  final String scopeType;
+  final String scopeId;
+  final int maxParallelLessons;
+  const SubjectParallelLimit({
+    required this.id,
+    required this.subjectId,
+    required this.termId,
+    required this.stageId,
+    required this.scopeType,
+    required this.scopeId,
+    required this.maxParallelLessons,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['subject_id'] = Variable<String>(subjectId);
+    map['term_id'] = Variable<String>(termId);
+    map['stage_id'] = Variable<String>(stageId);
+    map['scope_type'] = Variable<String>(scopeType);
+    map['scope_id'] = Variable<String>(scopeId);
+    map['max_parallel_lessons'] = Variable<int>(maxParallelLessons);
+    return map;
+  }
+
+  SubjectParallelLimitsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectParallelLimitsCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      termId: Value(termId),
+      stageId: Value(stageId),
+      scopeType: Value(scopeType),
+      scopeId: Value(scopeId),
+      maxParallelLessons: Value(maxParallelLessons),
+    );
+  }
+
+  factory SubjectParallelLimit.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectParallelLimit(
+      id: serializer.fromJson<String>(json['id']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+      termId: serializer.fromJson<String>(json['termId']),
+      stageId: serializer.fromJson<String>(json['stageId']),
+      scopeType: serializer.fromJson<String>(json['scopeType']),
+      scopeId: serializer.fromJson<String>(json['scopeId']),
+      maxParallelLessons: serializer.fromJson<int>(json['maxParallelLessons']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'subjectId': serializer.toJson<String>(subjectId),
+      'termId': serializer.toJson<String>(termId),
+      'stageId': serializer.toJson<String>(stageId),
+      'scopeType': serializer.toJson<String>(scopeType),
+      'scopeId': serializer.toJson<String>(scopeId),
+      'maxParallelLessons': serializer.toJson<int>(maxParallelLessons),
+    };
+  }
+
+  SubjectParallelLimit copyWith({
+    String? id,
+    String? subjectId,
+    String? termId,
+    String? stageId,
+    String? scopeType,
+    String? scopeId,
+    int? maxParallelLessons,
+  }) => SubjectParallelLimit(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    termId: termId ?? this.termId,
+    stageId: stageId ?? this.stageId,
+    scopeType: scopeType ?? this.scopeType,
+    scopeId: scopeId ?? this.scopeId,
+    maxParallelLessons: maxParallelLessons ?? this.maxParallelLessons,
+  );
+  SubjectParallelLimit copyWithCompanion(SubjectParallelLimitsCompanion data) {
+    return SubjectParallelLimit(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      termId: data.termId.present ? data.termId.value : this.termId,
+      stageId: data.stageId.present ? data.stageId.value : this.stageId,
+      scopeType: data.scopeType.present ? data.scopeType.value : this.scopeType,
+      scopeId: data.scopeId.present ? data.scopeId.value : this.scopeId,
+      maxParallelLessons: data.maxParallelLessons.present
+          ? data.maxParallelLessons.value
+          : this.maxParallelLessons,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectParallelLimit(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('termId: $termId, ')
+          ..write('stageId: $stageId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('maxParallelLessons: $maxParallelLessons')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    subjectId,
+    termId,
+    stageId,
+    scopeType,
+    scopeId,
+    maxParallelLessons,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectParallelLimit &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.termId == this.termId &&
+          other.stageId == this.stageId &&
+          other.scopeType == this.scopeType &&
+          other.scopeId == this.scopeId &&
+          other.maxParallelLessons == this.maxParallelLessons);
+}
+
+class SubjectParallelLimitsCompanion
+    extends UpdateCompanion<SubjectParallelLimit> {
+  final Value<String> id;
+  final Value<String> subjectId;
+  final Value<String> termId;
+  final Value<String> stageId;
+  final Value<String> scopeType;
+  final Value<String> scopeId;
+  final Value<int> maxParallelLessons;
+  final Value<int> rowid;
+  const SubjectParallelLimitsCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.termId = const Value.absent(),
+    this.stageId = const Value.absent(),
+    this.scopeType = const Value.absent(),
+    this.scopeId = const Value.absent(),
+    this.maxParallelLessons = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectParallelLimitsCompanion.insert({
+    required String id,
+    required String subjectId,
+    required String termId,
+    required String stageId,
+    required String scopeType,
+    required String scopeId,
+    required int maxParallelLessons,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       subjectId = Value(subjectId),
+       termId = Value(termId),
+       stageId = Value(stageId),
+       scopeType = Value(scopeType),
+       scopeId = Value(scopeId),
+       maxParallelLessons = Value(maxParallelLessons);
+  static Insertable<SubjectParallelLimit> custom({
+    Expression<String>? id,
+    Expression<String>? subjectId,
+    Expression<String>? termId,
+    Expression<String>? stageId,
+    Expression<String>? scopeType,
+    Expression<String>? scopeId,
+    Expression<int>? maxParallelLessons,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (termId != null) 'term_id': termId,
+      if (stageId != null) 'stage_id': stageId,
+      if (scopeType != null) 'scope_type': scopeType,
+      if (scopeId != null) 'scope_id': scopeId,
+      if (maxParallelLessons != null)
+        'max_parallel_lessons': maxParallelLessons,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectParallelLimitsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? subjectId,
+    Value<String>? termId,
+    Value<String>? stageId,
+    Value<String>? scopeType,
+    Value<String>? scopeId,
+    Value<int>? maxParallelLessons,
+    Value<int>? rowid,
+  }) {
+    return SubjectParallelLimitsCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      termId: termId ?? this.termId,
+      stageId: stageId ?? this.stageId,
+      scopeType: scopeType ?? this.scopeType,
+      scopeId: scopeId ?? this.scopeId,
+      maxParallelLessons: maxParallelLessons ?? this.maxParallelLessons,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (stageId.present) {
+      map['stage_id'] = Variable<String>(stageId.value);
+    }
+    if (scopeType.present) {
+      map['scope_type'] = Variable<String>(scopeType.value);
+    }
+    if (scopeId.present) {
+      map['scope_id'] = Variable<String>(scopeId.value);
+    }
+    if (maxParallelLessons.present) {
+      map['max_parallel_lessons'] = Variable<int>(maxParallelLessons.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectParallelLimitsCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('termId: $termId, ')
+          ..write('stageId: $stageId, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('maxParallelLessons: $maxParallelLessons, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6984,6 +8306,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $SubjectLessonConstraintsTable subjectLessonConstraints =
       $SubjectLessonConstraintsTable(this);
+  late final $PublicRoomsTable publicRooms = $PublicRoomsTable(this);
+  late final $SubjectRoomAssignmentsTable subjectRoomAssignments =
+      $SubjectRoomAssignmentsTable(this);
+  late final $SubjectParallelLimitsTable subjectParallelLimits =
+      $SubjectParallelLimitsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7005,6 +8332,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     subjectPresets,
     subjectPairings,
     subjectLessonConstraints,
+    publicRooms,
+    subjectRoomAssignments,
+    subjectParallelLimits,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -7173,6 +8503,63 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         TableUpdate('subject_lesson_constraints', kind: UpdateKind.delete),
       ],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('subject_room_assignments', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('subject_room_assignments', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'school_stages',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('subject_room_assignments', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'public_rooms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('subject_room_assignments', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_parallel_limits', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_parallel_limits', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'school_stages',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subject_parallel_limits', kind: UpdateKind.delete)],
+    ),
   ]);
 }
 
@@ -7242,6 +8629,56 @@ final class $$AcademicTermsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _calendarExceptionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SubjectRoomAssignmentsTable,
+    List<SubjectRoomAssignment>
+  >
+  _subjectRoomAssignmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectRoomAssignments,
+        aliasName: 'academic_terms__id__subject_room_assignments__term_id',
+      );
+
+  $$SubjectRoomAssignmentsTableProcessedTableManager
+  get subjectRoomAssignmentsRefs {
+    final manager = $$SubjectRoomAssignmentsTableTableManager(
+      $_db,
+      $_db.subjectRoomAssignments,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectRoomAssignmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SubjectParallelLimitsTable,
+    List<SubjectParallelLimit>
+  >
+  _subjectParallelLimitsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectParallelLimits,
+        aliasName: 'academic_terms__id__subject_parallel_limits__term_id',
+      );
+
+  $$SubjectParallelLimitsTableProcessedTableManager
+  get subjectParallelLimitsRefs {
+    final manager = $$SubjectParallelLimitsTableTableManager(
+      $_db,
+      $_db.subjectParallelLimits,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectParallelLimitsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -7345,6 +8782,58 @@ class $$AcademicTermsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> subjectRoomAssignmentsRefs(
+    Expression<bool> Function($$SubjectRoomAssignmentsTableFilterComposer f) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> subjectParallelLimitsRefs(
+    Expression<bool> Function($$SubjectParallelLimitsTableFilterComposer f) f,
+  ) {
+    final $$SubjectParallelLimitsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectParallelLimits,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectParallelLimitsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectParallelLimits,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -7490,6 +8979,58 @@ class $$AcademicTermsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> subjectRoomAssignmentsRefs<T extends Object>(
+    Expression<T> Function($$SubjectRoomAssignmentsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> subjectParallelLimitsRefs<T extends Object>(
+    Expression<T> Function($$SubjectParallelLimitsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectParallelLimitsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectParallelLimits,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectParallelLimitsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectParallelLimits,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AcademicTermsTableTableManager
@@ -7508,6 +9049,8 @@ class $$AcademicTermsTableTableManager
           PrefetchHooks Function({
             bool schoolStagesRefs,
             bool calendarExceptionsRefs,
+            bool subjectRoomAssignmentsRefs,
+            bool subjectParallelLimitsRefs,
           })
         > {
   $$AcademicTermsTableTableManager(_$AppDatabase db, $AcademicTermsTable table)
@@ -7574,12 +9117,19 @@ class $$AcademicTermsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({schoolStagesRefs = false, calendarExceptionsRefs = false}) {
+              ({
+                schoolStagesRefs = false,
+                calendarExceptionsRefs = false,
+                subjectRoomAssignmentsRefs = false,
+                subjectParallelLimitsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (schoolStagesRefs) db.schoolStages,
                     if (calendarExceptionsRefs) db.calendarExceptions,
+                    if (subjectRoomAssignmentsRefs) db.subjectRoomAssignments,
+                    if (subjectParallelLimitsRefs) db.subjectParallelLimits,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -7626,6 +9176,48 @@ class $$AcademicTermsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subjectRoomAssignmentsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          SubjectRoomAssignment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._subjectRoomAssignmentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectRoomAssignmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subjectParallelLimitsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          SubjectParallelLimit
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._subjectParallelLimitsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectParallelLimitsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7649,6 +9241,8 @@ typedef $$AcademicTermsTableProcessedTableManager =
       PrefetchHooks Function({
         bool schoolStagesRefs,
         bool calendarExceptionsRefs,
+        bool subjectRoomAssignmentsRefs,
+        bool subjectParallelLimitsRefs,
       })
     >;
 typedef $$SchoolStagesTableCreateCompanionBuilder =
@@ -7847,6 +9441,56 @@ final class $$SchoolStagesTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _subjectLessonConstraintsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SubjectRoomAssignmentsTable,
+    List<SubjectRoomAssignment>
+  >
+  _subjectRoomAssignmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectRoomAssignments,
+        aliasName: 'school_stages__id__subject_room_assignments__stage_id',
+      );
+
+  $$SubjectRoomAssignmentsTableProcessedTableManager
+  get subjectRoomAssignmentsRefs {
+    final manager = $$SubjectRoomAssignmentsTableTableManager(
+      $_db,
+      $_db.subjectRoomAssignments,
+    ).filter((f) => f.stageId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectRoomAssignmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SubjectParallelLimitsTable,
+    List<SubjectParallelLimit>
+  >
+  _subjectParallelLimitsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectParallelLimits,
+        aliasName: 'school_stages__id__subject_parallel_limits__stage_id',
+      );
+
+  $$SubjectParallelLimitsTableProcessedTableManager
+  get subjectParallelLimitsRefs {
+    final manager = $$SubjectParallelLimitsTableTableManager(
+      $_db,
+      $_db.subjectParallelLimits,
+    ).filter((f) => f.stageId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectParallelLimitsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -8094,6 +9738,58 @@ class $$SchoolStagesTableFilterComposer
               }) => $$SubjectLessonConstraintsTableFilterComposer(
                 $db: $db,
                 $table: $db.subjectLessonConstraints,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> subjectRoomAssignmentsRefs(
+    Expression<bool> Function($$SubjectRoomAssignmentsTableFilterComposer f) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.stageId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> subjectParallelLimitsRefs(
+    Expression<bool> Function($$SubjectParallelLimitsTableFilterComposer f) f,
+  ) {
+    final $$SubjectParallelLimitsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectParallelLimits,
+          getReferencedColumn: (t) => t.stageId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectParallelLimitsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectParallelLimits,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -8397,6 +10093,58 @@ class $$SchoolStagesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> subjectRoomAssignmentsRefs<T extends Object>(
+    Expression<T> Function($$SubjectRoomAssignmentsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.stageId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> subjectParallelLimitsRefs<T extends Object>(
+    Expression<T> Function($$SubjectParallelLimitsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectParallelLimitsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectParallelLimits,
+          getReferencedColumn: (t) => t.stageId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectParallelLimitsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectParallelLimits,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$SchoolStagesTableTableManager
@@ -8422,6 +10170,8 @@ class $$SchoolStagesTableTableManager
             bool commonPeriodsRefs,
             bool subjectPresetsRefs,
             bool subjectLessonConstraintsRefs,
+            bool subjectRoomAssignmentsRefs,
+            bool subjectParallelLimitsRefs,
           })
         > {
   $$SchoolStagesTableTableManager(_$AppDatabase db, $SchoolStagesTable table)
@@ -8482,6 +10232,8 @@ class $$SchoolStagesTableTableManager
                 commonPeriodsRefs = false,
                 subjectPresetsRefs = false,
                 subjectLessonConstraintsRefs = false,
+                subjectRoomAssignmentsRefs = false,
+                subjectParallelLimitsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -8495,6 +10247,8 @@ class $$SchoolStagesTableTableManager
                     if (subjectPresetsRefs) db.subjectPresets,
                     if (subjectLessonConstraintsRefs)
                       db.subjectLessonConstraints,
+                    if (subjectRoomAssignmentsRefs) db.subjectRoomAssignments,
+                    if (subjectParallelLimitsRefs) db.subjectParallelLimits,
                   ],
                   addJoins:
                       <
@@ -8696,6 +10450,48 @@ class $$SchoolStagesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subjectRoomAssignmentsRefs)
+                        await $_getPrefetchedData<
+                          SchoolStage,
+                          $SchoolStagesTable,
+                          SubjectRoomAssignment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SchoolStagesTableReferences
+                              ._subjectRoomAssignmentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SchoolStagesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectRoomAssignmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.stageId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subjectParallelLimitsRefs)
+                        await $_getPrefetchedData<
+                          SchoolStage,
+                          $SchoolStagesTable,
+                          SubjectParallelLimit
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SchoolStagesTableReferences
+                              ._subjectParallelLimitsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SchoolStagesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectParallelLimitsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.stageId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8726,6 +10522,8 @@ typedef $$SchoolStagesTableProcessedTableManager =
         bool commonPeriodsRefs,
         bool subjectPresetsRefs,
         bool subjectLessonConstraintsRefs,
+        bool subjectRoomAssignmentsRefs,
+        bool subjectParallelLimitsRefs,
       })
     >;
 typedef $$GradeGroupsTableCreateCompanionBuilder =
@@ -12801,6 +14599,56 @@ final class $$SubjectsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $SubjectRoomAssignmentsTable,
+    List<SubjectRoomAssignment>
+  >
+  _subjectRoomAssignmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectRoomAssignments,
+        aliasName: 'subjects__id__subject_room_assignments__subject_id',
+      );
+
+  $$SubjectRoomAssignmentsTableProcessedTableManager
+  get subjectRoomAssignmentsRefs {
+    final manager = $$SubjectRoomAssignmentsTableTableManager(
+      $_db,
+      $_db.subjectRoomAssignments,
+    ).filter((f) => f.subjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectRoomAssignmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SubjectParallelLimitsTable,
+    List<SubjectParallelLimit>
+  >
+  _subjectParallelLimitsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectParallelLimits,
+        aliasName: 'subjects__id__subject_parallel_limits__subject_id',
+      );
+
+  $$SubjectParallelLimitsTableProcessedTableManager
+  get subjectParallelLimitsRefs {
+    final manager = $$SubjectParallelLimitsTableTableManager(
+      $_db,
+      $_db.subjectParallelLimits,
+    ).filter((f) => f.subjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectParallelLimitsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SubjectsTableFilterComposer
@@ -12900,6 +14748,58 @@ class $$SubjectsTableFilterComposer
               }) => $$SubjectLessonConstraintsTableFilterComposer(
                 $db: $db,
                 $table: $db.subjectLessonConstraints,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> subjectRoomAssignmentsRefs(
+    Expression<bool> Function($$SubjectRoomAssignmentsTableFilterComposer f) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.subjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> subjectParallelLimitsRefs(
+    Expression<bool> Function($$SubjectParallelLimitsTableFilterComposer f) f,
+  ) {
+    final $$SubjectParallelLimitsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectParallelLimits,
+          getReferencedColumn: (t) => t.subjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectParallelLimitsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectParallelLimits,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -13038,6 +14938,58 @@ class $$SubjectsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> subjectRoomAssignmentsRefs<T extends Object>(
+    Expression<T> Function($$SubjectRoomAssignmentsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.subjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> subjectParallelLimitsRefs<T extends Object>(
+    Expression<T> Function($$SubjectParallelLimitsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectParallelLimitsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectParallelLimits,
+          getReferencedColumn: (t) => t.subjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectParallelLimitsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectParallelLimits,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$SubjectsTableTableManager
@@ -13057,6 +15009,8 @@ class $$SubjectsTableTableManager
             bool subjectRequirementsRefs,
             bool subjectPresetsRefs,
             bool subjectLessonConstraintsRefs,
+            bool subjectRoomAssignmentsRefs,
+            bool subjectParallelLimitsRefs,
           })
         > {
   $$SubjectsTableTableManager(_$AppDatabase db, $SubjectsTable table)
@@ -13111,6 +15065,8 @@ class $$SubjectsTableTableManager
                 subjectRequirementsRefs = false,
                 subjectPresetsRefs = false,
                 subjectLessonConstraintsRefs = false,
+                subjectRoomAssignmentsRefs = false,
+                subjectParallelLimitsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -13119,6 +15075,8 @@ class $$SubjectsTableTableManager
                     if (subjectPresetsRefs) db.subjectPresets,
                     if (subjectLessonConstraintsRefs)
                       db.subjectLessonConstraints,
+                    if (subjectRoomAssignmentsRefs) db.subjectRoomAssignments,
+                    if (subjectParallelLimitsRefs) db.subjectParallelLimits,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -13186,6 +15144,48 @@ class $$SubjectsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subjectRoomAssignmentsRefs)
+                        await $_getPrefetchedData<
+                          Subject,
+                          $SubjectsTable,
+                          SubjectRoomAssignment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SubjectsTableReferences
+                              ._subjectRoomAssignmentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SubjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectRoomAssignmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.subjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subjectParallelLimitsRefs)
+                        await $_getPrefetchedData<
+                          Subject,
+                          $SubjectsTable,
+                          SubjectParallelLimit
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SubjectsTableReferences
+                              ._subjectParallelLimitsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SubjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectParallelLimitsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.subjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -13210,6 +15210,8 @@ typedef $$SubjectsTableProcessedTableManager =
         bool subjectRequirementsRefs,
         bool subjectPresetsRefs,
         bool subjectLessonConstraintsRefs,
+        bool subjectRoomAssignmentsRefs,
+        bool subjectParallelLimitsRefs,
       })
     >;
 typedef $$SubjectRequirementsTableCreateCompanionBuilder =
@@ -15371,6 +17373,1525 @@ typedef $$SubjectLessonConstraintsTableProcessedTableManager =
       SubjectLessonConstraint,
       PrefetchHooks Function({bool subjectId, bool stageId})
     >;
+typedef $$PublicRoomsTableCreateCompanionBuilder =
+    PublicRoomsCompanion Function({
+      required String id,
+      required String name,
+      required int roomCount,
+      required int capacityPerRoom,
+      required int sortOrder,
+      Value<int> rowid,
+    });
+typedef $$PublicRoomsTableUpdateCompanionBuilder =
+    PublicRoomsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<int> roomCount,
+      Value<int> capacityPerRoom,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+
+final class $$PublicRoomsTableReferences
+    extends BaseReferences<_$AppDatabase, $PublicRoomsTable, PublicRoom> {
+  $$PublicRoomsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<
+    $SubjectRoomAssignmentsTable,
+    List<SubjectRoomAssignment>
+  >
+  _subjectRoomAssignmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subjectRoomAssignments,
+        aliasName: 'public_rooms__id__subject_room_assignments__room_id',
+      );
+
+  $$SubjectRoomAssignmentsTableProcessedTableManager
+  get subjectRoomAssignmentsRefs {
+    final manager = $$SubjectRoomAssignmentsTableTableManager(
+      $_db,
+      $_db.subjectRoomAssignments,
+    ).filter((f) => f.roomId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subjectRoomAssignmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$PublicRoomsTableFilterComposer
+    extends Composer<_$AppDatabase, $PublicRoomsTable> {
+  $$PublicRoomsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get roomCount => $composableBuilder(
+    column: $table.roomCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get capacityPerRoom => $composableBuilder(
+    column: $table.capacityPerRoom,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> subjectRoomAssignmentsRefs(
+    Expression<bool> Function($$SubjectRoomAssignmentsTableFilterComposer f) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.roomId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$PublicRoomsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PublicRoomsTable> {
+  $$PublicRoomsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get roomCount => $composableBuilder(
+    column: $table.roomCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get capacityPerRoom => $composableBuilder(
+    column: $table.capacityPerRoom,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PublicRoomsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PublicRoomsTable> {
+  $$PublicRoomsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get roomCount =>
+      $composableBuilder(column: $table.roomCount, builder: (column) => column);
+
+  GeneratedColumn<int> get capacityPerRoom => $composableBuilder(
+    column: $table.capacityPerRoom,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  Expression<T> subjectRoomAssignmentsRefs<T extends Object>(
+    Expression<T> Function($$SubjectRoomAssignmentsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectRoomAssignmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subjectRoomAssignments,
+          getReferencedColumn: (t) => t.roomId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubjectRoomAssignmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subjectRoomAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$PublicRoomsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PublicRoomsTable,
+          PublicRoom,
+          $$PublicRoomsTableFilterComposer,
+          $$PublicRoomsTableOrderingComposer,
+          $$PublicRoomsTableAnnotationComposer,
+          $$PublicRoomsTableCreateCompanionBuilder,
+          $$PublicRoomsTableUpdateCompanionBuilder,
+          (PublicRoom, $$PublicRoomsTableReferences),
+          PublicRoom,
+          PrefetchHooks Function({bool subjectRoomAssignmentsRefs})
+        > {
+  $$PublicRoomsTableTableManager(_$AppDatabase db, $PublicRoomsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PublicRoomsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PublicRoomsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PublicRoomsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> roomCount = const Value.absent(),
+                Value<int> capacityPerRoom = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PublicRoomsCompanion(
+                id: id,
+                name: name,
+                roomCount: roomCount,
+                capacityPerRoom: capacityPerRoom,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required int roomCount,
+                required int capacityPerRoom,
+                required int sortOrder,
+                Value<int> rowid = const Value.absent(),
+              }) => PublicRoomsCompanion.insert(
+                id: id,
+                name: name,
+                roomCount: roomCount,
+                capacityPerRoom: capacityPerRoom,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PublicRoomsTable, PublicRoom>(table),
+                  $$PublicRoomsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({subjectRoomAssignmentsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (subjectRoomAssignmentsRefs) db.subjectRoomAssignments,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (subjectRoomAssignmentsRefs)
+                    await $_getPrefetchedData<
+                      PublicRoom,
+                      $PublicRoomsTable,
+                      SubjectRoomAssignment
+                    >(
+                      currentTable: table,
+                      referencedTable: $$PublicRoomsTableReferences
+                          ._subjectRoomAssignmentsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$PublicRoomsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).subjectRoomAssignmentsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.roomId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PublicRoomsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PublicRoomsTable,
+      PublicRoom,
+      $$PublicRoomsTableFilterComposer,
+      $$PublicRoomsTableOrderingComposer,
+      $$PublicRoomsTableAnnotationComposer,
+      $$PublicRoomsTableCreateCompanionBuilder,
+      $$PublicRoomsTableUpdateCompanionBuilder,
+      (PublicRoom, $$PublicRoomsTableReferences),
+      PublicRoom,
+      PrefetchHooks Function({bool subjectRoomAssignmentsRefs})
+    >;
+typedef $$SubjectRoomAssignmentsTableCreateCompanionBuilder =
+    SubjectRoomAssignmentsCompanion Function({
+      required String id,
+      required String subjectId,
+      required String termId,
+      required String stageId,
+      required String scopeType,
+      required String scopeId,
+      Value<String?> roomId,
+      Value<int> rowid,
+    });
+typedef $$SubjectRoomAssignmentsTableUpdateCompanionBuilder =
+    SubjectRoomAssignmentsCompanion Function({
+      Value<String> id,
+      Value<String> subjectId,
+      Value<String> termId,
+      Value<String> stageId,
+      Value<String> scopeType,
+      Value<String> scopeId,
+      Value<String?> roomId,
+      Value<int> rowid,
+    });
+
+final class $$SubjectRoomAssignmentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SubjectRoomAssignmentsTable,
+          SubjectRoomAssignment
+        > {
+  $$SubjectRoomAssignmentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SubjectsTable _subjectIdTable(_$AppDatabase db) => db.subjects
+      .createAlias('subject_room_assignments__subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get subjectId {
+    final $_column = $_itemColumn<String>('subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_subjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('subject_room_assignments__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SchoolStagesTable _stageIdTable(_$AppDatabase db) => db.schoolStages
+      .createAlias('subject_room_assignments__stage_id__school_stages__id');
+
+  $$SchoolStagesTableProcessedTableManager get stageId {
+    final $_column = $_itemColumn<String>('stage_id')!;
+
+    final manager = $$SchoolStagesTableTableManager(
+      $_db,
+      $_db.schoolStages,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_stageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PublicRoomsTable _roomIdTable(_$AppDatabase db) => db.publicRooms
+      .createAlias('subject_room_assignments__room_id__public_rooms__id');
+
+  $$PublicRoomsTableProcessedTableManager? get roomId {
+    final $_column = $_itemColumn<String>('room_id');
+    if ($_column == null) return null;
+    final manager = $$PublicRoomsTableTableManager(
+      $_db,
+      $_db.publicRooms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_roomIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubjectRoomAssignmentsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectRoomAssignmentsTable> {
+  $$SubjectRoomAssignmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SubjectsTableFilterComposer get subjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableFilterComposer get stageId {
+    final $$SchoolStagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableFilterComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PublicRoomsTableFilterComposer get roomId {
+    final $$PublicRoomsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.roomId,
+      referencedTable: $db.publicRooms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PublicRoomsTableFilterComposer(
+            $db: $db,
+            $table: $db.publicRooms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectRoomAssignmentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectRoomAssignmentsTable> {
+  $$SubjectRoomAssignmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SubjectsTableOrderingComposer get subjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableOrderingComposer get stageId {
+    final $$SchoolStagesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableOrderingComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PublicRoomsTableOrderingComposer get roomId {
+    final $$PublicRoomsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.roomId,
+      referencedTable: $db.publicRooms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PublicRoomsTableOrderingComposer(
+            $db: $db,
+            $table: $db.publicRooms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectRoomAssignmentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectRoomAssignmentsTable> {
+  $$SubjectRoomAssignmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeType =>
+      $composableBuilder(column: $table.scopeType, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeId =>
+      $composableBuilder(column: $table.scopeId, builder: (column) => column);
+
+  $$SubjectsTableAnnotationComposer get subjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableAnnotationComposer get stageId {
+    final $$SchoolStagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PublicRoomsTableAnnotationComposer get roomId {
+    final $$PublicRoomsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.roomId,
+      referencedTable: $db.publicRooms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PublicRoomsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.publicRooms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectRoomAssignmentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectRoomAssignmentsTable,
+          SubjectRoomAssignment,
+          $$SubjectRoomAssignmentsTableFilterComposer,
+          $$SubjectRoomAssignmentsTableOrderingComposer,
+          $$SubjectRoomAssignmentsTableAnnotationComposer,
+          $$SubjectRoomAssignmentsTableCreateCompanionBuilder,
+          $$SubjectRoomAssignmentsTableUpdateCompanionBuilder,
+          (SubjectRoomAssignment, $$SubjectRoomAssignmentsTableReferences),
+          SubjectRoomAssignment,
+          PrefetchHooks Function({
+            bool subjectId,
+            bool termId,
+            bool stageId,
+            bool roomId,
+          })
+        > {
+  $$SubjectRoomAssignmentsTableTableManager(
+    _$AppDatabase db,
+    $SubjectRoomAssignmentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectRoomAssignmentsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SubjectRoomAssignmentsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SubjectRoomAssignmentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<String> termId = const Value.absent(),
+                Value<String> stageId = const Value.absent(),
+                Value<String> scopeType = const Value.absent(),
+                Value<String> scopeId = const Value.absent(),
+                Value<String?> roomId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectRoomAssignmentsCompanion(
+                id: id,
+                subjectId: subjectId,
+                termId: termId,
+                stageId: stageId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                roomId: roomId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String subjectId,
+                required String termId,
+                required String stageId,
+                required String scopeType,
+                required String scopeId,
+                Value<String?> roomId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectRoomAssignmentsCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                termId: termId,
+                stageId: stageId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                roomId: roomId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SubjectRoomAssignmentsTable,
+                    SubjectRoomAssignment
+                  >(table),
+                  $$SubjectRoomAssignmentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                subjectId = false,
+                termId = false,
+                stageId = false,
+                roomId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (subjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.subjectId,
+                            referencedTable:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._subjectIdTable(db),
+                            referencedColumn:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._subjectIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+                        if (termId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.termId,
+                            referencedTable:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._termIdTable(db),
+                            referencedColumn:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._termIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+                        if (stageId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.stageId,
+                            referencedTable:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._stageIdTable(db),
+                            referencedColumn:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._stageIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+                        if (roomId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.roomId,
+                            referencedTable:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._roomIdTable(db),
+                            referencedColumn:
+                                $$SubjectRoomAssignmentsTableReferences
+                                    ._roomIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SubjectRoomAssignmentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectRoomAssignmentsTable,
+      SubjectRoomAssignment,
+      $$SubjectRoomAssignmentsTableFilterComposer,
+      $$SubjectRoomAssignmentsTableOrderingComposer,
+      $$SubjectRoomAssignmentsTableAnnotationComposer,
+      $$SubjectRoomAssignmentsTableCreateCompanionBuilder,
+      $$SubjectRoomAssignmentsTableUpdateCompanionBuilder,
+      (SubjectRoomAssignment, $$SubjectRoomAssignmentsTableReferences),
+      SubjectRoomAssignment,
+      PrefetchHooks Function({
+        bool subjectId,
+        bool termId,
+        bool stageId,
+        bool roomId,
+      })
+    >;
+typedef $$SubjectParallelLimitsTableCreateCompanionBuilder =
+    SubjectParallelLimitsCompanion Function({
+      required String id,
+      required String subjectId,
+      required String termId,
+      required String stageId,
+      required String scopeType,
+      required String scopeId,
+      required int maxParallelLessons,
+      Value<int> rowid,
+    });
+typedef $$SubjectParallelLimitsTableUpdateCompanionBuilder =
+    SubjectParallelLimitsCompanion Function({
+      Value<String> id,
+      Value<String> subjectId,
+      Value<String> termId,
+      Value<String> stageId,
+      Value<String> scopeType,
+      Value<String> scopeId,
+      Value<int> maxParallelLessons,
+      Value<int> rowid,
+    });
+
+final class $$SubjectParallelLimitsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SubjectParallelLimitsTable,
+          SubjectParallelLimit
+        > {
+  $$SubjectParallelLimitsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SubjectsTable _subjectIdTable(_$AppDatabase db) => db.subjects
+      .createAlias('subject_parallel_limits__subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get subjectId {
+    final $_column = $_itemColumn<String>('subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_subjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('subject_parallel_limits__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SchoolStagesTable _stageIdTable(_$AppDatabase db) => db.schoolStages
+      .createAlias('subject_parallel_limits__stage_id__school_stages__id');
+
+  $$SchoolStagesTableProcessedTableManager get stageId {
+    final $_column = $_itemColumn<String>('stage_id')!;
+
+    final manager = $$SchoolStagesTableTableManager(
+      $_db,
+      $_db.schoolStages,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_stageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubjectParallelLimitsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectParallelLimitsTable> {
+  $$SubjectParallelLimitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxParallelLessons => $composableBuilder(
+    column: $table.maxParallelLessons,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SubjectsTableFilterComposer get subjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableFilterComposer get stageId {
+    final $$SchoolStagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableFilterComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectParallelLimitsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectParallelLimitsTable> {
+  $$SubjectParallelLimitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxParallelLessons => $composableBuilder(
+    column: $table.maxParallelLessons,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SubjectsTableOrderingComposer get subjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableOrderingComposer get stageId {
+    final $$SchoolStagesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableOrderingComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectParallelLimitsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectParallelLimitsTable> {
+  $$SubjectParallelLimitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeType =>
+      $composableBuilder(column: $table.scopeType, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeId =>
+      $composableBuilder(column: $table.scopeId, builder: (column) => column);
+
+  GeneratedColumn<int> get maxParallelLessons => $composableBuilder(
+    column: $table.maxParallelLessons,
+    builder: (column) => column,
+  );
+
+  $$SubjectsTableAnnotationComposer get subjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableAnnotationComposer get stageId {
+    final $$SchoolStagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubjectParallelLimitsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectParallelLimitsTable,
+          SubjectParallelLimit,
+          $$SubjectParallelLimitsTableFilterComposer,
+          $$SubjectParallelLimitsTableOrderingComposer,
+          $$SubjectParallelLimitsTableAnnotationComposer,
+          $$SubjectParallelLimitsTableCreateCompanionBuilder,
+          $$SubjectParallelLimitsTableUpdateCompanionBuilder,
+          (SubjectParallelLimit, $$SubjectParallelLimitsTableReferences),
+          SubjectParallelLimit,
+          PrefetchHooks Function({bool subjectId, bool termId, bool stageId})
+        > {
+  $$SubjectParallelLimitsTableTableManager(
+    _$AppDatabase db,
+    $SubjectParallelLimitsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectParallelLimitsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SubjectParallelLimitsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SubjectParallelLimitsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<String> termId = const Value.absent(),
+                Value<String> stageId = const Value.absent(),
+                Value<String> scopeType = const Value.absent(),
+                Value<String> scopeId = const Value.absent(),
+                Value<int> maxParallelLessons = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectParallelLimitsCompanion(
+                id: id,
+                subjectId: subjectId,
+                termId: termId,
+                stageId: stageId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                maxParallelLessons: maxParallelLessons,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String subjectId,
+                required String termId,
+                required String stageId,
+                required String scopeType,
+                required String scopeId,
+                required int maxParallelLessons,
+                Value<int> rowid = const Value.absent(),
+              }) => SubjectParallelLimitsCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                termId: termId,
+                stageId: stageId,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                maxParallelLessons: maxParallelLessons,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SubjectParallelLimitsTable,
+                    SubjectParallelLimit
+                  >(table),
+                  $$SubjectParallelLimitsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({subjectId = false, termId = false, stageId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (subjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.subjectId,
+                            referencedTable:
+                                $$SubjectParallelLimitsTableReferences
+                                    ._subjectIdTable(db),
+                            referencedColumn:
+                                $$SubjectParallelLimitsTableReferences
+                                    ._subjectIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+                        if (termId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.termId,
+                            referencedTable:
+                                $$SubjectParallelLimitsTableReferences
+                                    ._termIdTable(db),
+                            referencedColumn:
+                                $$SubjectParallelLimitsTableReferences
+                                    ._termIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+                        if (stageId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.stageId,
+                            referencedTable:
+                                $$SubjectParallelLimitsTableReferences
+                                    ._stageIdTable(db),
+                            referencedColumn:
+                                $$SubjectParallelLimitsTableReferences
+                                    ._stageIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SubjectParallelLimitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectParallelLimitsTable,
+      SubjectParallelLimit,
+      $$SubjectParallelLimitsTableFilterComposer,
+      $$SubjectParallelLimitsTableOrderingComposer,
+      $$SubjectParallelLimitsTableAnnotationComposer,
+      $$SubjectParallelLimitsTableCreateCompanionBuilder,
+      $$SubjectParallelLimitsTableUpdateCompanionBuilder,
+      (SubjectParallelLimit, $$SubjectParallelLimitsTableReferences),
+      SubjectParallelLimit,
+      PrefetchHooks Function({bool subjectId, bool termId, bool stageId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -15410,4 +18931,13 @@ class $AppDatabaseManager {
         _db,
         _db.subjectLessonConstraints,
       );
+  $$PublicRoomsTableTableManager get publicRooms =>
+      $$PublicRoomsTableTableManager(_db, _db.publicRooms);
+  $$SubjectRoomAssignmentsTableTableManager get subjectRoomAssignments =>
+      $$SubjectRoomAssignmentsTableTableManager(
+        _db,
+        _db.subjectRoomAssignments,
+      );
+  $$SubjectParallelLimitsTableTableManager get subjectParallelLimits =>
+      $$SubjectParallelLimitsTableTableManager(_db, _db.subjectParallelLimits);
 }

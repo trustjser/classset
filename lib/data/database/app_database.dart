@@ -265,6 +265,72 @@ class CommonPeriods extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+class PublicRooms extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get roomCount => integer()();
+  IntColumn get capacityPerRoom => integer()();
+  IntColumn get sortOrder => integer()();
+
+  @override
+  List<String> get customConstraints => [
+    'CHECK (room_count > 0)',
+    'CHECK (capacity_per_room > 0)',
+  ];
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class SubjectRoomAssignments extends Table {
+  TextColumn get id => text()();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get stageId =>
+      text().references(SchoolStages, #id, onDelete: KeyAction.cascade)();
+  TextColumn get scopeType => text()();
+  TextColumn get scopeId => text()();
+  TextColumn get roomId => text().nullable().references(
+    PublicRooms,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {subjectId, termId, scopeType, scopeId},
+  ];
+}
+
+class SubjectParallelLimits extends Table {
+  TextColumn get id => text()();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get stageId =>
+      text().references(SchoolStages, #id, onDelete: KeyAction.cascade)();
+  TextColumn get scopeType => text()();
+  TextColumn get scopeId => text()();
+  IntColumn get maxParallelLessons => integer()();
+
+  @override
+  List<String> get customConstraints => ['CHECK (max_parallel_lessons > 0)'];
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {subjectId, termId, scopeType, scopeId},
+  ];
+}
+
 @DriftDatabase(
   tables: [
     AcademicTerms,
@@ -283,6 +349,9 @@ class CommonPeriods extends Table {
     SubjectPresets,
     SubjectPairings,
     SubjectLessonConstraints,
+    PublicRooms,
+    SubjectRoomAssignments,
+    SubjectParallelLimits,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -291,12 +360,17 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async => migrator.createAll(),
     onUpgrade: (migrator, from, to) async {
+      if (from < 8) {
+        await migrator.createTable(publicRooms);
+        await migrator.createTable(subjectRoomAssignments);
+        await migrator.createTable(subjectParallelLimits);
+      }
       if (from < 2) {
         await migrator.createTable(calendarExceptions);
         await migrator.createTable(freeSlots);

@@ -7,6 +7,10 @@ import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 
+import 'package:class_set/domain/models/public_room.dart';
+import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/subject_parallel_limit.dart';
+
 abstract interface class SchoolRepository {
   Stream<List<AcademicTerm>> watchTerms();
 
@@ -168,4 +172,34 @@ abstract interface class SchoolRepository {
 
   /// 某学期全部免任课格流（含各学段展开行）。
   Stream<List<FreeSlot>> watchFreeSlotsForTerm(String termId);
+  Stream<List<PublicRoom>> watchPublicRooms();
+  Future<void> savePublicRooms(List<PublicRoom> rooms);
+  Future<void> deletePublicRoom(String roomId);
+  Stream<List<SubjectRoomAssignment>> watchRoomReferences(String roomId);
+  Stream<List<SubjectRoomAssignment>> watchSubjectRoomAssignments(
+    String termId,
+  );
+  Stream<List<SubjectParallelLimit>> watchSubjectParallelLimits(String termId);
+  Future<void> replaceSubjectRoomSettings({
+    required String termId,
+    required String subjectId,
+    required List<SubjectRoomAssignment> assignments,
+    required List<SubjectParallelLimit> limits,
+  });
+  Future<void> replaceSubjectRoomAssignments({
+    required String subjectId,
+    required String termId,
+    required String stageId,
+    required FreeSlotScope scope,
+    required String scopeId,
+    required List<SubjectRoomAssignment> assignments,
+  });
+  Future<void> replaceSubjectParallelLimits({
+    required String subjectId,
+    required String termId,
+    required String stageId,
+    required FreeSlotScope scope,
+    required String scopeId,
+    required List<SubjectParallelLimit> limits,
+  });
 }
