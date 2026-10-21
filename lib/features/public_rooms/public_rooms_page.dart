@@ -2,7 +2,9 @@ import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
+import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/public_room.dart';
+import 'package:class_set/domain/models/subject_room_assignment.dart';
 import 'package:class_set/features/public_rooms/public_room_import.dart';
 import 'package:class_set/features/public_rooms/public_rooms_data.dart';
 import 'package:file_selector/file_selector.dart';
@@ -137,6 +139,64 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
     }
   }
 
+  List<({String label, String tooltip})> _roomAssociations(
+    String roomId,
+    PublicRoomTermData? data,
+  ) {
+    if (data == null) return const [];
+    final grouped = <String, List<SubjectRoomAssignment>>{};
+    for (final row in data.assignments.where((row) => row.roomId == roomId)) {
+      grouped.putIfAbsent(row.subjectId, () => []).add(row);
+    }
+    final labels = <({String label, String tooltip})>[];
+    for (final entry in grouped.entries) {
+      final subject = data.subjects
+          .where((item) => item.id == entry.key)
+          .firstOrNull;
+      final stageNames = entry.value
+          .map(
+            (row) =>
+                data.stages
+                    .where((stage) => stage.id == row.stageId)
+                    .firstOrNull
+                    ?.name ??
+                '已移除学段',
+          )
+          .toSet()
+          .toList();
+      final scopeNames = entry.value
+          .map((row) => _roomScopeLabel(row, data))
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final suffix = stageNames.length > 1
+          ? '（${stageNames.join('+')}）'
+          : scopeNames.isEmpty
+          ? ''
+          : '（${scopeNames.join('、')}）';
+      labels.add((
+        label: '${subject?.name ?? '已移除科目'}$suffix',
+        tooltip: entry.value.map(data.bindingLabel).toSet().join('\n'),
+      ));
+    }
+    return labels;
+  }
+
+  String? _roomScopeLabel(SubjectRoomAssignment row, PublicRoomTermData data) =>
+      switch (row.scope) {
+        FreeSlotScope.stage || FreeSlotScope.school => null,
+        FreeSlotScope.grade =>
+          data.grades
+              .where((grade) => grade.id == row.scopeId)
+              .firstOrNull
+              ?.name,
+        FreeSlotScope.schoolClass =>
+          data.classes
+              .where((schoolClass) => schoolClass.id == row.scopeId)
+              .firstOrNull
+              ?.name,
+      };
+
   @override
   Widget build(BuildContext context) {
     final rooms = ref.watch(publicRoomsProvider);
@@ -148,27 +208,16 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
       color: AppTheme.canvas,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 640;
+          final compact = constraints.maxWidth < 760;
           final padding = AppTheme.pagePaddingForWidth(constraints.maxWidth);
-          final items = rooms.valueOrNull ?? const <PublicRoom>[];
-          final actions = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              AppOutlineButton(
-                onPressed: _busy || !rooms.hasValue ? null : _import,
-                child: const Text('导入 Excel'),
-              ),
-              AppPrimaryButton(
-                onPressed: _busy || !rooms.hasValue ? null : () => _edit(items),
-                child: const Text('添加场室'),
-              ),
-            ],
+          final importButton = AppOutlineButton(
+            onPressed: _busy || !rooms.hasValue ? null : _import,
+            child: const Text('导入 Excel'),
           );
           final header = AppPageHeader(
             title: '公共场室',
-            subtitle: '所有学期共用，修改后立即保存。容量单位为班。',
-            actions: compact ? [] : [actions],
+            subtitle: '维护全校共用的行课场室，容量单位为班。',
+            actions: compact ? [] : [importButton],
           );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -179,19 +228,53 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     header,
-                    if (compact) ...[const SizedBox(height: 16), actions],
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Excel 首个工作表需包含：场室、个数、容量（班）',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.inkSecondary,
+                    if (compact) ...[
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: importButton,
                       ),
+                    ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          size: 15,
+                          color: AppTheme.muted,
+                        ),
+                        const Text(
+                          '导入 Excel 时，首个工作表需包含：场室、个数、容量（班）。',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.inkSecondary,
+                            height: 1.45,
+                          ),
+                        ),
+                        if (termId == null)
+                          const Text(
+                            '选择学期后显示关联科目',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.muted,
+                            ),
+                          ),
+                      ],
                     ),
-                    if (termId == null) const Text('选择学期后显示科目绑定范围。'),
-                    if (termData?.isLoading == true) const Text('正在读取当前学期绑定…'),
                     if (termData?.hasError == true)
-                      const Text('当前学期绑定读取失败，请稍后重试。'),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text(
+                          '当前学期科目关联读取失败，请稍后重试。',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.destructive,
+                          ),
+                        ),
+                      ),
                     if (_busy) const LinearProgressIndicator(),
                   ],
                 ),
@@ -201,118 +284,383 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
                   error: (error, _) => Center(child: Text('读取场室失败：$error')),
-                  data: (items) => items.isEmpty
-                      ? const Center(child: Text('暂无公共场室，添加或导入后即可为科目设置行课场室。'))
-                      : ListView.separated(
-                          padding: EdgeInsets.fromLTRB(
-                            padding,
-                            0,
-                            padding,
-                            padding,
+                  data: (items) => SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(padding, 4, padding, padding),
+                    child: compact
+                        ? _buildCompactRoomList(items, termData)
+                        : _buildRoomTable(
+                            items,
+                            termData,
+                            constraints.maxWidth - padding * 2,
                           ),
-                          itemCount: items.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final room = items[index];
-                            final data = termData?.valueOrNull;
-                            final bindings =
-                                data?.assignments
-                                    .where((row) => row.roomId == room.id)
-                                    .toList() ??
-                                [];
-                            return AppSurface(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            room.name,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium,
-                                          ),
-                                        ),
-                                        AppIconButton(
-                                          key: ValueKey('edit-room-${room.id}'),
-                                          icon: Icons.edit_outlined,
-                                          tooltip: '编辑${room.name}',
-                                          onPressed: _busy
-                                              ? null
-                                              : () => _edit(items, room),
-                                        ),
-                                        AppIconButton(
-                                          key: ValueKey(
-                                            'delete-room-${room.id}',
-                                          ),
-                                          icon: Icons.delete_outline,
-                                          tooltip: '删除${room.name}',
-                                          foregroundColor: AppTheme.destructive,
-                                          onPressed: _busy
-                                              ? null
-                                              : () => _delete(room),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 16,
-                                      runSpacing: 8,
-                                      children: [
-                                        Text('场室个数 ${room.roomCount}'),
-                                        Text('每间容量 ${room.capacityPerRoom} 班'),
-                                        Text(
-                                          '总容量 ${room.roomCount * room.capacityPerRoom} 班',
-                                        ),
-                                      ],
-                                    ),
-                                    if (data?.isSharedAcrossStages(room.id) ==
-                                        true) ...[
-                                      const SizedBox(height: 10),
-                                      const Chip(
-                                        label: Text('跨学段共用'),
-                                        backgroundColor: AppTheme.selectedBlue,
-                                        side: BorderSide.none,
-                                      ),
-                                    ],
-                                    const SizedBox(height: 12),
-                                    const Text(
-                                      '当前学期科目绑定',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.inkSecondary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    if (data != null && bindings.isEmpty)
-                                      const Text(
-                                        '暂无直接绑定',
-                                        style: TextStyle(color: AppTheme.muted),
-                                      ),
-                                    for (final binding in bindings)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 4,
-                                        ),
-                                        child: Text(
-                                          data!.bindingLabel(binding),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                  ),
                 ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildRoomTable(
+    List<PublicRoom> rooms,
+    AsyncValue<PublicRoomTermData>? termData,
+    double availableWidth,
+  ) {
+    final tableWidth = availableWidth < 1000 ? 1000.0 : availableWidth;
+
+    Widget cell(
+      int flex,
+      Widget child, {
+      Alignment alignment = Alignment.centerLeft,
+    }) => Expanded(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        child: Align(alignment: alignment, child: child),
+      ),
+    );
+
+    Widget headerCell(
+      int flex,
+      String label, {
+      Alignment alignment = Alignment.centerLeft,
+    }) => cell(
+      flex,
+      Text(
+        label,
+        style: const TextStyle(
+          color: AppTheme.inkSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      alignment: alignment,
+    );
+
+    final children = <Widget>[
+      Container(
+        color: AppTheme.tableHeader,
+        child: Row(
+          children: [
+            headerCell(26, '场室'),
+            headerCell(9, '个数', alignment: Alignment.center),
+            headerCell(15, '容量（班）', alignment: Alignment.center),
+            headerCell(22, '同时段上限（个班）', alignment: Alignment.center),
+            headerCell(23, '关联科目'),
+            headerCell(12, '操作', alignment: Alignment.center),
+          ],
+        ),
+      ),
+      if (rooms.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+          child: Center(
+            child: Text(
+              '暂无公共场室，添加或导入后即可为科目设置行课场室。',
+              style: TextStyle(fontSize: 13, color: AppTheme.muted),
+            ),
+          ),
+        )
+      else
+        for (final room in rooms) ...[
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppTheme.tableDivider)),
+            ),
+            child: Row(
+              children: [
+                cell(
+                  26,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        room.name,
+                        style: const TextStyle(
+                          color: AppTheme.ink,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (termData?.valueOrNull?.isSharedAcrossStages(
+                            room.id,
+                          ) ==
+                          true)
+                        _roomTag('跨学段共用'),
+                    ],
+                  ),
+                ),
+                cell(
+                  9,
+                  Text('${room.roomCount}', textAlign: TextAlign.center),
+                  alignment: Alignment.center,
+                ),
+                cell(
+                  15,
+                  Text(
+                    '${room.capacityPerRoom} 班',
+                    textAlign: TextAlign.center,
+                  ),
+                  alignment: Alignment.center,
+                ),
+                cell(
+                  22,
+                  Text(
+                    '${room.roomCount} × ${room.capacityPerRoom} = ${room.roomCount * room.capacityPerRoom} 班',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppTheme.inkSecondary),
+                  ),
+                  alignment: Alignment.center,
+                ),
+                cell(23, _buildRoomAssociationCell(room, termData)),
+                cell(
+                  12,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _roomAction(
+                        key: ValueKey('edit-room-${room.id}'),
+                        label: '编辑',
+                        onPressed: _busy ? null : () => _edit(rooms, room),
+                      ),
+                      _roomAction(
+                        key: ValueKey('delete-room-${room.id}'),
+                        label: '删除',
+                        destructive: true,
+                        onPressed: _busy ? null : () => _delete(room),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      _buildAddRoomAction(rooms, compact: false),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: tableWidth,
+        child: AppSurface(child: Column(children: children)),
+      ),
+    );
+  }
+
+  Widget _buildCompactRoomList(
+    List<PublicRoom> rooms,
+    AsyncValue<PublicRoomTermData>? termData,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (rooms.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 32),
+          child: Center(
+            child: Text(
+              '暂无公共场室，添加或导入后即可为科目设置行课场室。',
+              style: TextStyle(fontSize: 13, color: AppTheme.muted),
+            ),
+          ),
+        )
+      else
+        for (final room in rooms) ...[
+          AppSurface(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              room.name,
+                              style: const TextStyle(
+                                color: AppTheme.ink,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (termData?.valueOrNull?.isSharedAcrossStages(
+                                  room.id,
+                                ) ==
+                                true)
+                              _roomTag('跨学段共用'),
+                          ],
+                        ),
+                      ),
+                      _roomAction(
+                        key: ValueKey('edit-room-${room.id}'),
+                        label: '编辑',
+                        onPressed: _busy ? null : () => _edit(rooms, room),
+                      ),
+                      _roomAction(
+                        key: ValueKey('delete-room-${room.id}'),
+                        label: '删除',
+                        destructive: true,
+                        onPressed: _busy ? null : () => _delete(room),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 6,
+                    children: [
+                      _roomMetric('个数', '${room.roomCount}'),
+                      _roomMetric('每间容量', '${room.capacityPerRoom} 班'),
+                      _roomMetric(
+                        '同时段上限',
+                        '${room.roomCount * room.capacityPerRoom} 班',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _buildRoomAssociationCell(room, termData),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+      _buildAddRoomAction(rooms, compact: true),
+    ],
+  );
+
+  Widget _buildRoomAssociationCell(
+    PublicRoom room,
+    AsyncValue<PublicRoomTermData>? termData,
+  ) {
+    final data = termData?.valueOrNull;
+    if (data == null) {
+      return Text(
+        termData?.hasError == true ? '读取失败' : '暂无科目关联',
+        style: const TextStyle(fontSize: 12, color: AppTheme.muted),
+      );
+    }
+    final associations = _roomAssociations(room.id, data);
+    if (associations.isEmpty) {
+      return const Text(
+        '暂无关联科目',
+        style: TextStyle(fontSize: 12, color: AppTheme.muted),
+      );
+    }
+    return Wrap(
+      spacing: 6,
+      runSpacing: 5,
+      children: [
+        for (final association in associations)
+          Tooltip(
+            message: association.tooltip,
+            child: _roomTag(association.label),
+          ),
+      ],
+    );
+  }
+
+  Widget _roomTag(String label) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppTheme.selectedBlue,
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppTheme.blue,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ),
+  );
+
+  Widget _roomMetric(String label, String value) => RichText(
+    text: TextSpan(
+      style: const TextStyle(fontSize: 12, color: AppTheme.inkSecondary),
+      children: [
+        TextSpan(
+          text: '$label  ',
+          style: const TextStyle(color: AppTheme.muted),
+        ),
+        TextSpan(
+          text: value,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ],
+    ),
+  );
+
+  Widget _roomAction({
+    required Key key,
+    required String label,
+    required VoidCallback? onPressed,
+    bool destructive = false,
+  }) => TextButton(
+    key: key,
+    onPressed: onPressed,
+    style: TextButton.styleFrom(
+      foregroundColor: destructive ? AppTheme.destructive : AppTheme.blue,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      minimumSize: const Size(36, 32),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+    ),
+    child: Text(label),
+  );
+
+  Widget _buildAddRoomAction(List<PublicRoom> rooms, {required bool compact}) {
+    if (compact) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: AppPrimaryButton(
+          onPressed: _busy ? null : () => _edit(rooms),
+          child: const Text('添加场室'),
+        ),
+      );
+    }
+    return Material(
+      color: AppTheme.tableHeader,
+      child: InkWell(
+        onTap: _busy ? null : () => _edit(rooms),
+        child: SizedBox(
+          width: double.infinity,
+          height: 44,
+          child: Center(
+            child: Wrap(
+              spacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: const [
+                Icon(Icons.add, size: 17, color: AppTheme.blue),
+                Text(
+                  '添加场室',
+                  style: TextStyle(
+                    color: AppTheme.blue,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '（名称 / 个数 / 容量，容量单位为“班”）',
+                  style: TextStyle(fontSize: 11, color: AppTheme.inkSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

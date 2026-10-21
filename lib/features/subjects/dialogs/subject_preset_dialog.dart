@@ -160,6 +160,18 @@ class SubjectPresetDialog extends ConsumerStatefulWidget {
 }
 
 class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
+  static const double _advancedSettingFieldWidth = 360;
+  static const TextStyle _advancedSettingLabelStyle = TextStyle(
+    color: AppTheme.ink,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+  );
+  static const TextStyle _advancedSettingHelpStyle = TextStyle(
+    color: AppTheme.muted,
+    fontSize: 12,
+    height: 1.45,
+  );
+
   int _selectedEditorTabIndex = 0;
   late final List<SubjectRoomAssignment> _roomAssignments;
   late final List<SubjectParallelLimit> _parallelLimits;
@@ -1071,6 +1083,58 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
     );
   }
 
+  Widget _advancedSectionHeading({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+  }) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: AppTheme.selectedBlue,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Icon(icon, color: AppTheme.blue, size: 18),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppTheme.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing],
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: AppTheme.inkSecondary,
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+
   Widget _buildRoomsEditor() {
     final roomsAsync = ref.watch(publicRoomsProvider);
     return Column(
@@ -1078,7 +1142,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
       children: [
         _buildEditorNote(
           'subject-settings-rooms-description',
-          '场室按学段、年级、班级逐级继承；“不设场室”会覆盖上级，重置后恢复继承。同科目上限仅在学段和年级设置，年级值替代学段值。修改在保存设置后生效。',
+          '行课场室按学段、年级、班级逐级生效；可在当前范围覆盖上级设置。修改后点击“保存设置”生效。',
         ),
         const SizedBox(height: 8),
         roomsAsync.when(
@@ -1106,12 +1170,13 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                           .firstOrNull
                           ?.name ??
                       '场室已删除，请重置';
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            final source = effective == null
+                ? '默认设置'
+                : _roomSettingSource(effective.scope, effective.scopeId);
+
+            final roomSelector =
                 AppSelectField<({bool inherit, String? roomId})>(
                   key: const ValueKey('subject-room-selection'),
-                  label: '行课场室',
                   items: {
                     _scope == FreeSlotScope.stage ? '使用默认设置' : '继承上级场室': (
                       inherit: true,
@@ -1128,53 +1193,143 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                   onChanged: (value) {
                     if (value != null) _setRoom(value);
                   },
+                );
+            final resetRoomButton = AppGhostButton(
+              key: const ValueKey('subject-room-reset'),
+              onPressed: local == null
+                  ? null
+                  : () => _setRoom((inherit: true, roomId: null)),
+              child: Text(_scope == FreeSlotScope.stage ? '重置为默认' : '重置为继承上级'),
+            );
+            final roomStatus = LayoutBuilder(
+              builder: (context, constraints) {
+                final roomDetails = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '当前生效场室',
+                      style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      roomName,
+                      key: const ValueKey('subject-room-effective'),
+                      style: const TextStyle(
+                        color: AppTheme.ink,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                );
+                final sourceText = Text(
+                  '来源：$source',
+                  style: const TextStyle(
+                    color: AppTheme.inkSecondary,
+                    fontSize: 12,
+                  ),
+                );
+                if (constraints.maxWidth < 480) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.place_outlined,
+                            color: AppTheme.blue,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: roomDetails),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: sourceText,
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    const Icon(
+                      Icons.place_outlined,
+                      color: AppTheme.blue,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: roomDetails),
+                    const SizedBox(width: 12),
+                    sourceText,
+                  ],
+                );
+              },
+            );
+            final manageRoomsButton = AppGhostButton(
+              key: const ValueKey('subject-public-rooms-entry'),
+              onPressed: _openPublicRooms,
+              child: const Text(
+                '管理公共场室',
+                style: TextStyle(
+                  color: AppTheme.blue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  '当前场室：$roomName',
-                  key: const ValueKey('subject-room-effective'),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  effective == null
-                      ? '来源：默认（不设场室）'
-                      : '来源：${_roomSettingSource(effective.scope, effective.scopeId)}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.muted),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AppGhostButton(
-                    key: const ValueKey('subject-room-reset'),
-                    onPressed: local == null
-                        ? null
-                        : () => _setRoom((inherit: true, roomId: null)),
-                    child: Text(
-                      _scope == FreeSlotScope.stage ? '重置为默认' : '重置为继承上级',
+              ),
+            );
+
+            return AppSurface(
+              showBorder: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _advancedSectionHeading(
+                          icon: Icons.meeting_room_outlined,
+                          title: '行课场室',
+                          subtitle: '指定该范围上课使用的场室；选择“不设场室”可覆盖上级设置。',
+                          trailing: manageRoomsButton,
+                        ),
+                        const SizedBox(height: 14),
+                        LayoutBuilder(
+                          builder: (context, constraints) =>
+                              _buildAlignedSettingField(
+                                label: '选择场室',
+                                field: roomSelector,
+                                resetButton: resetRoomButton,
+                                compact: constraints.maxWidth < 560,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.tableHeader,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: roomStatus,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  const Divider(height: 1, color: AppTheme.border),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: _buildParallelLimitEditor(),
+                  ),
+                ],
+              ),
             );
           },
-        ),
-        const SizedBox(height: 12),
-        const Divider(height: 1, color: AppTheme.border),
-        const SizedBox(height: 12),
-        _buildParallelLimitEditor(),
-        const SizedBox(height: 12),
-        const Divider(height: 1, color: AppTheme.border),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppGhostButton(
-            key: const ValueKey('subject-public-rooms-entry'),
-            onPressed: _openPublicRooms,
-            child: const Text('管理公共场室'),
-          ),
-        ),
-        const Text(
-          '公共场室目录全校共享，增删改会立即保存；返回后保留本弹窗草稿。',
-          style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
         ),
       ],
     );
@@ -1192,61 +1347,172 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
       gradeId: _parentGradeId,
     );
     final source = effective == null
-        ? '来源：默认（不限）'
-        : '来源：${_roomSettingSource(effective.scope, effective.scopeId)}';
+        ? '默认不限'
+        : _roomSettingSource(effective.scope, effective.scopeId);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_scope == FreeSlotScope.schoolClass) ...[
-          Text('同科目同时上课上限：${effective?.maxParallelLessons ?? '不限'}'),
-          const SizedBox(height: 4),
-          const Text(
-            '班级使用所属年级或学段的上限，只读。',
-            style: TextStyle(fontSize: 12, color: AppTheme.muted),
-          ),
-        ] else ...[
-          KeyedSubtree(
-            key: ValueKey(_currentDraftKey),
-            child: TextFormField(
-              key: const ValueKey('subject-parallel-limit'),
-              controller: _limitControllers.putIfAbsent(
-                _currentDraftKey,
-                () => TextEditingController(
-                  text: local?.maxParallelLessons.toString() ?? '',
-                ),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: '同科目同时上课上限',
-                hintText: effective?.maxParallelLessons.toString() ?? '不限',
-                helperText: _scope == FreeSlotScope.stage
-                    ? '正整数；留空表示不限。'
-                    : '正整数；留空继承学段，填写后替代学段值。',
-              ),
-              onChanged: _setParallelLimit,
+        _advancedSectionHeading(
+          icon: Icons.groups_2_outlined,
+          title: '同科目同时上课上限',
+          subtitle: '限制同一时段可安排该科目的班级数；年级设置会覆盖学段设置。',
+        ),
+        const SizedBox(height: 14),
+        if (_scope == FreeSlotScope.schoolClass)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: AppTheme.tableHeader,
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '当前班级生效上限',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.inkSecondary,
+                    ),
+                  ),
+                ),
+                Text(
+                  effective?.maxParallelLessons.toString() ?? '不限',
+                  style: const TextStyle(
+                    color: AppTheme.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (effective != null) ...[
+                  const SizedBox(width: 4),
+                  const Text('班', style: TextStyle(color: AppTheme.muted)),
+                ],
+              ],
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final field = KeyedSubtree(
+                key: ValueKey(_currentDraftKey),
+                child: f.FTextField(
+                  key: const ValueKey('subject-parallel-limit'),
+                  control: f.FTextFieldControl.managed(
+                    controller: _limitControllers.putIfAbsent(
+                      _currentDraftKey,
+                      () => TextEditingController(
+                        text: local?.maxParallelLessons.toString() ?? '',
+                      ),
+                    ),
+                    onChange: (value) => _setParallelLimit(value.text),
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  hint: effective?.maxParallelLessons.toString() ?? '不限',
+                  suffixBuilder: (_, _, _) => const Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: Text(
+                      '班',
+                      style: TextStyle(
+                        color: AppTheme.inkSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              final reset = AppGhostButton(
+                key: const ValueKey('subject-parallel-reset'),
+                onPressed: local == null
+                    ? null
+                    : () {
+                        _limitControllers[_currentDraftKey]?.clear();
+                        _setParallelLimit('');
+                      },
+                child: Text(
+                  _scope == FreeSlotScope.stage ? '重置为不限' : '重置为继承学段',
+                ),
+              );
+              final currentValue = local == null
+                  ? '当前生效：${effective?.maxParallelLessons ?? '不限'} 班'
+                  : '本级设置：${local.maxParallelLessons} 班';
+              return _buildAlignedSettingField(
+                label: '最多同时上课班级数',
+                field: field,
+                resetButton: reset,
+                compact: constraints.maxWidth < 560,
+                helper: _scope == FreeSlotScope.stage
+                    ? '填写正整数；留空表示不限。'
+                    : '填写后替代学段设置；留空使用学段值。',
+                footer: Text(
+                  '$currentValue；当前来源：$source',
+                  key: const ValueKey('subject-parallel-source'),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.muted,
+                    height: 1.4,
+                  ),
+                ),
+              );
+            },
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AppGhostButton(
-              key: const ValueKey('subject-parallel-reset'),
-              onPressed: local == null
-                  ? null
-                  : () {
-                      _limitControllers[_currentDraftKey]?.clear();
-                      _setParallelLimit('');
-                    },
-              child: Text(_scope == FreeSlotScope.stage ? '重置为不限' : '重置为继承学段'),
+        if (_scope == FreeSlotScope.schoolClass) ...[
+          const SizedBox(height: 7),
+          Text(
+            '来源：$source；班级沿用所属年级或学段设置。',
+            key: const ValueKey('subject-parallel-source'),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppTheme.muted,
+              height: 1.4,
             ),
           ),
         ],
-        const SizedBox(height: 4),
-        Text(
-          source,
-          key: const ValueKey('subject-parallel-source'),
-          style: const TextStyle(fontSize: 12, color: AppTheme.muted),
-        ),
+      ],
+    );
+  }
+
+  Widget _buildAlignedSettingField({
+    required String label,
+    required Widget field,
+    required Widget resetButton,
+    required bool compact,
+    String? helper,
+    Widget? footer,
+  }) {
+    final fieldControl = SizedBox(
+      width: compact ? null : _advancedSettingFieldWidth,
+      child: field,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: _advancedSettingLabelStyle),
+        const SizedBox(height: 8),
+        if (compact) ...[
+          SizedBox(width: double.infinity, child: field),
+          Align(alignment: Alignment.centerRight, child: resetButton),
+        ] else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [fieldControl, const SizedBox(width: 12), resetButton],
+          ),
+        if (helper != null) ...[
+          const SizedBox(height: 6),
+          SizedBox(
+            width: compact ? double.infinity : _advancedSettingFieldWidth,
+            child: Text(helper, style: _advancedSettingHelpStyle),
+          ),
+        ],
+        if (footer != null) ...[
+          const SizedBox(height: 5),
+          SizedBox(
+            width: compact ? double.infinity : _advancedSettingFieldWidth,
+            child: footer,
+          ),
+        ],
       ],
     );
   }
@@ -1384,18 +1650,18 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
             onTap: () => setState(() {
               _selectedEditorTabIndex = index;
             }),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(6),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 label,
                 style: TextStyle(
                   color: isSelected ? AppTheme.blue : AppTheme.muted,
-                  fontSize: 13,
+                  fontSize: 13.5,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
@@ -1802,11 +2068,15 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
 
   Widget _buildEditorNote(String key, String text) => Padding(
     key: ValueKey('$key-padding'),
-    padding: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.fromLTRB(0, 2, 0, 10),
     child: Text(
       text,
       key: ValueKey(key),
-      style: const TextStyle(color: AppTheme.muted, fontSize: 11, height: 1.45),
+      style: const TextStyle(
+        color: AppTheme.inkSecondary,
+        fontSize: 12,
+        height: 1.5,
+      ),
     ),
   );
 
