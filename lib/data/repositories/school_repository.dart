@@ -10,6 +10,10 @@ import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/domain/models/public_room.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
 import 'package:class_set/domain/models/subject_parallel_limit.dart';
+import 'package:class_set/domain/models/teacher.dart';
+import 'package:class_set/domain/models/teacher_assignment.dart';
+import 'package:class_set/domain/models/teacher_group.dart';
+import 'package:class_set/domain/models/teacher_preset.dart';
 
 abstract interface class SchoolRepository {
   Stream<List<AcademicTerm>> watchTerms();
@@ -201,5 +205,81 @@ abstract interface class SchoolRepository {
     required FreeSlotScope scope,
     required String scopeId,
     required List<SubjectParallelLimit> limits,
+  });
+
+  // —— 教师任课、分组与教师预排 ——
+
+  Stream<List<Teacher>> watchTeachers(String termId);
+
+  Future<void> saveTeachers(List<Teacher> teachers);
+
+  Future<void> deleteTeacher(String teacherId);
+
+  Future<int> countTeacherAssignments(String teacherId);
+
+  Stream<List<TeacherAssignment>> watchTeacherAssignments(String termId);
+
+  Future<void> replaceTeacherAssignments({
+    required String termId,
+    required String classId,
+    required String subjectId,
+    required List<TeacherAssignment> assignments,
+  });
+
+  /// Atomically adds several teacher assignments after validating each cell's
+  /// remaining subject capacity.
+  Future<void> addTeacherAssignments({
+    required String termId,
+    required List<TeacherAssignment> assignments,
+  });
+
+  /// Deletes selected assignments and releases any combined lesson groups.
+  Future<void> deleteTeacherAssignments({
+    required String termId,
+    required List<String> assignmentIds,
+  });
+
+  Future<void> combineTeacherAssignments({
+    required String termId,
+    required List<String> assignmentIds,
+    required String combinedGroupId,
+  });
+
+  Future<void> separateTeacherAssignments({
+    required String termId,
+    required String combinedGroupId,
+  });
+
+  Stream<List<TeacherGroup>> watchTeacherGroups(String termId);
+
+  Stream<List<TeacherGroupMember>> watchTeacherGroupMembers(String termId);
+
+  Future<void> saveTeacherGroup(TeacherGroup group);
+
+  Future<void> saveTeacherGroupsWithMembers({
+    required List<TeacherGroup> groups,
+    required List<TeacherGroupMember> members,
+  });
+
+  Future<void> deleteTeacherGroup(String groupId);
+
+  Future<void> replaceTeacherGroupMembers({
+    required String groupId,
+    required List<TeacherGroupMember> members,
+  });
+
+  Stream<List<TeacherPreset>> watchTeacherPresets(String termId);
+
+  Stream<List<TeacherGroupPreset>> watchTeacherGroupPresets(String termId);
+
+  Future<void> replaceTeacherPresets({
+    required String termId,
+    required String teacherId,
+    required List<TeacherPreset> presets,
+  });
+
+  Future<void> replaceTeacherGroupPresets({
+    required String groupId,
+    required List<TeacherGroupPreset> presets,
   });
 }

@@ -11,30 +11,70 @@ class AppPageHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.actions = const [],
+    this.responsiveActions = false,
+    this.actionsFlex = 1,
     super.key,
-  });
+  }) : assert(actionsFlex > 0);
 
   final String title;
   final String subtitle;
   final List<Widget> actions;
+  final bool responsiveActions;
+  final int actionsFlex;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 5),
+        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
+    if (!responsiveActions) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: heading),
+          for (final action in actions) ...[const SizedBox(width: 8), action],
+        ],
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final actionWrap = Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 8,
+          runSpacing: 8,
+          children: actions,
+        );
+        if (constraints.maxWidth < 900) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              heading,
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                actionWrap,
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(title, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 5),
-            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+            Expanded(flex: 1, child: heading),
+            const SizedBox(width: 20),
+            Expanded(
+              flex: actionsFlex,
+              child: Align(alignment: Alignment.centerRight, child: actionWrap),
+            ),
           ],
-        ),
-      ),
-      for (final action in actions) ...[const SizedBox(width: 8), action],
-    ],
-  );
+        );
+      },
+    );
+  }
 }
 
 class AppSectionPanel extends StatelessWidget {
@@ -94,15 +134,21 @@ class AppSectionPanel extends StatelessWidget {
 
 /// A reusable Forui-token surface for cards and summary blocks.
 class AppSurface extends StatelessWidget {
-  const AppSurface({required this.child, this.showBorder = true, super.key});
+  const AppSurface({
+    required this.child,
+    this.showBorder = true,
+    this.backgroundColor,
+    super.key,
+  });
 
   final Widget child;
   final bool showBorder;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: AppTheme.forui.colors.card,
+      color: backgroundColor ?? AppTheme.forui.colors.card,
       border: showBorder
           ? Border.all(color: AppTheme.forui.colors.border)
           : null,
@@ -181,6 +227,7 @@ class AppDataTableHeader extends StatelessWidget {
     this.textColor = AppTheme.ink,
     this.backgroundColor = AppTheme.tableHeader,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    this.textStyle,
     super.key,
   });
 
@@ -189,6 +236,7 @@ class AppDataTableHeader extends StatelessWidget {
   final Color textColor;
   final Color backgroundColor;
   final EdgeInsetsGeometry padding;
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -196,12 +244,14 @@ class AppDataTableHeader extends StatelessWidget {
     padding: padding,
     color: backgroundColor,
     child: DefaultTextStyle(
-      style: TextStyle(
-        color: textColor,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        height: 17 / 12,
-      ),
+      style:
+          textStyle ??
+          TextStyle(
+            color: textColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            height: 17 / 12,
+          ),
       child: Row(children: children),
     ),
   );
@@ -684,6 +734,82 @@ class AppIconButton extends StatelessWidget {
   );
 }
 
+/// A small interactive pill for compact choices and schedule cells.
+class AppActionPill extends StatelessWidget {
+  const AppActionPill({
+    required this.child,
+    required this.onPressed,
+    this.selected = false,
+    this.destructive = false,
+    this.onSecondaryPressed,
+    this.onLongPressed,
+    this.tooltip,
+    super.key,
+  });
+
+  final Widget child;
+  final VoidCallback? onPressed;
+  final bool selected;
+  final bool destructive;
+  final VoidCallback? onSecondaryPressed;
+  final VoidCallback? onLongPressed;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) => FButton(
+    variant: destructive
+        ? FButtonVariant.destructive
+        : selected
+        ? FButtonVariant.secondary
+        : FButtonVariant.outline,
+    size: FButtonSizeVariant.xs,
+    mainAxisSize: MainAxisSize.min,
+    onPress: onPressed,
+    onSecondaryPress: onSecondaryPressed,
+    onLongPress: onLongPressed,
+    semanticsTooltip: tooltip,
+    child: child,
+  );
+}
+
+/// A compact Forui badge for status and category labels.
+class AppForuiBadge extends StatelessWidget {
+  const AppForuiBadge({required this.child, this.accent = false, super.key});
+
+  final Widget child;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) => FBadge(
+    variant: accent ? FBadgeVariant.primary : FBadgeVariant.secondary,
+    child: child,
+  );
+}
+
+/// A Forui checkbox that can be composed with a feature-specific row layout.
+class AppCheckbox extends StatelessWidget {
+  const AppCheckbox({
+    required this.value,
+    required this.onChanged,
+    this.label,
+    this.enabled = true,
+    super.key,
+  });
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final Widget? label;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) => FCheckbox(
+    value: value,
+    onChange: onChanged,
+    label: label,
+    enabled: enabled,
+  );
+}
+
 class AppSecondaryButton extends StatelessWidget {
   const AppSecondaryButton({
     required this.onPressed,
@@ -1152,6 +1278,9 @@ class AppSelectField<T> extends StatelessWidget {
     this.label,
     this.hint,
     this.enabled = true,
+    this.contentGroupId,
+    this.searchable = false,
+    this.searchHint = '搜索选项',
     super.key,
   });
 
@@ -1162,15 +1291,41 @@ class AppSelectField<T> extends StatelessWidget {
   final String? label;
   final String? hint;
   final bool enabled;
+  final Object? contentGroupId;
+  final bool searchable;
+  final String searchHint;
 
   @override
-  Widget build(BuildContext context) => FSelect<T>(
-    items: items,
-    control: FSelectControl.lifted(value: value, onChange: onChanged),
-    enabled: enabled,
-    label: label == null ? null : Text(label!),
-    hint: hint,
-  );
+  Widget build(BuildContext context) {
+    final control = FSelectControl.lifted(value: value, onChange: onChanged);
+    final fieldLabel = label == null ? null : Text(label!);
+    if (!searchable) {
+      return FSelect<T>(
+        items: items,
+        control: control,
+        enabled: enabled,
+        label: fieldLabel,
+        hint: hint,
+        contentGroupId: contentGroupId,
+      );
+    }
+
+    return FSelect<T>.search(
+      items: items,
+      filter: (query) {
+        final normalizedQuery = query.trim().toLowerCase();
+        return items.entries
+            .where((entry) => entry.key.toLowerCase().contains(normalizedQuery))
+            .map((entry) => entry.value);
+      },
+      searchFieldProperties: FSelectSearchFieldProperties(hint: searchHint),
+      control: control,
+      enabled: enabled,
+      label: fieldLabel,
+      hint: hint,
+      contentGroupId: contentGroupId,
+    );
+  }
 }
 
 /// 弹出菜单项。
@@ -1364,11 +1519,21 @@ class AppTextFormField extends StatelessWidget {
       onSubmit: onFieldSubmitted,
       validator: validator,
     );
+    final prefix = decoration.prefixIcon;
+    final decoratedField = prefix == null
+        ? field
+        : Row(
+            children: [
+              prefix,
+              const SizedBox(width: 8),
+              Expanded(child: field),
+            ],
+          );
     final suffix = decoration.suffixText;
-    if (suffix == null) return field;
+    if (suffix == null) return decoratedField;
     return Row(
       children: [
-        Expanded(child: field),
+        Expanded(child: decoratedField),
         const SizedBox(width: 8),
         Text(suffix, style: Theme.of(context).textTheme.bodySmall),
       ],

@@ -83,4 +83,51 @@ void main() {
     expect(columns, contains('minimum_daily_consecutive_pairs'));
     expect(columns, contains('maximum_daily_consecutive_pairs'));
   });
+
+  test('v10 数据库升级后教师身份脱离学期并保留原有教师 ID', () async {
+    final database = AppDatabase(
+      NativeDatabase.memory(
+        setup: (connection) {
+          connection.execute('''
+            CREATE TABLE academic_terms (
+              id TEXT NOT NULL PRIMARY KEY
+            )
+          ''');
+          connection.execute('''
+            CREATE TABLE teachers (
+              id TEXT NOT NULL PRIMARY KEY,
+              term_id TEXT NOT NULL REFERENCES academic_terms(id) ON DELETE CASCADE,
+              name TEXT NOT NULL,
+              short_name TEXT NOT NULL DEFAULT '',
+              display_qualifier TEXT NOT NULL DEFAULT '',
+              sort_order INTEGER NOT NULL DEFAULT 0
+            )
+          ''');
+          connection.execute(
+            "INSERT INTO academic_terms (id) VALUES ('term-1')",
+          );
+          connection.execute("""
+            INSERT INTO teachers (id, term_id, name, short_name)
+            VALUES ('teacher-1', 'term-1', '王老师', '王')
+          """);
+          connection.execute('PRAGMA user_version = 10');
+        },
+      ),
+    );
+    addTearDown(database.close);
+
+    final teacher = await database
+        .customSelect('SELECT id, name, short_name FROM teachers')
+        .getSingle();
+    expect(teacher.read<String>('id'), 'teacher-1');
+    expect(teacher.read<String>('name'), '王老师');
+    expect(teacher.read<String>('short_name'), '王');
+    final columns = await database
+        .customSelect('PRAGMA table_info(teachers)')
+        .get();
+    expect(
+      columns.map((row) => row.read<String>('name')),
+      isNot(contains('term_id')),
+    );
+  });
 }

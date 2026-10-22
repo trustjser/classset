@@ -442,15 +442,7 @@ class _MatrixHeaderRow extends StatelessWidget {
             width: SubjectMatrix._nameColumnWidth,
             child: Padding(
               padding: EdgeInsets.only(left: 14),
-              child: Text(
-                '科目',
-                style: TextStyle(
-                  color: AppTheme.muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: .2,
-                ),
-              ),
+              child: Text('科目', style: AppTheme.matrixHeaderTextStyle),
             ),
           ),
           Expanded(
@@ -467,10 +459,10 @@ class _MatrixHeaderRow extends StatelessWidget {
                           grade.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: accentByGrade[grade.id] ?? AppTheme.muted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                          style: AppTheme.matrixHeaderTextStyle.copyWith(
+                            color:
+                                accentByGrade[grade.id] ??
+                                AppTheme.matrixHeaderTextStyle.color,
                           ),
                         ),
                       ),

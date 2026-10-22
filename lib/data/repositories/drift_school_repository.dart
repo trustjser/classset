@@ -12,6 +12,10 @@ import 'package:class_set/domain/models/subject_lesson_constraint.dart'
 import 'package:class_set/domain/models/public_room.dart' as domain;
 import 'package:class_set/domain/models/subject_room_assignment.dart' as domain;
 import 'package:class_set/domain/models/subject_parallel_limit.dart' as domain;
+import 'package:class_set/domain/models/teacher.dart' as domain;
+import 'package:class_set/domain/models/teacher_assignment.dart' as domain;
+import 'package:class_set/domain/models/teacher_group.dart' as domain;
+import 'package:class_set/domain/models/teacher_preset.dart' as domain;
 import 'package:drift/drift.dart';
 
 class DriftSchoolRepository implements SchoolRepository {
@@ -305,6 +309,156 @@ class DriftSchoolRepository implements SchoolRepository {
                 makeupForDate == null ? null : _dateStorage(makeupForDate),
               ),
               note: Value(exception.note),
+            ),
+          );
+    }
+
+    // 教师身份为全校范围的稳定实体，克隆学期时只克隆任课、分组与预设。
+    final teacherIds = {
+      for (final teacher in await _database.select(_database.teachers).get())
+        teacher.id: teacher.id,
+    };
+
+    final groupIds = <String, String>{};
+    final sourceGroups = await (_database.select(
+      _database.teacherGroups,
+    )..where((row) => row.termId.equals(sourceTermId))).get();
+    for (final group in sourceGroups) {
+      final newId = _newId();
+      groupIds[group.id] = newId;
+      await _database
+          .into(_database.teacherGroups)
+          .insert(
+            TeacherGroupsCompanion.insert(
+              id: newId,
+              termId: targetTerm.id,
+              name: group.name,
+              description: Value(group.description),
+              sortOrder: Value(group.sortOrder),
+            ),
+          );
+      final members = await (_database.select(
+        _database.teacherGroupMembers,
+      )..where((row) => row.groupId.equals(group.id))).get();
+      for (final member in members) {
+        if (!teacherIds.containsKey(member.teacherId)) continue;
+        await _database
+            .into(_database.teacherGroupMembers)
+            .insert(
+              TeacherGroupMembersCompanion.insert(
+                groupId: newId,
+                teacherId: member.teacherId,
+              ),
+            );
+      }
+    }
+
+    final sourceAssignments = await (_database.select(
+      _database.teacherAssignments,
+    )..where((row) => row.termId.equals(sourceTermId))).get();
+    for (final assignment in sourceAssignments) {
+      final targetTeacherId = assignment.teacherId == null
+          ? null
+          : teacherIds[assignment.teacherId!];
+      final targetClassId = classIds[assignment.classId];
+      if (targetClassId == null) continue;
+      await _database
+          .into(_database.teacherAssignments)
+          .insert(
+            TeacherAssignmentsCompanion.insert(
+              id: _newId(),
+              termId: targetTerm.id,
+              teacherId: Value(targetTeacherId),
+              subjectId: assignment.subjectId,
+              classId: targetClassId,
+              weekMode: Value(assignment.weekMode),
+              lessonCount: Value(assignment.lessonCount),
+              sortOrder: Value(assignment.sortOrder),
+              combinedLessonGroupId: Value(assignment.combinedLessonGroupId),
+            ),
+          );
+    }
+
+    final sourcePresets = await (_database.select(
+      _database.teacherPresets,
+    )..where((row) => row.termId.equals(sourceTermId))).get();
+    for (final preset in sourcePresets) {
+      final targetTeacherId = teacherIds[preset.teacherId];
+      final targetStageId = stageIds[preset.stageId];
+      final targetPeriodId = periodIds[preset.periodTypeId];
+      final targetScopeId = switch (preset.scopeType) {
+        'school' => targetTerm.id,
+        'stage' => targetStageId,
+        'grade' => gradeIds[preset.scopeId],
+        'class' => classIds[preset.scopeId],
+        _ => null,
+      };
+      if (targetTeacherId == null ||
+          targetStageId == null ||
+          targetPeriodId == null ||
+          targetScopeId == null) {
+        continue;
+      }
+      await _database
+          .into(_database.teacherPresets)
+          .insert(
+            TeacherPresetsCompanion.insert(
+              id: _newId(),
+              termId: targetTerm.id,
+              teacherId: targetTeacherId,
+              scopeType: preset.scopeType,
+              scopeId: targetScopeId,
+              stageId: targetStageId,
+              weekday: preset.weekday,
+              periodTypeId: targetPeriodId,
+              lessonIndex: preset.lessonIndex,
+              weekMode: Value(preset.weekMode),
+              value: Value(preset.value),
+            ),
+          );
+    }
+
+    final sourceGroupPresets =
+        await (_database.select(_database.teacherGroupPresets).join([
+          innerJoin(
+            _database.teacherGroups,
+            _database.teacherGroups.id.equalsExp(
+              _database.teacherGroupPresets.groupId,
+            ),
+          ),
+        ])..where(_database.teacherGroups.termId.equals(sourceTermId))).get();
+    for (final joined in sourceGroupPresets) {
+      final preset = joined.readTable(_database.teacherGroupPresets);
+      final targetGroupId = groupIds[preset.groupId];
+      final targetStageId = stageIds[preset.stageId];
+      final targetPeriodId = periodIds[preset.periodTypeId];
+      final targetScopeId = switch (preset.scopeType) {
+        'school' => targetTerm.id,
+        'stage' => targetStageId,
+        'grade' => gradeIds[preset.scopeId],
+        'class' => classIds[preset.scopeId],
+        _ => null,
+      };
+      if (targetGroupId == null ||
+          targetStageId == null ||
+          targetPeriodId == null ||
+          targetScopeId == null) {
+        continue;
+      }
+      await _database
+          .into(_database.teacherGroupPresets)
+          .insert(
+            TeacherGroupPresetsCompanion.insert(
+              id: _newId(),
+              groupId: targetGroupId,
+              scopeType: preset.scopeType,
+              scopeId: targetScopeId,
+              stageId: targetStageId,
+              weekday: preset.weekday,
+              periodTypeId: targetPeriodId,
+              lessonIndex: preset.lessonIndex,
+              weekMode: Value(preset.weekMode),
+              value: Value(preset.value),
             ),
           );
     }
@@ -2047,4 +2201,782 @@ class DriftSchoolRepository implements SchoolRepository {
           ),
         );
   }
+
+  @override
+  Stream<List<domain.Teacher>> watchTeachers(String termId) =>
+      (_database.select(_database.teachers)..orderBy([
+            (row) => OrderingTerm.asc(row.sortOrder),
+            (row) => OrderingTerm.asc(row.name),
+            (row) => OrderingTerm.asc(row.id),
+          ]))
+          .watch()
+          .asyncMap((rows) async {
+            if (rows.isEmpty) return <domain.Teacher>[];
+            final tags = await (_database.select(
+              _database.teacherSubjectTags,
+            )..where((row) => row.teacherId.isIn(rows.map((e) => e.id)))).get();
+            final tagsByTeacher = <String, Set<String>>{};
+            for (final tag in tags) {
+              tagsByTeacher
+                  .putIfAbsent(tag.teacherId, () => <String>{})
+                  .add(tag.subjectId);
+            }
+            return rows
+                .map(
+                  (row) => domain.Teacher(
+                    id: row.id,
+                    name: row.name,
+                    shortName: row.shortName,
+                    displayQualifier: row.displayQualifier.isEmpty
+                        ? null
+                        : row.displayQualifier,
+                    sortOrder: row.sortOrder,
+                    subjectIds: tagsByTeacher[row.id] ?? const <String>{},
+                  ),
+                )
+                .toList(growable: false);
+          });
+
+  @override
+  Future<void> saveTeachers(List<domain.Teacher> teachers) =>
+      _database.transaction(() async {
+        final ids = <String>{};
+        for (final teacher in teachers) {
+          if (!ids.add(teacher.id) || teacher.name.trim().isEmpty) {
+            throw ArgumentError('教师 ID 不能重复且姓名不能为空');
+          }
+        }
+        for (final teacher in teachers) {
+          await _database
+              .into(_database.teachers)
+              .insertOnConflictUpdate(
+                TeachersCompanion.insert(
+                  id: teacher.id,
+                  name: teacher.name.trim(),
+                  shortName: Value(teacher.shortName.trim()),
+                  displayQualifier: Value(
+                    teacher.displayQualifier?.trim() ?? '',
+                  ),
+                  sortOrder: Value(teacher.sortOrder),
+                ),
+              );
+          await (_database.delete(
+            _database.teacherSubjectTags,
+          )..where((row) => row.teacherId.equals(teacher.id))).go();
+          for (final subjectId in teacher.subjectIds) {
+            await _database
+                .into(_database.teacherSubjectTags)
+                .insertOnConflictUpdate(
+                  TeacherSubjectTagsCompanion.insert(
+                    teacherId: teacher.id,
+                    subjectId: subjectId,
+                  ),
+                );
+          }
+        }
+      });
+
+  @override
+  Future<void> deleteTeacher(String teacherId) =>
+      _database.transaction(() async {
+        await (_database.update(_database.teacherAssignments)
+              ..where((row) => row.teacherId.equals(teacherId)))
+            .write(const TeacherAssignmentsCompanion(teacherId: Value(null)));
+        await (_database.delete(
+          _database.teachers,
+        )..where((row) => row.id.equals(teacherId))).go();
+      });
+
+  @override
+  Future<int> countTeacherAssignments(String teacherId) async =>
+      (await _database
+              .customSelect(
+                'SELECT COUNT(*) AS assignment_count '
+                'FROM teacher_assignments WHERE teacher_id = ?',
+                variables: [Variable<String>(teacherId)],
+              )
+              .getSingle())
+          .read<int>('assignment_count');
+
+  @override
+  Stream<List<domain.TeacherAssignment>> watchTeacherAssignments(
+    String termId,
+  ) =>
+      (_database.select(_database.teacherAssignments)
+            ..where((row) => row.termId.equals(termId))
+            ..orderBy([(row) => OrderingTerm.asc(row.sortOrder)]))
+          .watch()
+          .map(
+            (rows) => rows
+                .map(
+                  (row) => domain.TeacherAssignment(
+                    id: row.id,
+                    termId: row.termId,
+                    teacherId: row.teacherId ?? '',
+                    classId: row.classId,
+                    subjectId: row.subjectId,
+                    weekMode: domain.WeekMode.fromStorage(row.weekMode),
+                    lessonCount: row.lessonCount,
+                    sortOrder: row.sortOrder,
+                    combinedLessonGroupId: row.combinedLessonGroupId,
+                  ),
+                )
+                .toList(growable: false),
+          );
+
+  @override
+  Future<void> replaceTeacherAssignments({
+    required String termId,
+    required String classId,
+    required String subjectId,
+    required List<domain.TeacherAssignment> assignments,
+  }) => _database.transaction(() async {
+    final classRow = await (_database.select(
+      _database.classGroups,
+    )..where((row) => row.id.equals(classId))).getSingleOrNull();
+    if (classRow == null) throw ArgumentError('班级不存在');
+    final subject = await (_database.select(
+      _database.subjects,
+    )..where((row) => row.id.equals(subjectId))).getSingleOrNull();
+    if (subject == null) throw ArgumentError('科目不存在');
+    final teachers = await _database.select(_database.teachers).get();
+    final teacherIds = teachers.map((row) => row.id).toSet();
+    final seen = <String>{};
+    for (final assignment in assignments) {
+      if (assignment.termId != termId ||
+          assignment.classId != classId ||
+          assignment.subjectId != subjectId ||
+          assignment.lessonCount <= 0 ||
+          assignment.teacherId.isEmpty ||
+          !teacherIds.contains(assignment.teacherId) ||
+          !seen.add(assignment.id)) {
+        throw ArgumentError('任课分配记录不属于当前班级/科目，或教师/课时无效');
+      }
+    }
+    final requirements =
+        await (_database.select(_database.subjectRequirements)..where(
+              (row) =>
+                  row.subjectId.equals(subjectId) &
+                  row.gradeId.equals(classRow.gradeId),
+            ))
+            .get();
+    final scopedRequirements = requirements
+        .where((row) => row.classId == classId)
+        .toList();
+    final effectiveRequirements = scopedRequirements.isNotEmpty
+        ? scopedRequirements
+        : requirements.where((row) => row.classId == null).toList();
+    final capacity = <String, int>{
+      for (final requirement in effectiveRequirements)
+        if (requirement.lessonCount > 0)
+          requirement.weekMode: requirement.lessonCount,
+    };
+    if (assignments.isNotEmpty && capacity.isEmpty) {
+      throw StateError('该科目尚未设置节数需求，不能分配任课');
+    }
+    for (final assignment in assignments) {
+      if (!capacity.containsKey(assignment.weekMode.storageValue)) {
+        throw StateError('该周模式尚未设置科目需求，不能分配任课');
+      }
+    }
+    final totals = <String, int>{};
+    for (final assignment in assignments) {
+      totals.update(
+        assignment.weekMode.storageValue,
+        (value) => value + assignment.lessonCount,
+        ifAbsent: () => assignment.lessonCount,
+      );
+    }
+    for (final entry in totals.entries) {
+      final limit = capacity[entry.key];
+      if (limit != null && entry.value > limit) {
+        throw StateError('任课总节数超过${entry.key}需求（${entry.value}/$limit），请先调整分配');
+      }
+    }
+    final currentRows =
+        await (_database.select(_database.teacherAssignments)..where(
+              (row) =>
+                  row.termId.equals(termId) &
+                  row.classId.equals(classId) &
+                  row.subjectId.equals(subjectId),
+            ))
+            .get();
+    final combinedGroupIds = currentRows
+        .map((row) => row.combinedLessonGroupId)
+        .whereType<String>()
+        .toSet();
+    for (final groupId in combinedGroupIds) {
+      await (_database.update(_database.teacherAssignments)..where(
+            (row) =>
+                row.termId.equals(termId) &
+                row.combinedLessonGroupId.equals(groupId),
+          ))
+          .write(
+            const TeacherAssignmentsCompanion(
+              combinedLessonGroupId: Value(null),
+            ),
+          );
+    }
+    await (_database.delete(_database.teacherAssignments)..where(
+          (row) =>
+              row.termId.equals(termId) &
+              row.classId.equals(classId) &
+              row.subjectId.equals(subjectId),
+        ))
+        .go();
+    for (final assignment in assignments) {
+      await _database
+          .into(_database.teacherAssignments)
+          .insert(
+            TeacherAssignmentsCompanion.insert(
+              id: assignment.id,
+              termId: termId,
+              teacherId: Value(assignment.teacherId),
+              subjectId: subjectId,
+              classId: classId,
+              weekMode: Value(assignment.weekMode.storageValue),
+              lessonCount: Value(assignment.lessonCount),
+              sortOrder: Value(assignment.sortOrder),
+              combinedLessonGroupId: const Value(null),
+            ),
+          );
+    }
+  });
+
+  @override
+  Future<void> addTeacherAssignments({
+    required String termId,
+    required List<domain.TeacherAssignment> assignments,
+  }) => _database.transaction(() async {
+    if (assignments.isEmpty) return;
+
+    final classes = await _database.select(_database.classGroups).get();
+    final classById = {for (final row in classes) row.id: row};
+    final subjects = await _database.select(_database.subjects).get();
+    final subjectIds = subjects.map((row) => row.id).toSet();
+    final teachers = await _database.select(_database.teachers).get();
+    final teacherIds = teachers.map((row) => row.id).toSet();
+    final existingRows = await (_database.select(
+      _database.teacherAssignments,
+    )..where((row) => row.termId.equals(termId))).get();
+    final existingIds = existingRows.map((row) => row.id).toSet();
+    final incomingIds = <String>{};
+    for (final assignment in assignments) {
+      if (assignment.termId != termId ||
+          classById[assignment.classId] == null ||
+          !subjectIds.contains(assignment.subjectId) ||
+          assignment.teacherId.isEmpty ||
+          !teacherIds.contains(assignment.teacherId) ||
+          assignment.lessonCount <= 0 ||
+          existingIds.contains(assignment.id) ||
+          !incomingIds.add(assignment.id)) {
+        throw ArgumentError('任课分配记录、教师、科目或节数无效');
+      }
+    }
+
+    final requirements = await _database
+        .select(_database.subjectRequirements)
+        .get();
+    final requirementsByClass =
+        <
+          ({String classId, String subjectId}),
+          List<domain.SubjectRequirement>
+        >{};
+    final requirementsByGrade =
+        <
+          ({String gradeId, String subjectId}),
+          List<domain.SubjectRequirement>
+        >{};
+    for (final row in requirements) {
+      final requirement = domain.SubjectRequirement(
+        id: row.id,
+        subjectId: row.subjectId,
+        gradeId: row.gradeId,
+        classId: row.classId,
+        weekMode: domain.WeekMode.fromStorage(row.weekMode),
+        lessonCount: row.lessonCount,
+      );
+      final classId = row.classId;
+      if (classId == null) {
+        requirementsByGrade
+            .putIfAbsent((
+              gradeId: row.gradeId,
+              subjectId: row.subjectId,
+            ), () => [])
+            .add(requirement);
+      } else {
+        requirementsByClass
+            .putIfAbsent((classId: classId, subjectId: row.subjectId), () => [])
+            .add(requirement);
+      }
+    }
+
+    final currentTotals =
+        <({String classId, String subjectId, String weekMode}), int>{};
+    for (final row in existingRows) {
+      if (row.teacherId == null || row.teacherId!.isEmpty) continue;
+      final key = (
+        classId: row.classId,
+        subjectId: row.subjectId,
+        weekMode: row.weekMode,
+      );
+      currentTotals.update(
+        key,
+        (total) => total + row.lessonCount,
+        ifAbsent: () => row.lessonCount,
+      );
+    }
+    final additions =
+        <({String classId, String subjectId, String weekMode}), int>{};
+    final assignmentsByCell =
+        <
+          ({String classId, String subjectId}),
+          List<domain.TeacherAssignment>
+        >{};
+    for (final assignment in assignments) {
+      final key = (
+        classId: assignment.classId,
+        subjectId: assignment.subjectId,
+        weekMode: assignment.weekMode.storageValue,
+      );
+      additions.update(
+        key,
+        (total) => total + assignment.lessonCount,
+        ifAbsent: () => assignment.lessonCount,
+      );
+      assignmentsByCell
+          .putIfAbsent((
+            classId: assignment.classId,
+            subjectId: assignment.subjectId,
+          ), () => [])
+          .add(assignment);
+    }
+
+    for (final cell in assignmentsByCell.keys) {
+      final classRow = classById[cell.classId]!;
+      final classRequirements =
+          requirementsByClass[cell] ?? const <domain.SubjectRequirement>[];
+      final effectiveRequirements = classRequirements.isNotEmpty
+          ? classRequirements
+          : requirementsByGrade[(
+                  gradeId: classRow.gradeId,
+                  subjectId: cell.subjectId,
+                )] ??
+                const <domain.SubjectRequirement>[];
+      if (!effectiveRequirements.any(
+        (requirement) => requirement.lessonCount > 0,
+      )) {
+        throw StateError('该科目尚未设置节数需求，不能分配任课');
+      }
+      final demandedModes = effectiveRequirements
+          .where((requirement) => requirement.lessonCount > 0)
+          .map((requirement) => requirement.weekMode)
+          .toSet();
+      if (assignmentsByCell[cell]!.any(
+        (assignment) => !demandedModes.contains(assignment.weekMode),
+      )) {
+        throw StateError('该周模式尚未设置科目需求，不能分配任课');
+      }
+      for (final requirement in effectiveRequirements) {
+        final key = (
+          classId: cell.classId,
+          subjectId: cell.subjectId,
+          weekMode: requirement.weekMode.storageValue,
+        );
+        final total = (currentTotals[key] ?? 0) + (additions[key] ?? 0);
+        if (total > requirement.lessonCount) {
+          throw StateError(
+            '任课总节数超过${requirement.weekMode.storageValue}需求（$total/${requirement.lessonCount}），请先调整分配',
+          );
+        }
+      }
+    }
+
+    for (final assignment in assignments) {
+      await _database
+          .into(_database.teacherAssignments)
+          .insert(
+            TeacherAssignmentsCompanion.insert(
+              id: assignment.id,
+              termId: termId,
+              teacherId: Value(assignment.teacherId),
+              subjectId: assignment.subjectId,
+              classId: assignment.classId,
+              weekMode: Value(assignment.weekMode.storageValue),
+              lessonCount: Value(assignment.lessonCount),
+              sortOrder: Value(assignment.sortOrder),
+            ),
+          );
+    }
+  });
+
+  @override
+  Future<void> deleteTeacherAssignments({
+    required String termId,
+    required List<String> assignmentIds,
+  }) => _database.transaction(() async {
+    final ids = assignmentIds.toSet();
+    if (ids.isEmpty) return;
+    final rows = await (_database.select(
+      _database.teacherAssignments,
+    )..where((row) => row.termId.equals(termId) & row.id.isIn(ids))).get();
+    final combinedGroupIds = rows
+        .map((row) => row.combinedLessonGroupId)
+        .whereType<String>()
+        .toSet();
+    for (final groupId in combinedGroupIds) {
+      await (_database.update(_database.teacherAssignments)..where(
+            (row) =>
+                row.termId.equals(termId) &
+                row.combinedLessonGroupId.equals(groupId),
+          ))
+          .write(
+            const TeacherAssignmentsCompanion(
+              combinedLessonGroupId: Value(null),
+            ),
+          );
+    }
+    await (_database.delete(
+      _database.teacherAssignments,
+    )..where((row) => row.termId.equals(termId) & row.id.isIn(ids))).go();
+  });
+
+  @override
+  Future<void> combineTeacherAssignments({
+    required String termId,
+    required List<String> assignmentIds,
+    required String combinedGroupId,
+  }) => _database.transaction(() async {
+    final ids = assignmentIds.toSet();
+    if (ids.length < 2 ||
+        ids.length != assignmentIds.length ||
+        combinedGroupId.trim().isEmpty) {
+      throw ArgumentError('合班至少需要两条不同的任课记录');
+    }
+    final rows = await (_database.select(
+      _database.teacherAssignments,
+    )..where((row) => row.termId.equals(termId) & row.id.isIn(ids))).get();
+    if (rows.length != ids.length) {
+      throw StateError('部分任课记录已不存在，请刷新后重试');
+    }
+    final first = rows.first;
+    final classIds = <String>{};
+    for (final row in rows) {
+      if (row.teacherId == null ||
+          row.teacherId != first.teacherId ||
+          row.subjectId != first.subjectId ||
+          row.weekMode != first.weekMode ||
+          row.lessonCount != first.lessonCount ||
+          row.combinedLessonGroupId != null ||
+          !classIds.add(row.classId)) {
+        throw StateError('合班要求教师、科目、单双周和节数一致，且每班仅选一条任课');
+      }
+    }
+    final groupInUse =
+        await (_database.select(_database.teacherAssignments)..where(
+              (row) =>
+                  row.termId.equals(termId) &
+                  row.combinedLessonGroupId.equals(combinedGroupId),
+            ))
+            .getSingleOrNull();
+    if (groupInUse != null) throw StateError('合班标识已存在，请重试');
+    await (_database.update(
+      _database.teacherAssignments,
+    )..where((row) => row.termId.equals(termId) & row.id.isIn(ids))).write(
+      TeacherAssignmentsCompanion(
+        combinedLessonGroupId: Value(combinedGroupId),
+      ),
+    );
+  });
+
+  @override
+  Future<void> separateTeacherAssignments({
+    required String termId,
+    required String combinedGroupId,
+  }) => _database.transaction(() async {
+    final affected =
+        await (_database.update(_database.teacherAssignments)..where(
+              (row) =>
+                  row.termId.equals(termId) &
+                  row.combinedLessonGroupId.equals(combinedGroupId),
+            ))
+            .write(
+              const TeacherAssignmentsCompanion(
+                combinedLessonGroupId: Value(null),
+              ),
+            );
+    if (affected == 0) throw StateError('合班记录不存在，请刷新后重试');
+  });
+
+  @override
+  Stream<List<domain.TeacherGroup>> watchTeacherGroups(String termId) =>
+      (_database.select(_database.teacherGroups)
+            ..where((row) => row.termId.equals(termId))
+            ..orderBy([(row) => OrderingTerm.asc(row.sortOrder)]))
+          .watch()
+          .map(
+            (rows) => rows
+                .map(
+                  (row) => domain.TeacherGroup(
+                    id: row.id,
+                    termId: row.termId,
+                    name: row.name,
+                    description: row.description.isEmpty
+                        ? null
+                        : row.description,
+                    sortOrder: row.sortOrder,
+                  ),
+                )
+                .toList(growable: false),
+          );
+
+  @override
+  Stream<List<domain.TeacherGroupMember>> watchTeacherGroupMembers(
+    String termId,
+  ) =>
+      (_database.select(_database.teacherGroupMembers).join([
+        innerJoin(
+          _database.teacherGroups,
+          _database.teacherGroups.id.equalsExp(
+            _database.teacherGroupMembers.groupId,
+          ),
+        ),
+      ])..where(_database.teacherGroups.termId.equals(termId))).watch().map(
+        (rows) => rows
+            .map((joined) {
+              final row = joined.readTable(_database.teacherGroupMembers);
+              return domain.TeacherGroupMember(
+                id: '${row.groupId}:${row.teacherId}',
+                groupId: row.groupId,
+                teacherId: row.teacherId,
+              );
+            })
+            .toList(growable: false),
+      );
+
+  @override
+  Future<void> saveTeacherGroup(domain.TeacherGroup group) async {
+    final term = await (_database.select(
+      _database.academicTerms,
+    )..where((row) => row.id.equals(group.termId))).getSingleOrNull();
+    if (term == null || group.name.trim().isEmpty) {
+      throw ArgumentError('分组名称或学期无效');
+    }
+    await _database
+        .into(_database.teacherGroups)
+        .insertOnConflictUpdate(
+          TeacherGroupsCompanion.insert(
+            id: group.id,
+            termId: group.termId,
+            name: group.name.trim(),
+            description: Value(group.description?.trim() ?? ''),
+            sortOrder: Value(group.sortOrder),
+          ),
+        );
+  }
+
+  @override
+  Future<void> saveTeacherGroupsWithMembers({
+    required List<domain.TeacherGroup> groups,
+    required List<domain.TeacherGroupMember> members,
+  }) => _database.transaction(() async {
+    if (groups.isEmpty) return;
+    final groupIds = <String>{};
+    final termId = groups.first.termId;
+    for (final group in groups) {
+      if (group.termId != termId ||
+          group.name.trim().isEmpty ||
+          !groupIds.add(group.id)) {
+        throw ArgumentError('分组数据无效或重复');
+      }
+    }
+    final teachers = await _database.select(_database.teachers).get();
+    final teacherIds = teachers.map((teacher) => teacher.id).toSet();
+    final seenMembers = <String>{};
+    for (final member in members) {
+      final key = '${member.groupId}:${member.teacherId}';
+      if (!groupIds.contains(member.groupId) ||
+          !teacherIds.contains(member.teacherId) ||
+          !seenMembers.add(key)) {
+        throw ArgumentError('分组成员不存在或重复');
+      }
+    }
+    for (final group in groups) {
+      await _database
+          .into(_database.teacherGroups)
+          .insert(
+            TeacherGroupsCompanion.insert(
+              id: group.id,
+              termId: termId,
+              name: group.name.trim(),
+              description: Value(group.description?.trim() ?? ''),
+              sortOrder: Value(group.sortOrder),
+            ),
+          );
+    }
+    for (final member in members) {
+      await _database
+          .into(_database.teacherGroupMembers)
+          .insert(
+            TeacherGroupMembersCompanion.insert(
+              groupId: member.groupId,
+              teacherId: member.teacherId,
+            ),
+          );
+    }
+  });
+
+  @override
+  Future<void> deleteTeacherGroup(String groupId) => (_database.delete(
+    _database.teacherGroups,
+  )..where((row) => row.id.equals(groupId))).go();
+
+  @override
+  Future<void> replaceTeacherGroupMembers({
+    required String groupId,
+    required List<domain.TeacherGroupMember> members,
+  }) => _database.transaction(() async {
+    final group = await (_database.select(
+      _database.teacherGroups,
+    )..where((row) => row.id.equals(groupId))).getSingleOrNull();
+    if (group == null) throw ArgumentError('教师分组不存在');
+    final teachers = await _database.select(_database.teachers).get();
+    final teacherIds = teachers.map((row) => row.id).toSet();
+    final ids = <String>{};
+    for (final member in members) {
+      if (member.groupId != groupId ||
+          !teacherIds.contains(member.teacherId) ||
+          !ids.add(member.teacherId)) {
+        throw ArgumentError('分组成员无效或重复');
+      }
+    }
+    await (_database.delete(
+      _database.teacherGroupMembers,
+    )..where((row) => row.groupId.equals(groupId))).go();
+    for (final member in members) {
+      await _database
+          .into(_database.teacherGroupMembers)
+          .insert(
+            TeacherGroupMembersCompanion.insert(
+              groupId: groupId,
+              teacherId: member.teacherId,
+            ),
+          );
+    }
+  });
+
+  @override
+  Stream<List<domain.TeacherPreset>> watchTeacherPresets(String termId) =>
+      (_database.select(
+        _database.teacherPresets,
+      )..where((row) => row.termId.equals(termId))).watch().map(
+        (rows) => rows.map(_toDomainTeacherPreset).toList(growable: false),
+      );
+
+  @override
+  Stream<List<domain.TeacherGroupPreset>> watchTeacherGroupPresets(
+    String termId,
+  ) =>
+      (_database.select(_database.teacherGroupPresets).join([
+        innerJoin(
+          _database.teacherGroups,
+          _database.teacherGroups.id.equalsExp(
+            _database.teacherGroupPresets.groupId,
+          ),
+        ),
+      ])..where(_database.teacherGroups.termId.equals(termId))).watch().map(
+        (rows) => rows
+            .map(
+              (row) => _toDomainTeacherGroupPreset(
+                row.readTable(_database.teacherGroupPresets),
+              ),
+            )
+            .toList(growable: false),
+      );
+
+  domain.TeacherPreset _toDomainTeacherPreset(TeacherPreset row) =>
+      domain.TeacherPreset(
+        id: row.id,
+        teacherId: row.teacherId,
+        scope: domain.TeacherPresetScope.fromStorage(row.scopeType),
+        scopeId: row.scopeId,
+        stageId: row.stageId,
+        weekday: row.weekday,
+        periodTypeId: row.periodTypeId,
+        lessonIndex: row.lessonIndex,
+        value: domain.PresetValue.fromStorage(row.value),
+      );
+
+  domain.TeacherGroupPreset _toDomainTeacherGroupPreset(
+    TeacherGroupPreset row,
+  ) => domain.TeacherGroupPreset(
+    id: row.id,
+    groupId: row.groupId,
+    scope: domain.TeacherPresetScope.fromStorage(row.scopeType),
+    scopeId: row.scopeId,
+    stageId: row.stageId,
+    weekday: row.weekday,
+    periodTypeId: row.periodTypeId,
+    lessonIndex: row.lessonIndex,
+    value: domain.PresetValue.fromStorage(row.value),
+  );
+
+  @override
+  Future<void> replaceTeacherPresets({
+    required String termId,
+    required String teacherId,
+    required List<domain.TeacherPreset> presets,
+  }) => _database.transaction(() async {
+    await (_database.delete(_database.teacherPresets)..where(
+          (row) => row.termId.equals(termId) & row.teacherId.equals(teacherId),
+        ))
+        .go();
+    for (final preset in presets) {
+      if (preset.teacherId != teacherId) throw ArgumentError('教师预设归属不一致');
+      await _database
+          .into(_database.teacherPresets)
+          .insert(
+            TeacherPresetsCompanion.insert(
+              id: preset.id,
+              termId: termId,
+              teacherId: teacherId,
+              scopeType: preset.scope.storageValue,
+              scopeId: preset.scopeId,
+              stageId: preset.stageId,
+              weekday: preset.weekday,
+              periodTypeId: preset.periodTypeId,
+              lessonIndex: preset.lessonIndex,
+              value: Value(preset.value.storageValue),
+            ),
+          );
+    }
+  });
+
+  @override
+  Future<void> replaceTeacherGroupPresets({
+    required String groupId,
+    required List<domain.TeacherGroupPreset> presets,
+  }) => _database.transaction(() async {
+    await (_database.delete(
+      _database.teacherGroupPresets,
+    )..where((row) => row.groupId.equals(groupId))).go();
+    for (final preset in presets) {
+      if (preset.groupId != groupId) throw ArgumentError('分组预设归属不一致');
+      await _database
+          .into(_database.teacherGroupPresets)
+          .insert(
+            TeacherGroupPresetsCompanion.insert(
+              id: preset.id,
+              groupId: groupId,
+              scopeType: preset.scope.storageValue,
+              scopeId: preset.scopeId,
+              stageId: preset.stageId,
+              weekday: preset.weekday,
+              periodTypeId: preset.periodTypeId,
+              lessonIndex: preset.lessonIndex,
+              value: Value(preset.value.storageValue),
+            ),
+          );
+    }
+  });
 }

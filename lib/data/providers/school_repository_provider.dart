@@ -14,6 +14,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:class_set/domain/models/public_room.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
 import 'package:class_set/domain/models/subject_parallel_limit.dart';
+import 'package:class_set/domain/models/teacher.dart';
+import 'package:class_set/domain/models/teacher_assignment.dart';
+import 'package:class_set/domain/models/teacher_group.dart';
+import 'package:class_set/domain/models/teacher_preset.dart';
 
 final schoolRepositoryProvider = Provider<SchoolRepository>(
   (ref) => DriftSchoolRepository(ref.watch(appDatabaseProvider)),
@@ -152,4 +156,37 @@ final roomReferencesProvider =
     StreamProvider.family<List<SubjectRoomAssignment>, String>(
       (ref, roomId) =>
           ref.watch(schoolRepositoryProvider).watchRoomReferences(roomId),
+    );
+
+final teachersProvider = StreamProvider.family<List<Teacher>, String>(
+  (ref, termId) => ref.watch(schoolRepositoryProvider).watchTeachers(termId),
+);
+
+final teacherAssignmentsProvider =
+    StreamProvider.family<List<TeacherAssignment>, String>(
+      (ref, termId) =>
+          ref.watch(schoolRepositoryProvider).watchTeacherAssignments(termId),
+    );
+
+final teacherGroupsProvider = StreamProvider.family<List<TeacherGroup>, String>(
+  (ref, termId) =>
+      ref.watch(schoolRepositoryProvider).watchTeacherGroups(termId),
+);
+
+final teacherGroupMembersProvider =
+    StreamProvider.family<List<TeacherGroupMember>, String>(
+      (ref, termId) =>
+          ref.watch(schoolRepositoryProvider).watchTeacherGroupMembers(termId),
+    );
+
+final teacherPresetsProvider =
+    StreamProvider.family<List<TeacherPreset>, String>(
+      (ref, termId) =>
+          ref.watch(schoolRepositoryProvider).watchTeacherPresets(termId),
+    );
+
+final teacherGroupPresetsProvider =
+    StreamProvider.family<List<TeacherGroupPreset>, String>(
+      (ref, termId) =>
+          ref.watch(schoolRepositoryProvider).watchTeacherGroupPresets(termId),
     );

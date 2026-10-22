@@ -41,6 +41,9 @@ void main() {
         'public_rooms',
         'subject_room_assignments',
         'subject_parallel_limits',
+        'teachers',
+        'teacher_groups',
+        'teacher_assignments',
       ]) {
         final rows = await database
             .customSelect('SELECT COUNT(*) AS count FROM $table')
@@ -50,7 +53,7 @@ void main() {
       expect(
         (await database.customSelect('PRAGMA user_version').get()).single
             .read<int>('user_version'),
-        8,
+        11,
       );
     },
   );

@@ -20,6 +20,12 @@ abstract final class AppTheme {
   static const Color selectedBlue = Color(0xFFE8F1FC);
   static const Color tableHeader = Color(0xFFFAF9F8);
   static const Color tableDivider = Color(0xFFF0EEEC);
+  static const TextStyle matrixHeaderTextStyle = TextStyle(
+    color: muted,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    letterSpacing: .2,
+  );
   static const Color success = Color(0xFF2BA471);
   static const Color successSurface = Color(0xFFE9F6EF);
   static const Color warning = Color(0xFFC98A2B);

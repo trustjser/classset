@@ -5,13 +5,22 @@ import 'package:class_set/features/classes/classes_page.dart';
 import 'package:class_set/features/routines/routine_page.dart';
 import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
+import 'package:class_set/features/teachers/teachers_page.dart';
 import 'package:class_set/features/terms/term_page.dart';
 import 'package:class_set/features/workbench/workbench_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart' as f;
 
-enum AppSection { workbench, terms, classes, routines, subjects, publicRooms }
+enum AppSection {
+  workbench,
+  terms,
+  classes,
+  routines,
+  subjects,
+  teachers,
+  publicRooms,
+}
 
 final selectedSectionProvider = StateProvider<AppSection>(
   (ref) => AppSection.workbench,
@@ -70,6 +79,7 @@ class _AppShell extends ConsumerWidget {
             AppSection.classes => '班级与学段',
             AppSection.routines => '作息设置',
             AppSection.subjects => '科目节数',
+            AppSection.teachers => '教师任课',
             AppSection.publicRooms => '公共场室',
           };
           return Row(
@@ -131,6 +141,10 @@ class _AppShell extends ConsumerWidget {
                               activeTermId == null
                                   ? const _ChooseTermMessage()
                                   : SubjectsPage(termId: activeTermId),
+                            AppSection.teachers =>
+                              activeTermId == null
+                                  ? const _ChooseTermMessage()
+                                  : TeachersPage(termId: activeTermId),
                           },
                         ),
                       ),
@@ -271,11 +285,11 @@ class _Sidebar extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    const Icon(
-                      Icons.expand_more_rounded,
-                      size: 16,
-                      color: AppTheme.muted,
-                    ),
+                    // const Icon(
+                    //   Icons.expand_more_rounded,
+                    //   size: 16,
+                    //   color: AppTheme.muted,
+                    // ),
                   ],
                 ),
               ),
@@ -332,10 +346,14 @@ class _Sidebar extends ConsumerWidget {
                       ref.read(selectedSectionProvider.notifier).state =
                           AppSection.subjects,
                 ),
-                _NavComingSoon(
+                _NavItem(
                   label: '教师任课',
                   icon: Icons.person_outline,
                   isCompact: isCompact,
+                  isSelected: section == AppSection.teachers,
+                  onTap: () =>
+                      ref.read(selectedSectionProvider.notifier).state =
+                          AppSection.teachers,
                 ),
                 _NavComingSoon(
                   label: '自动排课',

@@ -331,6 +331,136 @@ class SubjectParallelLimits extends Table {
   ];
 }
 
+/// Global teacher identity. A teacher may be reused by assignments in many terms.
+class Teachers extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get shortName => text().withDefault(const Constant(''))();
+  TextColumn get displayQualifier => text().withDefault(const Constant(''))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Teacher subject tags are preferences/filter hints, not hard assignment limits.
+class TeacherSubjectTags extends Table {
+  TextColumn get teacherId =>
+      text().references(Teachers, #id, onDelete: KeyAction.cascade)();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {teacherId, subjectId};
+}
+
+/// A term-scoped optional teacher group.
+class TeacherGroups extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get name => text()();
+  TextColumn get description => text().withDefault(const Constant(''))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class TeacherGroupMembers extends Table {
+  TextColumn get groupId =>
+      text().references(TeacherGroups, #id, onDelete: KeyAction.cascade)();
+  TextColumn get teacherId =>
+      text().references(Teachers, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {groupId, teacherId};
+}
+
+/// A teacher split assignment for one class and subject.
+class TeacherAssignments extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get teacherId => text().nullable().references(
+    Teachers,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get classId =>
+      text().references(ClassGroups, #id, onDelete: KeyAction.cascade)();
+  TextColumn get weekMode => text().withDefault(const Constant('weekly'))();
+  IntColumn get lessonCount => integer().withDefault(const Constant(0))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  TextColumn get combinedLessonGroupId => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Personal teacher preset cells. A row is an explicit override, including auto.
+class TeacherPresets extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get teacherId =>
+      text().references(Teachers, #id, onDelete: KeyAction.cascade)();
+  TextColumn get scopeType => text()();
+  TextColumn get scopeId => text()();
+  TextColumn get stageId =>
+      text().references(SchoolStages, #id, onDelete: KeyAction.cascade)();
+  IntColumn get weekday => integer()();
+  TextColumn get periodTypeId =>
+      text().references(LessonPeriodTypes, #id, onDelete: KeyAction.cascade)();
+  IntColumn get lessonIndex => integer()();
+  TextColumn get weekMode => text().withDefault(const Constant('weekly'))();
+  TextColumn get value => text().withDefault(const Constant('auto'))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {
+      termId,
+      teacherId,
+      scopeType,
+      scopeId,
+      stageId,
+      weekday,
+      periodTypeId,
+      lessonIndex,
+    },
+  ];
+}
+
+/// Group preset cells, inherited by members unless a personal row overrides it.
+class TeacherGroupPresets extends Table {
+  TextColumn get id => text()();
+  TextColumn get groupId =>
+      text().references(TeacherGroups, #id, onDelete: KeyAction.cascade)();
+  TextColumn get scopeType => text()();
+  TextColumn get scopeId => text()();
+  TextColumn get stageId =>
+      text().references(SchoolStages, #id, onDelete: KeyAction.cascade)();
+  IntColumn get weekday => integer()();
+  TextColumn get periodTypeId =>
+      text().references(LessonPeriodTypes, #id, onDelete: KeyAction.cascade)();
+  IntColumn get lessonIndex => integer()();
+  TextColumn get weekMode => text().withDefault(const Constant('weekly'))();
+  TextColumn get value => text().withDefault(const Constant('auto'))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {groupId, scopeType, scopeId, stageId, weekday, periodTypeId, lessonIndex},
+  ];
+}
+
 @DriftDatabase(
   tables: [
     AcademicTerms,
@@ -352,6 +482,13 @@ class SubjectParallelLimits extends Table {
     PublicRooms,
     SubjectRoomAssignments,
     SubjectParallelLimits,
+    Teachers,
+    TeacherSubjectTags,
+    TeacherGroups,
+    TeacherGroupMembers,
+    TeacherAssignments,
+    TeacherPresets,
+    TeacherGroupPresets,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -360,7 +497,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -370,6 +507,24 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createTable(publicRooms);
         await migrator.createTable(subjectRoomAssignments);
         await migrator.createTable(subjectParallelLimits);
+      }
+      if (from < 9) {
+        await migrator.createTable(teachers);
+        await migrator.createTable(teacherSubjectTags);
+        await migrator.createTable(teacherGroups);
+        await migrator.createTable(teacherGroupMembers);
+        await migrator.createTable(teacherAssignments);
+        await migrator.createTable(teacherPresets);
+        await migrator.createTable(teacherGroupPresets);
+      }
+      if (from >= 9 && from < 10) {
+        await migrator.addColumn(
+          teacherAssignments,
+          teacherAssignments.sortOrder,
+        );
+      }
+      if (from >= 9 && from < 11) {
+        await migrator.alterTable(TableMigration(teachers));
       }
       if (from < 2) {
         await migrator.createTable(calendarExceptions);
