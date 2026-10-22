@@ -853,13 +853,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('按姓名查找教师'), findsOneWidget);
-    expect(find.text('批量添加任课'), findsOneWidget);
-    expect(find.text('导入 Excel'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('teacher-header-add-assignment')),
+      findsOneWidget,
+    );
+    expect(find.text('导入 Excel'), findsNothing);
     expect(find.text('张伟'), findsOneWidget);
     expect(find.text('周均节数'), findsOneWidget);
     expect(find.text('5 节'), findsOneWidget);
     expect(find.text('数学 · 初一（1）班 · 5 节'), findsOneWidget);
-    expect(find.text('添加新教师（或从 Excel 名单导入）'), findsOneWidget);
+    expect(find.text('添加新教师'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('teacher-assignment-table-header')),
       findsOneWidget,
@@ -871,17 +874,19 @@ void main() {
     expect(find.text('未分配课程'), findsOneWidget);
     expect(find.text('初一（1）班'), findsOneWidget);
     expect(find.text('数学 · 3 节'), findsOneWidget);
-    expect(find.text('添加任课'), findsNothing);
+    expect(find.text('添加任课'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('teacher-row-more-teacher-1')));
     await tester.pumpAndSettle();
-    expect(find.text('添加任课'), findsOneWidget);
+    expect(find.text('添加任课'), findsNWidgets(2));
     expect(find.text('编辑教师'), findsOneWidget);
     expect(find.text('删除教师'), findsOneWidget);
     await tester.tapAt(const Offset(20, 700));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('批量添加任课'));
+    await tester.tap(
+      find.byKey(const ValueKey('teacher-header-add-assignment')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('添加一行'), findsOneWidget);
     expect(find.text('添加 1 项'), findsOneWidget);
@@ -910,30 +915,19 @@ void main() {
       const ValueKey('teacher-class-matrix-border'),
     );
     final unassignedTitle = find.text('未分配课程');
-    final classBatchButton = find.text('批量添加任课');
+    final classAddButton = find.byKey(
+      const ValueKey('teacher-header-add-assignment'),
+    );
 
     expect(title, findsOneWidget);
     expect(find.byType(FTabs), findsOneWidget);
     expect(switcherBlock, findsOneWidget);
     expect(pageDescription, findsOneWidget);
-    expect(classBatchButton, findsOneWidget);
+    expect(classAddButton, findsOneWidget);
+    expect(tester.widget(classAddButton), isA<AppGhostButton>());
+    expect(find.text('导入 Excel'), findsNothing);
     expect(
-      find.ancestor(
-        of: classBatchButton,
-        matching: find.byType(AppPrimaryButton),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.ancestor(
-        of: classBatchButton,
-        matching: find.byType(AppOutlineButton),
-      ),
-      findsNothing,
-    );
-    expect(find.text('导入 Excel'), findsOneWidget);
-    expect(
-      tester.getTopLeft(classBatchButton).dy,
+      tester.getTopLeft(classAddButton).dy,
       lessThan(tester.getTopLeft(classTab).dy),
     );
     expect(
@@ -1558,8 +1552,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
 
-    final batchAction = find.text('批量添加任课');
-    final importAction = find.text('导入 Excel');
+    final addAction = find.byKey(
+      const ValueKey('teacher-header-add-assignment'),
+    );
     final moreAction = find.byKey(const ValueKey('teacher-header-overflow'));
     final pageHeader = find.byType(AppPageHeader);
     expect(
@@ -1572,20 +1567,10 @@ void main() {
     );
     expect(
       tester.getCenter(moreAction).dy,
-      closeTo(tester.getCenter(batchAction).dy, 0.5),
+      closeTo(tester.getCenter(addAction).dy, 0.5),
     );
-    expect(
-      find.ancestor(of: batchAction, matching: find.byType(AppPrimaryButton)),
-      findsOneWidget,
-    );
-    expect(
-      find.ancestor(of: batchAction, matching: find.byType(AppOutlineButton)),
-      findsNothing,
-    );
-    expect(
-      tester.getCenter(importAction).dy,
-      closeTo(tester.getCenter(batchAction).dy, 0.5),
-    );
+    expect(tester.widget(addAction), isA<AppGhostButton>());
+    expect(find.text('导入 Excel'), findsNothing);
     expect(
       tester.getRect(moreAction).right,
       closeTo(tester.getRect(pageHeader).right, 1),
@@ -1624,6 +1609,85 @@ void main() {
           .height,
       1,
     );
+  });
+
+  testWidgets('班级视角窄屏按科目数量撑开矩阵并支持整页滚动', (tester) async {
+    tester.view.physicalSize = const Size(820, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _mountTeacherPage(
+      tester,
+      subjects: [
+        for (var index = 0; index < 10; index++)
+          Subject(
+            id: 'subject-$index',
+            name: '科目 $index',
+            shortName: '科$index',
+            sortOrder: index,
+          ),
+      ],
+      requirements: const [],
+      assignments: const [],
+    );
+
+    final pageScroll = find.byKey(
+      const ValueKey('teacher-class-view-page-scroll'),
+    );
+    expect(pageScroll, findsOneWidget);
+    if (pageScroll.evaluate().isEmpty) return;
+
+    final matrix = find.byKey(const ValueKey('teacher-class-matrix-border'));
+    expect(tester.getSize(matrix).height, greaterThanOrEqualTo(520));
+
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(of: pageScroll, matching: find.byType(Scrollable)).first,
+    );
+    expect(scrollable.position.maxScrollExtent, greaterThan(0));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('教师任课窄屏页头操作保持右对齐并将导入收进更多菜单', (tester) async {
+    tester.view.physicalSize = const Size(720, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _mountTeacherPage(tester);
+
+    final header = find.byType(AppPageHeader);
+    final description = find.textContaining('支持拖拽分配');
+    final addAssignment = find.byKey(
+      const ValueKey('teacher-header-add-assignment'),
+    );
+    final more = find.byKey(const ValueKey('teacher-header-overflow'));
+
+    expect(addAssignment, findsOneWidget);
+    if (addAssignment.evaluate().isEmpty) return;
+    expect(find.text('批量添加任课'), findsNothing);
+    expect(
+      find.descendant(of: addAssignment, matching: find.text('添加任课')),
+      findsOneWidget,
+    );
+    expect(tester.widget(addAssignment), isA<AppGhostButton>());
+    expect(
+      tester.getRect(addAssignment).top,
+      lessThan(tester.getRect(description).bottom),
+    );
+    expect(
+      tester.getRect(more).right,
+      closeTo(tester.getRect(header).right, 1),
+    );
+    expect(find.text('Excel导入教师'), findsNothing);
+
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    expect(find.text('Excel导入教师'), findsOneWidget);
+    await tester.tap(find.text('Excel导入教师'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppDialog), findsOneWidget);
+    expect(find.text('下载模板'), findsOneWidget);
+    expect(find.text('选择 Excel 文件'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('班级视角与教师视角表格外观匹配科目矩阵', (tester) async {
@@ -2198,7 +2262,9 @@ void main() {
       assignments: const [],
     );
 
-    await tester.tap(find.text('批量添加任课'));
+    await tester.tap(
+      find.byKey(const ValueKey('teacher-header-add-assignment')),
+    );
     await tester.pumpAndSettle();
 
     final subjectField = tester.widget<AppSelectField<String>>(
@@ -2232,7 +2298,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await _mountTeacherPage(tester);
 
-    await tester.tap(find.text('批量添加任课'));
+    await tester.tap(
+      find.byKey(const ValueKey('teacher-header-add-assignment')),
+    );
     await tester.pumpAndSettle();
 
     final countControl = tester.getRect(
@@ -2269,7 +2337,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('批量添加任课'));
+    await tester.tap(
+      find.byKey(const ValueKey('teacher-header-add-assignment')),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('添加 1 项'));
     await tester.pumpAndSettle();
@@ -2295,7 +2365,9 @@ void main() {
       assignments: const [],
     );
 
-    await tester.tap(find.text('批量添加任课'));
+    await tester.tap(
+      find.byKey(const ValueKey('teacher-header-add-assignment')),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(AppDialog), findsNothing);
@@ -2313,7 +2385,10 @@ void main() {
     await tester.tap(find.text('班级视角'));
     await tester.pumpAndSettle();
 
-    expect(find.text('批量添加任课'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('teacher-header-add-assignment')),
+      findsOneWidget,
+    );
     expect(find.text('未分配课程'), findsOneWidget);
     await tester.tap(find.text('教师视角'));
     await tester.pumpAndSettle();

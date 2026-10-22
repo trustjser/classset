@@ -140,6 +140,106 @@ class _TeacherEditorDialogState extends State<_TeacherEditorDialog> {
   }
 }
 
+Future<bool?> _showTeacherImportDialog(
+  BuildContext context, {
+  required Future<void> Function() onDownloadTemplate,
+}) => showAppDialog<bool>(
+  context: context,
+  builder: (context) => AppDialog(
+    title: const Text('Excel导入教师'),
+    maxWidth: 560,
+    content: SizedBox(
+      width: 512,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '请先下载模板并填写教师姓名、简称，再上传 .xlsx 文件。上传后可以核对新增教师及同名教师。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 20),
+          _TeacherImportActionCard(
+            icon: Icons.download_outlined,
+            title: '下载教师模板',
+            description: '模板包含「教师」「简称」两列，请勿修改列名。',
+            action: AppOutlineButton(
+              key: const ValueKey('teacher-import-download-template'),
+              onPressed: onDownloadTemplate,
+              child: const Text('下载模板'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _TeacherImportActionCard(
+            icon: Icons.upload_file_outlined,
+            title: '上传填写后的 Excel',
+            description: '仅支持 .xlsx 文件，上传后会先展示核对结果。',
+            action: AppPrimaryButton(
+              key: const ValueKey('teacher-import-select-file'),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('选择 Excel 文件'),
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      AppGhostButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('取消'),
+      ),
+    ],
+  ),
+);
+
+class _TeacherImportActionCard extends StatelessWidget {
+  const _TeacherImportActionCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) => AppSurface(
+    backgroundColor: AppTheme.canvas,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppTheme.selectedBlue,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: AppTheme.blue, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(description, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          action,
+        ],
+      ),
+    ),
+  );
+}
+
 const _createTeacherChoice = '__create_teacher__';
 
 class _TeacherImportPlanItem {

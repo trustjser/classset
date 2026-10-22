@@ -2,6 +2,33 @@ part of '../teachers_page.dart';
 
 extension _TeacherIoActions on _TeachersPageState {
   Future<void> _importTeachers() async {
+    final upload = await _showTeacherImportDialog(
+      context,
+      onDownloadTemplate: _downloadTeacherImportTemplate,
+    );
+    if (upload != true || !mounted) return;
+    await _selectAndImportTeachers();
+  }
+
+  Future<void> _downloadTeacherImportTemplate() async {
+    final location = await getSaveLocation(
+      suggestedName: '教师导入模板.xlsx',
+      acceptedTypeGroups: [
+        const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
+      ],
+    );
+    if (location == null) return;
+    final file = XFile.fromData(
+      Uint8List.fromList(buildTeachersWorkbook(const [])),
+      name: '教师导入模板.xlsx',
+      mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    await file.saveTo(location.path);
+    if (mounted) _showMessage('教师导入模板已下载');
+  }
+
+  Future<void> _selectAndImportTeachers() async {
     final file = await openFile(
       acceptedTypeGroups: [
         const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
@@ -28,21 +55,26 @@ extension _TeacherIoActions on _TeachersPageState {
     );
     if (plan == null) return;
     var newTeacherOrder = current.length;
-    await _repository.saveTeachers([
-      for (final item in plan)
-        if (item.teacherId != null)
-          current
-              .firstWhere((teacher) => teacher.id == item.teacherId)
-              .copyWith(name: item.row.name, shortName: item.row.shortName)
-        else
-          Teacher(
-            id: _id('teacher'),
-            name: item.row.name,
-            shortName: item.row.shortName,
-            displayQualifier: item.displayQualifier,
-            sortOrder: newTeacherOrder++,
-          ),
-    ]);
+    try {
+      await _repository.saveTeachers([
+        for (final item in plan)
+          if (item.teacherId != null)
+            current
+                .firstWhere((teacher) => teacher.id == item.teacherId)
+                .copyWith(name: item.row.name, shortName: item.row.shortName)
+          else
+            Teacher(
+              id: _id('teacher'),
+              name: item.row.name,
+              shortName: item.row.shortName,
+              displayQualifier: item.displayQualifier,
+              sortOrder: newTeacherOrder++,
+            ),
+      ]);
+    } catch (error) {
+      if (mounted) _showMessage('导入教师失败：$error');
+      return;
+    }
     if (mounted) {
       ScaffoldMessenger.of(
         context,

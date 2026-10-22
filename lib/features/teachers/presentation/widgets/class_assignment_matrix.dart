@@ -152,23 +152,30 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 1000) {
-          return Column(
-            children: [
-              viewSwitcherPanel,
-              const SizedBox(height: 8),
-              Expanded(child: matrix),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 250,
-                child: Row(
-                  children: [
-                    Expanded(child: unassignedPanel),
-                    const SizedBox(width: 8),
-                    Expanded(child: teacherPanel),
-                  ],
+          final matrixHeight = (40 + subjects.length * _rowHeight)
+              .clamp(320.0, double.infinity)
+              .toDouble();
+          return SingleChildScrollView(
+            key: const ValueKey('teacher-class-view-page-scroll'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                viewSwitcherPanel,
+                const SizedBox(height: 8),
+                SizedBox(height: matrixHeight, child: matrix),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 250,
+                  child: Row(
+                    children: [
+                      Expanded(child: unassignedPanel),
+                      const SizedBox(width: 8),
+                      Expanded(child: teacherPanel),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         }
         return Row(

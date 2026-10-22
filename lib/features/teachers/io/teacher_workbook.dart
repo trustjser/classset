@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
 
 class TeacherWorkbookError {
@@ -26,7 +29,7 @@ class TeacherWorkbookResult {
 
 TeacherWorkbookResult parseTeachersWorkbook(List<int> bytes) {
   try {
-    final book = Excel.decodeBytes(bytes);
+    final book = _decodeTeachersWorkbook(bytes);
     if (book.tables.isEmpty || book.tables.values.first.rows.isEmpty) {
       return const TeacherWorkbookResult(
         errors: [TeacherWorkbookError(1, '工作表为空，请使用列：教师、简称')],
@@ -72,6 +75,38 @@ TeacherWorkbookResult parseTeachersWorkbook(List<int> bytes) {
       errors: [TeacherWorkbookError(1, '无法读取 Excel 文件，请选择有效的 .xlsx 文件')],
     );
   }
+}
+
+Excel _decodeTeachersWorkbook(List<int> bytes) {
+  try {
+    return Excel.decodeBytes(bytes);
+  } catch (error) {
+    if (!error.toString().contains('custom numFmtId starts at 164')) rethrow;
+    return Excel.decodeBytes(_removeBuiltinNumberFormatDeclarations(bytes));
+  }
+}
+
+List<int> _removeBuiltinNumberFormatDeclarations(List<int> bytes) {
+  final archive = ZipDecoder().decodeBytes(bytes);
+  for (var index = 0; index < archive.length; index++) {
+    final file = archive[index];
+    if (file.name != 'xl/styles.xml') continue;
+    final styles = utf8.decode(file.content as List<int>);
+    final normalized = styles.replaceAllMapped(
+      RegExp(r'<numFmt\b(?=[^>]*\bnumFmtId="(\d+)")[^>]*(?:/>|>\s*</numFmt>)'),
+      (match) => int.parse(match.group(1)!) < 164 ? '' : match.group(0)!,
+    );
+    if (normalized == styles) return bytes;
+    final content = utf8.encode(normalized);
+    archive[index] = ArchiveFile(file.name, content.length, content)
+      ..lastModTime = file.lastModTime
+      ..mode = file.mode
+      ..ownerId = file.ownerId
+      ..groupId = file.groupId
+      ..compress = file.compress;
+    return ZipEncoder().encode(archive)!;
+  }
+  return bytes;
 }
 
 List<int> buildTeachersWorkbook(List<TeacherWorkbookRow> rows) {

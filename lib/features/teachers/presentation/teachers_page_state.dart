@@ -18,6 +18,8 @@ class TeachersPage extends ConsumerStatefulWidget {
 }
 
 class _TeachersPageState extends ConsumerState<TeachersPage> {
+  static int _generatedIdSequence = 0;
+
   final _searchController = TextEditingController();
   final _viewTabsKey = GlobalKey(debugLabel: 'teacher-view-tabs');
   int _viewIndex = 0;
@@ -32,7 +34,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
   SchoolRepository get _repository => ref.read(schoolRepositoryProvider);
 
   String _id(String prefix) =>
-      '$prefix-${DateTime.now().microsecondsSinceEpoch}';
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_generatedIdSequence++}';
 
   Future<void> _openTeacherPresetPage({
     required _PresetOwnerKind ownerKind,
@@ -117,8 +119,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
 
   List<Widget> _buildHeaderActions() {
     final showSearch = !_showGroups && _viewIndex == 1;
-    final showImport = !_showGroups;
-    final showBatch = !_showGroups;
+    final showAddAssignment = !_showGroups;
     final search = SizedBox(
       width: 180,
       child: AppTextFormField(
@@ -130,15 +131,13 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
         ),
       ),
     );
-    final batch = AppPrimaryButton.icon(
+    final addAssignment = AppGhostButton(
+      key: const ValueKey('teacher-header-add-assignment'),
       onPressed: _addBatchAssignments,
-      icon: const Icon(Icons.add, size: 18),
-      label: const Text('批量添加任课'),
-    );
-    final import = AppOutlineButton.icon(
-      onPressed: _importTeachers,
-      icon: const Icon(Icons.upload_file_outlined, size: 18),
-      label: const Text('导入 Excel'),
+      child: const Text(
+        '添加任课',
+        style: TextStyle(color: AppTheme.blue, fontWeight: FontWeight.w600),
+      ),
     );
     final returnToAssignments = AppOutlineButton.icon(
       key: const ValueKey('teacher-groups-return'),
@@ -175,6 +174,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                 onPressed: () => setState(() => _showGroups = true),
               ),
               AppMenuItem(label: '新增教师', onPressed: _addTeacher),
+              AppMenuItem(label: 'Excel导入教师', onPressed: _importTeachers),
               AppMenuItem(label: '导出教师 Excel', onPressed: _exportTeachers),
               AppMenuItem(label: '导入分组', onPressed: _importGroups),
               AppMenuItem(label: '导出分组', onPressed: _exportGroups),
@@ -203,8 +203,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
       if (_showGroups) returnToAssignments,
       if (_showGroups) addGroup,
       if (showSearch) search,
-      if (showBatch) batch,
-      if (showImport) import,
+      if (showAddAssignment) addAssignment,
       more,
     ];
   }
@@ -240,8 +239,6 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
             title: '教师任课',
             subtitle: subtitle,
             actions: _buildHeaderActions(),
-            responsiveActions: true,
-            actionsFlex: 2,
           ),
           const SizedBox(height: AppTheme.pageSectionGap),
           Expanded(

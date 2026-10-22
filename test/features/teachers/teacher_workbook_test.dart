@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:archive/archive.dart';
 import 'package:class_set/features/teachers/io/teacher_workbook.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +12,28 @@ List<int> _workbook(List<List<CellValue?>> rows) {
     sheet.appendRow(row);
   }
   return excel.encode()!;
+}
+
+List<int> _withBuiltinNumberFormatDeclaration(List<int> bytes) {
+  final archive = ZipDecoder().decodeBytes(bytes);
+  for (var index = 0; index < archive.length; index++) {
+    final file = archive[index];
+    if (file.name != 'xl/styles.xml') continue;
+    final styles = utf8.decode(file.content as List<int>);
+    const declaration = '<numFmt numFmtId="42" formatCode="#,##0"/>';
+    final normalized = styles.contains('<numFmts')
+        ? styles.replaceFirstMapped(RegExp(r'<numFmts[^>]*>'), (match) {
+            final openingTag = match.group(0)!;
+            return '$openingTag$declaration';
+          })
+        : styles.replaceFirst(
+            '<fonts',
+            '<numFmts count="1">$declaration</numFmts><fonts',
+          );
+    final content = utf8.encode(normalized);
+    archive[index] = ArchiveFile(file.name, content.length, content);
+  }
+  return ZipEncoder().encode(archive)!;
 }
 
 void main() {
@@ -34,6 +59,21 @@ void main() {
     );
     expect(result.errors, isEmpty);
     expect(result.rows, hasLength(2));
+  });
+
+  test('parses files that redeclare a built-in number format', () {
+    final result = parseTeachersWorkbook(
+      _withBuiltinNumberFormatDeclaration(
+        _workbook([
+          [TextCellValue('教师'), TextCellValue('简称')],
+          [TextCellValue('王老师'), TextCellValue('王')],
+        ]),
+      ),
+    );
+
+    expect(result.errors, isEmpty);
+    expect(result.rows.single.name, '王老师');
+    expect(result.rows.single.shortName, '王');
   });
 
   test('reports row errors and rejects file atomically', () {
