@@ -175,7 +175,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
               ),
               AppMenuItem(label: '新增教师', onPressed: _addTeacher),
               AppMenuItem(label: 'Excel导入教师', onPressed: _importTeachers),
-              AppMenuItem(label: '导出教师 Excel', onPressed: _exportTeachers),
+              AppMenuItem(label: 'Excel导入任课分配', onPressed: _importAssignments),
               AppMenuItem(label: '导入分组', onPressed: _importGroups),
               AppMenuItem(label: '导出分组', onPressed: _exportGroups),
               AppMenuItem(label: '新增分组', onPressed: _addGroup),

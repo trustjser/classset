@@ -1682,10 +1682,33 @@ void main() {
     await tester.tap(more);
     await tester.pumpAndSettle();
     expect(find.text('Excel导入教师'), findsOneWidget);
+    expect(find.text('Excel导入任课分配'), findsOneWidget);
+    expect(find.text('导出教师 Excel'), findsNothing);
     await tester.tap(find.text('Excel导入教师'));
     await tester.pumpAndSettle();
     expect(find.byType(AppDialog), findsOneWidget);
     expect(find.text('下载模板'), findsOneWidget);
+    expect(find.text('包含现有数据'), findsOneWidget);
+    expect(find.text('选择 Excel 文件'), findsOneWidget);
+    final downloadCard = find
+        .ancestor(of: find.text('下载教师模板'), matching: find.byType(AppSurface))
+        .first;
+    final includeExistingCheckbox = find.descendant(
+      of: downloadCard,
+      matching: find.byType(FCheckbox),
+    );
+    expect(includeExistingCheckbox, findsOneWidget);
+    expect(tester.widget<FCheckbox>(includeExistingCheckbox).value, isFalse);
+    await tester.tap(find.text('包含现有数据'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FCheckbox>(includeExistingCheckbox).value, isTrue);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Excel导入任课分配'));
+    await tester.pumpAndSettle();
+    expect(find.text('下载任课分配模板'), findsOneWidget);
     expect(find.text('选择 Excel 文件'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
