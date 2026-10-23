@@ -97,10 +97,10 @@ class _TeachingCalendarMonthState extends State<TeachingCalendarMonth> {
               spacing: 12,
               runSpacing: 6,
               children: [
-                _LegendDot(color: AppTheme.blue, label: '单周'),
-                _LegendDot(color: AppTheme.purple, label: '双周'),
-                _LegendDot(color: AppTheme.success, label: '补课'),
-                _LegendDot(color: AppTheme.destructive, label: '停课'),
+                _LegendDot(color: context.appColors.blue, label: '单周'),
+                _LegendDot(color: context.appColors.purple, label: '双周'),
+                _LegendDot(color: context.appColors.success, label: '补课'),
+                _LegendDot(color: context.appColors.destructive, label: '停课'),
               ],
             ),
             const SizedBox(height: 10),
@@ -149,15 +149,6 @@ class _TeachingCalendarMonthState extends State<TeachingCalendarMonth> {
                 final week = widget.term.teachingWeekOf(exception.date);
                 if (week != null) widget.onEditWeek(week);
               },
-            ),
-            const SizedBox(height: 7),
-            const Text(
-              '选择教学日可编辑该周例外；教学周锚点固定，不会因停课或补课而顺延。',
-              style: TextStyle(
-                color: AppTheme.muted,
-                fontSize: 10,
-                height: 1.4,
-              ),
             ),
           ],
         ),
@@ -264,10 +255,10 @@ class _CalendarHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Text(
+      Text(
         '教学日历',
         style: TextStyle(
-          color: AppTheme.ink,
+          color: context.appColors.ink,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
@@ -276,8 +267,8 @@ class _CalendarHeader extends StatelessWidget {
       Expanded(
         child: Text(
           '${month.year}年${month.month}月',
-          style: const TextStyle(
-            color: AppTheme.inkSecondary,
+          style: TextStyle(
+            color: context.appColors.inkSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
@@ -317,8 +308,8 @@ class _WeekdayLabels extends StatelessWidget {
                 child: Center(
                   child: Text(
                     '周${weekdayShortNames[index]}',
-                    style: const TextStyle(
-                      color: AppTheme.muted,
+                    style: TextStyle(
+                      color: context.appColors.muted,
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                     ),
@@ -406,7 +397,7 @@ class _TeachingWeekLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: AppTheme.canvas,
+      color: context.appColors.canvas,
       borderRadius: BorderRadius.circular(10),
     ),
     child: Column(
@@ -414,7 +405,7 @@ class _TeachingWeekLabel extends StatelessWidget {
       children: [
         Text(
           week == null ? '—' : 'W${week.toString().padLeft(2, '0')}',
-          style: const TextStyle(color: AppTheme.muted, fontSize: 9),
+          style: TextStyle(color: context.appColors.muted, fontSize: 9),
         ),
         const SizedBox(height: 3),
         if (week != null)
@@ -426,9 +417,11 @@ class _TeachingWeekLabel extends StatelessWidget {
             },
             style: TextStyle(
               color: switch (term.cycleMode) {
-                AcademicTermCycle.everyWeek => AppTheme.blue,
+                AcademicTermCycle.everyWeek => context.appColors.blue,
                 AcademicTermCycle.alternating =>
-                  term.isOddWeek(week!) ? AppTheme.blue : AppTheme.purple,
+                  term.isOddWeek(week!)
+                      ? context.appColors.blue
+                      : context.appColors.purple,
               },
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -460,10 +453,12 @@ class _DayCell extends StatelessWidget {
     final week = term.teachingWeekOf(date);
     final inTerm = week != null;
     final isMakeup = exception?.isMakeup ?? false;
-    final exceptionColor = isMakeup ? AppTheme.success : AppTheme.destructive;
+    final exceptionColor = isMakeup
+        ? context.appColors.success
+        : context.appColors.destructive;
     final exceptionSurface = isMakeup
-        ? AppTheme.successSurface
-        : AppTheme.destructiveSurface;
+        ? context.appColors.successSurface
+        : context.appColors.destructiveSurface;
 
     return Material(
       color: Colors.transparent,
@@ -475,11 +470,15 @@ class _DayCell extends StatelessWidget {
           decoration: BoxDecoration(
             color: exception == null
                 ? inMonth
-                      ? (inTerm ? Colors.white : AppTheme.canvas)
-                      : AppTheme.canvas.withValues(alpha: .48)
+                      ? (inTerm
+                            ? context.appColors.surface
+                            : context.appColors.canvas)
+                      : context.appColors.canvas.withValues(alpha: .48)
                 : exceptionSurface,
             border: Border.all(
-              color: exception == null ? AppTheme.border : exceptionColor,
+              color: exception == null
+                  ? context.appColors.border
+                  : exceptionColor,
               width: exception == null ? 1 : 1.2,
             ),
             borderRadius: BorderRadius.circular(10),
@@ -491,10 +490,10 @@ class _DayCell extends StatelessWidget {
                 '${date.day}',
                 style: TextStyle(
                   color: !inMonth
-                      ? AppTheme.muted
+                      ? context.appColors.muted
                       : inTerm
-                      ? AppTheme.ink
-                      : AppTheme.muted,
+                      ? context.appColors.ink
+                      : context.appColors.muted,
                   fontSize: 12,
                   fontWeight: inTerm ? FontWeight.w600 : FontWeight.w400,
                 ),
@@ -508,7 +507,7 @@ class _DayCell extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .75),
+                    color: context.appColors.surface.withValues(alpha: .75),
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: Text(
@@ -551,7 +550,7 @@ class _MonthlyExceptions extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
     decoration: BoxDecoration(
-      color: AppTheme.canvas,
+      color: context.appColors.canvas,
       borderRadius: BorderRadius.circular(10),
     ),
     child: Column(
@@ -559,11 +558,11 @@ class _MonthlyExceptions extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 '本月例外',
                 style: TextStyle(
-                  color: AppTheme.inkSecondary,
+                  color: context.appColors.inkSecondary,
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
@@ -578,9 +577,9 @@ class _MonthlyExceptions extends StatelessWidget {
           ],
         ),
         if (exceptions.isEmpty)
-          const Text(
+          Text(
             '暂无例外安排',
-            style: TextStyle(color: AppTheme.muted, fontSize: 10),
+            style: TextStyle(color: context.appColors.muted, fontSize: 10),
           )
         else ...[
           const SizedBox(height: 5),
@@ -616,7 +615,9 @@ class _ExceptionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMakeup = exception.isMakeup;
-    final color = isMakeup ? AppTheme.blue : AppTheme.destructive;
+    final color = isMakeup
+        ? context.appColors.blue
+        : context.appColors.destructive;
     final text =
         '${formatDateMd(exception.date)} '
         '${exception.note.trim().isNotEmpty ? exception.note : (isMakeup ? '补课' : '停课')}'
@@ -627,7 +628,9 @@ class _ExceptionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: isMakeup ? AppTheme.selectedBlue : AppTheme.destructiveSurface,
+          color: isMakeup
+              ? context.appColors.selectedBlue
+              : context.appColors.destructiveSurface,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -661,7 +664,7 @@ class _LegendDot extends StatelessWidget {
       const SizedBox(width: 4),
       Text(
         label,
-        style: const TextStyle(color: AppTheme.inkSecondary, fontSize: 9),
+        style: TextStyle(color: context.appColors.inkSecondary, fontSize: 9),
       ),
     ],
   );

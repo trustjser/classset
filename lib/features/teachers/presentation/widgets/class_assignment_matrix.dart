@@ -5,31 +5,18 @@ class _ClassMatrix extends ConsumerStatefulWidget {
     required this.termId,
     required this.teachers,
     required this.assignments,
-    required this.searchController,
-    required this.viewSwitcher,
     required this.onSaveAssignments,
-    required this.onAssignUnassigned,
-    required this.onReturnAssignment,
   });
 
   final String termId;
   final List<Teacher> teachers;
   final List<TeacherAssignment> assignments;
-  final TextEditingController searchController;
-  final Widget viewSwitcher;
   final Future<bool> Function(
     String classId,
     String subjectId,
     List<TeacherAssignment> assignments,
   )
   onSaveAssignments;
-  final Future<void> Function(
-    Teacher teacher,
-    TeacherAssignmentMatrixCourse course,
-  )
-  onAssignUnassigned;
-  final Future<void> Function(TeacherAssignment assignment, String teacherId)
-  onReturnAssignment;
 
   @override
   ConsumerState<_ClassMatrix> createState() => _ClassMatrixState();
@@ -110,10 +97,10 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
         ref.watch(classesForTermProvider(widget.termId)).valueOrNull ??
         const [];
     final subjects = ref.watch(subjectsProvider).valueOrNull ?? const [];
-    final requirements =
-        ref.watch(allRequirementsProvider).valueOrNull ?? const [];
     final stages =
         ref.watch(stagesProvider(widget.termId)).valueOrNull ?? const [];
+    final requirements =
+        ref.watch(allRequirementsProvider).valueOrNull ?? const [];
     if (classes.isEmpty || subjects.isEmpty) {
       return const Center(child: Text('请先设置班级和科目'));
     }
@@ -127,28 +114,16 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
     final teachersById = {
       for (final teacher in widget.teachers) teacher.id: teacher,
     };
-    final stageNames = {for (final stage in stages) stage.id: stage.name};
+    final stageIndexById = {
+      for (final (index, stage) in stages.indexed) stage.id: index,
+    };
     final matrix = _buildMatrix(
       classes: classes,
       subjects: subjects,
       matrixData: matrixData,
       teachersById: teachersById,
+      stageIndexById: stageIndexById,
     );
-    final unassignedPanel = _UnassignedCoursePanel(
-      courses: matrixData.unassignedCourses,
-      onReturnAssignment: (assignment) =>
-          widget.onReturnAssignment(assignment, ''),
-    );
-    final teacherPanel = _TeacherDropPanel(
-      searchController: widget.searchController,
-      teachers: widget.teachers,
-      assignments: widget.assignments,
-      classes: classes,
-      stageNames: stageNames,
-      onAssign: widget.onAssignUnassigned,
-    );
-    final viewSwitcherPanel = _teacherViewSwitcherPanel(widget.viewSwitcher);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 1000) {
@@ -157,46 +132,10 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
               .toDouble();
           return SingleChildScrollView(
             key: const ValueKey('teacher-class-view-page-scroll'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                viewSwitcherPanel,
-                const SizedBox(height: 8),
-                SizedBox(height: matrixHeight, child: matrix),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 250,
-                  child: Row(
-                    children: [
-                      Expanded(child: unassignedPanel),
-                      const SizedBox(width: 8),
-                      Expanded(child: teacherPanel),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            child: SizedBox(height: matrixHeight, child: matrix),
           );
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: 296,
-              child: Column(
-                children: [
-                  viewSwitcherPanel,
-                  const SizedBox(height: 8),
-                  Expanded(flex: 5, child: unassignedPanel),
-                  const SizedBox(height: 12),
-                  Expanded(flex: 6, child: teacherPanel),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: matrix),
-          ],
-        );
+        return matrix;
       },
     );
   }
@@ -206,6 +145,7 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
     required List<Subject> subjects,
     required TeacherAssignmentMatrixData matrixData,
     required Map<String, Teacher> teachersById,
+    required Map<String, int> stageIndexById,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -218,50 +158,34 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
 
         Widget subjectRow(int index) {
           final subject = subjects[index];
-          return SizedBox(
-            height: _rowHeight,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                const ColoredBox(color: Colors.white),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(
-                    key: ValueKey('subject-info-${subject.id}'),
-                    children: [
-                      Flexible(
-                        child: Text(
-                          subject.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+          return ColoredBox(
+            color: context.appColors.surface,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                key: ValueKey('subject-info-${subject.id}'),
+                children: [
+                  Flexible(
+                    child: Text(
+                      subject.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
-                      for (final mode in _subjectWeekModes(
-                        matrixData,
-                        classes,
-                        subject,
-                      )) ...[
-                        const SizedBox(width: 4),
-                        _SubjectWeekModeTag(mode: mode),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-                Positioned(
-                  key: ValueKey('subject-cell-divider-${subject.id}'),
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 1,
-                  child: IgnorePointer(
-                    child: ColoredBox(color: AppTheme.border),
-                  ),
-                ),
-              ],
+                  for (final mode in _subjectWeekModes(
+                    matrixData,
+                    classes,
+                    subject,
+                  )) ...[
+                    const SizedBox(width: 4),
+                    _SubjectWeekModeTag(mode: mode),
+                  ],
+                ],
+              ),
             ),
           );
         }
@@ -279,87 +203,115 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
           final canEditAssignments = cell.requirements.any(
             (requirement) => requirement.lessonCount > 0,
           );
-          final hasUnassignedCourse =
-              cell.remainingCourses.isNotEmpty ||
-              cell.assignments.any(
-                (assignment) =>
-                    assignment.teacherId.isEmpty ||
-                    !teachersById.containsKey(assignment.teacherId),
-              );
-          final inlineSpans = <InlineSpan>[];
+          final assignmentSpans = <InlineSpan>[];
           final tooltipEntries = <String>[];
-          void appendSpan(InlineSpan span) {
-            if (inlineSpans.isNotEmpty) {
-              inlineSpans.add(const TextSpan(text: ' '));
+          void appendAssignment(InlineSpan span) {
+            if (assignmentSpans.isNotEmpty) {
+              assignmentSpans.add(const TextSpan(text: ' '));
             }
-            inlineSpans.add(span);
+            assignmentSpans.add(span);
           }
 
           for (final assignment in cell.assignments) {
             tooltipEntries.add(_assignmentLabel(assignment, teachersById));
-            appendSpan(_assignmentSpan(assignment, teachersById));
+            appendAssignment(_assignmentSpan(assignment, teachersById));
           }
           for (final course in cell.remainingCourses) {
             tooltipEntries.add(_unassignedLabel(course));
-            appendSpan(
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: Draggable<TeacherAssignmentMatrixCourse>(
-                  data: course,
-                  feedback: Material(
-                    color: Colors.transparent,
-                    child: _UnassignedCourseTile(course: course),
-                  ),
-                  childWhenDragging: Opacity(
-                    opacity: 0.35,
-                    child: Text(
-                      _unassignedCellLabel(course),
-                      style: const TextStyle(
-                        color: AppTheme.warning,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
+          }
+          Widget unassignedCourse(TeacherAssignmentMatrixCourse course) =>
+              Draggable<TeacherAssignmentMatrixCourse>(
+                data: course,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: _UnassignedCourseTile(course: course),
+                ),
+                childWhenDragging: Opacity(
+                  opacity: 0.35,
                   child: Text(
                     _unassignedCellLabel(course),
-                    style: const TextStyle(
-                      color: AppTheme.warning,
+                    style: TextStyle(
+                      color: context.appColors.warning,
                       fontSize: 12,
                     ),
                   ),
                 ),
-              ),
-            );
-          }
-          final cellContent = inlineSpans.isEmpty
+                child: Text(
+                  _unassignedCellLabel(course),
+                  style: TextStyle(
+                    color: context.appColors.warning,
+                    fontSize: 12,
+                  ),
+                ),
+              );
+
+          final hasAssignments = assignmentSpans.isNotEmpty;
+          final hasUnassigned = cell.remainingCourses.isNotEmpty;
+          final Widget? assignedContent = hasAssignments
+              ? Text.rich(
+                  TextSpan(children: assignmentSpans),
+                  key: ValueKey(
+                    'assignment-cell-content-${item.id}-${subject.id}',
+                  ),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12),
+                )
+              : null;
+          final Widget? unassignedContent = !hasUnassigned
+              ? null
+              : cell.remainingCourses.length == 1
+              ? unassignedCourse(cell.remainingCourses.single)
+              : SizedBox(
+                  width: 112,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final (index, course)
+                            in cell.remainingCourses.indexed) ...[
+                          if (index > 0) const SizedBox(width: 4),
+                          unassignedCourse(course),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+          final cellContent = !hasAssignments && !hasUnassigned
               ? Center(
-                  child: Text('—', style: TextStyle(color: AppTheme.muted)),
+                  child: Text(
+                    '—',
+                    style: TextStyle(
+                      color: context.appColors.muted.withValues(alpha: 0.5),
+                    ),
+                  ),
                 )
               : Tooltip(
                   message: tooltipEntries.join(' '),
                   child: SizedBox.expand(
-                    child: Center(
-                      child: Text.rich(
-                        TextSpan(children: inlineSpans),
-                        key: ValueKey(
-                          'assignment-cell-content-${item.id}-${subject.id}',
-                        ),
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
+                    child: hasAssignments && hasUnassigned
+                        ? Row(
+                            children: [
+                              Expanded(child: assignedContent!),
+                              const SizedBox(width: 4),
+                              unassignedContent!,
+                            ],
+                          )
+                        : Center(
+                            child: hasAssignments
+                                ? assignedContent!
+                                : unassignedContent!,
+                          ),
                   ),
                 );
           final isHoveredCell =
               _hoveredCell == (rowIndex: rowIndex, columnIndex: columnIndex);
           final backgroundColor = isHoveredCell
-              ? AppTheme.selectedBlue
-              : hasUnassignedCourse
-              ? AppTheme.warningSurface
-              : Colors.white;
+              ? context.appColors.selectedBlue
+              : context.appColors.surface;
           return SizedBox(
             width: classColumnWidth,
             child: MouseRegion(
@@ -413,18 +365,6 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
                             ),
                           ),
                   ),
-                  Positioned(
-                    key: ValueKey(
-                      'assignment-cell-divider-${item.id}-${subject.id}',
-                    ),
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: 1,
-                    child: IgnorePointer(
-                      child: ColoredBox(color: AppTheme.border),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -434,71 +374,57 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
         final subjectHeader = SizedBox(
           width: _subjectColumnWidth,
           height: 40,
-          child: Stack(
-            fit: StackFit.expand,
+          child: AppDataTableHeader(
+            height: 40,
+            textColor: context.appColors.muted,
+            backgroundColor: context.appColors.surface,
+            textStyle: AppTheme.matrixHeaderTextStyle(context),
+            padding: EdgeInsets.zero,
             children: [
-              AppDataTableHeader(
-                height: 40,
-                textColor: AppTheme.muted,
-                backgroundColor: Colors.white,
-                textStyle: AppTheme.matrixHeaderTextStyle,
-                padding: EdgeInsets.zero,
-                children: [
-                  const SizedBox(
-                    width: _subjectColumnWidth,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 18),
-                      child: Text('科目'),
-                    ),
-                  ),
-                ],
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 1,
-                child: ColoredBox(color: AppTheme.border),
+              const SizedBox(
+                width: _subjectColumnWidth,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 18),
+                  child: Text('科目'),
+                ),
               ),
             ],
           ),
         );
         final classHeader = SizedBox(
           height: 40,
-          child: Stack(
-            fit: StackFit.expand,
+          child: AppDataTableHeader(
+            height: 40,
+            textColor: context.appColors.muted,
+            backgroundColor: context.appColors.surface,
+            textStyle: AppTheme.matrixHeaderTextStyle(context),
+            padding: EdgeInsets.zero,
             children: [
-              AppDataTableHeader(
-                height: 40,
-                textColor: AppTheme.muted,
-                backgroundColor: Colors.white,
-                textStyle: AppTheme.matrixHeaderTextStyle,
-                padding: EdgeInsets.zero,
-                children: [
-                  Expanded(
-                    child: _SynchronizedHorizontalList(
-                      key: const ValueKey('teacher-class-header-list'),
-                      scrollKey: const ValueKey('teacher-class-matrix-scroll'),
-                      sync: _horizontalScrollSync,
-                      itemCount: classes.length,
-                      itemExtent: classColumnWidth,
-                      itemBuilder: (context, columnIndex) => ColoredBox(
-                        key: ValueKey(
-                          'teacher-class-header-${classes[columnIndex].id}',
+              Expanded(
+                child: _SynchronizedHorizontalList(
+                  key: const ValueKey('teacher-class-header-list'),
+                  scrollKey: const ValueKey('teacher-class-matrix-scroll'),
+                  sync: _horizontalScrollSync,
+                  itemCount: classes.length,
+                  itemExtent: classColumnWidth,
+                  itemBuilder: (context, columnIndex) => ColoredBox(
+                    key: ValueKey(
+                      'teacher-class-header-${classes[columnIndex].id}',
+                    ),
+                    color: context.appColors.surface,
+                    child: Center(
+                      child: Text(
+                        classes[columnIndex].name,
+                        style: AppTheme.matrixHeaderTextStyle(context).copyWith(
+                          color: AppTheme.stageAccent(
+                            context,
+                            stageIndexById[classes[columnIndex].stageId] ?? 0,
+                          ),
                         ),
-                        color: Colors.white,
-                        child: Center(child: Text(classes[columnIndex].name)),
                       ),
                     ),
                   ),
-                ],
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 1,
-                child: ColoredBox(color: AppTheme.border),
+                ),
               ),
             ],
           ),
@@ -552,22 +478,37 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
           key: const ValueKey('teacher-class-matrix-border'),
           position: DecorationPosition.foreground,
           decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.border),
+            border: Border.all(color: context.appColors.border),
             borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                SizedBox(
-                  width: _subjectColumnWidth,
-                  child: Column(children: [subjectHeader, subjectRows]),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: _subjectColumnWidth,
+                      child: Column(children: [subjectHeader, subjectRows]),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [classHeader, classRows],
+                      ),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [classHeader, classRows],
+                Positioned(
+                  key: const ValueKey('teacher-class-matrix-header-divider'),
+                  top: 40,
+                  left: 0,
+                  right: 0,
+                  height: 1,
+                  child: IgnorePointer(
+                    child: ColoredBox(color: context.appColors.border),
                   ),
                 ),
               ],
@@ -613,7 +554,9 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
     return TextSpan(
       text: _assignmentLabel(assignment, teachersById),
       style: TextStyle(
-        color: teacher == null ? AppTheme.warning : AppTheme.ink,
+        color: teacher == null
+            ? context.appColors.warning
+            : context.appColors.ink,
         fontSize: 12,
       ),
     );
@@ -737,10 +680,12 @@ class _SubjectWeekModeTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEven = mode == WeekMode.even;
-    final color = isEven ? AppTheme.success : AppTheme.warning;
+    final color = isEven
+        ? context.appColors.success
+        : context.appColors.warning;
     final backgroundColor = isEven
-        ? AppTheme.successSurface
-        : AppTheme.warningSurface;
+        ? context.appColors.successSurface
+        : context.appColors.warningSurface;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: backgroundColor,

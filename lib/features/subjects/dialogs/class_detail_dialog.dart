@@ -48,8 +48,7 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
   void initState() {
     super.initState();
     _values = {
-      for (final entry in widget.initialValues.entries)
-        entry.key: entry.value,
+      for (final entry in widget.initialValues.entries) entry.key: entry.value,
     };
   }
 
@@ -62,11 +61,7 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
   void _setValue(String classId, {int? weekly, int? odd, int? even}) {
     final current = _values[classId] ?? const ClassSubjectValues();
     setState(() {
-      _values[classId] = current.copyWith(
-        weekly: weekly,
-        odd: odd,
-        even: even,
-      );
+      _values[classId] = current.copyWith(weekly: weekly, odd: odd, even: even);
     });
   }
 
@@ -121,7 +116,10 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
                 alternating
                     ? '共 ${widget.classes.length} 个班；每周节数计入单双周，单周 / 双周仅计入对应周次。'
                     : '共 ${widget.classes.length} 个班；录入每周节数，所有周使用同一套课表。',
-                style: const TextStyle(color: AppTheme.muted, fontSize: 11.5),
+                style: TextStyle(
+                  color: context.appColors.muted,
+                  fontSize: 11.5,
+                ),
               ),
               const SizedBox(height: 12),
               ConstrainedBox(
@@ -155,8 +153,8 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
                     alternating
                         ? '合计 单周 ${totals.odd} · 双周 ${totals.even} 节'
                         : '合计每周 ${totals.weekly} 节',
-                    style: const TextStyle(
-                      color: AppTheme.inkSecondary,
+                    style: TextStyle(
+                      color: context.appColors.inkSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -167,8 +165,8 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
                 const SizedBox(height: 8),
                 Text(
                   overClasses.join('；'),
-                  style: const TextStyle(
-                    color: AppTheme.destructive,
+                  style: TextStyle(
+                    color: context.appColors.destructive,
                     fontSize: 11.5,
                   ),
                 ),
@@ -222,32 +220,32 @@ class _DetailHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: AppTheme.border)),
+    decoration: BoxDecoration(
+      border: Border(bottom: BorderSide(color: context.appColors.border)),
     ),
     padding: const EdgeInsets.only(bottom: 8),
     child: Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Padding(
             padding: EdgeInsets.only(left: 4),
             child: Text(
               '班级',
               style: TextStyle(
-                color: AppTheme.muted,
+                color: context.appColors.muted,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
         ),
-        const SizedBox(
+        SizedBox(
           width: 62,
           child: Center(
             child: Text(
               '每周',
               style: TextStyle(
-                color: AppTheme.muted,
+                color: context.appColors.muted,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -255,26 +253,26 @@ class _DetailHeader extends StatelessWidget {
           ),
         ),
         if (alternatingWeeks) ...[
-          const SizedBox(
+          SizedBox(
             width: 62,
             child: Center(
               child: Text(
                 '单周',
                 style: TextStyle(
-                  color: AppTheme.muted,
+                  color: context.appColors.muted,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           ),
-          const SizedBox(
+          SizedBox(
             width: 62,
             child: Center(
               child: Text(
                 '双周',
                 style: TextStyle(
-                  color: AppTheme.muted,
+                  color: context.appColors.muted,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -305,9 +303,10 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overOdd = capacity != null && values.oddWeekDemand > capacity!.oddWeek;
-    final overEven = capacity != null &&
-        values.evenWeekDemand > capacity!.evenWeek;
+    final overOdd =
+        capacity != null && values.oddWeekDemand > capacity!.oddWeek;
+    final overEven =
+        capacity != null && values.evenWeekDemand > capacity!.evenWeek;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -319,7 +318,7 @@ class _DetailRow extends StatelessWidget {
                 classBrief.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppTheme.ink, fontSize: 12),
+                style: TextStyle(color: context.appColors.ink, fontSize: 12),
               ),
             ),
           ),
@@ -373,9 +372,11 @@ class _CountField extends StatelessWidget {
               vertical: 9,
             ),
             enabledBorder: isOver
-                ? const OutlineInputBorder(
+                ? OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(9)),
-                    borderSide: BorderSide(color: AppTheme.destructive),
+                    borderSide: BorderSide(
+                      color: context.appColors.destructive,
+                    ),
                   )
                 : null,
           ),

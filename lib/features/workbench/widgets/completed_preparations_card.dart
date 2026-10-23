@@ -29,18 +29,21 @@ class CompletedPreparationsCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                const Text(
+                Text(
                   '随时可调整',
-                  style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 14),
             if (doneSteps.isEmpty)
-              const Text(
+              Text(
                 '还没有完成的准备，从「学段与班级」开始吧。',
                 style: TextStyle(
-                  color: AppTheme.muted,
+                  color: context.appColors.muted,
                   fontSize: 12,
                   height: 1.5,
                 ),
@@ -57,22 +60,22 @@ class CompletedPreparationsCard extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.tableHeader,
+                        color: context.appColors.tableHeader,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.check_circle_rounded,
                             size: 14,
-                            color: AppTheme.success,
+                            color: context.appColors.success,
                           ),
                           const SizedBox(width: 7),
                           Text(
                             '${step.title} · 已完成',
-                            style: const TextStyle(
-                              color: AppTheme.inkSecondary,
+                            style: TextStyle(
+                              color: context.appColors.inkSecondary,
                               fontSize: 12,
                             ),
                           ),

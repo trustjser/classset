@@ -70,10 +70,10 @@ class TeacherPresetMatrix extends StatelessWidget {
     final weekdays = routine.teachingWeekdays.toList()..sort();
     final rows = _presetMatrixRows(routine, weekdays);
     if (weekdays.isEmpty || rows.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           '当前范围作息暂无可用课节',
-          style: TextStyle(color: AppTheme.muted, fontSize: 12),
+          style: TextStyle(color: context.appColors.muted, fontSize: 12),
         ),
       );
     }
@@ -92,19 +92,21 @@ class TeacherPresetMatrix extends StatelessWidget {
                 Row(
                   children: [
                     _tableCell(
+                      context,
                       '节次',
                       labelWidth,
                       height: 32,
-                      background: AppTheme.tableHeader,
-                      foreground: AppTheme.muted,
+                      background: context.appColors.tableHeader,
+                      foreground: context.appColors.muted,
                     ),
                     for (final weekday in weekdays)
                       _tableCell(
+                        context,
                         _weekdayLabel(weekday),
                         dayWidth,
                         height: 32,
-                        background: AppTheme.tableHeader,
-                        foreground: AppTheme.muted,
+                        background: context.appColors.tableHeader,
+                        foreground: context.appColors.muted,
                       ),
                   ],
                 ),
@@ -112,7 +114,7 @@ class TeacherPresetMatrix extends StatelessWidget {
                   child: ListView.builder(
                     itemCount: rows.length,
                     itemBuilder: (context, index) =>
-                        _lessonRow(rows[index], weekdays, dayWidth),
+                        _lessonRow(context, rows[index], weekdays, dayWidth),
                   ),
                 ),
               ],
@@ -124,14 +126,20 @@ class TeacherPresetMatrix extends StatelessWidget {
   }
 
   Widget _lessonRow(
+    BuildContext context,
     _TeacherPresetMatrixRow row,
     List<int> weekdays,
     double dayWidth,
   ) {
-    final visual = periodVisualFor(row.period.name, row.period.sortOrder);
+    final visual = periodVisualFor(
+      context,
+      row.period.name,
+      row.period.sortOrder,
+    );
     return Row(
       children: [
         _tableCell(
+          context,
           row.label,
           88,
           background: visual.labelTint,
@@ -161,6 +169,7 @@ class TeacherPresetMatrix extends StatelessWidget {
                       lessonIndex: row.lessonIndex,
                     ), value),
                     child: _presetCellContent(
+                      context,
                       values[(
                         weekday: weekday,
                         periodTypeId: row.period.id,
@@ -169,27 +178,33 @@ class TeacherPresetMatrix extends StatelessWidget {
                       visual,
                     ),
                   )
-                : _tableCell('', dayWidth, background: visual.cellTint),
+                : _tableCell(
+                    context,
+                    '',
+                    dayWidth,
+                    background: visual.cellTint,
+                  ),
           ),
       ],
     );
   }
 
   Widget _tableCell(
+    BuildContext context,
     String label,
     double width, {
     double height = 44,
     required Color background,
-    Color foreground = AppTheme.ink,
+    Color? foreground,
   }) => Container(
     width: width,
     height: height,
     alignment: Alignment.center,
     decoration: BoxDecoration(
       color: background,
-      border: const Border(
-        right: BorderSide(color: Colors.white),
-        bottom: BorderSide(color: Colors.white),
+      border: Border(
+        right: BorderSide(color: context.appColors.tableDivider),
+        bottom: BorderSide(color: context.appColors.tableDivider),
       ),
     ),
     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -198,27 +213,40 @@ class TeacherPresetMatrix extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: foreground,
+        color: foreground ?? context.appColors.ink,
         fontSize: height == 32 ? 12 : 11,
         fontWeight: FontWeight.w600,
       ),
     ),
   );
 
-  Widget _presetCellContent(PresetValue? value, PeriodVisual visual) {
+  Widget _presetCellContent(
+    BuildContext context,
+    PresetValue? value,
+    PeriodVisual visual,
+  ) {
     final (background, foreground) = switch (value) {
-      PresetValue.prefer => (AppTheme.selectedBlue, AppTheme.blue),
-      PresetValue.must => (AppTheme.blue, Colors.white),
-      PresetValue.forbid => (AppTheme.destructiveSurface, AppTheme.destructive),
-      PresetValue.auto || null => (visual.cellTint, AppTheme.muted),
+      PresetValue.prefer => (
+        context.appColors.selectedBlue,
+        context.appColors.blue,
+      ),
+      PresetValue.must => (
+        context.appColors.blue,
+        Theme.of(context).colorScheme.onPrimary,
+      ),
+      PresetValue.forbid => (
+        context.appColors.destructiveSurface,
+        context.appColors.destructive,
+      ),
+      PresetValue.auto || null => (visual.cellTint, context.appColors.muted),
     };
     return Container(
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: background,
-        border: const Border(
-          right: BorderSide(color: Colors.white),
-          bottom: BorderSide(color: Colors.white),
+        border: Border(
+          right: BorderSide(color: context.appColors.tableDivider),
+          bottom: BorderSide(color: context.appColors.tableDivider),
         ),
       ),
       child: value == null || value == PresetValue.auto
@@ -268,9 +296,9 @@ class TeacherPresetValueMenu extends StatelessWidget {
             child: Container(
               width: 148,
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(
-                  bottom: BorderSide(color: AppTheme.tableDivider),
+                  bottom: BorderSide(color: context.appColors.tableDivider),
                 ),
               ),
               child: Column(
@@ -280,8 +308,8 @@ class TeacherPresetValueMenu extends StatelessWidget {
                     contextLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppTheme.inkSecondary,
+                    style: TextStyle(
+                      color: context.appColors.inkSecondary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -289,7 +317,10 @@ class TeacherPresetValueMenu extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     '当前：${current?.label ?? PresetValue.auto.label}',
-                    style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),

@@ -125,17 +125,23 @@ class _PairingDialogState extends State<PairingDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               '同班两门（一单一双）共用同一时段；不配对也可由求解器分别安排。',
-              style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 14),
             if (visible.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Text(
                   '还没有配对。新增配对后，两门课将占用同一时段。',
-                  style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 12,
+                  ),
                 ),
               )
             else
@@ -149,10 +155,10 @@ class _PairingDialogState extends State<PairingDialog> {
                   onRemove: () => _removePairing(pairing),
                 ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               '+ 新增配对',
               style: TextStyle(
-                color: AppTheme.blue,
+                color: context.appColors.blue,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -210,17 +216,17 @@ class _PairingDialogState extends State<PairingDialog> {
               const SizedBox(height: 8),
               Text(
                 _error!,
-                style: const TextStyle(
-                  color: AppTheme.destructive,
+                style: TextStyle(
+                  color: context.appColors.destructive,
                   fontSize: 11.5,
                 ),
               ),
             ],
             const SizedBox(height: 14),
-            const Text(
+            Text(
               '配对只约束「两门课必须占同一时段」，不改变各自节数与周模式；完成后仍需点击页面「保存」才会生效。',
               style: TextStyle(
-                color: AppTheme.muted,
+                color: context.appColors.muted,
                 fontSize: 11,
                 height: 1.5,
               ),
@@ -262,33 +268,33 @@ class _PairingRow extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 8),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
     decoration: BoxDecoration(
-      color: AppTheme.selectedBlue,
+      color: context.appColors.selectedBlue,
       borderRadius: BorderRadius.circular(8),
     ),
     child: Row(
       children: [
         _SubjectChip(label: '$oddName（单周）'),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 6),
           child: Icon(
             Icons.compare_arrows_rounded,
             size: 14,
-            color: AppTheme.blue,
+            color: context.appColors.blue,
           ),
         ),
         _SubjectChip(label: '$evenName（双周）'),
         const SizedBox(width: 8),
         Text(
           '→ $className',
-          style: const TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+          style: TextStyle(color: context.appColors.inkSecondary, fontSize: 12),
         ),
         const Spacer(),
         AppGhostButton(
           size: f.FButtonSizeVariant.xs,
           onPressed: onRemove,
-          child: const Text(
+          child: Text(
             '解除配对',
-            style: TextStyle(color: AppTheme.blue, fontSize: 11),
+            style: TextStyle(color: context.appColors.blue, fontSize: 11),
           ),
         ),
       ],
@@ -305,13 +311,13 @@ class _SubjectChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: context.appColors.surface,
       borderRadius: BorderRadius.circular(6),
     ),
     child: Text(
       label,
-      style: const TextStyle(
-        color: AppTheme.blue,
+      style: TextStyle(
+        color: context.appColors.blue,
         fontSize: 11.5,
         fontWeight: FontWeight.w500,
       ),

@@ -204,34 +204,61 @@ int _freeCellCount({
   return winners.length;
 }
 
-/// 年级容量概要：取最紧张的班级（需求最大 / 容量最小）展示。
+/// 某班级在一个周模式下超出课位容量的详情。
+class GradeCapacityIssue {
+  const GradeCapacityIssue({
+    required this.className,
+    required this.weekMode,
+    required this.demand,
+    required this.capacity,
+  });
+
+  final String className;
+  final WeekMode weekMode;
+  final int demand;
+  final int capacity;
+
+  int get excess => demand - capacity;
+}
+
+/// 年级容量概要：状态逐班校验，页脚展示最紧张班级的完整节数组合。
 class GradeCapacitySummary {
   const GradeCapacitySummary({
     required this.gradeId,
-    required this.oddDemand,
-    required this.oddCapacity,
-    required this.evenDemand,
-    required this.evenCapacity,
-    required this.overClassName,
+    required this.weeklyDemand,
+    required this.oddOnlyDemand,
+    required this.evenOnlyDemand,
+    required this.availableSlots,
+    required this.displayClassName,
+    required this.issues,
   });
 
   final String gradeId;
-  final int oddDemand;
-  final int oddCapacity;
-  final int evenDemand;
-  final int evenCapacity;
 
-  /// 超容量班级名（无超容量为 null）。
-  final String? overClassName;
+  /// 矩阵页脚使用同一班级的节数组合，避免把不同班的最大值拼在一起。
+  final int weeklyDemand;
+  final int oddOnlyDemand;
+  final int evenOnlyDemand;
+  final int availableSlots;
+  final String? displayClassName;
 
-  bool get isOver => overClassName != null;
+  /// 逐班、逐周的全部超量信息，供状态悬停提示使用。
+  final List<GradeCapacityIssue> issues;
 
-  /// 超出节数（取超得更多的那一周）。
-  int get excess {
-    final oddExcess = oddDemand - oddCapacity;
-    final evenExcess = evenDemand - evenCapacity;
-    return oddExcess >= evenExcess ? oddExcess : evenExcess;
+  bool get isOver => issues.isNotEmpty;
+
+  GradeCapacityIssue? get _worstIssue {
+    if (issues.isEmpty) return null;
+    var worst = issues.first;
+    for (final issue in issues.skip(1)) {
+      if (issue.excess > worst.excess) worst = issue;
+    }
+    return worst;
   }
+
+  /// 超容量班级名与最多超出的节数，供保存预警使用。
+  String? get overClassName => _worstIssue?.className;
+  int get excess => _worstIssue?.excess ?? 0;
 }
 
 /// 汇总某年级容量：逐班计算需求与容量，返回最紧张班级的概要。
@@ -246,19 +273,22 @@ GradeCapacitySummary summarizeGradeCapacity({
   if (classes.isEmpty) {
     return GradeCapacitySummary(
       gradeId: grade.id,
-      oddDemand: 0,
-      oddCapacity: 0,
-      evenDemand: 0,
-      evenCapacity: 0,
-      overClassName: null,
+      weeklyDemand: 0,
+      oddOnlyDemand: 0,
+      evenOnlyDemand: 0,
+      availableSlots: 0,
+      displayClassName: null,
+      issues: const [],
     );
   }
-  var worstOddDemand = 0;
-  var worstOddCapacity = 1 << 30;
-  var worstEvenDemand = 0;
-  var worstEvenCapacity = 1 << 30;
-  String? overClassName;
-  var worstExcess = 0;
+  var displayPressure = -(1 << 30);
+  var displayPeakDemand = -1;
+  var displayWeeklyDemand = 0;
+  var displayOddOnlyDemand = 0;
+  var displayEvenOnlyDemand = 0;
+  var displayAvailableSlots = 0;
+  String? displayClassName;
+  final issues = <GradeCapacityIssue>[];
   for (final classBrief in classes) {
     final capacity = capacityForClass(
       routine: routine,
@@ -267,45 +297,62 @@ GradeCapacitySummary summarizeGradeCapacity({
       grade: grade,
       classBrief: classBrief,
     );
-    var oddDemand = 0;
-    var evenDemand = 0;
+    var weeklyDemand = 0;
+    var oddOnlyDemand = 0;
+    var evenOnlyDemand = 0;
     for (final requirement in requirements) {
       if (requirement.classId != classBrief.id) continue;
       if (requirement.weekMode == WeekMode.weekly) {
-        oddDemand += requirement.lessonCount;
-        evenDemand += requirement.lessonCount;
+        weeklyDemand += requirement.lessonCount;
       } else if (requirement.weekMode == WeekMode.odd) {
-        oddDemand += requirement.lessonCount;
+        oddOnlyDemand += requirement.lessonCount;
       } else {
-        evenDemand += requirement.lessonCount;
+        evenOnlyDemand += requirement.lessonCount;
       }
     }
-    final excess = oddDemand > capacity.oddWeek
-        ? oddDemand - capacity.oddWeek
-        : (evenDemand > capacity.evenWeek ? evenDemand - capacity.evenWeek : 0);
-    if (excess > worstExcess) {
-      worstExcess = excess;
-      overClassName = classBrief.name;
+    final oddDemand = weeklyDemand + oddOnlyDemand;
+    final evenDemand = weeklyDemand + evenOnlyDemand;
+    if (oddDemand > capacity.oddWeek) {
+      issues.add(
+        GradeCapacityIssue(
+          className: classBrief.name,
+          weekMode: WeekMode.odd,
+          demand: oddDemand,
+          capacity: capacity.oddWeek,
+        ),
+      );
     }
-    if (oddDemand > worstOddDemand ||
-        (oddDemand == worstOddDemand && capacity.oddWeek < worstOddCapacity)) {
-      worstOddDemand = oddDemand;
-      worstOddCapacity = capacity.oddWeek;
+    if (evenDemand > capacity.evenWeek) {
+      issues.add(
+        GradeCapacityIssue(
+          className: classBrief.name,
+          weekMode: WeekMode.even,
+          demand: evenDemand,
+          capacity: capacity.evenWeek,
+        ),
+      );
     }
-    if (evenDemand > worstEvenDemand ||
-        (evenDemand == worstEvenDemand &&
-            capacity.evenWeek < worstEvenCapacity)) {
-      worstEvenDemand = evenDemand;
-      worstEvenCapacity = capacity.evenWeek;
+    final peakDemand = oddDemand >= evenDemand ? oddDemand : evenDemand;
+    final pressure = peakDemand - capacity.oddWeek;
+    if (pressure > displayPressure ||
+        (pressure == displayPressure && peakDemand > displayPeakDemand)) {
+      displayPressure = pressure;
+      displayPeakDemand = peakDemand;
+      displayWeeklyDemand = weeklyDemand;
+      displayOddOnlyDemand = oddOnlyDemand;
+      displayEvenOnlyDemand = evenOnlyDemand;
+      displayAvailableSlots = capacity.oddWeek;
+      displayClassName = classBrief.name;
     }
   }
   return GradeCapacitySummary(
     gradeId: grade.id,
-    oddDemand: worstOddDemand,
-    oddCapacity: worstOddCapacity,
-    evenDemand: worstEvenDemand,
-    evenCapacity: worstEvenCapacity,
-    overClassName: overClassName,
+    weeklyDemand: displayWeeklyDemand,
+    oddOnlyDemand: displayOddOnlyDemand,
+    evenOnlyDemand: displayEvenOnlyDemand,
+    availableSlots: displayAvailableSlots,
+    displayClassName: displayClassName,
+    issues: List.unmodifiable(issues),
   );
 }
 

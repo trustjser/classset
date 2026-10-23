@@ -133,14 +133,17 @@ Future<_BatchAssignmentSelection?> _showBatchAssignmentEditor(
                   ),
                   const SizedBox(height: 10),
                 ],
-                const Text(
+                Text(
                   '可跨学段添加；只显示已设置需求的科目。同班、同科目、同周模式的分配节数不能超过科目需求。',
-                  style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppTheme.tableHeader,
+                    color: context.appColors.tableHeader,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Padding(
@@ -279,7 +282,7 @@ Future<_BatchAssignmentSelection?> _showBatchAssignmentEditor(
                   const SizedBox(height: 8),
                   Text(
                     errorText,
-                    style: const TextStyle(color: AppTheme.destructive),
+                    style: TextStyle(color: context.appColors.destructive),
                   ),
                 ],
                 Align(

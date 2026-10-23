@@ -95,7 +95,7 @@ class _TeacherList extends StatelessWidget {
             key: const ValueKey('teacher-assignment-table'),
             position: DecorationPosition.foreground,
             decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.border),
+              border: Border.all(color: context.appColors.border),
               borderRadius: BorderRadius.circular(AppTheme.cardRadius),
             ),
             child: ClipRRect(
@@ -109,9 +109,9 @@ class _TeacherList extends StatelessWidget {
                       AppDataTableHeader(
                         key: const ValueKey('teacher-assignment-table-header'),
                         height: 40,
-                        textColor: AppTheme.muted,
-                        backgroundColor: Colors.white,
-                        textStyle: AppTheme.matrixHeaderTextStyle,
+                        textColor: context.appColors.muted,
+                        backgroundColor: context.appColors.surface,
+                        textStyle: AppTheme.matrixHeaderTextStyle(context),
                         children: const [
                           SizedBox(
                             width: _teacherColumnWidth,
@@ -128,7 +128,7 @@ class _TeacherList extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const Divider(height: 1, color: AppTheme.border),
+                      Divider(height: 1, color: context.appColors.border),
                       Expanded(
                         child: ListView.builder(
                           key: const ValueKey('teacher-assignment-list'),
@@ -142,7 +142,7 @@ class _TeacherList extends StatelessWidget {
                               );
                             }
                             if (index >= visible.length) {
-                              return _addTeacherRow();
+                              return _addTeacherRow(context);
                             }
                             final teacher = visible[index];
                             final own =
@@ -170,16 +170,16 @@ class _TeacherList extends StatelessWidget {
     },
   );
 
-  Widget _addTeacherRow() => SizedBox(
+  Widget _addTeacherRow(BuildContext context) => SizedBox(
     height: 48,
     child: FButton(
       variant: FButtonVariant.ghost,
       mainAxisSize: MainAxisSize.max,
       onPress: onAddTeacher,
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.add, color: AppTheme.blue, size: 18),
+          Icon(Icons.add, color: context.appColors.blue, size: 18),
           SizedBox(width: 6),
           Text('添加新教师'),
         ],
@@ -260,8 +260,10 @@ class _TeacherList extends StatelessWidget {
         builder: (context, candidates, _) => DecoratedBox(
           key: ValueKey('teacher-assignment-row-${teacher.id}'),
           decoration: BoxDecoration(
-            color: candidates.isEmpty ? Colors.white : AppTheme.selectedBlue,
-            border: const Border(bottom: BorderSide(color: AppTheme.border)),
+            color: candidates.isEmpty
+                ? context.appColors.surface
+                : context.appColors.selectedBlue,
+            border: Border(bottom: BorderSide(color: context.appColors.border)),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 64),
@@ -299,12 +301,12 @@ class _TeacherList extends StatelessWidget {
                   ),
                   Expanded(
                     child: own.isEmpty
-                        ? const Padding(
+                        ? Padding(
                             padding: EdgeInsets.only(top: 4),
                             child: Text(
                               '暂无任课',
                               style: TextStyle(
-                                color: AppTheme.muted,
+                                color: context.appColors.muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -351,9 +353,9 @@ class _TeacherList extends StatelessWidget {
                                             subjectLabels.join('、'),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 11,
-                                              color: AppTheme.muted,
+                                              color: context.appColors.muted,
                                             ),
                                           ),
                                         ),
@@ -385,8 +387,8 @@ class _TeacherList extends StatelessWidget {
                                       children: [
                                         Text(
                                           expanded ? '收起' : '展开',
-                                          style: const TextStyle(
-                                            color: AppTheme.muted,
+                                          style: TextStyle(
+                                            color: context.appColors.muted,
                                             fontSize: 11,
                                             fontWeight: FontWeight.w400,
                                             height: 16 / 11,
@@ -398,7 +400,7 @@ class _TeacherList extends StatelessWidget {
                                               ? Icons.keyboard_arrow_up
                                               : Icons.keyboard_arrow_down,
                                           size: 14,
-                                          color: AppTheme.muted,
+                                          color: context.appColors.muted,
                                         ),
                                       ],
                                     ),
@@ -413,9 +415,11 @@ class _TeacherList extends StatelessWidget {
                                   width: double.infinity,
                                   margin: const EdgeInsets.only(top: 8),
                                   padding: const EdgeInsets.only(top: 4),
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     border: Border(
-                                      top: BorderSide(color: AppTheme.border),
+                                      top: BorderSide(
+                                        color: context.appColors.border,
+                                      ),
                                     ),
                                   ),
                                   child: Column(
@@ -451,8 +455,8 @@ class _TeacherList extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         '${_formatLessons(summary.biweeklyAverage)} 节',
-                        style: const TextStyle(
-                          color: AppTheme.inkSecondary,
+                        style: TextStyle(
+                          color: context.appColors.inkSecondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -465,12 +469,12 @@ class _TeacherList extends StatelessWidget {
                       child: AppMenuButton(
                         key: ValueKey('teacher-row-more-${teacher.id}'),
                         items: menuItems,
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.all(8),
                           child: Icon(
                             Icons.more_horiz,
                             size: 18,
-                            color: AppTheme.inkSecondary,
+                            color: context.appColors.inkSecondary,
                           ),
                         ),
                       ),
@@ -642,7 +646,7 @@ class _AssignmentChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
-        hoverColor: AppTheme.selectedBlue,
+        hoverColor: context.appColors.selectedBlue,
         onTap: onPressed,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -654,17 +658,20 @@ class _AssignmentChip extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.inkSecondary,
+                    color: context.appColors.inkSecondary,
                   ),
                 ),
               ),
               if (isSplit) ...[
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   '拆分',
-                  style: TextStyle(fontSize: 10, color: AppTheme.warning),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: context.appColors.warning,
+                  ),
                 ),
               ],
             ],
@@ -684,7 +691,9 @@ class _TeacherTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: isAccent ? AppTheme.selectedBlue : AppTheme.canvas,
+      color: isAccent
+          ? context.appColors.selectedBlue
+          : context.appColors.canvas,
       borderRadius: BorderRadius.circular(4),
     ),
     child: Padding(
@@ -692,7 +701,9 @@ class _TeacherTag extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: isAccent ? AppTheme.blue : AppTheme.inkSecondary,
+          color: isAccent
+              ? context.appColors.blue
+              : context.appColors.inkSecondary,
           fontSize: 10,
           height: 1.3,
         ),

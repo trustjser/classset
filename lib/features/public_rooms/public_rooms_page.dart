@@ -205,7 +205,7 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
         ? null
         : ref.watch(publicRoomTermDataProvider(termId));
     return Material(
-      color: AppTheme.canvas,
+      color: context.appColors.canvas,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
@@ -241,37 +241,37 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.info_outline,
                           size: 15,
-                          color: AppTheme.muted,
+                          color: context.appColors.muted,
                         ),
-                        const Text(
+                        Text(
                           '导入 Excel 时，首个工作表需包含：场室、个数、容量（班）。',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.inkSecondary,
+                            color: context.appColors.inkSecondary,
                             height: 1.45,
                           ),
                         ),
                         if (termId == null)
-                          const Text(
+                          Text(
                             '选择学期后显示关联科目',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.muted,
+                              color: context.appColors.muted,
                             ),
                           ),
                       ],
                     ),
                     if (termData?.hasError == true)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(top: 6),
                         child: Text(
                           '当前学期科目关联读取失败，请稍后重试。',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.destructive,
+                            color: context.appColors.destructive,
                           ),
                         ),
                       ),
@@ -330,8 +330,8 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
       flex,
       Text(
         label,
-        style: const TextStyle(
-          color: AppTheme.inkSecondary,
+        style: TextStyle(
+          color: context.appColors.inkSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -341,7 +341,7 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
 
     final children = <Widget>[
       Container(
-        color: AppTheme.tableHeader,
+        color: context.appColors.tableHeader,
         child: Row(
           children: [
             headerCell(26, '场室'),
@@ -354,20 +354,22 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
         ),
       ),
       if (rooms.isEmpty)
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(vertical: 32, horizontal: 16),
           child: Center(
             child: Text(
               '暂无公共场室，添加或导入后即可为科目设置行课场室。',
-              style: TextStyle(fontSize: 13, color: AppTheme.muted),
+              style: TextStyle(fontSize: 13, color: context.appColors.muted),
             ),
           ),
         )
       else
         for (final room in rooms) ...[
           Container(
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppTheme.tableDivider)),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: context.appColors.tableDivider),
+              ),
             ),
             child: Row(
               children: [
@@ -380,8 +382,8 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
                     children: [
                       Text(
                         room.name,
-                        style: const TextStyle(
-                          color: AppTheme.ink,
+                        style: TextStyle(
+                          color: context.appColors.ink,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -412,7 +414,7 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
                   Text(
                     '${room.roomCount} × ${room.capacityPerRoom} = ${room.roomCount * room.capacityPerRoom} 班',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppTheme.inkSecondary),
+                    style: TextStyle(color: context.appColors.inkSecondary),
                   ),
                   alignment: Alignment.center,
                 ),
@@ -460,12 +462,12 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       if (rooms.isEmpty)
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(vertical: 32),
           child: Center(
             child: Text(
               '暂无公共场室，添加或导入后即可为科目设置行课场室。',
-              style: TextStyle(fontSize: 13, color: AppTheme.muted),
+              style: TextStyle(fontSize: 13, color: context.appColors.muted),
             ),
           ),
         )
@@ -487,8 +489,8 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
                           children: [
                             Text(
                               room.name,
-                              style: const TextStyle(
-                                color: AppTheme.ink,
+                              style: TextStyle(
+                                color: context.appColors.ink,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -547,14 +549,14 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
     if (data == null) {
       return Text(
         termData?.hasError == true ? '读取失败' : '暂无科目关联',
-        style: const TextStyle(fontSize: 12, color: AppTheme.muted),
+        style: TextStyle(fontSize: 12, color: context.appColors.muted),
       );
     }
     final associations = _roomAssociations(room.id, data);
     if (associations.isEmpty) {
-      return const Text(
+      return Text(
         '暂无关联科目',
-        style: TextStyle(fontSize: 12, color: AppTheme.muted),
+        style: TextStyle(fontSize: 12, color: context.appColors.muted),
       );
     }
     return Wrap(
@@ -572,15 +574,15 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
 
   Widget _roomTag(String label) => DecoratedBox(
     decoration: BoxDecoration(
-      color: AppTheme.selectedBlue,
+      color: context.appColors.selectedBlue,
       borderRadius: BorderRadius.circular(5),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       child: Text(
         label,
-        style: const TextStyle(
-          color: AppTheme.blue,
+        style: TextStyle(
+          color: context.appColors.blue,
           fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
@@ -590,11 +592,11 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
 
   Widget _roomMetric(String label, String value) => RichText(
     text: TextSpan(
-      style: const TextStyle(fontSize: 12, color: AppTheme.inkSecondary),
+      style: TextStyle(fontSize: 12, color: context.appColors.inkSecondary),
       children: [
         TextSpan(
           text: '$label  ',
-          style: const TextStyle(color: AppTheme.muted),
+          style: TextStyle(color: context.appColors.muted),
         ),
         TextSpan(
           text: value,
@@ -613,7 +615,9 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
     key: key,
     onPressed: onPressed,
     style: TextButton.styleFrom(
-      foregroundColor: destructive ? AppTheme.destructive : AppTheme.blue,
+      foregroundColor: destructive
+          ? context.appColors.destructive
+          : context.appColors.blue,
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       minimumSize: const Size(36, 32),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -633,7 +637,7 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
       );
     }
     return Material(
-      color: AppTheme.tableHeader,
+      color: context.appColors.tableHeader,
       child: InkWell(
         onTap: _busy ? null : () => _edit(rooms),
         child: SizedBox(
@@ -643,19 +647,22 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
             child: Wrap(
               spacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
-              children: const [
-                Icon(Icons.add, size: 17, color: AppTheme.blue),
+              children: [
+                Icon(Icons.add, size: 17, color: context.appColors.blue),
                 Text(
                   '添加场室',
                   style: TextStyle(
-                    color: AppTheme.blue,
+                    color: context.appColors.blue,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 Text(
                   '（名称 / 个数 / 容量，容量单位为“班”）',
-                  style: TextStyle(fontSize: 11, color: AppTheme.inkSecondary),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: context.appColors.inkSecondary,
+                  ),
                 ),
               ],
             ),

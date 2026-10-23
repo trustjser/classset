@@ -32,11 +32,11 @@ class TermSummaryCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       '学期设置',
                       style: TextStyle(
-                        color: AppTheme.ink,
+                        color: context.appColors.ink,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -47,14 +47,14 @@ class TermSummaryCard extends StatelessWidget {
                       horizontal: 9,
                       vertical: 4,
                     ),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.successSurface,
+                    decoration: BoxDecoration(
+                      color: context.appColors.successSurface,
                       borderRadius: BorderRadius.all(Radius.circular(20)),
                     ),
-                    child: const Text(
+                    child: Text(
                       '当前',
                       style: TextStyle(
-                        color: AppTheme.success,
+                        color: context.appColors.success,
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -73,17 +73,17 @@ class TermSummaryCard extends StatelessWidget {
                 selectedTerm.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppTheme.ink,
+                style: TextStyle(
+                  color: context.appColors.ink,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   height: 1.3,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 '青木实验学校',
-                style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                style: TextStyle(color: context.appColors.muted, fontSize: 11),
               ),
               const SizedBox(height: 20),
               if (compact)
@@ -135,25 +135,25 @@ class TermSummaryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppTheme.selectedBlue,
+                  color: context.appColors.selectedBlue,
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '上课日与每日节数按学段设置',
                       style: TextStyle(
-                        color: AppTheme.blue,
+                        color: context.appColors.blue,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       '同一学校不同学段可使用不同作息。学期日历只管理教学周与停课、补课等例外。',
                       style: TextStyle(
-                        color: AppTheme.inkSecondary,
+                        color: context.appColors.inkSecondary,
                         fontSize: 10,
                         height: 1.5,
                       ),
@@ -165,10 +165,10 @@ class TermSummaryCard extends StatelessWidget {
                         child: AppGhostButton(
                           size: .xs,
                           onPressed: onGoToRoutines,
-                          child: const Text(
+                          child: Text(
                             '前往作息设置 →',
                             style: TextStyle(
-                              color: AppTheme.blue,
+                              color: context.appColors.blue,
                               fontSize: 11,
                             ),
                           ),
@@ -202,8 +202,8 @@ class _TermDataTile extends StatelessWidget {
     constraints: const BoxConstraints(minHeight: 62),
     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
     decoration: BoxDecoration(
-      color: AppTheme.canvas,
-      border: Border.all(color: AppTheme.border),
+      color: context.appColors.canvas,
+      border: Border.all(color: context.appColors.border),
       borderRadius: BorderRadius.circular(10),
     ),
     child: Column(
@@ -212,7 +212,7 @@ class _TermDataTile extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(color: AppTheme.muted, fontSize: 10),
+          style: TextStyle(color: context.appColors.muted, fontSize: 10),
         ),
         const SizedBox(height: 4),
         Text(
@@ -220,7 +220,7 @@ class _TermDataTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: accent ? AppTheme.blue : AppTheme.ink,
+            color: accent ? context.appColors.blue : context.appColors.ink,
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -252,7 +252,7 @@ class _TermActions extends StatelessWidget {
       width: 34,
       height: 32,
       alignment: Alignment.center,
-      child: const Icon(Icons.more_horiz, size: 19, color: AppTheme.muted),
+      child: Icon(Icons.more_horiz, size: 19, color: context.appColors.muted),
     ),
   );
 }

@@ -231,10 +231,10 @@ class _ExceptionEditorDialogState extends ConsumerState<ExceptionEditorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '例外安排（停课 / 补课 / 节假日）',
               style: TextStyle(
-                color: AppTheme.inkSecondary,
+                color: context.appColors.inkSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 height: 17 / 12,
@@ -260,7 +260,7 @@ class _ExceptionEditorDialogState extends ConsumerState<ExceptionEditorDialog> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFAFAFC),
+                color: context.appColors.tableHeader,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Column(
@@ -412,8 +412,8 @@ class _ExceptionEditorDialogState extends ConsumerState<ExceptionEditorDialog> {
               const SizedBox(height: 8),
               Text(
                 _formError!,
-                style: const TextStyle(
-                  color: AppTheme.destructive,
+                style: TextStyle(
+                  color: context.appColors.destructive,
                   fontSize: 12,
                 ),
               ),
@@ -469,10 +469,10 @@ class _ExceptionDialogTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Text(
+      Text(
         '编辑教学周',
         style: TextStyle(
-          color: AppTheme.ink,
+          color: context.appColors.ink,
           fontSize: 15,
           fontWeight: FontWeight.w700,
           height: 22 / 15,
@@ -482,8 +482,8 @@ class _ExceptionDialogTitle extends StatelessWidget {
       Expanded(
         child: Text(
           contextLabel,
-          style: const TextStyle(
-            color: AppTheme.muted,
+          style: TextStyle(
+            color: context.appColors.muted,
             fontSize: 12,
             height: 17 / 12,
           ),
@@ -511,8 +511,8 @@ class _ExceptionFieldLabel extends StatelessWidget {
       label,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        color: AppTheme.inkSecondary,
+      style: TextStyle(
+        color: context.appColors.inkSecondary,
         fontSize: 12,
         height: 17 / 12,
       ),
@@ -536,8 +536,8 @@ class _ExceptionRangeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground = isMakeup
-        ? const Color(0xFFE37318)
-        : const Color(0xFFC63D36);
+        ? context.appColors.warning
+        : context.appColors.destructive;
     return FTappable(
       semanticsLabel: label,
       onPress: onPressed,

@@ -119,11 +119,14 @@ class _TermEditorDialogState extends State<TermEditorDialog> {
               ),
               if (widget.availableTerms.isEmpty) ...[
                 const SizedBox(height: 4),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(left: 110),
                   child: Text(
                     '暂无可复制的学期资料。',
-                    style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -184,13 +187,13 @@ class _TermEditorDialogState extends State<TermEditorDialog> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const SizedBox(
+                  SizedBox(
                     width: 20,
                     child: Text(
                       '周',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppTheme.ink,
+                        color: context.appColors.ink,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -234,8 +237,8 @@ class _TermEditorDialogState extends State<TermEditorDialog> {
               const SizedBox(height: 12),
               Text(
                 _dateValidationError!,
-                style: const TextStyle(
-                  color: AppTheme.destructive,
+                style: TextStyle(
+                  color: context.appColors.destructive,
                   fontSize: 12,
                 ),
               ),
@@ -348,6 +351,8 @@ class _StepperButton extends StatelessWidget {
     tooltip: icon == Icons.add ? '增加周数' : '减少周数',
     icon: icon,
     iconSize: 14,
-    foregroundColor: emphasized ? AppTheme.blue : AppTheme.inkSecondary,
+    foregroundColor: emphasized
+        ? context.appColors.blue
+        : context.appColors.inkSecondary,
   );
 }

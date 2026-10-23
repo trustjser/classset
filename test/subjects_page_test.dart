@@ -133,9 +133,9 @@ void main() {
     expect(find.text('科目高级设置'), findsOneWidget);
     expect(find.text('语文'), findsOneWidget);
     expect(find.text('数学'), findsOneWidget);
-    // 「一年级」同时出现在矩阵表头、范围树与容量卡。
+    // 「一年级」同时出现在矩阵表头与范围树。
     expect(find.text('一年级'), findsWidgets);
-    // 无需求：单元格「—」+ 容量页脚 0 / 20。
+    // 无需求：单元格显示「—」，页脚分层显示每周 0 与课位 20。
     expect(
       find.byKey(const ValueKey('subject-cell-s_chinese-g1')),
       findsOneWidget,
@@ -147,7 +147,15 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('0 / 20'), findsOneWidget);
+    final footer = find.byKey(const ValueKey('subject-capacity-footer-g1'));
+    expect(
+      find.descendant(of: footer, matching: find.text('0')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: footer, matching: find.text('20')),
+      findsOneWidget,
+    );
   });
 
   /// 打开单元格菜单：测试里用长按（触摸设备的触发方式；桌面端为右键，
@@ -484,7 +492,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 草稿生效：矩阵显示 3，页脚 3 / 20。
+    // 草稿生效：矩阵显示 3，页脚分层显示每周 3 与课位 20。
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('subject-cell-s_chinese-g1')),
@@ -492,7 +500,15 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('3 / 20'), findsOneWidget);
+    final footer = find.byKey(const ValueKey('subject-capacity-footer-g1'));
+    expect(
+      find.descendant(of: footer, matching: find.text('3')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: footer, matching: find.text('20')),
+      findsOneWidget,
+    );
 
     // 页面保存后落库。
     await tester.tap(find.text('保存'));
@@ -613,12 +629,13 @@ void main() {
     await tester.pumpWidget(_wrap(container, 't1'));
     await tester.pumpAndSettle();
 
-    // 整页内容可滚动（单一滚动容器），矩阵与容量校验都在页面流里。
+    // 整页内容可滚动（单一滚动容器），容量校验位于矩阵页脚。
     expect(find.text('科目节数'), findsOneWidget);
     expect(find.byType(SubjectMatrix), findsOneWidget);
-    expect(find.text('各年级容量校验'), findsOneWidget);
+    expect(find.text('各年级容量校验'), findsNothing);
+    expect(find.text('容量校验'), findsOneWidget);
     // 矩阵行自然铺开（不内部滚动）：滚动到最底可见页脚。
-    await tester.drag(find.text('各年级容量校验'), const Offset(0, -200));
+    await tester.ensureVisible(find.text('容量校验'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
@@ -717,10 +734,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('班级周课时汇总被截断时悬浮显示完整内容', (tester) async {
+  testWidgets('班级周课时分层展示，每周单双周与课位清晰可见', (tester) async {
     await seedData();
-    // 一（1）班语文：单周 30 节、双周 8 节 → 汇总「单 30/20 · 双 8/20」
-    // 超出 92px 年级列宽被省略号截断。
+    // 一（1）班语文：每周 0、单周 30、双周 8，课位 20。
     await repository.replaceGradeRequirements(
       gradeId: 'g1',
       requirements: const [
@@ -742,7 +758,7 @@ void main() {
         ),
       ],
     );
-    // 高中部加一个无需求的年级：页脚汇总「0 / 20」较短、不截断。
+    // 再加一个无需求的年级，确认没有单/双周标签。
     await repository.saveGrade(
       const GradeGroup(id: 'g2', stageId: 'jr', name: '二年级', sortOrder: 1),
     );
@@ -752,23 +768,51 @@ void main() {
     await pumpPage(tester);
     await selectJuniorStage(tester);
 
-    // 未截断的汇总不包 Tooltip。
-    final short = find.text('0 / 20');
-    expect(short, findsOneWidget);
+    final emptyFooter = find.byKey(
+      const ValueKey('subject-capacity-footer-g2'),
+    );
     expect(
-      find.ancestor(of: short, matching: find.byType(Tooltip)),
+      find.descendant(of: emptyFooter, matching: find.text('0')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: emptyFooter, matching: find.text('20')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: emptyFooter, matching: find.textContaining('单')),
       findsNothing,
     );
-
-    // 被截断的汇总包 Tooltip，悬浮内容为完整文本。
-    final truncated = find.text('单 30/20 · 双 8/20');
-    expect(truncated, findsOneWidget);
-    final tooltip = find.ancestor(
-      of: truncated,
+    final loadedFooter = find.byKey(
+      const ValueKey('subject-capacity-footer-g1'),
+    );
+    expect(
+      find.descendant(of: loadedFooter, matching: find.text('单30')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: loadedFooter, matching: find.text('双8')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: loadedFooter, matching: find.text('20')),
+      findsOneWidget,
+    );
+    final errorStatus = find.byKey(
+      const ValueKey('subject-capacity-status-g1'),
+    );
+    expect(
+      find.descendant(of: errorStatus, matching: find.text('超 10 节')),
+      findsOneWidget,
+    );
+    final tooltip = find.descendant(
+      of: errorStatus,
       matching: find.byType(Tooltip),
     );
-    expect(tooltip, findsOneWidget);
-    expect(tester.widget<Tooltip>(tooltip).message, '单 30/20 · 双 8/20');
+    expect(
+      tester.widget<Tooltip>(tooltip).message,
+      contains('一（1）班 单周：需求 30 节，课位 20，超出 10 节'),
+    );
   });
 
   testWidgets('科目预设四态循环并保存落库（一定排触发预警）', (tester) async {

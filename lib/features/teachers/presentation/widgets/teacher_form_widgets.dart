@@ -21,18 +21,21 @@ class _TeacherFormField extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: AppTheme.ink,
+            style: TextStyle(
+              color: context.appColors.ink,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),
           if (isRequired) ...[
             const SizedBox(width: 4),
-            const Text(
+            Text(
               '*',
               semanticsLabel: '必填',
-              style: TextStyle(color: AppTheme.destructive, fontSize: 13),
+              style: TextStyle(
+                color: context.appColors.destructive,
+                fontSize: 13,
+              ),
             ),
           ],
         ],
@@ -43,8 +46,8 @@ class _TeacherFormField extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           help!,
-          style: const TextStyle(
-            color: AppTheme.muted,
+          style: TextStyle(
+            color: context.appColors.muted,
             fontSize: 12,
             height: 1.45,
           ),
@@ -71,11 +74,11 @@ class _TeacherSubjectPicker extends StatelessWidget {
     children: [
       Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
               '任课科目',
               style: TextStyle(
-                color: AppTheme.ink,
+                color: context.appColors.ink,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -83,20 +86,20 @@ class _TeacherSubjectPicker extends StatelessWidget {
           ),
           Text(
             '已选 ${selected.length} 项',
-            style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+            style: TextStyle(color: context.appColors.muted, fontSize: 12),
           ),
         ],
       ),
       const SizedBox(height: 6),
-      const Text(
+      Text(
         '可多选，用于任课提示，不限制分配。',
-        style: TextStyle(color: AppTheme.muted, fontSize: 12),
+        style: TextStyle(color: context.appColors.muted, fontSize: 12),
       ),
       const SizedBox(height: 12),
       if (subjects.isEmpty)
-        const Text(
+        Text(
           '请先添加科目',
-          style: TextStyle(color: AppTheme.muted, fontSize: 12),
+          style: TextStyle(color: context.appColors.muted, fontSize: 12),
         )
       else
         LayoutBuilder(
@@ -116,12 +119,12 @@ class _TeacherSubjectPicker extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: selected.contains(subject.id)
-                          ? AppTheme.selectedBlue
-                          : Colors.white,
+                          ? context.appColors.selectedBlue
+                          : context.appColors.surface,
                       border: Border.all(
                         color: selected.contains(subject.id)
-                            ? AppTheme.blue.withValues(alpha: 0.3)
-                            : AppTheme.border,
+                            ? context.appColors.blue.withValues(alpha: 0.3)
+                            : context.appColors.border,
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),

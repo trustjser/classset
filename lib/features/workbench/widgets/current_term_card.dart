@@ -40,19 +40,19 @@ class CurrentTermCard extends StatelessWidget {
                 AppBadge(
                   label: currentWeek == null ? '未开始' : '进行中',
                   foreground: currentWeek == null
-                      ? AppTheme.muted
-                      : AppTheme.success,
+                      ? context.appColors.muted
+                      : context.appColors.success,
                   background: currentWeek == null
-                      ? AppTheme.tableHeader
-                      : AppTheme.successSurface,
+                      ? context.appColors.tableHeader
+                      : context.appColors.successSurface,
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               '${term.academicYear} 学年 · ${term.semesterLabel}',
-              style: const TextStyle(
-                color: AppTheme.ink,
+              style: TextStyle(
+                color: context.appColors.ink,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -60,7 +60,7 @@ class CurrentTermCard extends StatelessWidget {
             const SizedBox(height: 5),
             Text(
               _dateRange(),
-              style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 12),
             if (currentWeek != null)
@@ -70,14 +70,14 @@ class CurrentTermCard extends StatelessWidget {
                     width: 24,
                     height: 24,
                     alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: AppTheme.blue,
+                    decoration: BoxDecoration(
+                      color: context.appColors.blue,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
                       '$currentWeek',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -86,17 +86,17 @@ class CurrentTermCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '第 $currentWeek 教学周 · ${term.weekCycleLabel(currentWeek)}',
-                    style: const TextStyle(
-                      color: AppTheme.inkSecondary,
+                    style: TextStyle(
+                      color: context.appColors.inkSecondary,
                       fontSize: 12,
                     ),
                   ),
                 ],
               )
             else
-              const Text(
+              Text(
                 '尚未设置第 1 教学周起始日，暂无法定位教学周。',
-                style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                style: TextStyle(color: context.appColors.muted, fontSize: 12),
               ),
             const SizedBox(height: 14),
             AppGhostButton(

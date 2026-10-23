@@ -38,10 +38,10 @@ class _TeacherGroupEditorDialogState extends State<_TeacherGroupEditorDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 '将教师归入分组，统一设置预排规则。',
                 style: TextStyle(
-                  color: AppTheme.muted,
+                  color: context.appColors.muted,
                   fontSize: 12,
                   height: 1.5,
                 ),
@@ -532,7 +532,7 @@ class _AssignmentEditorPanelState extends State<_AssignmentEditorPanel> {
                 Text(
                   '有分担行使用了未设置需求的周模式，请改为有效周模式后保存。',
                   style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: AppTheme.warning),
+                      ?.copyWith(color: context.appColors.warning),
                 ),
                 const SizedBox(height: 4),
               ],
@@ -542,8 +542,8 @@ class _AssignmentEditorPanelState extends State<_AssignmentEditorPanel> {
                     : '剩余可分配：${remainderLabels.join(' · ')}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: hasExceededRequirement
-                      ? AppTheme.warning
-                      : AppTheme.muted,
+                      ? context.appColors.warning
+                      : context.appColors.muted,
                 ),
               ),
               const SizedBox(height: 4),
@@ -707,10 +707,10 @@ class _TeacherGroupMemberDialogState extends State<_TeacherGroupMemberDialog> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 '教师可以同时加入多个分组，成员将共同使用该分组的预排规则。',
                 style: TextStyle(
-                  color: AppTheme.muted,
+                  color: context.appColors.muted,
                   fontSize: 12,
                   height: 1.5,
                 ),
@@ -720,13 +720,17 @@ class _TeacherGroupMemberDialogState extends State<_TeacherGroupMemberDialog> {
                 height: 42,
                 padding: const EdgeInsets.symmetric(horizontal: 11),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: AppTheme.border),
+                  color: context.appColors.surface,
+                  border: Border.all(color: context.appColors.border),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.search, size: 18, color: AppTheme.muted),
+                    Icon(
+                      Icons.search,
+                      size: 18,
+                      color: context.appColors.muted,
+                    ),
                     const SizedBox(width: 9),
                     Expanded(
                       child: AppTextFormField(
@@ -749,8 +753,8 @@ class _TeacherGroupMemberDialogState extends State<_TeacherGroupMemberDialog> {
                       '已选 ${_selected.length} 名 · 显示 ${visible.length} 名',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.inkSecondary,
+                      style: TextStyle(
+                        color: context.appColors.inkSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -788,8 +792,8 @@ class _TeacherGroupMemberDialogState extends State<_TeacherGroupMemberDialog> {
               Expanded(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: AppTheme.border),
+                    color: context.appColors.surface,
+                    border: Border.all(color: context.appColors.border),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: ClipRRect(
@@ -873,9 +877,9 @@ class _TeacherGroupMemberRowState extends State<_TeacherGroupMemberRow> {
       height: 42,
       decoration: BoxDecoration(
         color: widget.selected
-            ? AppTheme.selectedBlue
+            ? context.appColors.selectedBlue
             : _hovered
-            ? AppTheme.canvas
+            ? context.appColors.canvas
             : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
@@ -905,18 +909,18 @@ class _TeacherGroupMemberRowState extends State<_TeacherGroupMemberRow> {
                     widget.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppTheme.ink,
+                    style: TextStyle(
+                      color: context.appColors.ink,
                       fontSize: 13,
                       height: 1.3,
                     ),
                   ),
                 ),
                 if (widget.neverGrouped)
-                  const Text(
+                  Text(
                     '未分组',
                     style: TextStyle(
-                      color: AppTheme.muted,
+                      color: context.appColors.muted,
                       fontSize: 11,
                       height: 1.3,
                     ),

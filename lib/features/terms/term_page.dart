@@ -255,7 +255,7 @@ class _TermCalendarDashboard extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final sideBySide =
-            constraints.maxWidth >= 1100 && constraints.maxHeight >= 700;
+            constraints.maxWidth >= AppTheme.twoColumnLayoutBreakpoint;
         final horizontalPadding = AppTheme.pagePaddingForWidth(
           constraints.maxWidth,
         );
@@ -317,22 +317,13 @@ class _TermPageHeading extends StatelessWidget {
   const _TermPageHeading();
 
   @override
-  Widget build(BuildContext context) => const Column(
+  Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        '排课准备  /  学期与日历',
-        style: TextStyle(
-          color: AppTheme.blue,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      SizedBox(height: 7),
-      Text(
         '学期与日历',
         style: TextStyle(
-          color: AppTheme.ink,
+          color: context.appColors.ink,
           fontSize: 25,
           fontWeight: FontWeight.w700,
           height: 1.2,
@@ -341,7 +332,7 @@ class _TermPageHeading extends StatelessWidget {
       SizedBox(height: 5),
       Text(
         '设置教学周范围、单双周锚点和教学日例外。',
-        style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+        style: TextStyle(color: context.appColors.inkSecondary, fontSize: 12),
       ),
     ],
   );
@@ -387,10 +378,10 @@ class _ExceptionDateDialogState extends State<_ExceptionDateDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '先选定日期，再设置补课或停课，并指定补课采用的原课表。',
             style: TextStyle(
-              color: AppTheme.inkSecondary,
+              color: context.appColors.inkSecondary,
               fontSize: 12,
               height: 1.5,
             ),
@@ -456,7 +447,7 @@ class _ErrorPanel extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: SelectableText(
       message,
-      style: const TextStyle(color: AppTheme.destructive),
+      style: TextStyle(color: context.appColors.destructive),
     ),
   );
 }
@@ -491,8 +482,8 @@ Future<bool> _confirmDelete(
               const SizedBox(height: 12),
               Text(
                 warning,
-                style: const TextStyle(
-                  color: AppTheme.muted,
+                style: TextStyle(
+                  color: context.appColors.muted,
                   fontSize: 12,
                   height: 17 / 12,
                 ),

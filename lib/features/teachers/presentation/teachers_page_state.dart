@@ -1,13 +1,5 @@
 part of 'teachers_page.dart';
 
-Widget _teacherViewSwitcherPanel(Widget switcher) => SizedBox(
-  key: const ValueKey('teacher-view-switcher-block'),
-  height: 56,
-  child: AppSurface(
-    child: Padding(padding: const EdgeInsets.all(4), child: switcher),
-  ),
-);
-
 class TeachersPage extends ConsumerStatefulWidget {
   const TeachersPage({required this.termId, super.key});
 
@@ -23,7 +15,6 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
   final _searchController = TextEditingController();
   final _viewTabsKey = GlobalKey(debugLabel: 'teacher-view-tabs');
   int _viewIndex = 0;
-  bool _showGroups = false;
 
   @override
   void dispose() {
@@ -71,10 +62,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
       key: _viewTabsKey,
       control: FTabControl.lifted(
         index: _viewIndex,
-        onChange: (index) => setState(() {
-          _viewIndex = index;
-          _showGroups = false;
-        }),
+        onChange: (index) => setState(() => _viewIndex = index),
         motion: const FTabMotion(
           duration: Duration(milliseconds: 260),
           curve: Curves.easeInOutCubic,
@@ -83,34 +71,50 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
       style: FTabsStyleDelta.delta(
         decoration: DecorationDelta.value(
           ShapeDecoration(
-            color: AppTheme.selectedBlue,
+            color: context.appColors.selectedBlue,
             shape: RoundedSuperellipseBorder(
-              side: const BorderSide(color: AppTheme.border),
+              side: BorderSide(color: context.appColors.border),
               borderRadius: BorderRadius.circular(8),
             ),
           ),
         ),
         indicatorDecoration: DecorationDelta.value(
           ShapeDecoration(
-            color: Colors.white,
+            color: context.appColors.surface,
             shape: RoundedSuperellipseBorder(
-              side: const BorderSide(color: AppTheme.border),
+              side: BorderSide(color: context.appColors.border),
               borderRadius: BorderRadius.circular(8),
             ),
           ),
         ),
         padding: EdgeInsetsGeometryDelta.value(EdgeInsets.zero),
         spacing: 0,
-        minHeight: 44,
+        minHeight: 34,
       ),
       scrollable: false,
       children: [
         FTabEntry(
-          label: const Text('班级视角', key: ValueKey('teacher-view-tab-class')),
+          label: const Text(
+            '班级',
+            key: ValueKey('teacher-view-tab-class'),
+            style: TextStyle(fontSize: 12),
+          ),
           child: const SizedBox.shrink(),
         ),
         FTabEntry(
-          label: const Text('教师视角', key: ValueKey('teacher-view-tab-teacher')),
+          label: const Text(
+            '教师',
+            key: ValueKey('teacher-view-tab-teacher'),
+            style: TextStyle(fontSize: 12),
+          ),
+          child: const SizedBox.shrink(),
+        ),
+        FTabEntry(
+          label: const Text(
+            '分组',
+            key: ValueKey('teacher-view-tab-group'),
+            style: TextStyle(fontSize: 12),
+          ),
           child: const SizedBox.shrink(),
         ),
       ],
@@ -118,42 +122,43 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
   }
 
   List<Widget> _buildHeaderActions() {
-    final showSearch = !_showGroups && _viewIndex == 1;
-    final showAddAssignment = !_showGroups;
+    final isGroupView = _viewIndex == 2;
+    final showSearch = _viewIndex == 1;
+    final showAddAssignment = !isGroupView;
     final search = SizedBox(
       width: 180,
       child: AppTextFormField(
         controller: _searchController,
-        decoration: const InputDecoration(
-          prefixIcon: Icon(Icons.search, size: 18),
-          hintText: '按姓名查找教师',
-          isDense: true,
+        decoration: const InputDecoration(hintText: '按姓名查找教师', isDense: true),
+      ),
+    );
+    final addAssignment = AppGhostButton.icon(
+      key: const ValueKey('teacher-header-add-assignment'),
+      onPressed: _addBatchAssignments,
+      icon: Icon(Icons.add, size: 18, color: context.appColors.blue),
+      label: Text(
+        '添加任课',
+        style: TextStyle(
+          color: context.appColors.blue,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
-    final addAssignment = AppGhostButton(
-      key: const ValueKey('teacher-header-add-assignment'),
-      onPressed: _addBatchAssignments,
-      child: const Text(
-        '添加任课',
-        style: TextStyle(color: AppTheme.blue, fontWeight: FontWeight.w600),
-      ),
-    );
-    final returnToAssignments = AppOutlineButton.icon(
-      key: const ValueKey('teacher-groups-return'),
-      onPressed: () => setState(() => _showGroups = false),
-      icon: const Icon(Icons.arrow_back_rounded, size: 17),
-      label: const Text('返回任课视图'),
-    );
-    final addGroup = AppPrimaryButton.icon(
+    final addGroup = AppGhostButton.icon(
       key: const ValueKey('teacher-groups-add'),
       onPressed: _addGroup,
-      icon: const Icon(Icons.add, size: 18),
-      label: const Text('新增分组'),
+      icon: Icon(Icons.add, size: 18, color: context.appColors.blue),
+      label: Text(
+        '新增分组',
+        style: TextStyle(
+          color: context.appColors.blue,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
     final more = AppMenuButton(
       key: const ValueKey('teacher-header-overflow'),
-      items: _showGroups
+      items: isGroupView
           ? [
               AppMenuItem(
                 label: '预排',
@@ -169,10 +174,6 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                 onPressed: () =>
                     _openTeacherPresetPage(ownerKind: _PresetOwnerKind.teacher),
               ),
-              AppMenuItem(
-                label: '教师分组管理',
-                onPressed: () => setState(() => _showGroups = true),
-              ),
               AppMenuItem(label: '新增教师', onPressed: _addTeacher),
               AppMenuItem(label: 'Excel导入教师', onPressed: _importTeachers),
               AppMenuItem(label: 'Excel导入任课分配', onPressed: _importAssignments),
@@ -185,26 +186,37 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppTheme.controlRadius),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '更多',
-              style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
+                fontSize: 12,
+              ),
             ),
             SizedBox(width: 4),
-            Icon(Icons.expand_more_rounded, size: 15, color: AppTheme.muted),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 15,
+              color: context.appColors.muted,
+            ),
           ],
         ),
       ),
     );
 
     return [
-      if (_showGroups) returnToAssignments,
-      if (_showGroups) addGroup,
+      if (isGroupView) addGroup,
       if (showSearch) search,
       if (showAddAssignment) addAssignment,
       more,
+      SizedBox(
+        key: const ValueKey('teacher-view-switcher-header'),
+        width: 210,
+        child: _buildViewSwitcher(),
+      ),
     ];
   }
 
@@ -221,11 +233,11 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
         subject.id: subject.name,
     };
     final pageWidth = MediaQuery.sizeOf(context).width;
-    final subtitle = _showGroups
+    final subtitle = _viewIndex == 2
         ? '按分组维护教师成员，并设置该组在具体课节的预排规则。'
         : _viewIndex == 0
-        ? '支持拖拽分配：把未分配课程拖给教师，或把任课拖回未分配课程区；可跨学段选择班级。'
-        : '按教师查看任课和周均节数；任课可拖回未分配课程区，课程池中的课程可拖给教师。';
+        ? '按班级查看科目任课，点击单元格分配或调整任课教师。'
+        : '按教师查看任课和周均节数；可从右侧未分配课程区拖拽分配。';
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -239,10 +251,12 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
             title: '教师任课',
             subtitle: subtitle,
             actions: _buildHeaderActions(),
+            responsiveActions: true,
+            actionsFlex: 2,
           ),
           const SizedBox(height: AppTheme.pageSectionGap),
           Expanded(
-            child: _showGroups
+            child: _viewIndex == 2
                 ? _GroupList(
                     termId: widget.termId,
                     groups: groups.valueOrNull ?? const [],
@@ -260,7 +274,6 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                     subjects: subjects.valueOrNull ?? const [],
                     requirements: requirements.valueOrNull ?? const [],
                     assignments: assignments.valueOrNull ?? const [],
-                    viewSwitcher: _buildViewSwitcher(),
                     onReturnAssignment: _transferAssignment,
                     teacherTable: _TeacherList(
                       searchController: _searchController,
@@ -290,11 +303,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                     termId: widget.termId,
                     teachers: teachers.valueOrNull ?? const [],
                     assignments: assignments.valueOrNull ?? const [],
-                    searchController: _searchController,
-                    viewSwitcher: _buildViewSwitcher(),
                     onSaveAssignments: _saveAssignments,
-                    onAssignUnassigned: _assignUnassigned,
-                    onReturnAssignment: _transferAssignment,
                   ),
           ),
         ],

@@ -16,23 +16,21 @@ import 'package:forui/forui.dart';
 /// 预置学段名称（US-001 AC1）。
 const stagePresets = ['小学部', '初中部', '高中部'];
 
-Color _stageAccent(int index) => switch (index % 3) {
-  0 => AppTheme.blue,
-  1 => const Color(0xFF2BA471),
-  _ => const Color(0xFFE37318),
+Color _stageAccent(BuildContext context, int index) => switch (index % 3) {
+  0 => context.appColors.blue,
+  1 => context.appColors.success,
+  _ => context.appColors.warning,
 };
 
-Color _stageTint(int index) => switch (index % 3) {
-  0 => const Color(0xFFEDF3FF),
-  1 => const Color(0xFFE9F8EF),
-  _ => const Color(0xFFFFF4E8),
-};
+Color _stageTint(BuildContext context, int index) => Color.alphaBlend(
+  _stageAccent(context, index).withValues(alpha: .1),
+  context.appColors.surface,
+);
 
-Color _stageChipBorder(int index) => switch (index % 3) {
-  0 => const Color(0xFFD8E5F8),
-  1 => const Color(0xFFD6EBDD),
-  _ => const Color(0xFFF2E2D0),
-};
+Color _stageChipBorder(BuildContext context, int index) => Color.alphaBlend(
+  _stageAccent(context, index).withValues(alpha: .34),
+  context.appColors.surface,
+);
 
 class ClassesPage extends ConsumerStatefulWidget {
   const ClassesPage({required this.termId, super.key});
@@ -317,22 +315,13 @@ class _Toolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      const heading = Column(
+      final heading = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '排课准备  /  班级与学段',
-            style: TextStyle(
-              color: AppTheme.blue,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 7),
-          Text(
             '班级与学段',
             style: TextStyle(
-              color: AppTheme.ink,
+              color: context.appColors.ink,
               fontSize: 25,
               fontWeight: FontWeight.w700,
               height: 1.2,
@@ -341,7 +330,10 @@ class _Toolbar extends StatelessWidget {
           SizedBox(height: 5),
           Text(
             '按学段组织年级和班级，年级仅归属一个学段。',
-            style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+            style: TextStyle(
+              color: context.appColors.inkSecondary,
+              fontSize: 12,
+            ),
           ),
         ],
       );
@@ -363,7 +355,7 @@ class _Toolbar extends StatelessWidget {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Expanded(child: heading),
+          Expanded(child: heading),
           const SizedBox(width: 16),
           templateImport,
         ],
@@ -411,7 +403,7 @@ class _StageCardRow extends StatelessWidget {
             width: cardWidth,
             child: _StageCard(
               stage: stages[index],
-              accent: _stageAccent(index),
+              accent: _stageAccent(context, index),
               onRename: () => onRename(stages[index]),
               onDelete: canDelete ? () => onDelete(stages[index]) : null,
             ),
@@ -448,7 +440,7 @@ class _StageCardRow extends StatelessWidget {
               width: wrappedCardWidth,
               child: _StageCard(
                 stage: stages[index],
-                accent: _stageAccent(index),
+                accent: _stageAccent(context, index),
                 onRename: () => onRename(stages[index]),
                 onDelete: canDelete ? () => onDelete(stages[index]) : null,
               ),
@@ -514,9 +506,12 @@ class _StageCard extends ConsumerWidget {
                   ),
                   InkWell(
                     onTap: onRename,
-                    child: const Text(
+                    child: Text(
                       '改名',
-                      style: TextStyle(color: AppTheme.blue, fontSize: 11),
+                      style: TextStyle(
+                        color: context.appColors.blue,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -525,9 +520,12 @@ class _StageCard extends ConsumerWidget {
                       message: canDelete ? '删除空学段' : '请先迁移或删除学段下的年级',
                       child: InkWell(
                         onTap: canDelete ? onDelete : null,
-                        child: const Text(
+                        child: Text(
                           '删除',
-                          style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                          style: TextStyle(
+                            color: context.appColors.muted,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                     ),
@@ -536,14 +534,14 @@ class _StageCard extends ConsumerWidget {
               const SizedBox(height: 7),
               Text(
                 '${grades.valueOrNull?.length ?? 0} 个年级 · $classCount 个班级',
-                style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+                style: TextStyle(color: context.appColors.muted, fontSize: 11),
               ),
               const SizedBox(height: 4),
               Text(
                 routine == null ? '作息尚未配置' : _routineSummary(routine),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+                style: TextStyle(color: context.appColors.muted, fontSize: 11),
               ),
             ],
           ),
@@ -586,25 +584,25 @@ class _AddStageCard extends StatelessWidget {
     key: const Key('add-stage-card'),
     height: 104,
     child: Material(
-      color: Colors.white,
+      color: context.appColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        side: const BorderSide(color: AppTheme.border),
+        side: BorderSide(color: context.appColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        hoverColor: AppTheme.selectedBlue,
+        hoverColor: context.appColors.selectedBlue,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add, size: 20, color: AppTheme.blue),
+            Icon(Icons.add, size: 20, color: context.appColors.blue),
             SizedBox(height: 5),
             Text(
               '新增学段',
               style: TextStyle(
-                color: AppTheme.blue,
+                color: context.appColors.blue,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -653,8 +651,8 @@ class _GradeClassTable extends ConsumerWidget {
               children: [
                 AppDataTableHeader(
                   height: 44,
-                  textColor: AppTheme.muted,
-                  backgroundColor: Colors.white,
+                  textColor: context.appColors.muted,
+                  backgroundColor: context.appColors.surface,
                   children: [
                     SizedBox(
                       width: 136,
@@ -668,7 +666,7 @@ class _GradeClassTable extends ConsumerWidget {
                               key: const Key('add-grade-button'),
                               icon: Icons.add,
                               iconSize: 14,
-                              foregroundColor: AppTheme.blue,
+                              foregroundColor: context.appColors.blue,
                               tooltip: '新增年级',
                               onPressed: onAddGrade,
                             ),
@@ -684,12 +682,12 @@ class _GradeClassTable extends ConsumerWidget {
                           children: [
                             const Text('班级'),
                             const SizedBox(width: 4),
-                            const Tooltip(
+                            Tooltip(
                               message: '批量填充名称',
                               child: Icon(
                                 Icons.playlist_add,
                                 size: 14,
-                                color: AppTheme.blue,
+                                color: context.appColors.blue,
                               ),
                             ),
                           ],
@@ -750,12 +748,12 @@ class _EmptyGradeRows extends StatelessWidget {
   const _EmptyGradeRows();
 
   @override
-  Widget build(BuildContext context) => const Padding(
+  Widget build(BuildContext context) => Padding(
     padding: EdgeInsets.all(24),
     child: Center(
       child: Text(
         '还没有年级，点击表头的 + 新增年级。',
-        style: TextStyle(color: AppTheme.muted),
+        style: TextStyle(color: context.appColors.muted),
       ),
     ),
   );
@@ -797,9 +795,13 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Divider(height: 1, thickness: 1, color: AppTheme.tableDivider),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: context.appColors.tableDivider,
+          ),
         ),
         Container(
           constraints: const BoxConstraints(minHeight: 64),
@@ -815,7 +817,10 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                     grade.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -826,8 +831,8 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                   child: AppBadge(
                     label: stage.name,
                     fontSize: 11,
-                    foreground: _stageAccent(stageIndex),
-                    background: _stageTint(stageIndex),
+                    foreground: _stageAccent(context, stageIndex),
+                    background: _stageTint(context, stageIndex),
                   ),
                 ),
               ),
@@ -858,10 +863,10 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Text(
+                            Text(
                               '失焦或回车保存 · Esc 取消',
                               style: TextStyle(
-                                color: AppTheme.muted,
+                                color: context.appColors.muted,
                                 fontSize: 11,
                               ),
                             ),
@@ -869,8 +874,8 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                               const SizedBox(width: 8),
                               Text(
                                 _inlineError!,
-                                style: const TextStyle(
-                                  color: AppTheme.destructive,
+                                style: TextStyle(
+                                  color: context.appColors.destructive,
                                   fontSize: 11,
                                 ),
                               ),
@@ -880,8 +885,8 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                       else
                         AppClassChip(
                           name: classList[index].name,
-                          background: _stageTint(stageIndex),
-                          borderColor: _stageChipBorder(stageIndex),
+                          background: _stageTint(context, stageIndex),
+                          borderColor: _stageChipBorder(context, stageIndex),
                           onTap: () => setState(() {
                             _editingClassId = classList[index].id;
                             _inlineError = null;
@@ -910,14 +915,17 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                     AppGhostButton.icon(
                       onPressed: () =>
                           _addClass(context, ref, grade, classList),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.add,
                         size: 13,
-                        color: AppTheme.blue,
+                        color: context.appColors.blue,
                       ),
-                      label: const Text(
+                      label: Text(
                         '添加班级',
-                        style: TextStyle(fontSize: 11, color: AppTheme.blue),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: context.appColors.blue,
+                        ),
                       ),
                     ),
                   ],
@@ -935,14 +943,17 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                         stages,
                         gradesByStage,
                       ),
-                      child: const Padding(
+                      child: Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: 4,
                           vertical: 2,
                         ),
                         child: Text(
                           '编辑',
-                          style: TextStyle(color: AppTheme.blue, fontSize: 11),
+                          style: TextStyle(
+                            color: context.appColors.blue,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                     ),
@@ -950,9 +961,12 @@ class _GradeTableRowState extends ConsumerState<_GradeTableRow> {
                     InkWell(
                       onTap: () =>
                           _deleteGrade(context, ref, grade, classList.length),
-                      child: const Text(
+                      child: Text(
                         '删除',
-                        style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                        style: TextStyle(
+                          color: context.appColors.muted,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ],
@@ -1092,7 +1106,7 @@ class _EmptyStages extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('当前学期还没有学段。', style: TextStyle(color: AppTheme.muted)),
+        Text('当前学期还没有学段。', style: TextStyle(color: context.appColors.muted)),
         const SizedBox(height: 12),
         AppPrimaryButton.icon(
           onPressed: onAdd,
@@ -1145,9 +1159,12 @@ class _StageNameDialogState extends State<_StageNameDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '学段名称',
-              style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 6),
             AppTextFormField(
@@ -1169,9 +1186,12 @@ class _StageNameDialogState extends State<_StageNameDialog> {
                 runSpacing: 6,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     '常用：',
-                    style: TextStyle(color: Color(0xFF8C8C8C), fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                   for (final candidate in _candidates)
                     _CommonStageChip(
@@ -1220,16 +1240,20 @@ class _CommonStageChip extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected ? AppTheme.selectedBlue : Colors.white,
+        color: isSelected
+            ? context.appColors.selectedBlue
+            : context.appColors.surface,
         border: Border.all(
-          color: isSelected ? AppTheme.blue : const Color(0xFFDDE0E2),
+          color: isSelected ? context.appColors.blue : context.appColors.border,
         ),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: isSelected ? AppTheme.blue : const Color(0xFF5E5E5E),
+          color: isSelected
+              ? context.appColors.blue
+              : context.appColors.inkSecondary,
           fontSize: 11,
         ),
       ),
@@ -1324,9 +1348,7 @@ class _AddGradesDialogState extends State<_AddGradesDialog> {
                 children: [
                   Expanded(
                     child: AppSelectField<String>(
-                      items: {
-                        for (final mode in gradeNamingModes) mode: mode,
-                      },
+                      items: {for (final mode in gradeNamingModes) mode: mode},
                       value: _mode,
                       label: '命名方式',
                       onChanged: (value) =>
@@ -1366,21 +1388,21 @@ class _AddGradesDialogState extends State<_AddGradesDialog> {
                   ),
                   validator: (value) =>
                       value != null &&
-                              (value.contains('{n}') || value.contains('{N}'))
-                          ? null
-                          : '请包含占位符 {n} 或 {N}',
+                          (value.contains('{n}') || value.contains('{N}'))
+                      ? null
+                      : '请包含占位符 {n} 或 {N}',
                   onChanged: (_) => setState(() {}),
                 ),
               ],
               const SizedBox(height: 12),
               Text(
                 '预览：${_previewNames().join('、')}',
-                style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+                style: TextStyle(color: context.appColors.muted, fontSize: 12),
               ),
               const SizedBox(height: 4),
               Text(
                 '将添加到「$stageName」，之后可逐个改名。',
-                style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+                style: TextStyle(color: context.appColors.muted, fontSize: 11),
               ),
             ],
           ),
@@ -1521,7 +1543,7 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
           const Expanded(child: Text('批量填充名称')),
           InkWell(
             onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.close, size: 16, color: AppTheme.muted),
+            child: Icon(Icons.close, size: 16, color: context.appColors.muted),
           ),
         ],
       ),
@@ -1531,9 +1553,9 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '1 · 选择名称模板',
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -1560,9 +1582,9 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
               ),
             ],
             const SizedBox(height: 32),
-            const Text(
+            Text(
               '2 · 应用范围（可多选学段）',
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 16),
             Wrap(
@@ -1587,7 +1609,7 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                 Text(
                   '已选 ${_selectedStageIds.length} 个学段 · ${selectedGrades.length} 个年级 · '
                   '${_selectedClassTotal(classesByGrade)} 个班级',
-                  style: const TextStyle(color: AppTheme.blue, fontSize: 12),
+                  style: TextStyle(color: context.appColors.blue, fontSize: 12),
                 ),
                 const Spacer(),
                 InkWell(
@@ -1596,25 +1618,31 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                       widget.stages.map((stage) => stage.id),
                     );
                   }),
-                  child: const Text(
+                  child: Text(
                     '全选',
-                    style: TextStyle(color: AppTheme.blue, fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.blue,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 InkWell(
                   onTap: () => setState(() => _selectedStageIds.clear()),
-                  child: const Text(
+                  child: Text(
                     '清空',
-                    style: TextStyle(color: AppTheme.blue, fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.blue,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               '3 · 预览（按年级分组展示，应用后仍可逐个修改）',
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 13),
             Container(
@@ -1622,14 +1650,17 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
               constraints: const BoxConstraints(minHeight: 75),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFAFAFA),
+                color: context.appColors.tableHeader,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppTheme.border),
+                border: Border.all(color: context.appColors.border),
               ),
               child: selectedGrades.isEmpty
-                  ? const Text(
+                  ? Text(
                       '请先在上方选择要填充的学段',
-                      style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                      style: TextStyle(
+                        color: context.appColors.muted,
+                        fontSize: 11,
+                      ),
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1645,8 +1676,8 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                                 children: [
                                   Text(
                                     '${stage.name}：',
-                                    style: const TextStyle(
-                                      color: Color(0xFF8C8C8C),
+                                    style: TextStyle(
+                                      color: context.appColors.muted,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -1660,8 +1691,8 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                                     _PreviewNameChip(label: name),
                                   Text(
                                     '… 共 ${grades.fold<int>(0, (total, grade) => total + (classesByGrade[grade.id]?.length ?? 0))} 个班级',
-                                    style: const TextStyle(
-                                      color: AppTheme.muted,
+                                    style: TextStyle(
+                                      color: context.appColors.muted,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -1680,17 +1711,21 @@ class _BatchFillNamesDialogState extends ConsumerState<_BatchFillNamesDialog> {
                       context,
                       const _BatchFillResult(renames: [], undo: true),
                     ),
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.undo, size: 14, color: Color(0xFF5E5E5E)),
+                          Icon(
+                            Icons.undo,
+                            size: 14,
+                            color: context.appColors.inkSecondary,
+                          ),
                           SizedBox(width: 5),
                           Text(
                             '撤销上次填充',
                             style: TextStyle(
-                              color: Color(0xFF5E5E5E),
+                              color: context.appColors.inkSecondary,
                               fontSize: 13,
                             ),
                           ),
@@ -1757,14 +1792,20 @@ class _TemplateChip extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: isSelected ? AppTheme.selectedBlue : Colors.white,
-        border: Border.all(color: isSelected ? AppTheme.blue : AppTheme.border),
+        color: isSelected
+            ? context.appColors.selectedBlue
+            : context.appColors.surface,
+        border: Border.all(
+          color: isSelected ? context.appColors.blue : context.appColors.border,
+        ),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: isSelected ? AppTheme.blue : const Color(0xFF5E5E5E),
+          color: isSelected
+              ? context.appColors.blue
+              : context.appColors.inkSecondary,
           fontSize: 13,
         ),
       ),
@@ -1791,16 +1832,20 @@ class _GradePickChip extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: isSelected ? AppTheme.selectedBlue : Colors.white,
+        color: isSelected
+            ? context.appColors.selectedBlue
+            : context.appColors.surface,
         border: Border.all(
-          color: isSelected ? AppTheme.blue : const Color(0xFFDDE0E2),
+          color: isSelected ? context.appColors.blue : context.appColors.border,
         ),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         isSelected ? '$label ✓' : label,
         style: TextStyle(
-          color: isSelected ? AppTheme.blue : const Color(0xFF5E5E5E),
+          color: isSelected
+              ? context.appColors.blue
+              : context.appColors.inkSecondary,
           fontSize: 12,
         ),
       ),
@@ -1823,7 +1868,7 @@ class _PreviewNameChip extends StatelessWidget {
     ),
     child: Text(
       label,
-      style: const TextStyle(color: AppTheme.ink, fontSize: 11),
+      style: TextStyle(color: context.appColors.ink, fontSize: 11),
     ),
   );
 }
@@ -1908,7 +1953,7 @@ class _AddClassesDialogState extends State<_AddClassesDialog> {
           children: [
             Text(
               '所属年级：${widget.grade.name}',
-              style: const TextStyle(color: AppTheme.inkSecondary),
+              style: TextStyle(color: context.appColors.inkSecondary),
             ),
             const SizedBox(height: 12),
             AppTextFormField(
@@ -1931,7 +1976,7 @@ class _AddClassesDialogState extends State<_AddClassesDialog> {
             const SizedBox(height: 10),
             Text(
               '预览：${_names.take(5).join('、')}${_count > 5 ? '…' : ''}',
-              style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
           ],
         ),
@@ -2071,9 +2116,12 @@ class _GradeEditorDialogState extends State<_GradeEditorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '年级名称',
-              style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 6),
             AppTextFormField(
@@ -2082,9 +2130,12 @@ class _GradeEditorDialogState extends State<_GradeEditorDialog> {
                   value == null || value.trim().isEmpty ? '年级名称不能为空' : null,
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               '所属学段',
-              style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 6),
             AppSelectField<String>(
@@ -2094,9 +2145,9 @@ class _GradeEditorDialogState extends State<_GradeEditorDialog> {
                   setState(() => _stageId = value ?? _stageId),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               '修改所属学段会改变该年级在课表分组中的位置；名称修改不会影响旗下班级。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
             ),
           ],
         ),
@@ -2333,22 +2384,22 @@ class _GradeDeleteDialogState extends State<_GradeDeleteDialog> {
         children: [
           Text(
             '将删除「${widget.gradeName}」及其 ${widget.classCount} 个班级，同时删除以下数据，且不可恢复：',
-            style: const TextStyle(fontSize: 12, color: AppTheme.ink),
+            style: TextStyle(fontSize: 12, color: context.appColors.ink),
           ),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFAFAFA),
-              border: Border.all(color: AppTheme.border),
+              color: context.appColors.tableHeader,
+              border: Border.all(color: context.appColors.border),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Text(
+            child: Text(
               '• 科目节数\n• 任课关系（含免任课设置）\n• 课表数据',
               style: TextStyle(
                 fontSize: 12,
-                color: AppTheme.inkSecondary,
+                color: context.appColors.inkSecondary,
                 height: 1.5,
               ),
             ),

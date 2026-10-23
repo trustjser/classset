@@ -41,7 +41,7 @@ class _TeachingCalendarTableState extends State<TeachingCalendarTable> {
                 AppDataTableHeader(
                   height: 36,
                   padding: EdgeInsets.zero,
-                  textColor: AppTheme.inkSecondary,
+                  textColor: context.appColors.inkSecondary,
                   children: [
                     const SizedBox(
                       width: 90,
@@ -88,9 +88,9 @@ class _TeachingCalendarTableState extends State<TeachingCalendarTable> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: visibleWeeks,
-                  separatorBuilder: (context, index) => const SizedBox(
+                  separatorBuilder: (context, index) => SizedBox(
                     height: 1,
-                    child: ColoredBox(color: AppTheme.tableDivider),
+                    child: ColoredBox(color: context.appColors.tableDivider),
                   ),
                   itemBuilder: (context, index) {
                     final weekNumber = index + 1;
@@ -116,7 +116,7 @@ class _TeachingCalendarTableState extends State<TeachingCalendarTable> {
                 ),
                 if (widget.term.teachingWeekCount > 6)
                   ColoredBox(
-                    color: const Color(0xFFFAFAFA),
+                    color: context.appColors.tableHeader,
                     child: FTappable(
                       semanticsLabel: _isExpanded ? '收起教学周' : '展开教学周',
                       semanticsExpanded: _isExpanded,
@@ -130,8 +130,8 @@ class _TeachingCalendarTableState extends State<TeachingCalendarTable> {
                                 ? '收起教学周'
                                 : '第 7 – ${widget.term.teachingWeekCount} 周 未展开（'
                                       '${widget.term.cycleMode == AcademicTermCycle.everyWeek ? '每周相同' : '单双周自动交替'}）',
-                            style: const TextStyle(
-                              color: AppTheme.blue,
+                            style: TextStyle(
+                              color: context.appColors.blue,
                               fontSize: 12,
                             ),
                           ),
@@ -169,10 +169,10 @@ class _TeachingWeekRow extends StatelessWidget {
     final end = term.teachingWeekEnd(weekNumber);
     final hasException = summary != null;
     final backgroundColor = !hasException
-        ? Colors.white
+        ? context.appColors.surface
         : hasMakeupException
-        ? const Color(0xFFFFFDF6)
-        : const Color(0xFFFFF8F8);
+        ? context.appColors.warningSurface
+        : context.appColors.destructiveSurface;
     final cycleLabel = term.cycleMode == AcademicTermCycle.everyWeek
         ? '每周相同'
         : term.weekCycleLabel(weekNumber);
@@ -181,7 +181,9 @@ class _TeachingWeekRow extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: summary == null ? const Color(0xFFC6C6C6) : AppTheme.ink,
+        color: summary == null
+            ? context.appColors.muted
+            : context.appColors.ink,
         fontSize: 12,
         height: 17 / 12,
       ),
@@ -200,8 +202,8 @@ class _TeachingWeekRow extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
                     '第 $weekNumber 周',
-                    style: const TextStyle(
-                      color: AppTheme.ink,
+                    style: TextStyle(
+                      color: context.appColors.ink,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       height: 19 / 13,
@@ -217,10 +219,10 @@ class _TeachingWeekRow extends StatelessWidget {
                     cycleLabel,
                     style: TextStyle(
                       color: term.cycleMode == AcademicTermCycle.everyWeek
-                          ? AppTheme.inkSecondary
+                          ? context.appColors.inkSecondary
                           : (term.isOddWeek(weekNumber)
-                                ? const Color(0xFFB3661F)
-                                : const Color(0xFF1E7A50)),
+                                ? context.appColors.warning
+                                : context.appColors.success),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       height: 17 / 12,
@@ -237,7 +239,9 @@ class _TeachingWeekRow extends StatelessWidget {
                         ? '设置第 1 教学周日期后生成'
                         : '${formatDateMd(start)} – ${formatDateMd(end!)}',
                     style: TextStyle(
-                      color: start == null ? AppTheme.muted : AppTheme.ink,
+                      color: start == null
+                          ? context.appColors.muted
+                          : context.appColors.ink,
                       fontSize: 12,
                       height: 17 / 12,
                     ),
@@ -269,8 +273,8 @@ class _TeachingWeekRow extends StatelessWidget {
                           '编辑',
                           style: TextStyle(
                             color: term.hasCalendar
-                                ? AppTheme.blue
-                                : AppTheme.muted,
+                                ? context.appColors.blue
+                                : context.appColors.muted,
                             fontSize: 12,
                           ),
                         ),

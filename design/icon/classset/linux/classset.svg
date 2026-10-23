@@ -1,0 +1,18 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2196EA"/>
+      <stop offset="1" stop-color="#0066CC"/>
+    </linearGradient>
+  </defs>
+  <!-- 品牌蓝圆角底 -->
+  <rect x="0" y="0" width="32" height="32" rx="9" fill="url(#body)"/>
+  <!-- 背卡（半透明白，形成叠卡厚度） -->
+  <rect x="7.6" y="6.2" width="13" height="15" rx="3.2" fill="#FFFFFF" fill-opacity="0.5"/>
+  <!-- 前卡 -->
+  <rect x="10.6" y="9.4" width="13" height="15" rx="3.2" fill="#FFFFFF"/>
+  <!-- 表头压条 -->
+  <rect x="12.7" y="11.2" width="8.8" height="1.7" rx="0.85" fill="#0075DE"/>
+  <!-- 已排课橙格 -->
+  <rect x="18" y="19.2" width="3.8" height="3.4" rx="1" fill="#E8913C"/>
+</svg>

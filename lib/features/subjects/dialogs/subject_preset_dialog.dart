@@ -161,16 +161,13 @@ class SubjectPresetDialog extends ConsumerStatefulWidget {
 
 class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
   static const double _advancedSettingFieldWidth = 360;
-  static const TextStyle _advancedSettingLabelStyle = TextStyle(
-    color: AppTheme.ink,
+  TextStyle get _advancedSettingLabelStyle => TextStyle(
+    color: context.appColors.ink,
     fontSize: 13,
     fontWeight: FontWeight.w600,
   );
-  static const TextStyle _advancedSettingHelpStyle = TextStyle(
-    color: AppTheme.muted,
-    fontSize: 12,
-    height: 1.45,
-  );
+  TextStyle get _advancedSettingHelpStyle =>
+      TextStyle(color: context.appColors.muted, fontSize: 12, height: 1.45);
 
   int _selectedEditorTabIndex = 0;
   late final List<SubjectRoomAssignment> _roomAssignments;
@@ -599,8 +596,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       '· $item',
-                      style: const TextStyle(
-                        color: AppTheme.destructive,
+                      style: TextStyle(
+                        color: context.appColors.destructive,
                         fontSize: 12,
                       ),
                     ),
@@ -1095,10 +1092,10 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
         width: 34,
         height: 34,
         decoration: BoxDecoration(
-          color: AppTheme.selectedBlue,
+          color: context.appColors.selectedBlue,
           borderRadius: BorderRadius.circular(9),
         ),
-        child: Icon(icon, color: AppTheme.blue, size: 18),
+        child: Icon(icon, color: context.appColors.blue, size: 18),
       ),
       const SizedBox(width: 12),
       Expanded(
@@ -1110,8 +1107,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: AppTheme.ink,
+                    style: TextStyle(
+                      color: context.appColors.ink,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1123,8 +1120,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: const TextStyle(
-                color: AppTheme.inkSecondary,
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
                 fontSize: 12,
                 height: 1.45,
               ),
@@ -1206,16 +1203,19 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                 final roomDetails = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '当前生效场室',
-                      style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                      style: TextStyle(
+                        color: context.appColors.muted,
+                        fontSize: 11,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       roomName,
                       key: const ValueKey('subject-room-effective'),
-                      style: const TextStyle(
-                        color: AppTheme.ink,
+                      style: TextStyle(
+                        color: context.appColors.ink,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1224,8 +1224,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                 );
                 final sourceText = Text(
                   '来源：$source',
-                  style: const TextStyle(
-                    color: AppTheme.inkSecondary,
+                  style: TextStyle(
+                    color: context.appColors.inkSecondary,
                     fontSize: 12,
                   ),
                 );
@@ -1235,9 +1235,9 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.place_outlined,
-                            color: AppTheme.blue,
+                            color: context.appColors.blue,
                             size: 18,
                           ),
                           const SizedBox(width: 10),
@@ -1254,9 +1254,9 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                 }
                 return Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.place_outlined,
-                      color: AppTheme.blue,
+                      color: context.appColors.blue,
                       size: 18,
                     ),
                     const SizedBox(width: 10),
@@ -1270,10 +1270,10 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
             final manageRoomsButton = AppGhostButton(
               key: const ValueKey('subject-public-rooms-entry'),
               onPressed: _openPublicRooms,
-              child: const Text(
+              child: Text(
                 '管理公共场室',
                 style: TextStyle(
-                  color: AppTheme.blue,
+                  color: context.appColors.blue,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1313,7 +1313,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: AppTheme.tableHeader,
+                            color: context.appColors.tableHeader,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: roomStatus,
@@ -1321,7 +1321,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: AppTheme.border),
+                  Divider(height: 1, color: context.appColors.border),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: _buildParallelLimitEditor(),
@@ -1363,31 +1363,31 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             decoration: BoxDecoration(
-              color: AppTheme.tableHeader,
+              color: context.appColors.tableHeader,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     '当前班级生效上限',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.inkSecondary,
+                      color: context.appColors.inkSecondary,
                     ),
                   ),
                 ),
                 Text(
                   effective?.maxParallelLessons.toString() ?? '不限',
-                  style: const TextStyle(
-                    color: AppTheme.ink,
+                  style: TextStyle(
+                    color: context.appColors.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 if (effective != null) ...[
                   const SizedBox(width: 4),
-                  const Text('班', style: TextStyle(color: AppTheme.muted)),
+                  Text('班', style: TextStyle(color: context.appColors.muted)),
                 ],
               ],
             ),
@@ -1411,12 +1411,12 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   hint: effective?.maxParallelLessons.toString() ?? '不限',
-                  suffixBuilder: (_, _, _) => const Padding(
+                  suffixBuilder: (_, _, _) => Padding(
                     padding: EdgeInsets.only(right: 12),
                     child: Text(
                       '班',
                       style: TextStyle(
-                        color: AppTheme.inkSecondary,
+                        color: context.appColors.inkSecondary,
                         fontSize: 13,
                       ),
                     ),
@@ -1449,9 +1449,9 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                 footer: Text(
                   '$currentValue；当前来源：$source',
                   key: const ValueKey('subject-parallel-source'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.muted,
+                    color: context.appColors.muted,
                     height: 1.4,
                   ),
                 ),
@@ -1463,9 +1463,9 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
           Text(
             '来源：$source；班级沿用所属年级或学段设置。',
             key: const ValueKey('subject-parallel-source'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppTheme.muted,
+              color: context.appColors.muted,
               height: 1.4,
             ),
           ),
@@ -1547,22 +1547,28 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
             ),
             const SizedBox(height: 8),
             if (routine == null)
-              const SizedBox(
+              SizedBox(
                 height: 120,
                 child: Center(
                   child: Text(
                     '该学段尚未配置作息，无法编辑预设。',
-                    style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               )
             else if (weekdays.isEmpty)
-              const SizedBox(
+              SizedBox(
                 height: 80,
                 child: Center(
                   child: Text(
                     '该学段暂无上课日',
-                    style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               )
@@ -1594,6 +1600,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                             labelWidth: labelWidth,
                             dayWidth: dayWidth,
                             visual: periodVisualFor(
+                              context,
                               period.name,
                               period.sortOrder,
                             ),
@@ -1654,13 +1661,17 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.transparent,
+                color: isSelected
+                    ? context.appColors.surface
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? AppTheme.blue : AppTheme.muted,
+                  color: isSelected
+                      ? context.appColors.blue
+                      : context.appColors.muted,
                   fontSize: 13.5,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 ),
@@ -1672,7 +1683,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
         final tabs = DecoratedBox(
           key: const ValueKey('subject-settings-tabs-container'),
           decoration: BoxDecoration(
-            color: AppTheme.tableHeader,
+            color: context.appColors.tableHeader,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Padding(
@@ -1711,10 +1722,10 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               tabs,
-              const Divider(
+              Divider(
                 key: ValueKey('subject-settings-content-divider'),
                 height: 1,
-                color: AppTheme.border,
+                color: context.appColors.border,
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -1734,10 +1745,10 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Divider(
+                    Divider(
                       key: ValueKey('subject-settings-content-divider'),
                       height: 1,
-                      color: AppTheme.border,
+                      color: context.appColors.border,
                     ),
                     Expanded(
                       child: SingleChildScrollView(
@@ -1793,17 +1804,21 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
       alignment: centered ? Alignment.center : Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: header ? AppTheme.tableHeader : AppTheme.canvas,
-        border: const Border(
-          right: BorderSide(color: Colors.white),
-          bottom: BorderSide(color: Colors.white),
+        color: header
+            ? context.appColors.tableHeader
+            : context.appColors.canvas,
+        border: Border(
+          right: BorderSide(color: context.appColors.tableDivider),
+          bottom: BorderSide(color: context.appColors.tableDivider),
         ),
       ),
       child: Text(
         label,
         textAlign: centered ? TextAlign.center : TextAlign.start,
         style: TextStyle(
-          color: header ? AppTheme.inkSecondary : AppTheme.muted,
+          color: header
+              ? context.appColors.inkSecondary
+              : context.appColors.muted,
           fontSize: 11,
           fontWeight: header ? FontWeight.w600 : FontWeight.w500,
         ),
@@ -1814,11 +1829,11 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
       width: dayWidth,
       height: 38,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: AppTheme.tableHeader,
+      decoration: BoxDecoration(
+        color: context.appColors.tableHeader,
         border: Border(
-          right: BorderSide(color: Colors.white),
-          bottom: BorderSide(color: Colors.white),
+          right: BorderSide(color: context.appColors.tableDivider),
+          bottom: BorderSide(color: context.appColors.tableDivider),
         ),
       ),
       child: Text(
@@ -1854,11 +1869,11 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
           height: 38,
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: const BoxDecoration(
-            color: AppTheme.selectedBlue,
+          decoration: BoxDecoration(
+            color: context.appColors.selectedBlue,
             border: Border(
-              right: BorderSide(color: Colors.white),
-              bottom: BorderSide(color: Colors.white),
+              right: BorderSide(color: context.appColors.tableDivider),
+              bottom: BorderSide(color: context.appColors.tableDivider),
             ),
           ),
           child: Row(
@@ -1870,7 +1885,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                   label,
                   textAlign: TextAlign.start,
                   style: TextStyle(
-                    color: AppTheme.muted,
+                    color: context.appColors.muted,
                     fontSize: 9,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1893,7 +1908,10 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                 child: Text(
                   unit,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(color: AppTheme.muted, fontSize: 10),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 10,
+                  ),
                 ),
               ),
             ],
@@ -1909,11 +1927,11 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
               return Container(
                 width: dayWidth,
                 height: 38,
-                decoration: const BoxDecoration(
-                  color: AppTheme.selectedBlue,
+                decoration: BoxDecoration(
+                  color: context.appColors.selectedBlue,
                   border: Border(
-                    right: BorderSide(color: Colors.white),
-                    bottom: BorderSide(color: Colors.white),
+                    right: BorderSide(color: context.appColors.tableDivider),
+                    bottom: BorderSide(color: context.appColors.tableDivider),
                   ),
                 ),
                 child: _constraintInput(
@@ -1982,9 +2000,12 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                           inherited: weekly.maximumWeeklyConsecutivePairs,
                           width: 72,
                         ),
-                        const Text(
+                        Text(
                           '同一天、同一时段的相邻双节数',
-                          style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                          style: TextStyle(
+                            color: context.appColors.muted,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -2024,7 +2045,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
           isDense: true,
           hintText: inherited?.toString(),
           hintStyle: TextStyle(
-            color: AppTheme.helpIcon,
+            color: context.appColors.helpIcon,
             fontSize: compact ? 9 : 12,
           ),
           contentPadding: EdgeInsets.symmetric(
@@ -2032,28 +2053,30 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
             vertical: compact ? 4 : 8,
           ),
           filled: true,
-          fillColor: dailyCell ? AppTheme.selectedBlue : Colors.white,
+          fillColor: dailyCell
+              ? context.appColors.selectedBlue
+              : context.appColors.surface,
           border: dailyCell
               ? InputBorder.none
               : OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: AppTheme.border),
+                  borderSide: BorderSide(color: context.appColors.border),
                 ),
           enabledBorder: dailyCell
               ? InputBorder.none
               : OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: AppTheme.border),
+                  borderSide: BorderSide(color: context.appColors.border),
                 ),
           focusedBorder: dailyCell
               ? OutlineInputBorder(
                   borderRadius: BorderRadius.circular(4),
-                  borderSide: const BorderSide(color: AppTheme.blue),
+                  borderSide: BorderSide(color: context.appColors.blue),
                 )
               : OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(
-                    color: AppTheme.blue,
+                  borderSide: BorderSide(
+                    color: context.appColors.blue,
                     width: 1.4,
                   ),
                 ),
@@ -2072,8 +2095,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
     child: Text(
       text,
       key: ValueKey(key),
-      style: const TextStyle(
-        color: AppTheme.inkSecondary,
+      style: TextStyle(
+        color: context.appColors.inkSecondary,
         fontSize: 12,
         height: 1.5,
       ),
@@ -2085,41 +2108,41 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(height: 1, color: AppTheme.border),
+        Divider(height: 1, color: context.appColors.border),
         const SizedBox(height: 12),
         Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           runSpacing: 4,
           children: [
-            const Text(
+            Text(
               '当前学科全部预设',
               style: TextStyle(
-                color: AppTheme.inkSecondary,
+                color: context.appColors.inkSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
             Text(
               '${entries.length} 项',
-              style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
             ),
           ],
         ),
         const SizedBox(height: 6),
         if (entries.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 18),
             child: Text(
               '暂无预设',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
           )
         else
           for (final entry in entries) ...[
             if (entry != entries.first)
-              const Divider(height: 1, color: AppTheme.border),
+              Divider(height: 1, color: context.appColors.border),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 5),
               child: Row(
@@ -2136,7 +2159,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: AppTheme.ink,
+                                  color: context.appColors.ink,
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
                                   decoration: entry.deleted
@@ -2151,8 +2174,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                                 entry.deleted ? '待删除' : '未保存',
                                 style: TextStyle(
                                   color: entry.deleted
-                                      ? AppTheme.destructive
-                                      : AppTheme.warning,
+                                      ? context.appColors.destructive
+                                      : context.appColors.warning,
                                   fontSize: 10,
                                 ),
                               ),
@@ -2163,8 +2186,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                           entry.cellLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppTheme.muted,
+                          style: TextStyle(
+                            color: context.appColors.muted,
                             fontSize: 10.5,
                           ),
                         ),
@@ -2174,8 +2197,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                   const SizedBox(width: 8),
                   Text(
                     entry.valueLabel,
-                    style: const TextStyle(
-                      color: AppTheme.inkSecondary,
+                    style: TextStyle(
+                      color: context.appColors.inkSecondary,
                       fontSize: 11.5,
                     ),
                   ),
@@ -2190,8 +2213,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                     icon: Icon(
                       entry.deleted ? Icons.undo : Icons.delete_outline,
                       color: entry.deleted
-                          ? AppTheme.warning
-                          : AppTheme.destructive,
+                          ? context.appColors.warning
+                          : context.appColors.destructive,
                     ),
                   ),
                 ],
@@ -2207,41 +2230,41 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(height: 1, color: AppTheme.border),
+        Divider(height: 1, color: context.appColors.border),
         const SizedBox(height: 12),
         Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           runSpacing: 4,
           children: [
-            const Text(
+            Text(
               '当前科目全部课节限制',
               style: TextStyle(
-                color: AppTheme.inkSecondary,
+                color: context.appColors.inkSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
             Text(
               '${entries.length} 项',
-              style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
             ),
           ],
         ),
         const SizedBox(height: 6),
         if (entries.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 18),
             child: Text(
               '暂无课节限制',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
           )
         else
           for (final entry in entries) ...[
             if (entry != entries.first)
-              const Divider(height: 1, color: AppTheme.border),
+              Divider(height: 1, color: context.appColors.border),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 5),
               child: Row(
@@ -2258,7 +2281,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: AppTheme.ink,
+                                  color: context.appColors.ink,
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
                                   decoration: entry.deleted
@@ -2273,8 +2296,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                                 entry.deleted ? '待删除' : '未保存',
                                 style: TextStyle(
                                   color: entry.deleted
-                                      ? AppTheme.destructive
-                                      : AppTheme.warning,
+                                      ? context.appColors.destructive
+                                      : context.appColors.warning,
                                   fontSize: 10,
                                 ),
                               ),
@@ -2283,8 +2306,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                         ),
                         Text(
                           entry.ruleLabel,
-                          style: const TextStyle(
-                            color: AppTheme.muted,
+                          style: TextStyle(
+                            color: context.appColors.muted,
                             fontSize: 10.5,
                           ),
                         ),
@@ -2304,8 +2327,8 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                     icon: Icon(
                       entry.deleted ? Icons.undo : Icons.delete_outline,
                       color: entry.deleted
-                          ? AppTheme.warning
-                          : AppTheme.destructive,
+                          ? context.appColors.warning
+                          : context.appColors.destructive,
                     ),
                   ),
                 ],
@@ -2690,7 +2713,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                   child: Icon(
                     expanded ? Icons.expand_more : Icons.chevron_right,
                     size: 14,
-                    color: AppTheme.muted,
+                    color: context.appColors.muted,
                   ),
                 ),
               ),
@@ -2698,7 +2721,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
               Icon(
                 Icons.layers_outlined,
                 size: 15,
-                color: AppTheme.sidebarMuted,
+                color: context.appColors.sidebarMuted,
               ),
             ],
           ),
@@ -2743,7 +2766,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                   child: Icon(
                     expanded ? Icons.expand_more : Icons.chevron_right,
                     size: 13,
-                    color: AppTheme.muted,
+                    color: context.appColors.muted,
                   ),
                 ),
               ),
@@ -2810,21 +2833,26 @@ class _GridHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      _heading('节次', labelWidth, 11),
+      _heading(context, '节次', labelWidth, 11),
       for (final weekday in weekdays)
-        _heading(_weekdayNames[weekday - 1], dayWidth, 12),
+        _heading(context, _weekdayNames[weekday - 1], dayWidth, 12),
     ],
   );
 
-  Widget _heading(String label, double width, double fontSize) => Container(
+  Widget _heading(
+    BuildContext context,
+    String label,
+    double width,
+    double fontSize,
+  ) => Container(
     width: width,
     height: 32,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(
-      color: AppTheme.tableHeader,
+    decoration: BoxDecoration(
+      color: context.appColors.tableHeader,
       border: Border(
-        right: BorderSide(color: Colors.white),
-        bottom: BorderSide(color: Colors.white),
+        right: BorderSide(color: context.appColors.tableDivider),
+        bottom: BorderSide(color: context.appColors.tableDivider),
       ),
     ),
     child: Text(
@@ -2883,9 +2911,9 @@ class _LessonRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: visual.labelTint,
-          border: const Border(
-            right: BorderSide(color: Colors.white),
-            bottom: BorderSide(color: Colors.white),
+          border: Border(
+            right: BorderSide(color: context.appColors.tableDivider),
+            bottom: BorderSide(color: context.appColors.tableDivider),
           ),
         ),
         child: Text(
@@ -2906,9 +2934,9 @@ class _LessonRow extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: visual.cellTint,
-              border: const Border(
-                right: BorderSide(color: Colors.white),
-                bottom: BorderSide(color: Colors.white),
+              border: Border(
+                right: BorderSide(color: context.appColors.tableDivider),
+                bottom: BorderSide(color: context.appColors.tableDivider),
               ),
             ),
           )
@@ -2958,18 +2986,18 @@ class _PresetCell extends StatelessWidget {
           width: width,
           height: 44,
           alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: FreeSlotVisual.cellTint,
+          decoration: BoxDecoration(
+            color: context.appColors.destructiveSurface,
             border: Border(
-              right: BorderSide(color: Colors.white),
-              bottom: BorderSide(color: Colors.white),
+              right: BorderSide(color: context.appColors.tableDivider),
+              bottom: BorderSide(color: context.appColors.tableDivider),
             ),
           ),
           child: Text(
             exemptLabel!,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.muted,
+            style: TextStyle(
+              color: context.appColors.muted,
               fontSize: 10.5,
               fontWeight: FontWeight.w500,
             ),
@@ -2979,13 +3007,22 @@ class _PresetCell extends StatelessWidget {
     }
     final (background, foreground) = switch (value) {
       // 自动延续作息表格的时段底色；预设用状态色区分。
-      PresetValue.auto => (tint, AppTheme.muted),
+      PresetValue.auto => (tint, context.appColors.muted),
       // 尽量排 = 软性优先：淡蓝底 + 蓝字。
-      PresetValue.prefer => (AppTheme.selectedBlue, AppTheme.blue),
+      PresetValue.prefer => (
+        context.appColors.selectedBlue,
+        context.appColors.blue,
+      ),
       // 一定排 = 硬性必须：实蓝底 + 白字。
-      PresetValue.must => (AppTheme.blue, Colors.white),
+      PresetValue.must => (
+        context.appColors.blue,
+        Theme.of(context).colorScheme.onPrimary,
+      ),
       // 不排 = 硬性禁止：淡红底 + 红字。
-      PresetValue.forbid => (AppTheme.destructiveSurface, AppTheme.destructive),
+      PresetValue.forbid => (
+        context.appColors.destructiveSurface,
+        context.appColors.destructive,
+      ),
     };
     final cell = InkWell(
       onTap: onCycle,
@@ -2997,9 +3034,9 @@ class _PresetCell extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: background,
-          border: const Border(
-            right: BorderSide(color: Colors.white),
-            bottom: BorderSide(color: Colors.white),
+          border: Border(
+            right: BorderSide(color: context.appColors.tableDivider),
+            bottom: BorderSide(color: context.appColors.tableDivider),
           ),
         ),
         child: value == PresetValue.auto

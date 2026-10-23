@@ -31,8 +31,8 @@ class PreparationStepsCard extends StatelessWidget {
                 ),
                 AppBadge(
                   label: '$doneCount / $total 完成',
-                  foreground: AppTheme.inkSecondary,
-                  background: AppTheme.tableHeader,
+                  foreground: context.appColors.inkSecondary,
+                  background: context.appColors.tableHeader,
                 ),
               ],
             ),
@@ -100,12 +100,12 @@ class _PreparationProgress extends StatelessWidget {
             if (value > 0)
               Expanded(
                 flex: (value * 100).round().clamp(1, 100),
-                child: const ColoredBox(color: AppTheme.blue),
+                child: ColoredBox(color: context.appColors.blue),
               ),
             if (value < 1)
               Expanded(
                 flex: (100 - value * 100).round().clamp(1, 100),
-                child: const ColoredBox(color: AppTheme.tableDivider),
+                child: ColoredBox(color: context.appColors.tableDivider),
               ),
           ],
         ),
@@ -124,9 +124,9 @@ class _StepIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCurrent = status == _StepStatus.current;
     final titleColor = switch (status) {
-      _StepStatus.done => AppTheme.inkSecondary,
-      _StepStatus.current => AppTheme.ink,
-      _StepStatus.locked => AppTheme.muted,
+      _StepStatus.done => context.appColors.inkSecondary,
+      _StepStatus.current => context.appColors.ink,
+      _StepStatus.locked => context.appColors.muted,
     };
     final statusText = switch (status) {
       _StepStatus.done => '已完成',
@@ -134,14 +134,16 @@ class _StepIndicator extends StatelessWidget {
       _StepStatus.locked => '完成前一步后解锁',
     };
     final statusColor = switch (status) {
-      _StepStatus.done => AppTheme.success,
-      _StepStatus.current => AppTheme.blue,
-      _StepStatus.locked => AppTheme.muted,
+      _StepStatus.done => context.appColors.success,
+      _StepStatus.current => context.appColors.blue,
+      _StepStatus.locked => context.appColors.muted,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
-        color: isCurrent ? AppTheme.selectedBlue : AppTheme.tableHeader,
+        color: isCurrent
+            ? context.appColors.selectedBlue
+            : context.appColors.tableHeader,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -192,11 +194,15 @@ class _StepDot extends StatelessWidget {
         width: size,
         height: size,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AppTheme.success,
+        decoration: BoxDecoration(
+          color: context.appColors.success,
           shape: BoxShape.circle,
         ),
-        child: const Icon(Icons.check_rounded, size: 13, color: Colors.white),
+        child: Icon(
+          Icons.check_rounded,
+          size: 13,
+          color: Theme.of(context).colorScheme.onPrimary,
+        ),
       );
     }
     if (status == _StepStatus.current) {
@@ -204,14 +210,14 @@ class _StepDot extends StatelessWidget {
         width: size,
         height: size,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AppTheme.blue,
+        decoration: BoxDecoration(
+          color: context.appColors.blue,
           shape: BoxShape.circle,
         ),
         child: Text(
           '$number',
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onPrimary,
             fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
@@ -224,12 +230,12 @@ class _StepDot extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: context.appColors.border),
       ),
       child: Text(
         '$number',
-        style: const TextStyle(
-          color: AppTheme.muted,
+        style: TextStyle(
+          color: context.appColors.muted,
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),

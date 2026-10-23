@@ -143,7 +143,155 @@ Future<void> _mountTeacherPage(
 }
 
 void main() {
-  testWidgets('分组管理提供独立返回按钮并支持搜索分组成员', (tester) async {
+  testWidgets('页头三个小标签切换班级教师和分组，班级页只显示矩阵', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _mountTeacherPage(
+      tester,
+      groups: const [
+        TeacherGroup(id: 'group-1', termId: _termId, name: '语文组', sortOrder: 0),
+      ],
+    );
+
+    final classTab = find.byKey(const ValueKey('teacher-view-tab-class'));
+    final teacherTab = find.byKey(const ValueKey('teacher-view-tab-teacher'));
+    final groupTab = find.byKey(const ValueKey('teacher-view-tab-group'));
+    final addAssignment = find.byKey(
+      const ValueKey('teacher-header-add-assignment'),
+    );
+    expect(classTab, findsOneWidget);
+    expect(teacherTab, findsOneWidget);
+    expect(groupTab, findsOneWidget);
+    expect(tester.getSize(find.byType(FTabs)).height, lessThanOrEqualTo(38));
+    expect(
+      tester.getTopLeft(classTab).dx,
+      lessThan(tester.getTopLeft(teacherTab).dx),
+    );
+    expect(
+      tester.getTopLeft(teacherTab).dx,
+      lessThan(tester.getTopLeft(groupTab).dx),
+    );
+    expect(
+      tester.getTopLeft(groupTab).dx,
+      greaterThan(tester.getTopLeft(addAssignment).dx),
+    );
+    expect(
+      tester.getTopLeft(groupTab).dx,
+      greaterThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('teacher-header-overflow')))
+            .dx,
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('teacher-class-matrix-border')),
+      findsOneWidget,
+    );
+    expect(find.text('未分配课程'), findsNothing);
+
+    await tester.tap(groupTab);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('teacher-groups-table')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('teacher-class-matrix-border')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('teacher-groups-return')), findsNothing);
+    expect(classTab, findsOneWidget);
+  });
+
+  testWidgets('页头操作使用加号文字按钮且教师搜索框无前置图标', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _mountTeacherPage(tester);
+
+    final addAssignment = find.byKey(
+      const ValueKey('teacher-header-add-assignment'),
+    );
+    expect(tester.widget(addAssignment), isA<AppGhostButton>());
+    expect(
+      find.descendant(of: addAssignment, matching: find.byIcon(Icons.add)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: addAssignment, matching: find.text('添加任课')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
+    await tester.pumpAndSettle();
+    final search = find.byWidgetPredicate(
+      (widget) =>
+          widget is AppTextFormField && widget.decoration.hintText == '按姓名查找教师',
+    );
+    expect(search, findsOneWidget);
+    expect(
+      tester.widget<AppTextFormField>(search).decoration.prefixIcon,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-group')));
+    await tester.pumpAndSettle();
+    final addGroup = find.byKey(const ValueKey('teacher-groups-add'));
+    expect(tester.widget(addGroup), isA<AppGhostButton>());
+    expect(
+      find.descendant(of: addGroup, matching: find.byIcon(Icons.add)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: addGroup, matching: find.text('新增分组')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('teacher-view-switcher-header')))
+          .left,
+      greaterThan(
+        tester
+            .getRect(find.byKey(const ValueKey('teacher-header-overflow')))
+            .right,
+      ),
+    );
+  });
+
+  testWidgets('教师页右侧课程池可以收起和展开', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _mountTeacherPage(tester);
+
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
+    await tester.pumpAndSettle();
+    final teacherTable = find.byKey(const ValueKey('teacher-assignment-table'));
+    final courseTitle = find.text('未分配课程');
+    final toggle = find.byKey(const ValueKey('teacher-unassigned-toggle'));
+    expect(teacherTable, findsOneWidget);
+    expect(courseTitle, findsOneWidget);
+    expect(toggle, findsOneWidget);
+    expect(
+      tester.getTopLeft(courseTitle).dx,
+      greaterThan(tester.getTopLeft(teacherTable).dx),
+    );
+
+    final expandedTableWidth = tester.getSize(teacherTable).width;
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(courseTitle, findsNothing);
+    expect(toggle, findsOneWidget);
+    expect(tester.getSize(teacherTable).width, greaterThan(expandedTableWidth));
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(courseTitle, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('分组标签支持搜索分组成员并返回班级标签', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -172,21 +320,13 @@ void main() {
       ],
     );
 
-    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('教师分组管理'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-group')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('teacher-groups-return')), findsOneWidget);
+    expect(find.byKey(const ValueKey('teacher-groups-return')), findsNothing);
     expect(find.byKey(const ValueKey('teacher-groups-table')), findsOneWidget);
     expect(find.text('语文教研组'), findsOneWidget);
     expect(find.text('1 名教师'), findsOneWidget);
-
-    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
-    await tester.pumpAndSettle();
-    expect(find.text('返回任课视图'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
-    await tester.pumpAndSettle();
 
     await tester.tap(
       find.byKey(const ValueKey('teacher-group-members-group-1')),
@@ -227,9 +367,12 @@ void main() {
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('teacher-groups-return')));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
-    expect(find.text('班级视角'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('teacher-view-tab-class')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -281,9 +424,7 @@ void main() {
       groups: const [group],
       repository: repository,
     );
-    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('教师分组管理'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-group')));
     await tester.pumpAndSettle();
     expect(find.text('王老师'), findsOneWidget);
 
@@ -366,7 +507,7 @@ void main() {
         ),
       },
     );
-    await tester.tap(find.text('教师视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('teacher-row-more-teacher-1')));
     await tester.pumpAndSettle();
@@ -378,7 +519,7 @@ void main() {
     );
     expect(
       find.byKey(
-        const ValueKey('teacher-view-switcher-block'),
+        const ValueKey('teacher-view-switcher-header'),
         skipOffstage: false,
       ),
       findsOneWidget,
@@ -412,7 +553,7 @@ void main() {
     );
     expect(
       find.byKey(
-        const ValueKey('teacher-view-switcher-block'),
+        const ValueKey('teacher-view-switcher-header'),
         skipOffstage: false,
       ),
       findsOneWidget,
@@ -462,7 +603,7 @@ void main() {
     );
     expect(
       find.byKey(
-        const ValueKey('teacher-view-switcher-block'),
+        const ValueKey('teacher-view-switcher-header'),
         skipOffstage: false,
       ),
       findsOneWidget,
@@ -482,10 +623,13 @@ void main() {
       findsNothing,
     );
     expect(
-      find.byKey(const ValueKey('teacher-view-switcher-block')),
+      find.byKey(const ValueKey('teacher-view-switcher-header')),
       findsOneWidget,
     );
-    expect(find.text('班级视角'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('teacher-view-tab-class')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -620,9 +764,7 @@ void main() {
         ),
       },
     );
-    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('教师分组管理'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-group')));
     await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('teacher-group-preset-group-1')),
@@ -836,20 +978,32 @@ void main() {
       ],
     );
 
-    expect(find.text('班级视角'), findsOneWidget);
-    expect(find.text('教师视角'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('班级视角')).dx,
-      lessThan(tester.getTopLeft(find.text('教师视角')).dx),
+      find.byKey(const ValueKey('teacher-view-tab-class')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('teacher-view-tab-teacher')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('teacher-view-tab-class')))
+          .dx,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('teacher-view-tab-teacher')))
+            .dx,
+      ),
     );
     expect(find.byType(FTabs), findsOneWidget);
     expect(
       find.byKey(const ValueKey('teacher-class-matrix-border')),
       findsOneWidget,
     );
-    expect(find.textContaining('支持拖拽分配'), findsOneWidget);
+    expect(find.textContaining('按班级查看科目任课'), findsOneWidget);
 
-    await tester.tap(find.text('教师视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
 
     expect(find.text('按姓名查找教师'), findsOneWidget);
@@ -898,7 +1052,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('教师任课页面标题栏和双视角内容布局', (tester) async {
+  testWidgets('教师任课页头标签与班级矩阵和教师课程池布局', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -906,10 +1060,10 @@ void main() {
     await _mountTeacherPage(tester);
 
     final title = find.text('教师任课');
-    final pageDescription = find.textContaining('支持拖拽分配');
+    final pageDescription = find.textContaining('按班级查看科目任课');
     final classTab = find.byKey(const ValueKey('teacher-view-tab-class'));
     final switcherBlock = find.byKey(
-      const ValueKey('teacher-view-switcher-block'),
+      const ValueKey('teacher-view-switcher-header'),
     );
     final classMatrix = find.byKey(
       const ValueKey('teacher-class-matrix-border'),
@@ -927,55 +1081,37 @@ void main() {
     expect(tester.widget(classAddButton), isA<AppGhostButton>());
     expect(find.text('导入 Excel'), findsNothing);
     expect(
-      tester.getTopLeft(classAddButton).dy,
-      lessThan(tester.getTopLeft(classTab).dy),
+      tester.getCenter(classAddButton).dy,
+      closeTo(tester.getCenter(classTab).dy, 2),
     );
     expect(
       tester.getTopLeft(classTab).dx,
-      lessThan(tester.getTopLeft(classMatrix).dx),
+      greaterThan(tester.getTopLeft(classMatrix).dx),
     );
     expect(
       tester.getTopLeft(switcherBlock).dy,
-      closeTo(tester.getTopLeft(classMatrix).dy, 0.5),
+      lessThan(tester.getTopLeft(classMatrix).dy),
     );
     expect(
-      tester.getTopLeft(switcherBlock).dx +
-          tester.getSize(switcherBlock).width +
-          12,
-      closeTo(tester.getTopLeft(classMatrix).dx, 0.5),
+      tester.getRect(switcherBlock).right,
+      greaterThan(tester.getRect(classAddButton).right),
     );
-    expect(
-      tester.getTopLeft(unassignedTitle).dx,
-      lessThan(tester.getTopLeft(classMatrix).dx),
-    );
+    expect(unassignedTitle, findsNothing);
+    final classMatrixLeft = tester.getTopLeft(classMatrix).dx;
 
-    await tester.tap(find.text('教师视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
 
-    final teacherTab = find.byKey(const ValueKey('teacher-view-tab-teacher'));
     final teacherTable = find.byKey(const ValueKey('teacher-assignment-table'));
-    expect(
-      tester.getTopLeft(teacherTab).dx,
-      lessThan(tester.getTopLeft(teacherTable).dx),
-    );
+    expect(tester.getTopLeft(teacherTable).dx, closeTo(classMatrixLeft, 0.5));
     expect(
       tester.getTopLeft(unassignedTitle).dx,
-      lessThan(tester.getTopLeft(teacherTable).dx),
-    );
-    expect(
-      tester.getTopLeft(switcherBlock).dy,
-      closeTo(tester.getTopLeft(teacherTable).dy, 0.5),
-    );
-    expect(
-      tester.getTopLeft(switcherBlock).dx +
-          tester.getSize(switcherBlock).width +
-          12,
-      closeTo(tester.getTopLeft(teacherTable).dx, 0.5),
+      greaterThan(tester.getTopLeft(teacherTable).dx),
     );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('班级视角教师面板显示全部教师和紧凑跨学段标签', (tester) async {
+  testWidgets('班级视角隐藏教师面板，教师视角显示全部教师和跨学段标签', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1029,6 +1165,9 @@ void main() {
     );
 
     expect(find.text('查看全部 4 名教师'), findsNothing);
+    expect(find.text('赵强'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
+    await tester.pumpAndSettle();
     expect(find.text('赵强'), findsOneWidget);
     expect(tester.widget<Text>(find.text('跨学段')).style?.fontSize, 10);
     expect(tester.takeException(), isNull);
@@ -1067,7 +1206,7 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('教师视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
 
     expect(find.text('数学 · 初一（1）班 · 3 节'), findsOneWidget);
@@ -1145,7 +1284,7 @@ void main() {
         ],
       ],
     );
-    await tester.tap(find.text('教师视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
 
     final row = find.byKey(const ValueKey('teacher-assignment-row-teacher-1'));
@@ -1230,7 +1369,7 @@ void main() {
       ],
       assignments: const [],
     );
-    await tester.tap(find.text('教师视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
 
     expect(find.text('一班'), findsOneWidget);
@@ -1244,7 +1383,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('班级视角未分配课程与教师视角使用同一班级分组', (tester) async {
+  testWidgets('班级视角隐藏课程池，教师视角按班级展示未分配课程', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1277,6 +1416,13 @@ void main() {
       assignments: const [],
     );
 
+    expect(find.text('未分配课程'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('unassigned-class-toggle-class-1')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('unassigned-class-toggle-class-1')),
       findsOneWidget,
@@ -1355,7 +1501,7 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('班级视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
 
     expect(
@@ -1367,9 +1513,9 @@ void main() {
       findsOneWidget,
     );
     final tabs = tester.widget<FTabs>(find.byType(FTabs));
-    expect(tabs.children, hasLength(2));
+    expect(tabs.children, hasLength(3));
 
-    final assignmentHint = find.textContaining('支持拖拽分配');
+    final assignmentHint = find.textContaining('按班级查看科目任课');
     final subjectHeader = find.text('科目');
     expect(
       tester.getTopLeft(subjectHeader).dx,
@@ -1388,7 +1534,13 @@ void main() {
       tester
           .getTopLeft(find.byKey(const ValueKey('teacher-view-tab-class')))
           .dx,
-      lessThan(tester.getTopLeft(subjectHeader).dx),
+      greaterThan(tester.getTopLeft(subjectHeader).dx),
+    );
+    expect(
+      tester
+          .getBottomLeft(find.byKey(const ValueKey('teacher-view-tab-class')))
+          .dy,
+      lessThan(tester.getTopLeft(subjectHeader).dy),
     );
     final oddTag = find.descendant(of: subjectInfo, matching: find.text('单周'));
     final evenTag = find.descendant(of: subjectInfo, matching: find.text('双周'));
@@ -1449,7 +1601,7 @@ void main() {
             ),
           )
           .color,
-      AppTheme.warningSurface,
+      Colors.white,
     );
     expect(
       find.descendant(
@@ -1463,7 +1615,31 @@ void main() {
       matching: find.text('未分配(单.2)'),
     );
     expect(tester.widget<Text>(unassignedLabel).style?.color, AppTheme.warning);
+    final classHeader = find.byKey(
+      const ValueKey('teacher-class-header-class-1'),
+    );
+    final classTitle = find.descendant(
+      of: classHeader,
+      matching: find.text('初一（1）班'),
+    );
+    expect(
+      tester.widget<Text>(classTitle).style?.color,
+      AppTheme.stageAccent(0),
+    );
+    final emptyCell = find.byKey(
+      const ValueKey('assignment-cell-background-class-2-math'),
+    );
+    final emptyCellStack = find
+        .ancestor(of: emptyCell, matching: find.byType(Stack))
+        .first;
+    final dash = find.descendant(of: emptyCellStack, matching: find.text('—'));
+    expect(
+      tester.widget<Text>(dash).style?.color,
+      AppTheme.muted.withValues(alpha: 0.5),
+    );
 
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
+    await tester.pumpAndSettle();
     final unassignedCount = tester.widget<DecoratedBox>(
       find.byKey(const ValueKey('unassigned-course-count')),
     );
@@ -1481,7 +1657,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('视角切换使用铺满容器且带明确选中态的动画标签', (tester) async {
+  testWidgets('视角切换使用紧凑且带明确选中态的动画标签', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1528,7 +1704,7 @@ void main() {
     await _mountTeacherPage(tester);
 
     final switcherBlock = find.byKey(
-      const ValueKey('teacher-view-switcher-block'),
+      const ValueKey('teacher-view-switcher-header'),
     );
     final tabs = find.byType(FTabs);
     final tabBar = find.descendant(
@@ -1546,8 +1722,8 @@ void main() {
 
     expect(trackDecoration.color, AppTheme.selectedBlue);
     expect(trackShape.side.color, AppTheme.border);
-    expect(tabsRect.left - blockRect.left, greaterThanOrEqualTo(3));
-    expect(blockRect.right - tabsRect.right, greaterThanOrEqualTo(3));
+    expect(tabsRect.height, lessThanOrEqualTo(38));
+    expect(tabsRect.left, closeTo(blockRect.left, 0.5));
 
     await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
@@ -1563,28 +1739,28 @@ void main() {
     );
     expect(
       tester.getTopLeft(switcherBlock).dy,
-      closeTo(classViewContentTop, 0.5),
+      closeTo(classViewContentTop, 2),
     );
     expect(
       tester.getCenter(moreAction).dy,
-      closeTo(tester.getCenter(addAction).dy, 0.5),
+      closeTo(tester.getCenter(addAction).dy, 2),
     );
     expect(tester.widget(addAction), isA<AppGhostButton>());
     expect(find.text('导入 Excel'), findsNothing);
     expect(
-      tester.getRect(moreAction).right,
+      tester.getRect(switcherBlock).right,
       closeTo(tester.getRect(pageHeader).right, 1),
     );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('班级矩阵外框和横向单元格分隔线绘制在内容上方', (tester) async {
+  testWidgets('班级矩阵只保留列头下方分隔线和外框', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await _mountTeacherPage(tester);
-    await tester.tap(find.text('班级视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
 
     expect(
@@ -1596,19 +1772,26 @@ void main() {
     );
     expect(border.position, DecorationPosition.foreground);
     expect(
-      tester
-          .getSize(
-            find.byKey(const ValueKey('assignment-cell-divider-class-1-math')),
-          )
-          .height,
-      1,
+      find.byKey(const ValueKey('assignment-cell-divider-class-1-math')),
+      findsNothing,
     );
     expect(
-      tester
-          .getSize(find.byKey(const ValueKey('subject-cell-divider-math')))
-          .height,
-      1,
+      find.byKey(const ValueKey('subject-cell-divider-math')),
+      findsNothing,
     );
+    final divider = find.byKey(
+      const ValueKey('teacher-class-matrix-header-divider'),
+    );
+    expect(tester.getSize(divider).height, 1);
+    final matrixRect = tester.getRect(
+      find.byKey(const ValueKey('teacher-class-matrix-border')),
+    );
+    expect(tester.getRect(divider).left, closeTo(matrixRect.left, 1));
+    expect(tester.getRect(divider).right, closeTo(matrixRect.right, 1));
+    final line = tester.widget<ColoredBox>(
+      find.descendant(of: divider, matching: find.byType(ColoredBox)),
+    );
+    expect(line.color, AppTheme.border);
   });
 
   testWidgets('班级视角窄屏按科目数量撑开矩阵并支持整页滚动', (tester) async {
@@ -1619,7 +1802,7 @@ void main() {
     await _mountTeacherPage(
       tester,
       subjects: [
-        for (var index = 0; index < 10; index++)
+        for (var index = 0; index < 18; index++)
           Subject(
             id: 'subject-$index',
             name: '科目 $index',
@@ -1638,7 +1821,7 @@ void main() {
     if (pageScroll.evaluate().isEmpty) return;
 
     final matrix = find.byKey(const ValueKey('teacher-class-matrix-border'));
-    expect(tester.getSize(matrix).height, greaterThanOrEqualTo(520));
+    expect(tester.getSize(matrix).height, greaterThanOrEqualTo(904));
 
     final scrollable = tester.state<ScrollableState>(
       find.descendant(of: pageScroll, matching: find.byType(Scrollable)).first,
@@ -1655,7 +1838,7 @@ void main() {
     await _mountTeacherPage(tester);
 
     final header = find.byType(AppPageHeader);
-    final description = find.textContaining('支持拖拽分配');
+    final description = find.textContaining('按班级查看科目任课');
     final addAssignment = find.byKey(
       const ValueKey('teacher-header-add-assignment'),
     );
@@ -1671,10 +1854,12 @@ void main() {
     expect(tester.widget(addAssignment), isA<AppGhostButton>());
     expect(
       tester.getRect(addAssignment).top,
-      lessThan(tester.getRect(description).bottom),
+      greaterThan(tester.getRect(description).bottom),
     );
     expect(
-      tester.getRect(more).right,
+      tester
+          .getRect(find.byKey(const ValueKey('teacher-view-switcher-header')))
+          .right,
       closeTo(tester.getRect(header).right, 1),
     );
     expect(find.text('Excel导入教师'), findsNothing);
@@ -1850,7 +2035,7 @@ void main() {
       ],
       assignments: const [],
     );
-    await tester.tap(find.text('班级视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
 
     final hoveredCell = find.byKey(
@@ -1870,9 +2055,9 @@ void main() {
         .color;
 
     expect(cellColor('class-1', 'math'), AppTheme.selectedBlue);
-    expect(cellColor('class-2', 'math'), AppTheme.warningSurface);
-    expect(cellColor('class-1', 'english'), AppTheme.warningSurface);
-    expect(cellColor('class-2', 'english'), AppTheme.warningSurface);
+    expect(cellColor('class-2', 'math'), Colors.white);
+    expect(cellColor('class-1', 'english'), Colors.white);
+    expect(cellColor('class-2', 'english'), Colors.white);
     await mouse.removePointer();
     expect(tester.takeException(), isNull);
   });
@@ -1901,7 +2086,7 @@ void main() {
       assignments: const [],
       teachers: const [],
     );
-    await tester.tap(find.text('班级视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
 
     final subjectLabel = find.text('固定科目');
@@ -1912,7 +2097,7 @@ void main() {
       const ValueKey('teacher-class-header-class-49'),
     );
     final lastClassCell = find.byKey(
-      const ValueKey('assignment-cell-class-49-fixed'),
+      const ValueKey('assignment-cell-background-class-49-fixed'),
     );
     final subjectXBefore = tester.getTopLeft(subjectLabel).dx;
     expect(lastClassHeader, findsNothing);
@@ -1996,7 +2181,9 @@ void main() {
       ],
     );
 
-    final cell = find.byKey(const ValueKey('assignment-cell-class-0-math'));
+    final cell = find.byKey(
+      const ValueKey('assignment-cell-content-class-0-math'),
+    );
     final content = tester.widget<Text>(
       find.byKey(const ValueKey('assignment-cell-content-class-0-math')),
     );
@@ -2004,7 +2191,7 @@ void main() {
     expect(content.overflow, TextOverflow.ellipsis);
     expect(content.textSpan!.toPlainText(), completeLabel);
     final tooltip = tester.widget<Tooltip>(
-      find.descendant(of: cell, matching: find.byType(Tooltip)),
+      find.ancestor(of: cell, matching: find.byType(Tooltip)).first,
     );
     expect(tooltip.message, completeLabel);
 
@@ -2014,6 +2201,92 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     expect(find.text(completeLabel), findsWidgets);
     await mouse.removePointer();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('任课内容过长时未分配课程仍固定显示在单元格右侧', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _mountTeacherPage(
+      tester,
+      classes: [
+        for (var index = 0; index < 10; index++)
+          ClassBrief(
+            stageId: 'primary',
+            gradeId: 'grade-1',
+            id: 'class-$index',
+            name: '初一（$index）班',
+          ),
+      ],
+      subjects: const [
+        Subject(id: 'math', name: '数学', shortName: '数', sortOrder: 0),
+      ],
+      teachers: const [
+        Teacher(
+          id: 'teacher-a',
+          name: '王老师.的雨热巴.多',
+          shortName: '王',
+          sortOrder: 0,
+        ),
+        Teacher(
+          id: 'teacher-b',
+          name: '李老师.的雨热巴.多',
+          shortName: '李',
+          sortOrder: 1,
+        ),
+      ],
+      requirements: const [
+        SubjectRequirement(
+          id: 'math-requirement',
+          subjectId: 'math',
+          gradeId: 'grade-1',
+          weekMode: WeekMode.weekly,
+          lessonCount: 10,
+        ),
+      ],
+      assignments: const [
+        TeacherAssignment(
+          id: 'assignment-a',
+          termId: _termId,
+          teacherId: 'teacher-a',
+          classId: 'class-0',
+          subjectId: 'math',
+          weekMode: WeekMode.weekly,
+          lessonCount: 4,
+        ),
+        TeacherAssignment(
+          id: 'assignment-b',
+          termId: _termId,
+          teacherId: 'teacher-b',
+          classId: 'class-0',
+          subjectId: 'math',
+          weekMode: WeekMode.weekly,
+          lessonCount: 4,
+        ),
+      ],
+    );
+
+    final cell = find.byKey(const ValueKey('assignment-cell-class-0-math'));
+    final assigned = find.byKey(
+      const ValueKey('assignment-cell-content-class-0-math'),
+    );
+    final unassigned = find.descendant(of: cell, matching: find.text('未分配(2)'));
+    expect(unassigned, findsOneWidget);
+    expect(
+      tester.getRect(unassigned).right,
+      lessThan(tester.getRect(cell).right),
+    );
+    expect(
+      tester.getRect(assigned).right,
+      lessThan(tester.getRect(unassigned).left),
+    );
+    expect(tester.widget<Text>(unassigned).style?.color, AppTheme.warning);
+    final tooltip = tester.widget<Tooltip>(
+      find.ancestor(of: assigned, matching: find.byType(Tooltip)).first,
+    );
+    expect(tooltip.message, contains('数学 · 2 节'));
     expect(tester.takeException(), isNull);
   });
 
@@ -2153,7 +2426,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('班级视角展示矩阵与右侧分配区，长矩阵按需构建', (tester) async {
+  testWidgets('班级视角只展示矩阵，长矩阵按需构建', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -2196,14 +2469,13 @@ void main() {
       teachers: const [],
     );
 
-    await tester.tap(find.text('班级视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('支持拖拽分配'), findsOneWidget);
-    expect(find.text('批量添加课'), findsOneWidget);
+    expect(find.textContaining('按班级查看科目任课'), findsOneWidget);
     expect(find.text('数学'), findsNothing);
     expect(find.text('科目 0'), findsWidgets);
-    expect(find.text('未分配课程'), findsOneWidget);
+    expect(find.text('未分配课程'), findsNothing);
     expect(find.text('教师'), findsOneWidget);
     expect(find.text('科目 17'), findsNothing);
     final rowsScrollable = tester.state<ScrollableState>(
@@ -2221,9 +2493,9 @@ void main() {
     rowsScrollable.position.jumpTo(rowsScrollable.position.maxScrollExtent);
     await tester.pumpAndSettle();
     expect(find.text('科目 17'), findsOneWidget);
-    await tester.tap(find.text('教师视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('班级视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
@@ -2239,9 +2511,14 @@ void main() {
       assignments: const [],
     );
 
-    final cell = find.byKey(const ValueKey('assignment-cell-class-1-math'));
-    expect(tester.widget<InkWell>(cell).onTap, isNull);
-    await tester.tap(cell);
+    final cell = find.byKey(
+      const ValueKey('assignment-cell-background-class-1-math'),
+    );
+    expect(
+      find.byKey(const ValueKey('assignment-cell-class-1-math')),
+      findsNothing,
+    );
+    await tester.tapAt(tester.getCenter(cell));
     await tester.pumpAndSettle();
 
     expect(find.text('编辑任课分配'), findsNothing);
@@ -2405,15 +2682,15 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await _mountTeacherPage(tester);
 
-    await tester.tap(find.text('班级视角'));
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-class')));
     await tester.pumpAndSettle();
 
     expect(
       find.byKey(const ValueKey('teacher-header-add-assignment')),
       findsOneWidget,
     );
-    expect(find.text('未分配课程'), findsOneWidget);
-    await tester.tap(find.text('教师视角'));
+    expect(find.text('未分配课程'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('teacher-assignment-table-header')),

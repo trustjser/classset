@@ -24,7 +24,7 @@ class NextStepCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: AppTheme.selectedBlue,
+      color: context.appColors.selectedBlue,
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
     ),
     padding: const EdgeInsets.all(20),
@@ -35,14 +35,14 @@ class NextStepCard extends StatelessWidget {
           children: [
             AppBadge(
               label: '接下来',
-              foreground: AppTheme.blue,
-              background: Colors.white,
+              foreground: context.appColors.blue,
+              background: context.appColors.surface,
             ),
             const SizedBox(width: 8),
             Text(
               '第 ${step.number} 步',
-              style: const TextStyle(
-                color: AppTheme.blue,
+              style: TextStyle(
+                color: context.appColors.blue,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -52,8 +52,8 @@ class NextStepCard extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           copy.title,
-          style: const TextStyle(
-            color: AppTheme.ink,
+          style: TextStyle(
+            color: context.appColors.ink,
             fontSize: 17,
             fontWeight: FontWeight.w700,
             height: 1.3,
@@ -62,8 +62,8 @@ class NextStepCard extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           copy.description,
-          style: const TextStyle(
-            color: AppTheme.inkSecondary,
+          style: TextStyle(
+            color: context.appColors.inkSecondary,
             fontSize: 13,
             height: 1.55,
           ),
@@ -71,7 +71,7 @@ class NextStepCard extends StatelessWidget {
         const SizedBox(height: 14),
         Text(
           copy.meta,
-          style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+          style: TextStyle(color: context.appColors.muted, fontSize: 12),
         ),
         const SizedBox(height: 16),
         Row(
@@ -85,8 +85,8 @@ class NextStepCard extends StatelessWidget {
               Flexible(
                 child: Text(
                   comingSoonHint!,
-                  style: const TextStyle(
-                    color: AppTheme.muted,
+                  style: TextStyle(
+                    color: context.appColors.muted,
                     fontSize: 11,
                   ),
                 ),

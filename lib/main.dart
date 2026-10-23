@@ -14,11 +14,26 @@ Future<void> main() async {
   await databaseDirectory.create(recursive: true);
 
   final databaseFile = File('${databaseDirectory.path}/school.sqlite');
+  final lastPersistedAt = await _lastDatabaseWriteAt(databaseFile);
   final database = AppDatabase.open(databaseFile);
   runApp(
     ProviderScope(
-      overrides: [appDatabaseProvider.overrideWithValue(database)],
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        lastPersistedAtProvider.overrideWith((ref) => lastPersistedAt),
+      ],
       child: ClassSetApp(databasePath: databaseFile.path),
     ),
   );
+}
+
+Future<DateTime?> _lastDatabaseWriteAt(File databaseFile) async {
+  DateTime? latest;
+  final candidates = [databaseFile, File('${databaseFile.path}-wal')];
+  for (final file in candidates) {
+    if (!await file.exists()) continue;
+    final modified = await file.lastModified();
+    if (latest == null || modified.isAfter(latest)) latest = modified;
+  }
+  return latest;
 }

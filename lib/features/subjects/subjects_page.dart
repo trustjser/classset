@@ -15,7 +15,6 @@ import 'package:class_set/features/subjects/dialogs/class_detail_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/pairing_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/subject_preset_dialog.dart';
 import 'package:class_set/features/subjects/subjects_data.dart';
-import 'package:class_set/features/subjects/widgets/capacity_summary_section.dart';
 import 'package:class_set/features/subjects/widgets/subject_matrix.dart';
 import 'package:class_set/features/subjects/widgets/subject_scope_selector.dart';
 import 'package:flutter/material.dart';
@@ -167,10 +166,10 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
             actions: [
               AppGhostButton(
                 onPressed: _openAddSubject,
-                child: const Text(
+                child: Text(
                   '+ 添加科目',
                   style: TextStyle(
-                    color: AppTheme.blue,
+                    color: context.appColors.blue,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -189,13 +188,13 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppTheme.controlRadius),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         '更多',
                         style: TextStyle(
-                          color: AppTheme.inkSecondary,
+                          color: context.appColors.inkSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -203,7 +202,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                       Icon(
                         Icons.expand_more_rounded,
                         size: 15,
-                        color: AppTheme.muted,
+                        color: context.appColors.muted,
                       ),
                     ],
                   ),
@@ -236,6 +235,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                       : _visibleGradeIds,
                   // 学段选项与矩阵列头同色：按全局学段序号取强调色。
                   accentForStage: (stage) => AppTheme.stageAccent(
+                    context,
                     stages.indexWhere((item) => item.id == stage.id),
                   ),
                   onSelectStage: (value) => setState(() {
@@ -254,6 +254,15 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                   }),
                   onClearGrades: () => setState(_visibleGradeIds.clear),
                 );
+                final summaries = _summaries(
+                  grades: visibleGrades,
+                  classBriefs: classBriefs,
+                  subjects: subjects,
+                  requirements: requirements,
+                  routines: routines,
+                  freeSlots: freeSlots,
+                  termId: term.id,
+                );
                 final matrix = SubjectMatrix(
                   subjects: subjects,
                   visibleGrades: visibleGrades,
@@ -267,19 +276,12 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                       .toList(),
                   // 按全局学段序号取色：单学段视图下颜色不漂移。
                   accentForStage: (stage) => AppTheme.stageAccent(
+                    context,
                     stages.indexWhere((item) => item.id == stage.id),
                   ),
                   valuesFor: (subjectId, classId) =>
                       _effectiveValues(subjectId, classId, requirements),
-                  summaries: _summaries(
-                    grades: visibleGrades,
-                    classBriefs: classBriefs,
-                    subjects: subjects,
-                    requirements: requirements,
-                    routines: routines,
-                    freeSlots: freeSlots,
-                    termId: term.id,
-                  ),
+                  summaries: summaries,
                   presetSummaries: _presetSummaries(
                     subjects: subjects,
                     presets: presets,
@@ -300,36 +302,18 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                     setState(() => _presetGradeId = grade.id);
                     _openSubjectPreset(subject, grade, lessonConstraints);
                   },
-                  scrollable: constraints.maxWidth >= 1040,
+                  scrollable:
+                      constraints.maxWidth >=
+                      AppTheme.twoColumnLayoutBreakpoint,
                 );
-                final capacity = CapacitySummarySection(
-                  grades: visibleGrades,
-                  summaries: _summaries(
-                    grades: visibleGrades,
-                    classBriefs: classBriefs,
-                    subjects: subjects,
-                    requirements: requirements,
-                    routines: routines,
-                    freeSlots: freeSlots,
-                    termId: term.id,
-                  ),
-                );
-                if (constraints.maxWidth >= 1040) {
-                  return Column(
+                if (constraints.maxWidth >=
+                    AppTheme.twoColumnLayoutBreakpoint) {
+                  return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(width: 252, child: scope),
-                            const SizedBox(width: AppTheme.pageSectionGap),
-                            Expanded(child: matrix),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppTheme.pageSectionGap),
-                      capacity,
+                      SizedBox(width: 252, child: scope),
+                      const SizedBox(width: AppTheme.pageSectionGap),
+                      Expanded(child: matrix),
                     ],
                   );
                 }
@@ -342,8 +326,6 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                       scope,
                       const SizedBox(height: AppTheme.pageSectionGap),
                       matrix,
-                      const SizedBox(height: AppTheme.pageSectionGap),
-                      capacity,
                     ],
                   ),
                 );
@@ -1157,8 +1139,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       '· $item',
-                      style: const TextStyle(
-                        color: AppTheme.destructive,
+                      style: TextStyle(
+                        color: context.appColors.destructive,
                         fontSize: 12,
                       ),
                     ),
@@ -1293,24 +1275,24 @@ class _NoStages extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
+        Icon(
           Icons.account_tree_outlined,
           size: 42,
-          color: AppTheme.muted,
+          color: context.appColors.muted,
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           '请先添加学段',
           style: TextStyle(
-            color: AppTheme.ink,
+            color: context.appColors.ink,
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           '科目节数按年级录入，需要先在「班级与学段」搭好学段与年级。',
-          style: TextStyle(color: AppTheme.muted, fontSize: 12),
+          style: TextStyle(color: context.appColors.muted, fontSize: 12),
         ),
         const SizedBox(height: 16),
         AppPrimaryButton(
@@ -1333,7 +1315,7 @@ class _ErrorPanel extends StatelessWidget {
       padding: const EdgeInsets.all(32),
       child: SelectableText(
         message,
-        style: const TextStyle(color: AppTheme.destructive, fontSize: 13),
+        style: TextStyle(color: context.appColors.destructive, fontSize: 13),
       ),
     ),
   );

@@ -223,7 +223,7 @@ class _TeacherImportActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppSurface(
-    backgroundColor: AppTheme.canvas,
+    backgroundColor: context.appColors.canvas,
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -236,10 +236,10 @@ class _TeacherImportActionCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppTheme.selectedBlue,
+                  color: context.appColors.selectedBlue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppTheme.blue, size: 20),
+                child: Icon(icon, color: context.appColors.blue, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(

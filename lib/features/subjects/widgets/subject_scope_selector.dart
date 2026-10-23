@@ -49,9 +49,9 @@ class SubjectScopeSelector extends StatelessWidget {
     final scopeName = selectedScopeStageId == null
         ? '全校'
         : stages
-              .where((stage) => stage.id == selectedScopeStageId)
-              .map((stage) => stage.name)
-              .firstOrNull ??
+                  .where((stage) => stage.id == selectedScopeStageId)
+                  .map((stage) => stage.name)
+                  .firstOrNull ??
               '';
     return AppSurface(
       child: Padding(
@@ -62,72 +62,81 @@ class SubjectScopeSelector extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            _ScopeOptionRow(
-              label: '全校（$totalGradeCount 个年级）',
-              selected: selectedScopeStageId == null,
-              onTap: () => onSelectStage(null),
-            ),
-            for (final stage in stages)
               _ScopeOptionRow(
-                label: _stageLabel(stage),
-                selected: selectedScopeStageId == stage.id,
-                accent: accentForStage(stage),
-                onTap: () => onSelectStage(stage.id),
+                label: '全校（$totalGradeCount 个年级）',
+                selected: selectedScopeStageId == null,
+                onTap: () => onSelectStage(null),
               ),
-            const Divider(height: 24, color: AppTheme.border),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '$scopeName · 显示的年级列',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppTheme.muted,
-                      fontSize: 11,
+              for (final stage in stages)
+                _ScopeOptionRow(
+                  label: _stageLabel(stage),
+                  selected: selectedScopeStageId == stage.id,
+                  accent: accentForStage(stage),
+                  onTap: () => onSelectStage(stage.id),
+                ),
+              Divider(height: 24, color: context.appColors.border),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$scopeName · 显示的年级列',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.appColors.muted,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                AppGhostButton(
-                  size: f.FButtonSizeVariant.xs,
-                  onPressed: onSelectAllGrades,
-                  child: const Text(
-                    '全选',
-                    style: TextStyle(color: AppTheme.blue, fontSize: 11),
+                  const SizedBox(width: 8),
+                  AppGhostButton(
+                    size: f.FButtonSizeVariant.xs,
+                    onPressed: onSelectAllGrades,
+                    child: Text(
+                      '全选',
+                      style: TextStyle(
+                        color: context.appColors.blue,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                AppGhostButton(
-                  size: f.FButtonSizeVariant.xs,
-                  onPressed: onClearGrades,
-                  child: const Text(
-                    '清空',
-                    style: TextStyle(color: AppTheme.blue, fontSize: 11),
+                  const SizedBox(width: 4),
+                  AppGhostButton(
+                    size: f.FButtonSizeVariant.xs,
+                    onPressed: onClearGrades,
+                    child: Text(
+                      '清空',
+                      style: TextStyle(
+                        color: context.appColors.blue,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final grade in grades)
+                    _GradeChip(
+                      label: grade.name,
+                      selected: visibleGradeIds.contains(grade.id),
+                      onTap: () => onToggleGrade(grade.id),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '容量按各年级所在学段的作息与免任课计算。',
+                style: TextStyle(
+                  color: context.appColors.muted,
+                  fontSize: 10.5,
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final grade in grades)
-                  _GradeChip(
-                    label: grade.name,
-                    selected: visibleGradeIds.contains(grade.id),
-                    onTap: () => onToggleGrade(grade.id),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              '容量按各年级所在学段的作息与免任课计算。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 10.5),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -158,12 +167,12 @@ class _ScopeOptionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = accent ??
-        (selected ? AppTheme.blue : AppTheme.ink);
+    final textColor =
+        accent ?? (selected ? context.appColors.blue : context.appColors.ink);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: selected ? AppTheme.selectedBlue : Colors.transparent,
+        color: selected ? context.appColors.selectedBlue : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: onTap,
@@ -174,7 +183,7 @@ class _ScopeOptionRow extends StatelessWidget {
               children: [
                 _Indicator(
                   selected: selected,
-                  color: accent ?? AppTheme.blue,
+                  color: accent ?? context.appColors.blue,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -211,7 +220,7 @@ class _Indicator extends StatelessWidget {
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       border: Border.all(
-        color: selected ? color : AppTheme.muted,
+        color: selected ? color : context.appColors.muted,
         width: 1.5,
       ),
     ),
@@ -240,7 +249,7 @@ class _GradeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: Colors.white,
+    color: context.appColors.surface,
     borderRadius: BorderRadius.circular(8),
     child: InkWell(
       onTap: onTap,
@@ -250,13 +259,15 @@ class _GradeChip extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: selected ? AppTheme.blue : AppTheme.border,
+            color: selected ? context.appColors.blue : context.appColors.border,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? AppTheme.blue : AppTheme.inkSecondary,
+            color: selected
+                ? context.appColors.blue
+                : context.appColors.inkSecondary,
             fontSize: 12,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),

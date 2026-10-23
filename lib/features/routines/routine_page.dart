@@ -26,7 +26,7 @@ const _builtInPeriodDefinitions = <(String, String, int, List<String>)>[
 const _timeSeparatorWidth = 16.0;
 const _timeRowTrailingWidth = 22.0;
 const _timeRowFixedWidth = 44.0;
-const _routineStackedLayoutBreakpoint = 760.0;
+const _routineStackedLayoutBreakpoint = AppTheme.twoColumnLayoutBreakpoint;
 const _routineThreeColumnLayoutBreakpoint = 1120.0;
 
 ({double label, double field}) _timeRowWidths(double availableWidth) {
@@ -35,10 +35,6 @@ const _routineThreeColumnLayoutBreakpoint = 1120.0;
       .toDouble();
   return (label: flexibleWidth * 0.36, field: flexibleWidth * 0.32);
 }
-
-/// 范围树「编辑中」学段的绿色高亮（设计稿 02b：初中部（编辑中））。
-const _editingStageBackground = Color(0xFFE9F7EF);
-const _editingStageForeground = Color(0xFF2BA471);
 
 class RoutinePage extends ConsumerStatefulWidget {
   const RoutinePage({required this.termId, super.key});
@@ -79,11 +75,11 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
               ),
               data: (items) {
                 if (items.isEmpty) {
-                  return const _StaticRoutinePage(
+                  return _StaticRoutinePage(
                     child: Center(
                       child: Text(
                         '请先在「班级与学段」新增学段。',
-                        style: TextStyle(color: AppTheme.muted),
+                        style: TextStyle(color: context.appColors.muted),
                       ),
                     ),
                   );
@@ -119,23 +115,14 @@ class _RoutinePageHeading extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
-      const Expanded(
+      Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '排课准备  /  作息设置',
-              style: TextStyle(
-                color: AppTheme.blue,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 7),
-            Text(
               '作息设置',
               style: TextStyle(
-                color: AppTheme.ink,
+                color: context.appColors.ink,
                 fontSize: 25,
                 fontWeight: FontWeight.w700,
                 height: 1.2,
@@ -144,14 +131,21 @@ class _RoutinePageHeading extends StatelessWidget {
             SizedBox(height: 5),
             Text(
               '按学段设置上课日、时段节数、免任课范围和节次时间。',
-              style: TextStyle(color: AppTheme.inkSecondary, fontSize: 12),
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
+                fontSize: 12,
+              ),
             ),
           ],
         ),
       ),
       if (actions.isNotEmpty) ...[
         const SizedBox(width: 16),
-        Wrap(spacing: 4, children: actions),
+        Wrap(
+          spacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: actions,
+        ),
       ],
     ],
   );
@@ -194,8 +188,10 @@ class _FreeSlotScopeSelection {
 }
 
 /// 范围树选中回调：scope 所属的 [stageId] 一并回传，供调用方在跨学段选中时先切换学段。
-typedef _ScopeSelectCallback =
-    void Function(String stageId, _FreeSlotScopeSelection selection);
+typedef _ScopeSelectCallback = void Function(
+  String stageId,
+  _FreeSlotScopeSelection selection,
+);
 
 class _RoutineEditor extends ConsumerStatefulWidget {
   const _RoutineEditor({
@@ -398,19 +394,9 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     const SizedBox(width: 4),
     Tooltip(
       message: _isSaving ? '保存中' : '保存作息设置',
-      child: FilledButton.icon(
+      child: AppPrimaryButton(
         onPressed: _hasUnsavedChanges && !_isSaving ? _save : null,
-        icon: _isSaving
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Icon(Icons.save_outlined),
-        label: Text(_isSaving ? '保存中' : '保存'),
+        child: Text(_isSaving ? '保存中' : '保存'),
       ),
     ),
   ];
@@ -473,7 +459,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
             for (var index = 0; index < _periods.length; index++)
               _PeriodCountRow(
                 period: _periods[index],
-                visual: periodVisualFor(_periods[index].name, index),
+                visual: periodVisualFor(context, _periods[index].name, index),
                 onChanged: _setPeriodCount,
               ),
           ],
@@ -521,8 +507,8 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
                 const SizedBox(width: 12),
                 Text(
                   '${_weeklyCapacity()} 格 / 班',
-                  style: const TextStyle(
-                    color: AppTheme.blue,
+                  style: TextStyle(
+                    color: context.appColors.blue,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1764,14 +1750,14 @@ class _ScopeStageNode extends ConsumerWidget {
     // 设计稿 02b：编辑中的学段绿色高亮「（编辑中）」，其他学段标注「（独立作息）」。
     final highlight = isEditing
         ? (
-            _editingStageBackground,
-            _editingStageForeground,
+            context.appColors.successSurface,
+            context.appColors.success,
             '${stage.name}（编辑中）',
             FontWeight.w600,
           )
         : (
-            AppTheme.selectedBlue,
-            AppTheme.blue,
+            context.appColors.selectedBlue,
+            context.appColors.blue,
             '${stage.name}（独立作息）',
             FontWeight.w400,
           );
@@ -1792,7 +1778,7 @@ class _ScopeStageNode extends ConsumerWidget {
                   child: Icon(
                     isExpanded ? Icons.expand_more : Icons.chevron_right,
                     size: 14,
-                    color: AppTheme.muted,
+                    color: context.appColors.muted,
                   ),
                 ),
               ),
@@ -1800,7 +1786,9 @@ class _ScopeStageNode extends ConsumerWidget {
               Icon(
                 Icons.layers_outlined,
                 size: 15,
-                color: isEditing ? AppTheme.blue : AppTheme.sidebarMuted,
+                color: isEditing
+                    ? context.appColors.blue
+                    : context.appColors.sidebarMuted,
               ),
             ],
           ),
@@ -1879,7 +1867,7 @@ class _ScopeGradeNode extends ConsumerWidget {
                   child: Icon(
                     isExpanded ? Icons.expand_more : Icons.chevron_right,
                     size: 13,
-                    color: AppTheme.muted,
+                    color: context.appColors.muted,
                   ),
                 ),
               ),
@@ -1940,7 +1928,7 @@ class _StageTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: AppTheme.tableHeader,
+      color: context.appColors.tableHeader,
       borderRadius: BorderRadius.circular(6),
     ),
     child: Padding(
@@ -1986,13 +1974,15 @@ class _StageTab extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? context.appColors.surface : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           '${stage.name} · $total 节',
           style: TextStyle(
-            color: isSelected ? AppTheme.blue : AppTheme.muted,
+            color: isSelected
+                ? context.appColors.blue
+                : context.appColors.muted,
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
@@ -2016,8 +2006,8 @@ class _CommonPeriodChip extends StatelessWidget {
         : '${period.durationMinutes} 分钟';
     return AppBadge(
       label: '${period.name} · $detail',
-      foreground: const Color(0xFFE37318),
-      background: const Color(0xFFFFF1E9),
+      foreground: context.appColors.warning,
+      background: context.appColors.warningSurface,
       fontSize: 11,
     );
   }
@@ -2163,9 +2153,15 @@ class _FreeSlotMatrix extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _matrixHeading('节次', width: labelWidth, fontSize: 11),
+                  _matrixHeading(
+                    context,
+                    '节次',
+                    width: labelWidth,
+                    fontSize: 11,
+                  ),
                   for (final weekday in days)
                     _matrixHeading(
+                      context,
                       teachingDays.contains(weekday)
                           ? _weekdayShort[weekday - 1]
                           : '',
@@ -2174,7 +2170,8 @@ class _FreeSlotMatrix extends StatelessWidget {
                     ),
                 ],
               ),
-              for (final item in items) _buildItem(item, labelWidth, dayWidth),
+              for (final item in items)
+                _buildItem(context, item, labelWidth, dayWidth),
             ],
           ),
         );
@@ -2197,17 +2194,23 @@ class _FreeSlotMatrix extends StatelessWidget {
         : content;
   }
 
-  Widget _buildItem(_GridItem item, double labelWidth, double dayWidth) {
+  Widget _buildItem(
+    BuildContext context,
+    _GridItem item,
+    double labelWidth,
+    double dayWidth,
+  ) {
     final commonPeriod = item.commonPeriod;
     if (commonPeriod != null) {
-      return _buildCommonPeriodRow(commonPeriod, labelWidth, dayWidth);
+      return _buildCommonPeriodRow(context, commonPeriod, labelWidth, dayWidth);
     }
     final row = item.row!;
     final period = item.period!;
-    final visual = periodVisualFor(row.periodName, period.sortOrder);
+    final visual = periodVisualFor(context, row.periodName, period.sortOrder);
     return Row(
       children: [
         _matrixLabelCell(
+          context: context,
           label: row.label,
           width: labelWidth,
           color: visual.color,
@@ -2241,6 +2244,7 @@ class _FreeSlotMatrix extends StatelessWidget {
   }
 
   Widget _buildCommonPeriodRow(
+    BuildContext context,
     CommonPeriod period,
     double labelWidth,
     double dayWidth,
@@ -2250,14 +2254,16 @@ class _FreeSlotMatrix extends StatelessWidget {
         width: labelWidth,
         height: 34,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFF7F0),
-          border: Border(bottom: BorderSide(color: Colors.white)),
+        decoration: BoxDecoration(
+          color: context.appColors.warningSurface,
+          border: Border(
+            bottom: BorderSide(color: context.appColors.tableDivider),
+          ),
         ),
-        child: const Text(
+        child: Text(
           '公共时段',
           style: TextStyle(
-            color: Color(0xFFE37318),
+            color: context.appColors.warning,
             fontSize: 10,
             fontWeight: FontWeight.w600,
           ),
@@ -2268,9 +2274,11 @@ class _FreeSlotMatrix extends StatelessWidget {
         height: 34,
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFF7F0),
-          border: Border(bottom: BorderSide(color: Colors.white)),
+        decoration: BoxDecoration(
+          color: context.appColors.warningSurface,
+          border: Border(
+            bottom: BorderSide(color: context.appColors.tableDivider),
+          ),
         ),
         child: _CommonPeriodChip(period: period),
       ),
@@ -2278,6 +2286,7 @@ class _FreeSlotMatrix extends StatelessWidget {
   );
 
   Widget _matrixHeading(
+    BuildContext context,
     String label, {
     required double width,
     required double fontSize,
@@ -2285,11 +2294,11 @@ class _FreeSlotMatrix extends StatelessWidget {
     width: width,
     height: 32,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(
-      color: AppTheme.tableHeader,
+    decoration: BoxDecoration(
+      color: context.appColors.tableHeader,
       border: Border(
-        right: BorderSide(color: Colors.white),
-        bottom: BorderSide(color: Colors.white),
+        right: BorderSide(color: context.appColors.tableDivider),
+        bottom: BorderSide(color: context.appColors.tableDivider),
       ),
     ),
     child: Text(
@@ -2299,6 +2308,7 @@ class _FreeSlotMatrix extends StatelessWidget {
   );
 
   Widget _matrixLabelCell({
+    required BuildContext context,
     required String label,
     required double width,
     required Color color,
@@ -2310,9 +2320,9 @@ class _FreeSlotMatrix extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 8),
     decoration: BoxDecoration(
       color: background,
-      border: const Border(
-        right: BorderSide(color: Colors.white),
-        bottom: BorderSide(color: Colors.white),
+      border: Border(
+        right: BorderSide(color: context.appColors.tableDivider),
+        bottom: BorderSide(color: context.appColors.tableDivider),
       ),
     ),
     child: Text(
@@ -2359,9 +2369,9 @@ class _MatrixCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = info.marker != null
-        ? FreeSlotVisual.cellTint
+        ? context.appColors.destructiveSurface
         : info.invalid
-        ? DisabledCellVisual.cellTint
+        ? context.appColors.tableHeader
         : tint;
     final label = info.marker?.label;
     final currentLabel = info.marker?.label;
@@ -2379,16 +2389,19 @@ class _MatrixCell extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: background,
-            border: const Border(
-              right: BorderSide(color: Colors.white),
-              bottom: BorderSide(color: Colors.white),
+            border: Border(
+              right: BorderSide(color: context.appColors.tableDivider),
+              bottom: BorderSide(color: context.appColors.tableDivider),
             ),
           ),
           child: label == null
               ? info.invalid
-                    ? const Text(
+                    ? Text(
                         '—',
-                        style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                        style: TextStyle(
+                          color: context.appColors.muted,
+                          fontSize: 11,
+                        ),
                       )
                     : const SizedBox.shrink()
               : Text(
@@ -2396,7 +2409,7 @@ class _MatrixCell extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: FreeSlotVisual.foreground,
+                    color: context.appColors.destructive,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -2617,6 +2630,7 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
     final weekdayGroups = [
       for (final weekday in weekdays)
         _buildWeekdayGroup(
+          context: context,
           weekdayLabel: weekday >= 1 && weekday <= 7
               ? _weekdayNames[weekday - 1]
               : '其他日期',
@@ -2648,7 +2662,10 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Text(
                   '${entries.length} 项',
-                  style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -2664,14 +2681,14 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
               ),
             )
           else if (hasError && entries.isEmpty)
-            const Text(
+            Text(
               '免任课暂时无法读取',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
             )
           else if (entries.isEmpty)
-            const Text(
+            Text(
               '暂无免任课',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
             )
           else
             Padding(
@@ -2685,6 +2702,7 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
   }
 
   Widget _buildWeekdayGroup({
+    required BuildContext context,
     required String weekdayLabel,
     required List<_SchoolFreeSlotEntry> entries,
     required ValueChanged<FreeSlot> onDelete,
@@ -2695,8 +2713,8 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
         padding: const EdgeInsets.only(top: 8, bottom: 2),
         child: Text(
           weekdayLabel,
-          style: const TextStyle(
-            color: AppTheme.muted,
+          style: TextStyle(
+            color: context.appColors.muted,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
@@ -2715,8 +2733,8 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
                       '${entry.periodName}第 ${entry.slot.lessonIndex} 节',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.ink,
+                      style: TextStyle(
+                        color: context.appColors.ink,
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                       ),
@@ -2729,8 +2747,8 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
                       entry.slot.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFFE37318),
+                      style: TextStyle(
+                        color: context.appColors.warning,
                         fontSize: 10,
                       ),
                     ),
@@ -2746,7 +2764,7 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
                       ),
                       padding: EdgeInsets.zero,
                       iconSize: 12,
-                      color: AppTheme.muted,
+                      color: context.appColors.muted,
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ),
@@ -2757,7 +2775,7 @@ class _AllSchoolFreeSlotsSummary extends ConsumerWidget {
                 '${entry.stageName} · ${entry.scopeName}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppTheme.muted, fontSize: 10),
+                style: TextStyle(color: context.appColors.muted, fontSize: 10),
               ),
             ],
           ),
@@ -2805,14 +2823,14 @@ class _LessonTimePanel extends StatelessWidget {
         if (collapsedGroups.contains(periods[index].id))
           _PeriodGroupHeaderCollapsed(
             period: periods[index],
-            visual: periodVisualFor(periods[index].name, index),
+            visual: periodVisualFor(context, periods[index].name, index),
             timeInputs: timeInputs,
             onExpand: () => onToggleGroup(periods[index].id),
           )
         else ...[
           _PeriodGroupHeader(
             period: periods[index],
-            visual: periodVisualFor(periods[index].name, index),
+            visual: periodVisualFor(context, periods[index].name, index),
             onCollapse: () => onToggleGroup(periods[index].id),
           ),
           for (final time in periods[index].times) ...[
@@ -2865,19 +2883,19 @@ class _LessonTimePanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (needsCrossStageTimes)
-            const AppBadge(
+            AppBadge(
               label: '跨学段必填',
-              foreground: Color(0xFFE37318),
-              background: Color(0xFFFFF1E9),
+              foreground: context.appColors.warning,
+              background: context.appColors.warningSurface,
               fontSize: 11,
             ),
           const SizedBox(width: 8),
           InkWell(
             onTap: () => onInsertCommonPeriod(),
-            child: const Text(
+            child: Text(
               '+ 插入',
               style: TextStyle(
-                color: AppTheme.blue,
+                color: context.appColors.blue,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -2926,7 +2944,10 @@ class _PeriodGroupHeader extends StatelessWidget {
           const SizedBox(width: 7),
           Text(
             '${period.name}时段 · 每天 ${period.defaultLessonCount} 节',
-            style: const TextStyle(color: Color(0xFF5E5E5E), fontSize: 12),
+            style: TextStyle(
+              color: context.appColors.inkSecondary,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -2989,7 +3010,7 @@ class _PeriodGroupHeaderCollapsed extends StatelessWidget {
           height: 24,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFFFAFAFA),
+            color: context.appColors.tableHeader,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Row(
@@ -3002,15 +3023,15 @@ class _PeriodGroupHeaderCollapsed extends StatelessWidget {
                   '${summary == null ? '' : ' $summary'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF5E5E5E),
+                  style: TextStyle(
+                    color: context.appColors.inkSecondary,
                     fontSize: 12,
                   ),
                 ),
               ),
-              const Text(
+              Text(
                 '展开',
-                style: TextStyle(color: AppTheme.blue, fontSize: 11),
+                style: TextStyle(color: context.appColors.blue, fontSize: 11),
               ),
             ],
           ),
@@ -3037,7 +3058,7 @@ class _LessonTimeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visual = periodVisualFor(period.name, period.sortOrder);
+    final visual = periodVisualFor(context, period.name, period.sortOrder);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: LayoutBuilder(
@@ -3075,12 +3096,15 @@ class _LessonTimeRow extends StatelessWidget {
                       onChanged(period, time.lessonIndex, true, value),
                 ),
               ),
-              const SizedBox(
+              SizedBox(
                 width: _timeSeparatorWidth,
                 child: Center(
                   child: Text(
                     '–',
-                    style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ),
@@ -3138,7 +3162,7 @@ class _TimePickerField extends StatelessWidget {
   Widget build(BuildContext context) {
     final displayedValue = value.isEmpty ? '--:--' : value;
     final color = value.isEmpty
-        ? AppTheme.muted
+        ? context.appColors.muted
         : Theme.of(context).colorScheme.onSurface;
     return Material(
       color: Colors.transparent,
@@ -3148,8 +3172,8 @@ class _TimePickerField extends StatelessWidget {
         child: Container(
           height: 28,
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFFE8E5E2)),
+            color: context.appColors.surface,
+            border: Border.all(color: context.appColors.border),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Stack(
@@ -3178,13 +3202,13 @@ class _TimePickerField extends StatelessWidget {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => onPicked(''),
-                      child: const SizedBox(
+                      child: SizedBox(
                         width: 16,
                         child: Center(
                           child: Icon(
                             Icons.close_rounded,
                             size: 10,
-                            color: AppTheme.muted,
+                            color: context.appColors.muted,
                           ),
                         ),
                       ),
@@ -3212,28 +3236,34 @@ class _TimeColumnHeader extends StatelessWidget {
           children: [
             SizedBox(
               width: widths.label,
-              child: const Text(
+              child: Text(
                 '节次',
-                style: TextStyle(color: AppTheme.muted, fontSize: 10),
+                style: TextStyle(color: context.appColors.muted, fontSize: 10),
               ),
             ),
             const SizedBox(width: 6),
             SizedBox(
               width: widths.field,
-              child: const Center(
+              child: Center(
                 child: Text(
                   '开始',
-                  style: TextStyle(color: AppTheme.muted, fontSize: 10),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 10,
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: _timeSeparatorWidth),
             SizedBox(
               width: widths.field,
-              child: const Center(
+              child: Center(
                 child: Text(
                   '结束',
-                  style: TextStyle(color: AppTheme.muted, fontSize: 10),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 10,
+                  ),
                 ),
               ),
             ),
@@ -3278,15 +3308,15 @@ class _CommonPeriodRow extends StatelessWidget {
                     height: 28,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF8F2),
+                      color: context.appColors.warningSurface,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       period.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFFE37318),
+                      style: TextStyle(
+                        color: context.appColors.warning,
                         fontSize: 11,
                       ),
                     ),
@@ -3303,12 +3333,15 @@ class _CommonPeriodRow extends StatelessWidget {
                 onPicked: (value) => onChanged(period, true, value),
               ),
             ),
-            const SizedBox(
+            SizedBox(
               width: _timeSeparatorWidth,
               child: Center(
                 child: Text(
                   '–',
-                  style: TextStyle(color: AppTheme.muted, fontSize: 11),
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 11,
+                  ),
                 ),
               ),
             ),
@@ -3326,9 +3359,13 @@ class _CommonPeriodRow extends StatelessWidget {
               child: InkWell(
                 onTap: () => onDelete(period),
                 borderRadius: BorderRadius.circular(8),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.all(3),
-                  child: Icon(Icons.close, size: 12, color: AppTheme.muted),
+                  child: Icon(
+                    Icons.close,
+                    size: 12,
+                    color: context.appColors.muted,
+                  ),
                 ),
               ),
             ),
@@ -3452,9 +3489,9 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
               onChanged: (value) => setState(() => _afterLessonId = value),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               '公共时段不排正课；插入后该学段所有上课日的课表与打印布局同步显示。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
             ),
           ],
         ),

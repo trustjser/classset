@@ -148,10 +148,8 @@ class AppSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: backgroundColor ?? AppTheme.forui.colors.card,
-      border: showBorder
-          ? Border.all(color: AppTheme.forui.colors.border)
-          : null,
+      color: backgroundColor ?? context.appColors.surface,
+      border: showBorder ? Border.all(color: context.appColors.border) : null,
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
     ),
     child: ClipRRect(
@@ -168,7 +166,7 @@ class AppTreeTile extends StatelessWidget {
     required this.leading,
     required this.onTap,
     this.isSelected = false,
-    this.selectedBackground = AppTheme.selectedBlue,
+    this.selectedBackground,
     this.selectedForeground,
     this.contentPadding = const EdgeInsets.symmetric(horizontal: 12),
     this.height = 38,
@@ -181,7 +179,7 @@ class AppTreeTile extends StatelessWidget {
   final bool isSelected;
 
   /// 选中态底色（默认品牌蓝淡底）；范围树编辑中学段用绿色淡底。
-  final Color selectedBackground;
+  final Color? selectedBackground;
 
   /// 选中态文字色；为 null 时沿用 title 自身样式。
   final Color? selectedForeground;
@@ -192,7 +190,9 @@ class AppTreeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final showSelectedStyle = isSelected && selectedForeground != null;
     return Material(
-      color: isSelected ? selectedBackground : Colors.transparent,
+      color: isSelected
+          ? selectedBackground ?? context.appColors.selectedBlue
+          : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
@@ -224,8 +224,8 @@ class AppDataTableHeader extends StatelessWidget {
   const AppDataTableHeader({
     required this.children,
     this.height = 40,
-    this.textColor = AppTheme.ink,
-    this.backgroundColor = AppTheme.tableHeader,
+    this.textColor,
+    this.backgroundColor,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
     this.textStyle,
     super.key,
@@ -233,8 +233,8 @@ class AppDataTableHeader extends StatelessWidget {
 
   final List<Widget> children;
   final double height;
-  final Color textColor;
-  final Color backgroundColor;
+  final Color? textColor;
+  final Color? backgroundColor;
   final EdgeInsetsGeometry padding;
   final TextStyle? textStyle;
 
@@ -242,12 +242,12 @@ class AppDataTableHeader extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     height: height,
     padding: padding,
-    color: backgroundColor,
+    color: backgroundColor ?? context.appColors.tableHeader,
     child: DefaultTextStyle(
       style:
           textStyle ??
           TextStyle(
-            color: textColor,
+            color: textColor ?? context.appColors.ink,
             fontSize: 12,
             fontWeight: FontWeight.w500,
             height: 17 / 12,
@@ -261,30 +261,30 @@ class AppInlineMessage extends StatelessWidget {
   const AppInlineMessage({
     required this.message,
     this.icon = Icons.info_outline,
-    this.backgroundColor = AppTheme.selectedBlue,
+    this.backgroundColor,
     super.key,
   });
 
   final String message;
   final IconData icon;
-  final Color backgroundColor;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: backgroundColor,
+      color: backgroundColor ?? context.appColors.selectedBlue,
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
     ),
     child: Row(
       children: [
-        Icon(icon, size: 17, color: AppTheme.blue),
+        Icon(icon, size: 17, color: context.appColors.blue),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             message,
-            style: const TextStyle(color: AppTheme.ink, fontSize: 12),
+            style: TextStyle(color: context.appColors.ink, fontSize: 12),
           ),
         ),
       ],
@@ -314,21 +314,21 @@ class AppEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 42, color: AppTheme.muted),
+          Icon(icon, size: 42, color: context.appColors.muted),
           const SizedBox(height: 12),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: AppTheme.ink,
+              color: context.appColors.ink,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.muted, fontSize: 13),
+            style: TextStyle(color: context.appColors.muted, fontSize: 13),
           ),
           if (action != null) ...[const SizedBox(height: 16), action!],
         ],
@@ -347,7 +347,11 @@ class AppHelpTooltip extends StatelessWidget {
   Widget build(BuildContext context) => Tooltip(
     message: message,
     triggerMode: TooltipTriggerMode.tap,
-    child: const Icon(Icons.help_outline, size: 14, color: AppTheme.helpIcon),
+    child: Icon(
+      Icons.help_outline,
+      size: 14,
+      color: context.appColors.helpIcon,
+    ),
   );
 }
 
@@ -371,7 +375,7 @@ class AppSummaryMetricCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Row(
         children: [
-          Icon(icon, size: 19, color: AppTheme.blue),
+          Icon(icon, size: 19, color: context.appColors.blue),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
@@ -384,7 +388,7 @@ class AppSummaryMetricCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall
-                      ?.copyWith(color: valueColor ?? AppTheme.ink),
+                      ?.copyWith(color: valueColor ?? context.appColors.ink),
                 ),
               ],
             ),
@@ -511,9 +515,13 @@ class _WeekdayOption extends StatelessWidget {
         constraints: const BoxConstraints(minWidth: 92, minHeight: 40),
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.selectedBlue : Colors.white,
+          color: isSelected
+              ? context.appColors.selectedBlue
+              : context.appColors.surface,
           border: Border.all(
-            color: isSelected ? AppTheme.blue : AppTheme.border,
+            color: isSelected
+                ? context.appColors.blue
+                : context.appColors.border,
           ),
           borderRadius: BorderRadius.circular(8),
         ),
@@ -523,13 +531,17 @@ class _WeekdayOption extends StatelessWidget {
             Icon(
               isSelected ? Icons.check_box : Icons.check_box_outline_blank,
               size: 17,
-              color: isSelected ? AppTheme.blue : AppTheme.muted,
+              color: isSelected
+                  ? context.appColors.blue
+                  : context.appColors.muted,
             ),
             const SizedBox(width: 7),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? AppTheme.blue : AppTheme.ink,
+                color: isSelected
+                    ? context.appColors.blue
+                    : context.appColors.ink,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
               ),
@@ -562,9 +574,9 @@ class AppNumberStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      border: Border.all(color: AppTheme.border),
+      border: Border.all(color: context.appColors.border),
       borderRadius: BorderRadius.circular(9),
-      color: Colors.white,
+      color: context.appColors.surface,
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -713,7 +725,7 @@ class AppIconButton extends StatelessWidget {
     required this.onPressed,
     required this.tooltip,
     this.iconSize = 14,
-    this.foregroundColor = AppTheme.muted,
+    this.foregroundColor,
     super.key,
   });
 
@@ -721,7 +733,7 @@ class AppIconButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final String tooltip;
   final double iconSize;
-  final Color foregroundColor;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) => FButton.icon(
@@ -730,7 +742,11 @@ class AppIconButton extends StatelessWidget {
     onPress: onPressed,
     semanticsLabel: tooltip,
     semanticsTooltip: tooltip,
-    child: Icon(icon, size: iconSize, color: foregroundColor),
+    child: Icon(
+      icon,
+      size: iconSize,
+      color: foregroundColor ?? context.appColors.muted,
+    ),
   );
 }
 
@@ -925,7 +941,11 @@ Future<T?> showAppDialog<T>({
   barrierDismissible: barrierDismissible,
   routeStyle: FDialogRouteStyle(
     barrierFilter: (context, animation) => ui.ColorFilter.mode(
-      Color.lerp(Colors.transparent, AppTheme.dialogBarrier, animation)!,
+      Color.lerp(
+        Colors.transparent,
+        context.appColors.dialogBarrier,
+        animation,
+      )!,
       ui.BlendMode.srcOver,
     ),
   ),
@@ -944,8 +964,8 @@ class AppDialogTitle extends StatelessWidget {
       Expanded(
         child: Text(
           title,
-          style: const TextStyle(
-            color: AppTheme.ink,
+          style: TextStyle(
+            color: context.appColors.ink,
             fontSize: 16,
             fontWeight: FontWeight.w600,
             height: 23 / 16,
@@ -985,8 +1005,8 @@ class AppLabeledFieldRow extends StatelessWidget {
           Flexible(
             child: Text(
               label,
-              style: const TextStyle(
-                color: AppTheme.inkSecondary,
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
                 fontSize: 13,
                 height: 19 / 13,
               ),
@@ -1043,7 +1063,7 @@ class AppRadioOption<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final selected = value == groupValue;
     final labelStyle = TextStyle(
-      color: enabled ? AppTheme.ink : AppTheme.muted,
+      color: enabled ? context.appColors.ink : context.appColors.muted,
       fontSize: fontSize,
       height: textLineHeight ?? (compact ? 19 / fontSize : null),
     );
@@ -1251,8 +1271,8 @@ Widget _appDateFieldCalendarHeader(
             child: Text(
               label,
               maxLines: 1,
-              style: const TextStyle(
-                color: AppTheme.ink,
+              style: TextStyle(
+                color: context.appColors.ink,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1362,10 +1382,10 @@ class AppMenuTile extends StatelessWidget with FItemMixin {
   @override
   Widget build(BuildContext context) {
     final foreground = item.destructive
-        ? AppTheme.destructive
+        ? context.appColors.destructive
         : item.enabled
-        ? AppTheme.ink
-        : AppTheme.muted;
+        ? context.appColors.ink
+        : context.appColors.muted;
     return FItem.raw(
       variant: item.destructive ? .destructive : .primary,
       selected: item.selected,
@@ -1376,15 +1396,21 @@ class AppMenuTile extends StatelessWidget with FItemMixin {
         margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: item.selected ? AppTheme.selectedBlue : Colors.transparent,
+          color: item.selected
+              ? context.appColors.selectedBlue
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(
           children: [
             if (item.selected)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(right: 6),
-                child: Icon(Icons.check, size: 13, color: AppTheme.blue),
+                child: Icon(
+                  Icons.check,
+                  size: 13,
+                  color: context.appColors.blue,
+                ),
               ),
             Text(item.label, style: TextStyle(fontSize: 13, color: foreground)),
             const Spacer(),

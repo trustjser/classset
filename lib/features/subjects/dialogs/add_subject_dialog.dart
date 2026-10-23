@@ -58,10 +58,10 @@ class _AddSubjectDialogState extends State<AddSubjectDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(
-      context,
-      (name: _nameController.text.trim(), shortName: _shortNameController.text.trim()),
-    );
+    Navigator.pop(context, (
+      name: _nameController.text.trim(),
+      shortName: _shortNameController.text.trim(),
+    ));
   }
 
   @override
@@ -96,15 +96,15 @@ class _AddSubjectDialogState extends State<AddSubjectDialog> {
               onChanged: (_) => setState(() => _shortNameEdited = true),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               '简写自动取首字，可修改；新科目节数默认 0，不参与容量校验。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 11),
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               '从常用科目快速添加',
               style: TextStyle(
-                color: AppTheme.inkSecondary,
+                color: context.appColors.inkSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),

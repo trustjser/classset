@@ -7,28 +7,28 @@ import 'package:forui/forui.dart';
 class AppBadge extends StatelessWidget {
   const AppBadge({
     required this.label,
-    this.foreground = AppTheme.ink,
-    this.background = AppTheme.tableHeader,
+    this.foreground,
+    this.background,
     this.fontSize = 12,
     super.key,
   });
 
   final String label;
-  final Color foreground;
-  final Color background;
+  final Color? foreground;
+  final Color? background;
   final double fontSize;
 
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
-      color: background,
+      color: background ?? context.appColors.tableHeader,
       borderRadius: BorderRadius.circular(4),
     ),
     child: Text(
       label,
       style: TextStyle(
-        color: foreground,
+        color: foreground ?? context.appColors.ink,
         fontSize: fontSize,
         fontWeight: FontWeight.w500,
       ),
@@ -59,8 +59,8 @@ class AppClassChip extends StatelessWidget {
     required this.onDelete,
     this.onMoveUp,
     this.onMoveDown,
-    this.background = AppTheme.selectedBlue,
-    this.borderColor = AppTheme.border,
+    this.background,
+    this.borderColor,
     this.showDeleteIcon = true,
     super.key,
   });
@@ -70,12 +70,14 @@ class AppClassChip extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
-  final Color background;
-  final Color borderColor;
+  final Color? background;
+  final Color? borderColor;
   final bool showDeleteIcon;
 
   @override
   Widget build(BuildContext context) {
+    final background = this.background ?? context.appColors.selectedBlue;
+    final borderColor = this.borderColor ?? context.appColors.border;
     final chip = Container(
       height: 32,
       decoration: BoxDecoration(
@@ -93,7 +95,7 @@ class AppClassChip extends StatelessWidget {
             children: [
               Text(
                 name,
-                style: const TextStyle(fontSize: 12, color: AppTheme.ink),
+                style: TextStyle(fontSize: 12, color: context.appColors.ink),
               ),
               if (showDeleteIcon) ...[
                 const SizedBox(width: 4),
@@ -102,9 +104,13 @@ class AppClassChip extends StatelessWidget {
                   child: InkWell(
                     onTap: onDelete,
                     borderRadius: BorderRadius.circular(8),
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.all(2),
-                      child: Icon(Icons.close, size: 11, color: AppTheme.muted),
+                      child: Icon(
+                        Icons.close,
+                        size: 11,
+                        color: context.appColors.muted,
+                      ),
                     ),
                   ),
                 ),
@@ -159,69 +165,39 @@ class PeriodVisual {
   final Color labelTint;
 }
 
-/// 早上 / 早读时段配色。
-/// 2026-10-17：由橙色（#E37318 / #FFF1E9）改为紫色——橙色底与免任课红格
-/// （#FFF0ED + #C63D36）过于接近，在网格里容易混淆。
-const _morningVisual = PeriodVisual(
-  color: Color(0xFF834EC2),
-  cellTint: Color(0xFFF4F1FB),
-  labelTint: Color(0xFFF8F6FD),
-);
-
 /// 按设计稿映射时段配色：早上/早读=紫、上午=蓝、下午=绿、晚上=深灰；
 /// 自定义时段在四套预设间轮换。
-PeriodVisual periodVisualFor(String periodName, int index) {
-  final preset = switch (periodName) {
-    '早上' || '早读' => _morningVisual,
-    '上午' => const PeriodVisual(
-      color: AppTheme.blue,
-      cellTint: Color(0xFFE9F0FF),
-      labelTint: Color(0xFFF7F9FF),
-    ),
-    '下午' => const PeriodVisual(
-      color: Color(0xFF2BA471),
-      cellTint: Color(0xFFE9F7EF),
-      labelTint: Color(0xFFF2FAF5),
-    ),
-    '晚上' => const PeriodVisual(
-      color: Color(0xFF4B4B4B),
-      cellTint: Color(0xFFEDEFF2),
-      labelTint: Color(0xFFF5F5F5),
-    ),
-    _ => _cyclingVisual(index),
+PeriodVisual periodVisualFor(
+  BuildContext context,
+  String periodName,
+  int index,
+) {
+  final colors = context.appColors;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final presetIndex = switch (periodName) {
+    '早上' || '早读' => 0,
+    '上午' => 1,
+    '下午' => 2,
+    '晚上' => 3,
+    _ => index % 4,
   };
-  return preset;
-}
-
-const _cyclingPresets = <PeriodVisual>[
-  _morningVisual,
-  PeriodVisual(
-    color: AppTheme.blue,
-    cellTint: Color(0xFFE9F0FF),
-    labelTint: Color(0xFFF7F9FF),
-  ),
-  PeriodVisual(
-    color: Color(0xFF2BA471),
-    cellTint: Color(0xFFE9F7EF),
-    labelTint: Color(0xFFF2FAF5),
-  ),
-  PeriodVisual(
-    color: Color(0xFF4B4B4B),
-    cellTint: Color(0xFFEDEFF2),
-    labelTint: Color(0xFFF5F5F5),
-  ),
-];
-
-PeriodVisual _cyclingVisual(int index) =>
-    _cyclingPresets[index % _cyclingPresets.length];
-
-/// 免任课格底色与文字色（设计稿红格）。
-abstract final class FreeSlotVisual {
-  static const Color cellTint = Color(0xFFFFF0ED);
-  static const Color foreground = Color(0xFFC63D36);
-}
-
-/// 无效格（非上课天 / 超出当天节数）底色。
-abstract final class DisabledCellVisual {
-  static const Color cellTint = Color(0xFFFAFAFA);
+  final color = switch (presetIndex) {
+    0 => colors.purple,
+    1 => colors.blue,
+    2 => colors.success,
+    _ => colors.inkSecondary,
+  };
+  final cellTint = switch (presetIndex) {
+    0 => isDark ? const Color(0xFF342E43) : const Color(0xFFF4F1FB),
+    1 => colors.selectedBlue,
+    2 => colors.successSurface,
+    _ => colors.tableHeader,
+  };
+  final labelTint = switch (presetIndex) {
+    0 => isDark ? const Color(0xFF2A2636) : const Color(0xFFF8F6FD),
+    1 => isDark ? const Color(0xFF1C2D3D) : const Color(0xFFF7F9FF),
+    2 => isDark ? const Color(0xFF1B3027) : const Color(0xFFF2FAF5),
+    _ => colors.tableHeader,
+  };
+  return PeriodVisual(color: color, cellTint: cellTint, labelTint: labelTint);
 }

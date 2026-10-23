@@ -115,7 +115,7 @@ class _TeacherPresetScopeTreeState extends State<TeacherPresetScopeTree> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: AppTheme.ink,
+                color: context.appColors.ink,
                 fontSize: item.depth == 0 ? 13 : 12,
               ),
             ),
@@ -140,7 +140,7 @@ class _TeacherPresetScopeTreeState extends State<TeacherPresetScopeTree> {
                           child: Icon(
                             expanded ? Icons.expand_more : Icons.chevron_right,
                             size: 14,
-                            color: AppTheme.muted,
+                            color: context.appColors.muted,
                           ),
                         ),
                 ),
@@ -152,7 +152,7 @@ class _TeacherPresetScopeTreeState extends State<TeacherPresetScopeTree> {
                       ? Icons.school_outlined
                       : Icons.class_outlined,
                   size: 15,
-                  color: AppTheme.sidebarMuted,
+                  color: context.appColors.sidebarMuted,
                 ),
               ],
             ),

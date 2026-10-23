@@ -24,3 +24,13 @@ target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# Install the desktop entry and hicolor icons. The icons are copied into the
+# bundle's data/ directory so the window icon resolves in both `flutter run`
+# and packaged builds; the .desktop + share/ copy covers system installation.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../flutter/class_set.desktop"
+        DESTINATION "share/applications"
+        COMPONENT Runtime)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../flutter/icons"
+        DESTINATION "data"
+        COMPONENT Runtime)

@@ -30,8 +30,7 @@ class WorkbenchPage extends ConsumerWidget {
         final summary = ref.watch(workbenchSummaryProvider(term.id));
         return summary.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) =>
-              _ErrorPanel(message: '读取准备进度失败：$error'),
+          error: (error, stack) => _ErrorPanel(message: '读取准备进度失败：$error'),
           data: (data) => _WorkbenchContent(term: term, summary: data),
         );
       },
@@ -72,16 +71,6 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '工作台',
-            style: TextStyle(
-              color: AppTheme.muted,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: .5,
-            ),
-          ),
-          const SizedBox(height: 6),
           AppPageHeader(
             title: '先把新学期的基础搭起来',
             subtitle: '跟着步骤完成准备，课集会在合适的时候解锁下一步。',
@@ -193,9 +182,8 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -209,26 +197,29 @@ class _EmptyWorkbench extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.event_busy_outlined, size: 42, color: AppTheme.muted),
+          Icon(
+            Icons.event_busy_outlined,
+            size: 42,
+            color: context.appColors.muted,
+          ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             '先创建一个学期',
             style: TextStyle(
-              color: AppTheme.ink,
+              color: context.appColors.ink,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '排课准备从学期开始：设置学年学期与教学日历。',
-            style: TextStyle(color: AppTheme.muted, fontSize: 12),
+            style: TextStyle(color: context.appColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 16),
           AppPrimaryButton(
-            onPressed: () =>
-                ref.read(selectedSectionProvider.notifier).state =
-                    AppSection.terms,
+            onPressed: () => ref.read(selectedSectionProvider.notifier).state =
+                AppSection.terms,
             child: const Text('前往学期与日历'),
           ),
         ],
@@ -248,7 +239,7 @@ class _ErrorPanel extends StatelessWidget {
       padding: const EdgeInsets.all(32),
       child: SelectableText(
         message,
-        style: const TextStyle(color: AppTheme.destructive, fontSize: 13),
+        style: TextStyle(color: context.appColors.destructive, fontSize: 13),
       ),
     ),
   );

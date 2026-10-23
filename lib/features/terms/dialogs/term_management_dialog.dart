@@ -68,7 +68,7 @@ class TermManagementDialog extends StatelessWidget {
             width: tableWidth,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                border: Border.all(color: AppTheme.border),
+                border: Border.all(color: context.appColors.border),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: ClipRRect(
@@ -80,7 +80,7 @@ class TermManagementDialog extends StatelessWidget {
                     children: [
                       AppDataTableHeader(
                         height: 36,
-                        textColor: AppTheme.inkSecondary,
+                        textColor: context.appColors.inkSecondary,
                         padding: EdgeInsets.symmetric(horizontal: cellPadding),
                         children: [
                           const SizedBox(width: switchWidth, child: Text('切换')),
@@ -133,13 +133,12 @@ class TermManagementDialog extends StatelessWidget {
                               .toDouble(),
                           child: ListView.separated(
                             itemCount: _sorted.length,
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(
-                                  height: 1,
-                                  child: ColoredBox(
-                                    color: AppTheme.tableDivider,
-                                  ),
-                                ),
+                            separatorBuilder: (context, index) => SizedBox(
+                              height: 1,
+                              child: ColoredBox(
+                                color: context.appColors.tableDivider,
+                              ),
+                            ),
                             itemBuilder: (context, index) => _TermRow(
                               term: _sorted[index],
                               isCurrent: _sorted[index].id == activeTermId,
@@ -222,7 +221,7 @@ class _TermRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final start = term.firstTeachingWeekStart;
     return Material(
-      color: Colors.white,
+      color: context.appColors.surface,
       child: SizedBox(
         height: 44,
         child: Padding(
@@ -255,8 +254,8 @@ class _TermRow extends StatelessWidget {
                           term.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppTheme.ink,
+                          style: TextStyle(
+                            color: context.appColors.ink,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -264,10 +263,10 @@ class _TermRow extends StatelessWidget {
                       ),
                       if (isCurrent) ...[
                         const SizedBox(width: 8),
-                        const AppBadge(
+                        AppBadge(
                           label: '当前',
-                          foreground: AppTheme.blue,
-                          background: AppTheme.selectedBlue,
+                          foreground: context.appColors.blue,
+                          background: context.appColors.selectedBlue,
                         ),
                       ],
                     ],
@@ -282,7 +281,10 @@ class _TermRow extends StatelessWidget {
                     start == null ? '—' : formatDateYmd(start),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
@@ -294,7 +296,10 @@ class _TermRow extends StatelessWidget {
                     '${term.teachingWeekCount} 周 · ${term.cycleMode.label}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
@@ -318,7 +323,7 @@ class _TermRow extends StatelessWidget {
                         child: _ActionTextButton(
                           label: '删除',
                           onPressed: isCurrent ? null : onDelete,
-                          foreground: AppTheme.destructive,
+                          foreground: context.appColors.destructive,
                         ),
                       ),
                     ],
@@ -337,12 +342,12 @@ class _ActionTextButton extends StatelessWidget {
   const _ActionTextButton({
     required this.label,
     required this.onPressed,
-    this.foreground = AppTheme.blue,
+    this.foreground,
   });
 
   final String label;
   final VoidCallback? onPressed;
-  final Color foreground;
+  final Color? foreground;
 
   @override
   Widget build(BuildContext context) => AppGhostButton(
@@ -351,7 +356,9 @@ class _ActionTextButton extends StatelessWidget {
     child: Text(
       label,
       style: TextStyle(
-        color: onPressed == null ? const Color(0xFFBFC4CC) : foreground,
+        color: onPressed == null
+            ? context.appColors.muted
+            : foreground ?? context.appColors.blue,
         fontSize: 12,
         height: 17 / 12,
       ),

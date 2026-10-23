@@ -89,7 +89,7 @@ class SubjectMatrix extends StatefulWidget {
   final bool scrollable;
 
   static const double _nameColumnWidth = 104;
-  static const double _gradeColumnWidth = 92;
+  static const double _gradeColumnWidth = 112;
   static const double _presetColumnWidth = 104;
 
   @override
@@ -141,7 +141,7 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
     if (mounted) setState(() => _clipboardText = text);
   }
 
-  /// 单击：选中单元格（无弹窗）。
+  /// 主键按下时先选中单元格，点击其它单元格前提交当前编辑。
   void selectCell(Subject subject, GradeGroup grade) {
     // 点击其它单元格：先把进行中的内联编辑按回车语义提交，
     // 避免已输入内容被丢弃或被误提交为清空。
@@ -197,8 +197,9 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
     });
   }
 
-  /// 双击：进入内联编辑，预填整格格式化文本。
+  /// 单击：进入内联编辑，预填整格格式化文本。
   void startEdit(Subject subject, GradeGroup grade, List<ClassBrief> classes) {
+    if (isEditing(subject, grade)) return;
     final text = formatLessonInput(
       classes.map((classBrief) => widget.valuesFor(subject.id, classBrief.id)),
     );
@@ -354,7 +355,7 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
               accentForStage: widget.accentForStage,
               horizontal: _horizontalScrollArea,
             ),
-            const Divider(height: 1, color: AppTheme.border),
+            Divider(height: 1, color: context.appColors.border),
             if (widget.scrollable)
               Expanded(
                 child: ListView.builder(
@@ -391,11 +392,16 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
                     ),
                 ],
               ),
-            // 「班级周课时」固定在表格底部，不随行滚动。
+            // 校验状态与班级周课时固定在表格底部，不随科目行滚动。
+            _CapacityValidationRow(
+              visibleGrades: widget.visibleGrades,
+              classesByGrade: widget.classesByGrade,
+              summaries: widget.summaries,
+              horizontal: _horizontalScrollArea,
+            ),
             _CapacityFooterRow(
               visibleGrades: widget.visibleGrades,
               summaries: widget.summaries,
-              alternatingWeeks: widget.alternatingWeeks,
               horizontal: _horizontalScrollArea,
             ),
           ],
@@ -438,11 +444,11 @@ class _MatrixHeaderRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: SubjectMatrix._nameColumnWidth,
             child: Padding(
               padding: EdgeInsets.only(left: 14),
-              child: Text('科目', style: AppTheme.matrixHeaderTextStyle),
+              child: Text('科目', style: AppTheme.matrixHeaderTextStyle(context)),
             ),
           ),
           Expanded(
@@ -453,17 +459,19 @@ class _MatrixHeaderRow extends StatelessWidget {
                   for (final grade in visibleGrades)
                     SizedBox(
                       width: SubjectMatrix._gradeColumnWidth,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 14),
+                      child: Center(
                         child: Text(
                           grade.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTheme.matrixHeaderTextStyle.copyWith(
-                            color:
-                                accentByGrade[grade.id] ??
-                                AppTheme.matrixHeaderTextStyle.color,
-                          ),
+                          textAlign: TextAlign.center,
+                          style: AppTheme.matrixHeaderTextStyle(context)
+                              .copyWith(
+                                color:
+                                    accentByGrade[grade.id] ??
+                                    AppTheme.matrixHeaderTextStyle(context)
+                                        .color,
+                              ),
                         ),
                       ),
                     ),
@@ -471,14 +479,14 @@ class _MatrixHeaderRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(
+          SizedBox(
             width: SubjectMatrix._presetColumnWidth,
             child: Padding(
               padding: EdgeInsets.only(left: 14),
               child: Text(
                 '科目高级设置',
                 style: TextStyle(
-                  color: AppTheme.muted,
+                  color: context.appColors.muted,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -529,8 +537,8 @@ class _SubjectRow extends StatelessWidget {
               subject.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppTheme.ink,
+              style: TextStyle(
+                color: context.appColors.ink,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w500,
               ),
@@ -584,7 +592,10 @@ class _PresetCell extends StatelessWidget {
     final canEdit = onTap != null;
     final summaryText = summary?.text;
     final Widget content = summaryText == null
-        ? Text('—', style: TextStyle(color: AppTheme.muted, fontSize: 10.5))
+        ? Text(
+            '—',
+            style: TextStyle(color: context.appColors.muted, fontSize: 10.5),
+          )
         : Row(
             children: [
               Flexible(
@@ -594,15 +605,15 @@ class _PresetCell extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.selectedBlue,
+                    color: context.appColors.selectedBlue,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     summaryText,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppTheme.blue,
+                    style: TextStyle(
+                      color: context.appColors.blue,
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
                     ),
@@ -632,8 +643,8 @@ class _PresetCell extends StatelessWidget {
               child: InkWell(
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(6),
-                hoverColor: AppTheme.selectedBlue,
-                focusColor: AppTheme.selectedBlue,
+                hoverColor: context.appColors.selectedBlue,
+                focusColor: context.appColors.selectedBlue,
                 child: SizedBox(
                   height: 40,
                   child: Align(alignment: Alignment.centerLeft, child: content),
@@ -687,8 +698,7 @@ class _MatrixCellState extends State<_MatrixCell> {
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: Listener(
-        // 选中用原始指针按下即时触发：TapGestureRecognizer 的 accept
-        // 会被双击识别窗口延迟 300ms，期间键盘导航会被到期回调拉回旧格。
+        // 按下时先选中并提交其它格的编辑，抬起后再进入当前格的编辑态。
         onPointerDown: (event) {
           if (event.buttons == kPrimaryButton && !editing) {
             state.selectCell(widget.subject, widget.grade);
@@ -696,7 +706,7 @@ class _MatrixCellState extends State<_MatrixCell> {
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onDoubleTap: () =>
+          onTap: () =>
               state.startEdit(widget.subject, widget.grade, widget.classes),
           onSecondaryTapDown: (_) => unawaited(state.prefetchClipboard()),
           child: f.FContextMenu(
@@ -759,19 +769,19 @@ class _MatrixCellState extends State<_MatrixCell> {
                 ),
                 width: SubjectMatrix._gradeColumnWidth,
                 height: 40,
-                padding: const EdgeInsets.only(left: 13, right: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   color: selected || _hovering
-                      ? AppTheme.selectedBlue
+                      ? context.appColors.selectedBlue
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: selected || editing
-                        ? AppTheme.blue
+                        ? context.appColors.blue
                         : Colors.transparent,
                   ),
                 ),
-                alignment: Alignment.centerLeft,
+                alignment: Alignment.center,
                 child: editing ? _buildEditor() : _cellContent(),
               ),
             ),
@@ -846,7 +856,8 @@ class _MatrixCellState extends State<_MatrixCell> {
         controller: state._editController,
         focusNode: state._editFocus,
         autofocus: true,
-        style: const TextStyle(color: AppTheme.ink, fontSize: 12.5),
+        textAlign: TextAlign.center,
+        style: TextStyle(color: context.appColors.ink, fontSize: 12.5),
         // 显式覆盖全局 inputDecorationTheme（白底 + 描边），编辑框须无框。
         decoration: InputDecoration(
           isCollapsed: true,
@@ -870,22 +881,22 @@ class _MatrixCellState extends State<_MatrixCell> {
   Widget _cellContent() {
     final text = _gradeText;
     if (text.isEmpty || text == '0') {
-      return const Text(
+      return Text(
         '—',
-        style: TextStyle(color: AppTheme.muted, fontSize: 12),
+        style: TextStyle(color: context.appColors.muted, fontSize: 12),
       );
     }
     if (text.contains(',')) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: AppTheme.selectedBlue,
+          color: context.appColors.selectedBlue,
           borderRadius: BorderRadius.circular(6),
         ),
-        child: const Text(
+        child: Text(
           '各班不同',
           style: TextStyle(
-            color: AppTheme.blue,
+            color: context.appColors.blue,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
@@ -894,7 +905,139 @@ class _MatrixCellState extends State<_MatrixCell> {
     }
     return Text(
       text,
-      style: const TextStyle(color: AppTheme.ink, fontSize: 13),
+      style: TextStyle(color: context.appColors.ink, fontSize: 13),
+    );
+  }
+}
+
+class _CapacityValidationRow extends StatelessWidget {
+  const _CapacityValidationRow({
+    required this.visibleGrades,
+    required this.classesByGrade,
+    required this.summaries,
+    required this.horizontal,
+  });
+
+  final List<GradeGroup> visibleGrades;
+  final Map<String, List<ClassBrief>> classesByGrade;
+  final Map<String, GradeCapacitySummary> summaries;
+  final HorizontalScrollAreaBuilder horizontal;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      border: Border(top: BorderSide(color: context.appColors.border)),
+    ),
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        SizedBox(
+          width: SubjectMatrix._nameColumnWidth,
+          child: Padding(
+            padding: EdgeInsets.only(left: 14),
+            child: Text(
+              '容量校验',
+              style: TextStyle(
+                color: context.appColors.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: horizontal(
+            key: 'validation',
+            child: Row(
+              children: [
+                for (final grade in visibleGrades)
+                  _CapacityStatusCell(
+                    key: ValueKey('subject-capacity-status-${grade.id}'),
+                    summary: summaries[grade.id],
+                    hasClasses: classesByGrade[grade.id]?.isNotEmpty ?? false,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: SubjectMatrix._presetColumnWidth),
+      ],
+    ),
+  );
+}
+
+class _CapacityStatusCell extends StatelessWidget {
+  const _CapacityStatusCell({
+    required this.summary,
+    required this.hasClasses,
+    super.key,
+  });
+
+  final GradeCapacitySummary? summary;
+  final bool hasClasses;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOver = summary?.isOver ?? false;
+    final label = !hasClasses
+        ? '暂无班级'
+        : summary == null
+        ? '待校验'
+        : isOver
+        ? '超 ${summary!.excess} 节'
+        : '通过';
+    final color = isOver
+        ? context.appColors.destructive
+        : summary == null || !hasClasses
+        ? context.appColors.muted
+        : context.appColors.success;
+    final message = !hasClasses
+        ? '该年级暂无班级，无法校验容量'
+        : summary == null
+        ? '该年级尚未设置作息，无法校验课位容量'
+        : isOver
+        ? summary!.issues
+              .map((issue) {
+                final week = switch (issue.weekMode) {
+                  WeekMode.weekly => '每周',
+                  WeekMode.odd => '单周',
+                  WeekMode.even => '双周',
+                };
+                return '${issue.className} $week：需求 ${issue.demand} 节，'
+                    '课位 ${issue.capacity}，超出 ${issue.excess} 节';
+              })
+              .join('\n')
+        : '全部班级的单周和双周需求均未超过课位容量';
+    return SizedBox(
+      width: SubjectMatrix._gradeColumnWidth,
+      child: Tooltip(
+        message: message,
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isOver ? Icons.error_outline_rounded : Icons.circle,
+                size: isOver ? 13 : 7,
+                color: color,
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: isOver ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -903,31 +1046,29 @@ class _CapacityFooterRow extends StatelessWidget {
   const _CapacityFooterRow({
     required this.visibleGrades,
     required this.summaries,
-    required this.alternatingWeeks,
     required this.horizontal,
   });
 
   final List<GradeGroup> visibleGrades;
   final Map<String, GradeCapacitySummary> summaries;
-  final bool alternatingWeeks;
   final HorizontalScrollAreaBuilder horizontal;
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      border: Border(top: BorderSide(color: AppTheme.border)),
+    decoration: BoxDecoration(
+      border: Border(top: BorderSide(color: context.appColors.tableDivider)),
     ),
-    padding: const EdgeInsets.symmetric(vertical: 10),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     child: Row(
       children: [
-        const SizedBox(
+        SizedBox(
           width: SubjectMatrix._nameColumnWidth,
           child: Padding(
             padding: EdgeInsets.only(left: 14),
             child: Text(
               '班级周课时',
               style: TextStyle(
-                color: AppTheme.muted,
+                color: context.appColors.muted,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -939,12 +1080,11 @@ class _CapacityFooterRow extends StatelessWidget {
             key: 'footer',
             child: Row(
               children: [
-                for (final grade in visibleGrades) ...[
+                for (final grade in visibleGrades)
                   _FooterCell(
+                    key: ValueKey('subject-capacity-footer-${grade.id}'),
                     summary: summaries[grade.id],
-                    alternatingWeeks: alternatingWeeks,
                   ),
-                ],
               ],
             ),
           ),
@@ -956,58 +1096,100 @@ class _CapacityFooterRow extends StatelessWidget {
 }
 
 class _FooterCell extends StatelessWidget {
-  const _FooterCell({required this.summary, required this.alternatingWeeks});
+  const _FooterCell({required this.summary, super.key});
 
   final GradeCapacitySummary? summary;
 
-  /// 未开启单双周交替时只以「需求 / 容量」短式呈现，不展示单/双周。
-  final bool alternatingWeeks;
-
   @override
   Widget build(BuildContext context) {
-    final text = summary == null
-        ? '—'
-        : (!alternatingWeeks || summary!.oddDemand == summary!.evenDemand)
-        ? '${summary!.oddDemand} / ${summary!.oddCapacity}'
-        : '单 ${summary!.oddDemand}/${summary!.oddCapacity}'
-              ' · 双 ${summary!.evenDemand}/${summary!.evenCapacity}';
-    const style = TextStyle(
-      color: AppTheme.inkSecondary,
-      fontSize: 11.5,
-      fontWeight: FontWeight.w400,
-    );
+    final value = summary;
     return SizedBox(
       width: SubjectMatrix._gradeColumnWidth,
       child: Padding(
-        padding: const EdgeInsets.only(left: 14),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // 仅在单行放不下、被省略号截断时，悬浮展示完整内容。
-            final textPainter = TextPainter(
-              text: TextSpan(text: text, style: style),
-              maxLines: 1,
-              textDirection: TextDirection.ltr,
-            )..layout(maxWidth: constraints.maxWidth);
-            final truncated = textPainter.didExceedMaxLines;
-            final color = (summary?.isOver ?? false)
-                ? AppTheme.destructive
-                : AppTheme.inkSecondary;
-            final body = Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: style.copyWith(
-                color: color,
-                fontWeight: (summary?.isOver ?? false)
-                    ? FontWeight.w600
-                    : FontWeight.w400,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: value == null || value.displayClassName == null
+            ? Center(
+                child: Text(
+                  '—',
+                  style: TextStyle(color: context.appColors.muted),
+                ),
+              )
+            : Tooltip(
+                message:
+                    '${value.displayClassName}：每周 ${value.weeklyDemand} 节'
+                    '${value.oddOnlyDemand > 0 ? ' · 单周 ${value.oddOnlyDemand} 节' : ''}'
+                    '${value.evenOnlyDemand > 0 ? ' · 双周 ${value.evenOnlyDemand} 节' : ''}'
+                    '；课位数 ${value.availableSlots}',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${value.weeklyDemand}',
+                            style: TextStyle(
+                              color: context.appColors.ink,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (value.oddOnlyDemand > 0) ...[
+                            const SizedBox(width: 4),
+                            _WeekCountTag(label: '单${value.oddOnlyDemand}'),
+                          ],
+                          if (value.evenOnlyDemand > 0) ...[
+                            const SizedBox(width: 4),
+                            _WeekCountTag(label: '双${value.evenOnlyDemand}'),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: 72,
+                      child: Divider(
+                        height: 1,
+                        color: context.appColors.tableDivider,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${value.availableSlots}',
+                      style: TextStyle(
+                        color: context.appColors.inkSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-            if (!truncated) return body;
-            return Tooltip(message: text, child: body);
-          },
-        ),
       ),
     );
   }
+}
+
+class _WeekCountTag extends StatelessWidget {
+  const _WeekCountTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: context.appColors.tableHeader,
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      child: Text(
+        label,
+        style: TextStyle(color: context.appColors.inkSecondary, fontSize: 9),
+      ),
+    ),
+  );
 }

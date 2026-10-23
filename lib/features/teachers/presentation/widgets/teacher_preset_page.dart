@@ -66,9 +66,9 @@ class _PresetMatrixHint extends StatelessWidget {
   const _PresetMatrixHint();
 
   @override
-  Widget build(BuildContext context) => const Text(
+  Widget build(BuildContext context) => Text(
     '预排不区分单双周；空白格为自动。节次和上课日按所选范围的作息显示。',
-    style: TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5),
+    style: TextStyle(color: context.appColors.muted, fontSize: 12, height: 1.5),
   );
 }
 
@@ -548,18 +548,18 @@ class _TeacherPresetWorkspaceState
     style: FTabsStyleDelta.delta(
       decoration: DecorationDelta.value(
         ShapeDecoration(
-          color: AppTheme.canvas,
+          color: context.appColors.canvas,
           shape: RoundedSuperellipseBorder(
-            side: const BorderSide(color: AppTheme.border),
+            side: BorderSide(color: context.appColors.border),
             borderRadius: BorderRadius.circular(8),
           ),
         ),
       ),
       indicatorDecoration: DecorationDelta.value(
         ShapeDecoration(
-          color: Colors.white,
+          color: context.appColors.surface,
           shape: RoundedSuperellipseBorder(
-            side: const BorderSide(color: AppTheme.border),
+            side: BorderSide(color: context.appColors.border),
             borderRadius: BorderRadius.circular(7),
           ),
         ),
@@ -624,8 +624,8 @@ class _TeacherPresetWorkspaceState
                   return Center(
                     child: Text(
                       owners.isEmpty ? '暂无可选对象' : '没有匹配结果',
-                      style: const TextStyle(
-                        color: AppTheme.muted,
+                      style: TextStyle(
+                        color: context.appColors.muted,
                         fontSize: 12,
                       ),
                     ),
@@ -651,7 +651,9 @@ class _TeacherPresetWorkspaceState
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: selected ? AppTheme.selectedBlue : null,
+                          color: selected
+                              ? context.appColors.selectedBlue
+                              : null,
                           borderRadius: BorderRadius.circular(7),
                         ),
                         child: Text(
@@ -659,7 +661,9 @@ class _TeacherPresetWorkspaceState
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: selected ? AppTheme.blue : AppTheme.ink,
+                            color: selected
+                                ? context.appColors.blue
+                                : context.appColors.ink,
                             fontSize: 12,
                             fontWeight: selected
                                 ? FontWeight.w600
@@ -705,10 +709,10 @@ class _TeacherPresetWorkspaceState
       padding: EdgeInsets.zero,
       expandChild: true,
       child: routine == null || scope == null || ownerLabel == null
-          ? const Center(
+          ? Center(
               child: Text(
                 '选择教师或分组及应用范围后设置预排',
-                style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                style: TextStyle(color: context.appColors.muted, fontSize: 12),
               ),
             )
           : Column(
@@ -762,22 +766,22 @@ class _TeacherPresetWorkspaceState
     title: '全部预排信息',
     trailing: Text(
       '${rules.length} 条',
-      style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+      style: TextStyle(color: context.appColors.muted, fontSize: 11),
     ),
     padding: EdgeInsets.zero,
     expandChild: true,
     child: rules.isEmpty
-        ? const Center(
+        ? Center(
             child: Text(
               '暂无预排规则，矩阵中的空白表示自动安排。',
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              style: TextStyle(color: context.appColors.muted, fontSize: 12),
             ),
           )
         : ListView.separated(
             padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
             itemCount: rules.length,
             separatorBuilder: (_, _) =>
-                const Divider(height: 1, color: AppTheme.border),
+                Divider(height: 1, color: context.appColors.border),
             itemBuilder: (context, index) {
               final rule = rules[index];
               final ownerKindLabel = rule.kind == _PresetOwnerKind.teacher
@@ -797,13 +801,13 @@ class _TeacherPresetWorkspaceState
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.selectedBlue,
+                        color: context.appColors.selectedBlue,
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
                         ownerKindLabel,
-                        style: const TextStyle(
-                          color: AppTheme.blue,
+                        style: TextStyle(
+                          color: context.appColors.blue,
                           fontSize: 10,
                         ),
                       ),
@@ -818,8 +822,8 @@ class _TeacherPresetWorkspaceState
                             '${rule.ownerLabel} · ${rule.scopeLabel}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppTheme.ink,
+                            style: TextStyle(
+                              color: context.appColors.ink,
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -828,8 +832,8 @@ class _TeacherPresetWorkspaceState
                             _ruleLocation(rule),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppTheme.muted,
+                            style: TextStyle(
+                              color: context.appColors.muted,
                               fontSize: 11,
                             ),
                           ),
@@ -841,8 +845,8 @@ class _TeacherPresetWorkspaceState
                       rule.value.label,
                       style: TextStyle(
                         color: rule.value == PresetValue.forbid
-                            ? AppTheme.destructive
-                            : AppTheme.blue,
+                            ? context.appColors.destructive
+                            : context.appColors.blue,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -853,10 +857,10 @@ class _TeacherPresetWorkspaceState
                       size: FButtonSizeVariant.xs,
                       variant: FButtonVariant.ghost,
                       onPress: () => unawaited(_deleteRule(rule)),
-                      child: const Icon(
+                      child: Icon(
                         Icons.delete_outline_rounded,
                         size: 16,
-                        color: AppTheme.muted,
+                        color: context.appColors.muted,
                       ),
                     ),
                   ],
