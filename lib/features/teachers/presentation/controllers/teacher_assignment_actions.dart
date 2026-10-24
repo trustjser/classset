@@ -41,7 +41,9 @@ extension _TeacherAssignmentActions on _TeachersPageState {
         ref.read(teachersProvider(widget.termId)).valueOrNull ?? const [];
     final classes =
         ref.read(classesForTermProvider(widget.termId)).valueOrNull ?? const [];
-    final subjects = ref.read(subjectsProvider).valueOrNull ?? const [];
+    final subjects =
+        ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const [];
     if (teachers.isEmpty || classes.isEmpty || subjects.isEmpty) {
       _showMessage('请先添加教师、班级和科目');
       return;
@@ -199,7 +201,9 @@ extension _TeacherAssignmentActions on _TeachersPageState {
     final classList =
         ref.read(classesForTermProvider(widget.termId)).valueOrNull ?? const [];
     final classById = {for (final item in classList) item.id: item};
-    final subjects = ref.read(subjectsProvider).valueOrNull ?? const [];
+    final subjects =
+        ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const [];
     final subjectNames = {
       for (final subject in subjects) subject.id: subject.name,
     };

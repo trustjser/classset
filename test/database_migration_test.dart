@@ -130,4 +130,21 @@ void main() {
       isNot(contains('term_id')),
     );
   });
+
+  test('v11 数据库升级后增加学校设置表', () async {
+    final database = AppDatabase(
+      NativeDatabase.memory(
+        setup: (connection) => connection.execute('PRAGMA user_version = 11'),
+      ),
+    );
+    addTearDown(database.close);
+
+    final columns = await database
+        .customSelect('PRAGMA table_info(app_settings)')
+        .get();
+    expect(
+      columns.map((row) => row.read<String>('name')),
+      containsAll(['school_name', 'active_term_id']),
+    );
+  });
 }

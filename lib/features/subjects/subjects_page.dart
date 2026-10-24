@@ -1,5 +1,6 @@
 import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/navigation/draft_navigation_guard.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/academic_term.dart';
@@ -31,6 +32,8 @@ class SubjectsPage extends ConsumerStatefulWidget {
 }
 
 class _SubjectsPageState extends ConsumerState<SubjectsPage> {
+  late final DraftNavigationGuard _navigationGuard;
+
   /// 当前范围：null = 全校，否则学段 ID。
   String? _scopeStageId;
 
@@ -48,6 +51,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
 
   /// 暂存的新增科目（保存时落库）。
   final List<Subject> _newSubjects = [];
+  final Map<String, Subject> _editedSubjects = {};
+  final Set<String> _deletedSubjectIds = {};
 
   /// 新增科目的科目预设暂存到页面保存，避免预设先于科目写入并触发外键错误。
   final Map<String, List<SubjectPresetEdit>> _newSubjectPresetDrafts = {};
@@ -62,6 +67,48 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   final Map<String, List<SubjectPairing>> _pairingDrafts = {};
 
   bool _saving = false;
+  Future<bool>? _saveInFlight;
+
+  bool get _hasUnsavedChanges =>
+      _draft.isNotEmpty ||
+      _newSubjects.isNotEmpty ||
+      _editedSubjects.isNotEmpty ||
+      _deletedSubjectIds.isNotEmpty ||
+      _pairingDrafts.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _navigationGuard = ref.read(draftNavigationGuardProvider);
+    _registerDraftGuard();
+  }
+
+  @override
+  void didUpdateWidget(covariant SubjectsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.termId != widget.termId) _registerDraftGuard();
+  }
+
+  void _registerDraftGuard() => _navigationGuard.register(
+    owner: this,
+    pageKey: 'subjects:${widget.termId}',
+    hasChanges: () => _hasUnsavedChanges,
+    isSaving: () => _saveInFlight != null,
+    save: _save,
+  );
+
+  @override
+  void dispose() {
+    _navigationGuard.unregister(this);
+    super.dispose();
+  }
+
+  List<Subject> _visibleSubjects(List<Subject> saved) => [
+    for (final subject in saved)
+      if (!_deletedSubjectIds.contains(subject.id))
+        _editedSubjects[subject.id] ?? subject,
+    ..._newSubjects,
+  ];
 
   static String _scopeKey(String subjectId, String classId, WeekMode mode) =>
       '${subjectId}_${classId}_${mode.storageValue}';
@@ -97,8 +144,9 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         ref.watch(classesForTermProvider(term.id)).valueOrNull ??
         const <ClassBrief>[];
     final streamSubjects =
-        ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
-    final subjects = [...streamSubjects, ..._newSubjects];
+        ref.watch(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const <Subject>[];
+    final subjects = _visibleSubjects(streamSubjects);
     final requirements =
         ref.watch(allRequirementsProvider).valueOrNull ??
         const <SubjectRequirement>[];
@@ -209,13 +257,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                 ),
               ),
               AppPrimaryButton(
-                onPressed:
-                    (_draft.isEmpty &&
-                            _newSubjects.isEmpty &&
-                            _pairingDrafts.isEmpty) ||
-                        _saving
-                    ? null
-                    : _save,
+                onPressed: !_hasUnsavedChanges || _saving ? null : _save,
                 child: Text(_saving ? '保存中' : '保存'),
               ),
             ],
@@ -265,6 +307,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                 );
                 final matrix = SubjectMatrix(
                   subjects: subjects,
+                  onEditSubject: _editSubject,
+                  onDeleteSubject: _deleteSubject,
                   visibleGrades: visibleGrades,
                   classesByGrade: classesByGrade,
                   visibleStages: stages
@@ -959,13 +1003,19 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                   ' ${classBrief.name}'
             : classBrief.name,
     };
-    final subjects = [
-      ...ref.read(subjectsProvider).valueOrNull ?? const <Subject>[],
-      ..._newSubjects,
-    ];
+    final subjects = _visibleSubjects(
+      ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+          const <Subject>[],
+    );
+    final visibleSubjectIds = subjects.map((subject) => subject.id).toSet();
     final savedPairings =
         (ref.read(allPairingsProvider).valueOrNull ?? const <SubjectPairing>[])
-            .where((pairing) => classLabels.containsKey(pairing.classId))
+            .where(
+              (pairing) =>
+                  classLabels.containsKey(pairing.classId) &&
+                  visibleSubjectIds.contains(pairing.oddSubjectId) &&
+                  visibleSubjectIds.contains(pairing.evenSubjectId),
+            )
             .toList();
     final pairingsByClass = <String, List<SubjectPairing>>{
       for (final classBrief in classBriefs)
@@ -1034,31 +1084,146 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _editSubject(Subject subject) async {
+    final saved =
+        ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const <Subject>[];
+    final existingNames = _visibleSubjects(saved)
+        .where((item) => item.id != subject.id)
+        .map((item) => item.name)
+        .toSet();
+    final result = await showAppDialog<List<SubjectDraftInput>>(
+      context: context,
+      builder: (context) =>
+          AddSubjectDialog(existingNames: existingNames, subject: subject),
+    );
+    if (result == null || !mounted) return;
+    final updated = result.single;
+    if (updated.name == subject.name &&
+        updated.shortName == subject.shortName) {
+      return;
+    }
+    final edited = subject.copyWith(
+      name: updated.name,
+      shortName: updated.shortName,
+    );
+    setState(() {
+      final newIndex = _newSubjects.indexWhere((item) => item.id == subject.id);
+      if (newIndex >= 0) {
+        _newSubjects[newIndex] = edited;
+      } else {
+        final original = saved
+            .where((item) => item.id == subject.id)
+            .firstOrNull;
+        if (original != null &&
+            original.name == edited.name &&
+            original.shortName == edited.shortName) {
+          _editedSubjects.remove(subject.id);
+        } else {
+          _editedSubjects[subject.id] = edited;
+        }
+      }
+    });
+    _showMessage('科目更改已暂存，点击右上角“保存”后生效');
+  }
+
+  Future<void> _deleteSubject(Subject subject) async {
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (context) => AppDialog(
+        title: const Text('删除科目'),
+        content: Text('确定删除“${subject.name}”吗？保存后，该科目的节数、预设和关联设置也会删除。'),
+        actions: [
+          AppSecondaryButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          AppDestructiveButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      final isNew = _newSubjects.any((item) => item.id == subject.id);
+      _newSubjects.removeWhere((item) => item.id == subject.id);
+      if (!isNew) {
+        _deletedSubjectIds.add(subject.id);
+      }
+      _editedSubjects.remove(subject.id);
+      final classes =
+          ref.read(classesForTermProvider(widget.termId)).valueOrNull ??
+          const <ClassBrief>[];
+      for (final classBrief in classes) {
+        for (final mode in WeekMode.values) {
+          _draft.remove(_scopeKey(subject.id, classBrief.id, mode));
+        }
+      }
+      _newSubjectPresetDrafts.remove(subject.id);
+      _newSubjectConstraintDrafts.remove(subject.id);
+      _newSubjectRoomDrafts.remove(subject.id);
+      final savedPairings =
+          ref.read(allPairingsProvider).valueOrNull ?? const <SubjectPairing>[];
+      for (final classId in _pairingDrafts.keys.toList()) {
+        final filtered = _pairingDrafts[classId]!
+            .where(
+              (pairing) =>
+                  pairing.oddSubjectId != subject.id &&
+                  pairing.evenSubjectId != subject.id,
+            )
+            .toList();
+        final baseline = savedPairings
+            .where(
+              (pairing) =>
+                  pairing.classId == classId &&
+                  !_deletedSubjectIds.contains(pairing.oddSubjectId) &&
+                  !_deletedSubjectIds.contains(pairing.evenSubjectId),
+            )
+            .toList();
+        if (_samePairings(filtered, baseline)) {
+          _pairingDrafts.remove(classId);
+        } else {
+          _pairingDrafts[classId] = filtered;
+        }
+      }
+    });
+    _showMessage('科目删除已暂存，点击右上角“保存”后生效');
+  }
+
   Future<void> _openAddSubject() async {
     final savedSubjects =
-        ref.read(subjectsProvider).valueOrNull ?? const <Subject>[];
-    final existing = {
-      ...savedSubjects.map((subject) => subject.name),
-      ..._newSubjects.map((subject) => subject.name),
-    };
-    final result = await showAppDialog<({String name, String shortName})>(
+        ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const <Subject>[];
+    final existing = _visibleSubjects(savedSubjects)
+        .map((subject) => subject.name)
+        .toSet();
+    final result = await showAppDialog<List<SubjectDraftInput>>(
       context: context,
       builder: (context) => AddSubjectDialog(existingNames: existing),
     );
-    if (result == null) return;
+    if (result == null || !mounted) return;
     setState(() {
-      _newSubjects.add(
-        Subject(
-          id: 'subject_${DateTime.now().microsecondsSinceEpoch}_${_newSubjects.length}',
-          name: result.name,
-          shortName: result.shortName,
-          sortOrder: savedSubjects.length + _newSubjects.length,
-        ),
-      );
+      final idPrefix = DateTime.now().microsecondsSinceEpoch;
+      for (final input in result) {
+        _newSubjects.add(
+          Subject(
+            id: 'subject_${idPrefix}_${_newSubjects.length}',
+            termId: widget.termId,
+            name: input.name,
+            shortName: input.shortName,
+            sortOrder: savedSubjects.length + _newSubjects.length,
+          ),
+        );
+      }
     });
   }
 
-  Future<void> _save() async {
+  Future<bool> _save() =>
+      _saveInFlight ??= _performSave().whenComplete(() => _saveInFlight = null);
+
+  Future<bool> _performSave() async {
     final allGrades =
         ref.read(gradesForTermProvider(widget.termId)).valueOrNull ??
         const <GradeGroup>[];
@@ -1079,10 +1244,10 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final classBriefs = allClasses
         .where((classBrief) => visibleGradeIds.contains(classBrief.gradeId))
         .toList();
-    final subjects = [
-      ...ref.read(subjectsProvider).valueOrNull ?? const <Subject>[],
-      ..._newSubjects,
-    ];
+    final subjects = _visibleSubjects(
+      ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+          const <Subject>[],
+    );
     final requirements =
         ref.read(allRequirementsProvider).valueOrNull ??
         const <SubjectRequirement>[];
@@ -1160,7 +1325,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           ],
         ),
       );
-      if (proceed != true) return;
+      if (proceed != true) return false;
     }
 
     setState(() => _saving = true);
@@ -1168,7 +1333,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       final repository = ref.read(schoolRepositoryProvider);
       if (_newSubjectRoomDrafts.isNotEmpty) {
         final rooms = await ref.read(publicRoomsProvider.future);
-        if (!mounted) return;
+        if (!mounted) return false;
         final roomIds = rooms.map((room) => room.id).toSet();
         final invalidSubjects = [
           for (final entry in _newSubjectRoomDrafts.entries)
@@ -1186,11 +1351,12 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           _showMessage(
             '以下科目的场室已删除，请打开科目高级设置重新选择或重置：${invalidSubjects.join('、')}',
           );
-          return;
+          return false;
         }
       }
-      if (_newSubjects.isNotEmpty) {
-        await repository.saveSubjects(_newSubjects);
+      final subjectUpdates = [..._newSubjects, ..._editedSubjects.values];
+      if (subjectUpdates.isNotEmpty) {
+        await repository.saveSubjects(subjectUpdates);
       }
       for (final entry in _newSubjectPresetDrafts.entries) {
         for (final edit in entry.value) {
@@ -1238,11 +1404,16 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           requirements: rows,
         );
       }
+      for (final subjectId in _deletedSubjectIds) {
+        await repository.deleteSubject(subjectId);
+      }
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _draft.clear();
         _newSubjects.clear();
+        _editedSubjects.clear();
+        _deletedSubjectIds.clear();
         _newSubjectPresetDrafts.clear();
         _newSubjectConstraintDrafts.clear();
         _newSubjectRoomDrafts.clear();
@@ -1251,11 +1422,13 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       });
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('科目设置已保存')));
+      return true;
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('保存失败：$error')));
+      return false;
     }
   }
 

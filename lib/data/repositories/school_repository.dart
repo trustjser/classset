@@ -16,6 +16,14 @@ import 'package:class_set/domain/models/teacher_group.dart';
 import 'package:class_set/domain/models/teacher_preset.dart';
 
 abstract interface class SchoolRepository {
+  Future<String?> loadActiveTermId();
+
+  Future<void> saveActiveTermId(String? termId);
+
+  Stream<String> watchSchoolName();
+
+  Future<void> saveSchoolName(String name);
+
   Stream<List<AcademicTerm>> watchTerms();
 
   Future<void> saveTerm(AcademicTerm term);
@@ -92,8 +100,11 @@ abstract interface class SchoolRepository {
 
   // —— 科目与科目节数 ——
 
-  /// 全校科目流（按 sortOrder 升序）。
+  /// 所有科目流，供跨学期数据迁移和兼容旧调用方使用。
   Stream<List<Subject>> watchSubjects();
+
+  /// 指定学期的科目流（按 sortOrder 升序）。
+  Stream<List<Subject>> watchSubjectsForTerm(String termId);
 
   /// 原子保存一批科目（新增 / 改名 / 排序）。
   Future<void> saveSubjects(List<Subject> subjects);

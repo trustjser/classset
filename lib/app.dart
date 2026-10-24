@@ -2,6 +2,7 @@ import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/navigation/draft_navigation_guard.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/features/classes/classes_page.dart';
@@ -9,6 +10,7 @@ import 'package:class_set/features/routines/routine_page.dart';
 import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/teachers/teachers_page.dart';
+import 'package:class_set/features/school/school_name_dialog.dart';
 import 'package:class_set/features/terms/term_page.dart';
 import 'package:class_set/features/workbench/workbench_page.dart';
 import 'package:flutter/material.dart';
@@ -26,6 +28,8 @@ enum AppSection {
   teachers,
   publicRooms,
 }
+
+enum _DraftLeaveChoice { save, discard }
 
 enum _AppThemeMode {
   system('跟随系统', Icons.brightness_auto_rounded),
@@ -150,18 +154,111 @@ class _AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<_AppShell> {
   static const _compactNavigationBreakpoint = 1040.0;
   bool _sidebarExpanded = true;
+  Future<void> _pendingTermSave = Future<void>.value();
+  bool _navigationPending = false;
+
+  String? _currentDraftPageKey() {
+    final termId = ref.read(activeTermIdProvider);
+    if (termId == null) return null;
+    return switch (ref.read(selectedSectionProvider)) {
+      AppSection.routines => 'routines:$termId',
+      AppSection.subjects => 'subjects:$termId',
+      _ => null,
+    };
+  }
+
+  Future<bool> _canLeaveCurrentPage() async {
+    final pageKey = _currentDraftPageKey();
+    if (pageKey == null) return true;
+    final guard = ref.read(draftNavigationGuardProvider);
+    if (guard.isSavingFor(pageKey)) return guard.saveFor(pageKey);
+    if (!guard.hasChangesFor(pageKey)) return true;
+    final choice = await showAppDialog<_DraftLeaveChoice>(
+      context: context,
+      builder: (dialogContext) => AppDialog(
+        title: const Text('尚有未保存的修改'),
+        content: const Text('当前页面的草稿尚未保存。离开前要保存吗？'),
+        actions: [
+          AppGhostButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('继续编辑'),
+          ),
+          AppSecondaryButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _DraftLeaveChoice.discard),
+            child: const Text('不保存并离开'),
+          ),
+          AppPrimaryButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _DraftLeaveChoice.save),
+            child: const Text('保存并离开'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || choice == null) return false;
+    if (choice == _DraftLeaveChoice.discard) return true;
+    return guard.saveFor(pageKey);
+  }
+
+  Future<void> _requestSection(AppSection section) async {
+    if (_navigationPending || section == ref.read(selectedSectionProvider)) {
+      return;
+    }
+    _navigationPending = true;
+    try {
+      if (await _canLeaveCurrentPage() && mounted) {
+        ref.read(selectedSectionProvider.notifier).state = section;
+      }
+    } finally {
+      _navigationPending = false;
+    }
+  }
+
+  Future<void> _requestTerm(String termId) async {
+    if (_navigationPending || termId == ref.read(activeTermIdProvider)) return;
+    _navigationPending = true;
+    try {
+      if (await _canLeaveCurrentPage() && mounted) {
+        ref.read(activeTermIdProvider.notifier).state = termId;
+      }
+    } finally {
+      _navigationPending = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(activeTermIdProvider, (_, next) {
+      final repository = ref.read(schoolRepositoryProvider);
+      _pendingTermSave = _pendingTermSave.then((_) async {
+        try {
+          await repository.saveActiveTermId(next);
+          if (mounted) {
+            ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
+          }
+        } on Object catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.maybeOf(this.context)
+                ?.showSnackBar(SnackBar(content: Text('保存当前学期失败：$error')));
+          }
+        }
+      });
+    });
     final section = ref.watch(selectedSectionProvider);
     final activeTermId = ref.watch(activeTermIdProvider);
     final terms = ref.watch(termsProvider);
     final availableTerms = terms.valueOrNull ?? const [];
-    if (activeTermId == null && availableTerms.isNotEmpty) {
+    if (terms.hasValue &&
+        availableTerms.isNotEmpty &&
+        !availableTerms.any((term) => term.id == activeTermId)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted && ref.read(activeTermIdProvider) == null) {
-          ref.read(activeTermIdProvider.notifier).state =
-              availableTerms.first.id;
+        if (!mounted) return;
+        final latestTerms = ref.read(termsProvider).valueOrNull ?? const [];
+        final currentId = ref.read(activeTermIdProvider);
+        if (latestTerms.isNotEmpty &&
+            !latestTerms.any((term) => term.id == currentId)) {
+          ref.read(activeTermIdProvider.notifier).state = latestTerms.first.id;
         }
       });
     }
@@ -185,7 +282,11 @@ class _AppShellState extends ConsumerState<_AppShell> {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Sidebar(section: section, isCompact: compactNavigation),
+              _Sidebar(
+                section: section,
+                isCompact: compactNavigation,
+                onNavigate: (value) => unawaited(_requestSection(value)),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -195,6 +296,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
                       isSidebarExpanded: !compactNavigation,
                       themeMode: widget.themeMode,
                       onCycleThemeMode: widget.onCycleThemeMode,
+                      onSelectTerm: (value) => unawaited(_requestTerm(value)),
                       onToggleSidebar:
                           constraints.maxWidth < _compactNavigationBreakpoint
                           ? null
@@ -229,7 +331,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
                           ),
                         ),
                         child: KeyedSubtree(
-                          key: ValueKey(section),
+                          key: ValueKey((section, activeTermId)),
                           child: switch (section) {
                             AppSection.workbench => const WorkbenchPage(),
                             AppSection.publicRooms => const PublicRoomsPage(),
@@ -268,10 +370,15 @@ class _AppShellState extends ConsumerState<_AppShell> {
 }
 
 class _Sidebar extends ConsumerWidget {
-  const _Sidebar({required this.section, required this.isCompact});
+  const _Sidebar({
+    required this.section,
+    required this.isCompact,
+    required this.onNavigate,
+  });
 
   final AppSection section;
   final bool isCompact;
+  final ValueChanged<AppSection> onNavigate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -289,255 +396,305 @@ class _Sidebar extends ConsumerWidget {
         border: Border(right: BorderSide(color: context.appColors.border)),
       ),
       padding: EdgeInsets.fromLTRB(0, 0, 0, isCompact ? 10 : 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              isCompact ? 0 : 18,
-              17,
-              isCompact ? 0 : 16,
-              16,
-            ),
-            child: Row(
-              mainAxisAlignment: isCompact
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                const _BrandLogo(),
-                if (!isCompact) const SizedBox(width: 10),
-                if (!isCompact)
-                  Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Keep expanded-only rows out of the sidebar while its width is
+          // animating through a size that cannot fit them yet.
+          final compactContents = isCompact || constraints.maxWidth < 160;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  compactContents ? 0 : 18,
+                  17,
+                  compactContents ? 0 : 16,
+                  16,
+                ),
+                child: Row(
+                  mainAxisAlignment: compactContents
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.start,
+                  children: [
+                    const _BrandLogo(),
+                    if (!compactContents) const SizedBox(width: 10),
+                    if (!compactContents)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '课集',
+                            style: TextStyle(
+                              color: context.appColors.ink,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              height: 1.1,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'CLASSSET',
+                            style: TextStyle(
+                              color: context.appColors.muted,
+                              fontSize: 9,
+                              letterSpacing: .7,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  compactContents ? 7 : 13,
+                  0,
+                  compactContents ? 7 : 13,
+                  13,
+                ),
+                child: _SchoolIdentityCard(
+                  isCompact: compactContents,
+                  termTitle: termTitle,
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compactContents ? 7 : 10,
+                  ),
+                  children: [
+                    if (!compactContents) const _NavGroupLabel('排课准备'),
+                    _NavItem(
+                      isCompact: compactContents,
+                      icon: Icons.space_dashboard_outlined,
+                      label: '工作台',
+                      isSelected: section == AppSection.workbench,
+                      onTap: () => onNavigate(AppSection.workbench),
+                    ),
+                    _NavItem(
+                      isCompact: compactContents,
+                      icon: Icons.event_note_rounded,
+                      label: '学期与日历',
+                      isSelected: section == AppSection.terms,
+                      onTap: () => onNavigate(AppSection.terms),
+                    ),
+                    _NavItem(
+                      isCompact: compactContents,
+                      icon: Icons.account_tree_outlined,
+                      label: '班级与学段',
+                      isSelected: section == AppSection.classes,
+                      onTap: () => onNavigate(AppSection.classes),
+                    ),
+                    _NavItem(
+                      isCompact: compactContents,
+                      icon: Icons.view_week_outlined,
+                      label: '作息设置',
+                      isSelected: section == AppSection.routines,
+                      onTap: () => onNavigate(AppSection.routines),
+                    ),
+                    if (!compactContents) const _NavDivider(),
+                    if (!compactContents) const _NavGroupLabel('排课与课表'),
+                    _NavItem(
+                      isCompact: compactContents,
+                      icon: Icons.calculate_outlined,
+                      label: '科目节数',
+                      isSelected: section == AppSection.subjects,
+                      onTap: () => onNavigate(AppSection.subjects),
+                    ),
+                    _NavItem(
+                      label: '教师任课',
+                      icon: Icons.person_outline,
+                      isCompact: compactContents,
+                      isSelected: section == AppSection.teachers,
+                      onTap: () => onNavigate(AppSection.teachers),
+                    ),
+                    _NavComingSoon(
+                      label: '自动排课',
+                      icon: Icons.auto_awesome_outlined,
+                      isCompact: compactContents,
+                    ),
+                    _NavComingSoon(
+                      label: '课表编辑',
+                      icon: Icons.calendar_view_week_outlined,
+                      isCompact: compactContents,
+                    ),
+                    if (!compactContents) const _NavDivider(),
+                    if (!compactContents) const _NavGroupLabel('更多'),
+                    _NavItem(
+                      label: '公共场室',
+                      icon: Icons.meeting_room_outlined,
+                      isCompact: compactContents,
+                      isSelected: section == AppSection.publicRooms,
+                      onTap: () => onNavigate(AppSection.publicRooms),
+                    ),
+                  ],
+                ),
+              ),
+              if (!compactContents)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(13, 10, 13, 0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.appColors.canvas,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: context.appColors.success,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '本地数据 · 离线可用',
+                                style: TextStyle(
+                                  color: context.appColors.ink,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '数据保存在这台设备',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: context.appColors.muted,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SchoolIdentityCard extends ConsumerWidget {
+  const _SchoolIdentityCard({required this.isCompact, required this.termTitle});
+
+  final bool isCompact;
+  final String termTitle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final schoolName = ref.watch(schoolNameProvider).valueOrNull ?? '';
+    final displayName = ref.watch(schoolDisplayNameProvider);
+    final initial = schoolName.trim().isEmpty
+        ? '校'
+        : String.fromCharCode(schoolName.trim().runes.first);
+
+    return Tooltip(
+      message: '编辑学校名称',
+      child: f.FTappable(
+        semanticsLabel: '编辑学校名称，当前为$displayName',
+        onPress: () => _editSchoolName(context, ref, schoolName),
+        child: Container(
+          padding: EdgeInsets.all(isCompact ? 8 : 10),
+          decoration: BoxDecoration(
+            color: context.appColors.canvas,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: isCompact
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.start,
+            children: [
+              Container(
+                width: 31,
+                height: 31,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: context.appColors.selectedBlue,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  initial,
+                  style: TextStyle(
+                    color: context.appColors.blue,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (!isCompact) ...[
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '课集',
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.appColors.ink,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          height: 1.1,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      SizedBox(height: 3),
+                      const SizedBox(height: 3),
                       Text(
-                        'CLASSSET',
+                        termTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.appColors.muted,
-                          fontSize: 9,
-                          letterSpacing: .7,
+                          fontSize: 9.5,
                         ),
                       ),
                     ],
                   ),
-              ],
-            ),
-          ),
-          if (!isCompact)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(13, 0, 13, 13),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: context.appColors.canvas,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 31,
-                      height: 31,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: context.appColors.selectedBlue,
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Text(
-                        '青',
-                        style: TextStyle(
-                          color: context.appColors.blue,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '青木实验学校',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.appColors.ink,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            termTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.appColors.muted,
-                              fontSize: 9.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Icon(
-                    //   Icons.expand_more_rounded,
-                    //   size: 16,
-                    //   color: context.appColors.muted,
-                    // ),
-                  ],
-                ),
-              ),
-            ),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.symmetric(horizontal: isCompact ? 7 : 10),
-              children: [
-                if (!isCompact) const _NavGroupLabel('排课准备'),
-                _NavItem(
-                  isCompact: isCompact,
-                  icon: Icons.space_dashboard_outlined,
-                  label: '工作台',
-                  isSelected: section == AppSection.workbench,
-                  onTap: () =>
-                      ref.read(selectedSectionProvider.notifier).state =
-                          AppSection.workbench,
-                ),
-                _NavItem(
-                  isCompact: isCompact,
-                  icon: Icons.event_note_rounded,
-                  label: '学期与日历',
-                  isSelected: section == AppSection.terms,
-                  onTap: () =>
-                      ref.read(selectedSectionProvider.notifier).state =
-                          AppSection.terms,
-                ),
-                _NavItem(
-                  isCompact: isCompact,
-                  icon: Icons.account_tree_outlined,
-                  label: '班级与学段',
-                  isSelected: section == AppSection.classes,
-                  onTap: () =>
-                      ref.read(selectedSectionProvider.notifier).state =
-                          AppSection.classes,
-                ),
-                _NavItem(
-                  isCompact: isCompact,
-                  icon: Icons.view_week_outlined,
-                  label: '作息设置',
-                  isSelected: section == AppSection.routines,
-                  onTap: () =>
-                      ref.read(selectedSectionProvider.notifier).state =
-                          AppSection.routines,
-                ),
-                if (!isCompact) const _NavDivider(),
-                if (!isCompact) const _NavGroupLabel('排课与课表'),
-                _NavItem(
-                  isCompact: isCompact,
-                  icon: Icons.calculate_outlined,
-                  label: '科目节数',
-                  isSelected: section == AppSection.subjects,
-                  onTap: () =>
-                      ref.read(selectedSectionProvider.notifier).state =
-                          AppSection.subjects,
-                ),
-                _NavItem(
-                  label: '教师任课',
-                  icon: Icons.person_outline,
-                  isCompact: isCompact,
-                  isSelected: section == AppSection.teachers,
-                  onTap: () =>
-                      ref.read(selectedSectionProvider.notifier).state =
-                          AppSection.teachers,
-                ),
-                _NavComingSoon(
-                  label: '自动排课',
-                  icon: Icons.auto_awesome_outlined,
-                  isCompact: isCompact,
-                ),
-                _NavComingSoon(
-                  label: '课表编辑',
-                  icon: Icons.calendar_view_week_outlined,
-                  isCompact: isCompact,
-                ),
-                if (!isCompact) const _NavDivider(),
-                if (!isCompact) const _NavGroupLabel('更多'),
-                _NavItem(
-                  label: '公共场室',
-                  icon: Icons.meeting_room_outlined,
-                  isCompact: isCompact,
-                  isSelected: section == AppSection.publicRooms,
-                  onTap: () =>
-                      ref.read(selectedSectionProvider.notifier).state =
-                          AppSection.publicRooms,
                 ),
               ],
-            ),
+            ],
           ),
-          if (!isCompact)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(13, 10, 13, 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: context.appColors.canvas,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: context.appColors.success,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '本地数据 · 离线可用',
-                            style: TextStyle(
-                              color: context.appColors.ink,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            '数据保存在这台设备',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.appColors.muted,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
+  }
+
+  Future<void> _editSchoolName(
+    BuildContext context,
+    WidgetRef ref,
+    String currentName,
+  ) async {
+    final name = await showAppDialog<String>(
+      context: context,
+      builder: (context) => SchoolNameDialog(initialName: currentName),
+    );
+    if (name == null || !context.mounted || name.trim() == currentName.trim()) {
+      return;
+    }
+    try {
+      await ref.read(schoolRepositoryProvider).saveSchoolName(name);
+      ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
+    } on Object catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)
+            ?.showSnackBar(SnackBar(content: Text('保存学校名称失败：$error')));
+      }
+    }
   }
 }
 
@@ -730,6 +887,7 @@ class _TopBar extends ConsumerWidget {
     required this.isSidebarExpanded,
     required this.themeMode,
     required this.onCycleThemeMode,
+    required this.onSelectTerm,
     required this.onToggleSidebar,
   });
 
@@ -737,6 +895,7 @@ class _TopBar extends ConsumerWidget {
   final bool isSidebarExpanded;
   final _AppThemeMode themeMode;
   final VoidCallback onCycleThemeMode;
+  final ValueChanged<String> onSelectTerm;
   final VoidCallback? onToggleSidebar;
 
   @override
@@ -785,8 +944,7 @@ class _TopBar extends ConsumerWidget {
                   AppMenuItem(
                     label: term.title,
                     selected: term.id == activeId,
-                    onPressed: () =>
-                        ref.read(activeTermIdProvider.notifier).state = term.id,
+                    onPressed: () => onSelectTerm(term.id),
                   ),
               ],
               child: Container(

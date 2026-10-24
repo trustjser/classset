@@ -87,9 +87,8 @@ Future<void> _mountTeacherPage(
           ),
         classesForTermProvider(_termId)
             .overrideWith((ref) => Stream.value(classes ?? _sampleClasses)),
-        subjectsProvider.overrideWith(
-          (ref) => Stream.value(subjects ?? _sampleSubjects),
-        ),
+        subjectsForTermProvider(_termId)
+            .overrideWith((ref) => Stream.value(subjects ?? _sampleSubjects)),
         if (repository == null || useFixtureTeacherDataWithRepository)
           teachersProvider(_termId)
               .overrideWith((ref) => Stream.value(teachers ?? _sampleTeachers)),

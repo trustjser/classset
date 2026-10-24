@@ -1,15 +1,17 @@
 import 'package:class_set/domain/models/free_slot.dart';
 
-/// 科目：全校共享（不按学段隔离，US-001 AC5）。
+/// 科目属于一个学期，同一学期内各学段共享。
 class Subject {
   const Subject({
     required this.id,
     required this.name,
     required this.shortName,
     required this.sortOrder,
+    this.termId,
   });
 
   final String id;
+  final String? termId;
 
   /// 全称，如「心理健康」。
   final String name;
@@ -22,6 +24,7 @@ class Subject {
   Subject copyWith({String? name, String? shortName, int? sortOrder}) =>
       Subject(
         id: id,
+        termId: termId,
         name: name ?? this.name,
         shortName: shortName ?? this.shortName,
         sortOrder: sortOrder ?? this.sortOrder,

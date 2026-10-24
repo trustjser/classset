@@ -121,7 +121,9 @@ extension _TeacherIoActions on _TeachersPageState {
     final classes = await ref.read(
       classesForTermProvider(widget.termId).future,
     );
-    final subjects = await ref.read(subjectsProvider.future);
+    final subjects = await ref.read(
+      subjectsForTermProvider(widget.termId).future,
+    );
     final teachers = await ref.read(teachersProvider(widget.termId).future);
     final requirements = await ref.read(allRequirementsProvider.future);
     final existing = await ref.read(
@@ -182,7 +184,9 @@ extension _TeacherIoActions on _TeachersPageState {
     final classes = await ref.read(
       classesForTermProvider(widget.termId).future,
     );
-    final subjects = await ref.read(subjectsProvider.future);
+    final subjects = await ref.read(
+      subjectsForTermProvider(widget.termId).future,
+    );
     final teachers = await ref.read(teachersProvider(widget.termId).future);
     final requirements = await ref.read(allRequirementsProvider.future);
     final assignments = await ref.read(

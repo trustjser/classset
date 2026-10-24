@@ -27,6 +27,15 @@ final termsProvider = StreamProvider<List<AcademicTerm>>(
   (ref) => ref.watch(schoolRepositoryProvider).watchTerms(),
 );
 
+final schoolNameProvider = StreamProvider<String>(
+  (ref) => ref.watch(schoolRepositoryProvider).watchSchoolName(),
+);
+
+final schoolDisplayNameProvider = Provider<String>((ref) {
+  final name = ref.watch(schoolNameProvider).valueOrNull?.trim() ?? '';
+  return name.isEmpty ? '未命名学校' : name;
+});
+
 final stagesProvider = StreamProvider.family<List<SchoolStage>, String>(
   (ref, termId) => ref.watch(schoolRepositoryProvider).watchStages(termId),
 );
@@ -60,6 +69,11 @@ final commonPeriodsProvider = StreamProvider.family<List<CommonPeriod>, String>(
 
 final subjectsProvider = StreamProvider<List<Subject>>(
   (ref) => ref.watch(schoolRepositoryProvider).watchSubjects(),
+);
+
+final subjectsForTermProvider = StreamProvider.family<List<Subject>, String>(
+  (ref, termId) =>
+      ref.watch(schoolRepositoryProvider).watchSubjectsForTerm(termId),
 );
 
 /// 某年级的科目节数需求流（年级默认 + 按班覆盖）。

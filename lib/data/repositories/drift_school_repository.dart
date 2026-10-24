@@ -24,6 +24,47 @@ class DriftSchoolRepository implements SchoolRepository {
   final AppDatabase _database;
 
   @override
+  Future<String?> loadActiveTermId() async {
+    final settings = await (_database.select(
+      _database.appSettings,
+    )..where((row) => row.id.equals(1))).getSingleOrNull();
+    return settings?.activeTermId;
+  }
+
+  @override
+  Future<void> saveActiveTermId(String? termId) =>
+      _database.transaction(() async {
+        await _ensureAppSettings();
+        await (_database.update(_database.appSettings)
+              ..where((row) => row.id.equals(1)))
+            .write(AppSettingsCompanion(activeTermId: Value(termId)));
+      });
+
+  @override
+  Stream<String> watchSchoolName() =>
+      (_database.select(_database.appSettings)
+            ..where((row) => row.id.equals(1)))
+          .watchSingleOrNull()
+          .map((settings) => settings?.schoolName ?? '');
+
+  @override
+  Future<void> saveSchoolName(String name) => _database.transaction(() async {
+    await _ensureAppSettings();
+    await (_database.update(_database.appSettings)
+          ..where((row) => row.id.equals(1)))
+        .write(AppSettingsCompanion(schoolName: Value(name.trim())));
+  });
+
+  Future<void> _ensureAppSettings() async {
+    await _database
+        .into(_database.appSettings)
+        .insert(
+          const AppSettingsCompanion(id: Value(1)),
+          mode: InsertMode.insertOrIgnore,
+        );
+  }
+
+  @override
   Stream<List<domain.AcademicTerm>> watchTerms() =>
       (_database.select(_database.academicTerms)..orderBy([
             (term) => OrderingTerm.desc(term.firstTeachingWeekStart),
@@ -54,7 +95,12 @@ class DriftSchoolRepository implements SchoolRepository {
                 createdAt: term.createdAt.millisecondsSinceEpoch,
               ),
             );
-        if (existing == null) await _createDefaultStage(term.id);
+        if (existing == null) {
+          await _createDefaultStage(term.id);
+          await (_database.update(_database.subjects)
+                ..where((row) => row.termId.isNull()))
+              .write(SubjectsCompanion(termId: Value(term.id)));
+        }
       });
 
   @override
@@ -103,6 +149,39 @@ class DriftSchoolRepository implements SchoolRepository {
     final classIds = <String, String>{};
     final periodIds = <String, String>{};
     final lessonIds = <String, String>{};
+    final subjectIds = <String, String>{};
+
+    final sourceSubjects = await (_database.select(
+      _database.subjects,
+    )..where((row) => row.termId.equals(sourceTermId))).get();
+    for (final subject in sourceSubjects) {
+      final newId = _newId();
+      subjectIds[subject.id] = newId;
+      await _database
+          .into(_database.subjects)
+          .insert(
+            SubjectsCompanion.insert(
+              id: newId,
+              termId: Value(targetTerm.id),
+              name: subject.name,
+              shortName: subject.shortName,
+              sortOrder: subject.sortOrder,
+            ),
+          );
+      final tags = await (_database.select(
+        _database.teacherSubjectTags,
+      )..where((row) => row.subjectId.equals(subject.id))).get();
+      for (final tag in tags) {
+        await _database
+            .into(_database.teacherSubjectTags)
+            .insert(
+              TeacherSubjectTagsCompanion.insert(
+                teacherId: tag.teacherId,
+                subjectId: newId,
+              ),
+            );
+      }
+    }
 
     final sourceStages = await (_database.select(
       _database.schoolStages,
@@ -361,7 +440,8 @@ class DriftSchoolRepository implements SchoolRepository {
           ? null
           : teacherIds[assignment.teacherId!];
       final targetClassId = classIds[assignment.classId];
-      if (targetClassId == null) continue;
+      final targetSubjectId = subjectIds[assignment.subjectId];
+      if (targetClassId == null || targetSubjectId == null) continue;
       await _database
           .into(_database.teacherAssignments)
           .insert(
@@ -369,7 +449,7 @@ class DriftSchoolRepository implements SchoolRepository {
               id: _newId(),
               termId: targetTerm.id,
               teacherId: Value(targetTeacherId),
-              subjectId: assignment.subjectId,
+              subjectId: targetSubjectId,
               classId: targetClassId,
               weekMode: Value(assignment.weekMode),
               lessonCount: Value(assignment.lessonCount),
@@ -1414,18 +1494,45 @@ class DriftSchoolRepository implements SchoolRepository {
           .map((rows) => rows.map(_toDomainSubject).toList(growable: false));
 
   @override
+  Stream<List<domain.Subject>> watchSubjectsForTerm(String termId) =>
+      (_database.select(_database.subjects)
+            ..where((subject) => subject.termId.equals(termId))
+            ..orderBy([(subject) => OrderingTerm.asc(subject.sortOrder)]))
+          .watch()
+          .map((rows) => rows.map(_toDomainSubject).toList(growable: false));
+
+  @override
   Future<void> saveSubjects(List<domain.Subject> subjects) async {
     if (subjects.isEmpty) return;
-    await _database.batch((batch) {
-      batch.insertAll(_database.subjects, [
-        for (final subject in subjects)
-          SubjectsCompanion.insert(
-            id: subject.id,
-            name: subject.name.trim(),
-            shortName: subject.shortName.trim(),
-            sortOrder: subject.sortOrder,
-          ),
-      ], mode: InsertMode.insertOrReplace);
+    await _database.transaction(() async {
+      final fallbackTerm = subjects.any((subject) => subject.termId == null)
+          ? (await (_database.select(
+                  _database.academicTerms,
+                )..orderBy([(term) => OrderingTerm.asc(term.createdAt)])).get())
+                .firstOrNull
+          : null;
+      final existingTerms = {
+        for (final row in await _database.select(_database.subjects).get())
+          row.id: row.termId,
+      };
+      for (final subject in subjects) {
+        final termId = subject.termId ?? fallbackTerm?.id;
+        final existingTermId = existingTerms[subject.id];
+        if (existingTermId != null && existingTermId != termId) {
+          throw StateError('不能将已有科目移动到其他学期');
+        }
+        await _database
+            .into(_database.subjects)
+            .insertOnConflictUpdate(
+              SubjectsCompanion.insert(
+                id: subject.id,
+                termId: Value(termId),
+                name: subject.name.trim(),
+                shortName: subject.shortName.trim(),
+                sortOrder: subject.sortOrder,
+              ),
+            );
+      }
     });
   }
 
@@ -1608,6 +1715,7 @@ class DriftSchoolRepository implements SchoolRepository {
 
   domain.Subject _toDomainSubject(Subject row) => domain.Subject(
     id: row.id,
+    termId: row.termId,
     name: row.name,
     shortName: row.shortName,
     sortOrder: row.sortOrder,

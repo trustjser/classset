@@ -324,7 +324,10 @@ abstract final class AppTheme {
           color: isDark ? const Color(0xFF343A42) : const Color(0xE6181818),
           borderRadius: BorderRadius.circular(4),
         ),
-        textStyle: TextStyle(color: colors.ink, fontSize: 12),
+        textStyle: TextStyle(
+          color: isDark ? colors.ink : Colors.white,
+          fontSize: 12,
+        ),
       ),
       textTheme:
           (isDark

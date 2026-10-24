@@ -1,10 +1,12 @@
 import 'package:class_set/core/format/date_format.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class TermSummaryCard extends StatelessWidget {
+class TermSummaryCard extends ConsumerWidget {
   const TermSummaryCard({
     required this.selectedTerm,
     required this.onEditTerm,
@@ -21,7 +23,7 @@ class TermSummaryCard extends StatelessWidget {
   final VoidCallback? onGoToRoutines;
 
   @override
-  Widget build(BuildContext context) => AppSurface(
+  Widget build(BuildContext context, WidgetRef ref) => AppSurface(
     child: Padding(
       padding: const EdgeInsets.all(18),
       child: LayoutBuilder(
@@ -82,7 +84,7 @@ class TermSummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '青木实验学校',
+                ref.watch(schoolDisplayNameProvider),
                 style: TextStyle(color: context.appColors.muted, fontSize: 11),
               ),
               const SizedBox(height: 20),

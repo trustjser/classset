@@ -2,7 +2,9 @@ part of '../teachers_page.dart';
 
 extension _TeacherCrudActions on _TeachersPageState {
   Future<void> _addTeacher() async {
-    final subjects = ref.read(subjectsProvider).valueOrNull ?? const [];
+    final subjects =
+        ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const [];
     final value = await _showTeacherEditor(context, subjects);
     if (value == null) return;
     await _repository.saveTeachers([
@@ -20,16 +22,22 @@ extension _TeacherCrudActions on _TeachersPageState {
   }
 
   Future<void> _editTeacher(Teacher teacher) async {
-    final subjects = ref.read(subjectsProvider).valueOrNull ?? const [];
+    final subjects =
+        ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const [];
     final value = await _showTeacherEditor(context, subjects, initial: teacher);
     if (value == null) return;
+    final currentSubjectIds = subjects.map((subject) => subject.id).toSet();
     await _repository.saveTeachers([
       teacher.copyWith(
         name: value.$1,
         shortName: value.$2,
         displayQualifier: value.$3,
         clearDisplayQualifier: value.$3 == null,
-        subjectIds: value.$4,
+        subjectIds: {
+          ...teacher.subjectIds.where((id) => !currentSubjectIds.contains(id)),
+          ...value.$4,
+        },
       ),
     ]);
   }

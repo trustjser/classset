@@ -4,8 +4,8 @@
 // future. If not, the values below would default to using the project name when this becomes a
 // 'flutter create' template.
 
-// Product and executable name; user-facing names are localized in Info.plist and MainMenu.xib.
-PRODUCT_NAME = class_set
+// Product and executable name shown by macOS in the Dock and app switcher.
+PRODUCT_NAME = 课集
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = cn.classset.classSet

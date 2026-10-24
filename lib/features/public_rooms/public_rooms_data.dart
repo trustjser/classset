@@ -13,7 +13,7 @@ final publicRoomTermDataProvider =
       final assignments = ref.watch(
         subjectRoomAssignmentsProvider(termId).future,
       );
-      final subjects = ref.watch(subjectsProvider.future);
+      final subjects = ref.watch(subjectsForTermProvider(termId).future);
       return PublicRoomTermData(
         termId: termId,
         stages: await stages,

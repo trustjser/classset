@@ -279,9 +279,10 @@ class _TeacherList extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Tooltip(
-                          message: teacher.subjectIds.isEmpty
+                          message:
+                              !teacher.subjectIds.any(subjectNames.containsKey)
                               ? teacher.displayName
-                              : '${teacher.displayName}\n可授：${teacher.subjectIds.map((id) => subjectNames[id] ?? id).join('、')}',
+                              : '${teacher.displayName}\n可授：${teacher.subjectIds.where(subjectNames.containsKey).map((id) => subjectNames[id]!).join('、')}',
                           child: Text(
                             teacher.displayName,
                             maxLines: 1,

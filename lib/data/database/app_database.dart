@@ -21,6 +21,20 @@ class AcademicTerms extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// This device has one school and one currently selected term.
+class AppSettings extends Table {
+  IntColumn get id => integer()();
+  TextColumn get schoolName => text().withDefault(const Constant(''))();
+  TextColumn get activeTermId => text().nullable().references(
+    AcademicTerms,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class SchoolStages extends Table {
   TextColumn get id => text()();
   TextColumn get termId =>
@@ -126,9 +140,14 @@ class CalendarExceptions extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// 科目：全校共享（不按学段隔离）。
+/// 科目：按学期维护，同一学期内各学段共享。
 class Subjects extends Table {
   TextColumn get id => text()();
+  TextColumn get termId => text().nullable().references(
+    AcademicTerms,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
   TextColumn get name => text()();
   TextColumn get shortName => text()();
   IntColumn get sortOrder => integer()();
@@ -464,6 +483,7 @@ class TeacherGroupPresets extends Table {
 @DriftDatabase(
   tables: [
     AcademicTerms,
+    AppSettings,
     SchoolStages,
     GradeGroups,
     ClassGroups,
@@ -497,12 +517,15 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async => migrator.createAll(),
     onUpgrade: (migrator, from, to) async {
+      if (from < 12) {
+        await migrator.createTable(appSettings);
+      }
       if (from < 8) {
         await migrator.createTable(publicRooms);
         await migrator.createTable(subjectRoomAssignments);
@@ -557,7 +580,109 @@ class AppDatabase extends _$AppDatabase {
           subjectLessonConstraints.maximumDailyConsecutivePairs,
         );
       }
+      if (from < 13) {
+        if (from >= 4) {
+          final hasSubjects = (await customSelect(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'subjects'",
+          ).get()).isNotEmpty;
+          if (hasSubjects) {
+            await migrator.addColumn(subjects, subjects.termId);
+          } else {
+            await migrator.createTable(subjects);
+          }
+        }
+        await _migrateSubjectsToTerms();
+      }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),
   );
+
+  Future<void> _migrateSubjectsToTerms() async {
+    final hasTerms = (await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'academic_terms'",
+    ).get()).isNotEmpty;
+    if (!hasTerms) return;
+    final terms = await customSelect(
+      'SELECT id FROM academic_terms ORDER BY rowid',
+    ).get();
+    if (terms.isEmpty) return;
+
+    final oldSubjects = await customSelect(
+      'SELECT id, name, short_name, sort_order FROM subjects '
+      'WHERE term_id IS NULL',
+    ).get();
+    final existingIds = (await customSelect(
+      'SELECT id FROM subjects',
+    ).get()).map((row) => row.read<String>('id')).toSet();
+
+    for (final subject in oldSubjects) {
+      final oldId = subject.read<String>('id');
+      for (final (index, term) in terms.indexed) {
+        final termId = term.read<String>('id');
+        if (index == 0) {
+          await customStatement(
+            'UPDATE subjects SET term_id = ? WHERE id = ?',
+            [termId, oldId],
+          );
+          continue;
+        }
+
+        final baseId = '${oldId}__term__$termId';
+        var newId = baseId;
+        var suffix = 1;
+        while (existingIds.contains(newId)) {
+          newId = '${baseId}_${suffix++}';
+        }
+        existingIds.add(newId);
+        await customStatement(
+          'INSERT INTO subjects (id, term_id, name, short_name, sort_order) '
+          'VALUES (?, ?, ?, ?, ?)',
+          [
+            newId,
+            termId,
+            subject.read<String>('name'),
+            subject.read<String>('short_name'),
+            subject.read<int>('sort_order'),
+          ],
+        );
+        await _moveSubjectReferencesToTerm(oldId, newId, termId);
+      }
+    }
+  }
+
+  Future<void> _moveSubjectReferencesToTerm(
+    String oldId,
+    String newId,
+    String termId,
+  ) async {
+    const stageIds = 'SELECT id FROM school_stages WHERE term_id = ?';
+    const gradeIds =
+        'SELECT g.id FROM grade_groups g '
+        'JOIN school_stages s ON s.id = g.stage_id WHERE s.term_id = ?';
+    const classIds =
+        'SELECT c.id FROM class_groups c '
+        'JOIN grade_groups g ON g.id = c.grade_id '
+        'JOIN school_stages s ON s.id = g.stage_id WHERE s.term_id = ?';
+
+    for (final (table, column, termPredicate) in <(String, String, String)>[
+      ('subject_requirements', 'subject_id', 'grade_id IN ($gradeIds)'),
+      ('subject_presets', 'subject_id', 'stage_id IN ($stageIds)'),
+      ('subject_lesson_constraints', 'subject_id', 'stage_id IN ($stageIds)'),
+      ('subject_pairings', 'odd_subject_id', 'class_id IN ($classIds)'),
+      ('subject_pairings', 'even_subject_id', 'class_id IN ($classIds)'),
+      ('subject_room_assignments', 'subject_id', 'term_id = ?'),
+      ('subject_parallel_limits', 'subject_id', 'term_id = ?'),
+      ('teacher_assignments', 'subject_id', 'term_id = ?'),
+    ]) {
+      await customStatement(
+        'UPDATE $table SET $column = ? WHERE $column = ? AND $termPredicate',
+        [newId, oldId, termId],
+      );
+    }
+    await customStatement(
+      'INSERT OR IGNORE INTO teacher_subject_tags (teacher_id, subject_id) '
+      'SELECT teacher_id, ? FROM teacher_subject_tags WHERE subject_id = ?',
+      [newId, oldId],
+    );
+  }
 }

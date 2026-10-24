@@ -53,7 +53,7 @@ void main() {
       expect(
         (await database.customSelect('PRAGMA user_version').get()).single
             .read<int>('user_version'),
-        11,
+        13,
       );
     },
   );

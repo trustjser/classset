@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/navigation/draft_navigation_guard.dart';
 import 'package:class_set/core/widgets/app_badges.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
@@ -211,6 +212,7 @@ class _RoutineEditor extends ConsumerStatefulWidget {
 }
 
 class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
+  late final DraftNavigationGuard _navigationGuard;
   String? _loadedStageId;
   Set<int> _teachingDays = {};
   List<_PeriodDraft> _periods = [];
@@ -224,6 +226,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   final Map<String, _DraftSnapshot> _routineDraftByStage = {};
   final Map<String, bool> _routineNeedsNormalizationByStage = {};
   bool _isSaving = false;
+  Future<bool>? _saveInFlight;
   bool _isHistoryBusy = false;
   bool _needsNormalization = false;
   int _draftRevision = 0;
@@ -253,6 +256,33 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       if (baseline == null || !baseline.isSame(entry.value)) return true;
     }
     return false;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _navigationGuard = ref.read(draftNavigationGuardProvider);
+    _registerDraftGuard();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RoutineEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.termId != widget.termId) _registerDraftGuard();
+  }
+
+  void _registerDraftGuard() => _navigationGuard.register(
+    owner: this,
+    pageKey: 'routines:${widget.termId}',
+    hasChanges: () => _hasUnsavedChanges,
+    isSaving: () => _saveInFlight != null,
+    save: _save,
+  );
+
+  @override
+  void dispose() {
+    _navigationGuard.unregister(this);
+    super.dispose();
   }
 
   @override
@@ -960,12 +990,9 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   }
 
   int _weeklyCapacity() {
-    var total = 0;
-    for (final weekday in _teachingDays) {
-      for (final period in _periods) {
-        total += period.defaultLessonCount;
-      }
-    }
+    var total =
+        _teachingDays.length *
+        _periods.fold<int>(0, (sum, period) => sum + period.defaultLessonCount);
     // 减去当前范围可见的免任课格数。
     for (final weekday in _teachingDays) {
       for (final period in _periods) {
@@ -981,7 +1008,10 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     return total;
   }
 
-  Future<void> _save() async {
+  Future<bool> _save() =>
+      _saveInFlight ??= _performSave().whenComplete(() => _saveInFlight = null);
+
+  Future<bool> _performSave() async {
     final freeSlotDraft = Map<String, FreeSlot?>.of(_freeSlotDraft);
     final commonPeriodDraft = Map<String, CommonPeriod?>.of(_commonPeriodDraft);
     final routineSnapshots = <String, _DraftSnapshot>{};
@@ -1023,11 +1053,11 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
             await _showError(
               '「${period.name} ${time.label}」时间格式不正确，请填写完整的 HH:mm。',
             );
-            return;
+            return false;
           }
           if (start != null && end != null && start >= end) {
             await _showError('「${period.name} ${time.label}」开始时间必须早于结束时间。');
-            return;
+            return false;
           }
           times.add(
             LessonTime(
@@ -1079,7 +1109,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           await repository.saveCommonPeriod(period);
         }
       }
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         for (final entry in freeSlotDraft.entries) {
           _freeSlotBaseline[entry.key] = entry.value;
@@ -1107,10 +1137,12 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       });
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
       _showSaved();
+      return true;
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() => _isSaving = false);
       await _showError('保存作息失败：$error');
+      return false;
     }
   }
 

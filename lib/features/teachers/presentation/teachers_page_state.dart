@@ -225,7 +225,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
     final teachers = ref.watch(teachersProvider(widget.termId));
     final assignments = ref.watch(teacherAssignmentsProvider(widget.termId));
     final groups = ref.watch(teacherGroupsProvider(widget.termId));
-    final subjects = ref.watch(subjectsProvider);
+    final subjects = ref.watch(subjectsForTermProvider(widget.termId));
     final classes = ref.watch(classesForTermProvider(widget.termId));
     final requirements = ref.watch(allRequirementsProvider);
     final subjectNames = {

@@ -542,6 +542,266 @@ class AcademicTermsCompanion extends UpdateCompanion<AcademicTerm> {
   }
 }
 
+class $AppSettingsTable extends AppSettings
+    with TableInfo<$AppSettingsTable, AppSetting> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AppSettingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _schoolNameMeta = const VerificationMeta(
+    'schoolName',
+  );
+  @override
+  late final GeneratedColumn<String> schoolName = GeneratedColumn<String>(
+    'school_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _activeTermIdMeta = const VerificationMeta(
+    'activeTermId',
+  );
+  @override
+  late final GeneratedColumn<String> activeTermId = GeneratedColumn<String>(
+    'active_term_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE SET NULL',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, schoolName, activeTermId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'app_settings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AppSetting> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('school_name')) {
+      context.handle(
+        _schoolNameMeta,
+        schoolName.isAcceptableOrUnknown(data['school_name']!, _schoolNameMeta),
+      );
+    }
+    if (data.containsKey('active_term_id')) {
+      context.handle(
+        _activeTermIdMeta,
+        activeTermId.isAcceptableOrUnknown(
+          data['active_term_id']!,
+          _activeTermIdMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AppSetting map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AppSetting(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      schoolName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}school_name'],
+      )!,
+      activeTermId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}active_term_id'],
+      ),
+    );
+  }
+
+  @override
+  $AppSettingsTable createAlias(String alias) {
+    return $AppSettingsTable(attachedDatabase, alias);
+  }
+}
+
+class AppSetting extends DataClass implements Insertable<AppSetting> {
+  final int id;
+  final String schoolName;
+  final String? activeTermId;
+  const AppSetting({
+    required this.id,
+    required this.schoolName,
+    this.activeTermId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['school_name'] = Variable<String>(schoolName);
+    if (!nullToAbsent || activeTermId != null) {
+      map['active_term_id'] = Variable<String>(activeTermId);
+    }
+    return map;
+  }
+
+  AppSettingsCompanion toCompanion(bool nullToAbsent) {
+    return AppSettingsCompanion(
+      id: Value(id),
+      schoolName: Value(schoolName),
+      activeTermId: activeTermId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activeTermId),
+    );
+  }
+
+  factory AppSetting.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AppSetting(
+      id: serializer.fromJson<int>(json['id']),
+      schoolName: serializer.fromJson<String>(json['schoolName']),
+      activeTermId: serializer.fromJson<String?>(json['activeTermId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'schoolName': serializer.toJson<String>(schoolName),
+      'activeTermId': serializer.toJson<String?>(activeTermId),
+    };
+  }
+
+  AppSetting copyWith({
+    int? id,
+    String? schoolName,
+    Value<String?> activeTermId = const Value.absent(),
+  }) => AppSetting(
+    id: id ?? this.id,
+    schoolName: schoolName ?? this.schoolName,
+    activeTermId: activeTermId.present ? activeTermId.value : this.activeTermId,
+  );
+  AppSetting copyWithCompanion(AppSettingsCompanion data) {
+    return AppSetting(
+      id: data.id.present ? data.id.value : this.id,
+      schoolName: data.schoolName.present
+          ? data.schoolName.value
+          : this.schoolName,
+      activeTermId: data.activeTermId.present
+          ? data.activeTermId.value
+          : this.activeTermId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppSetting(')
+          ..write('id: $id, ')
+          ..write('schoolName: $schoolName, ')
+          ..write('activeTermId: $activeTermId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, schoolName, activeTermId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AppSetting &&
+          other.id == this.id &&
+          other.schoolName == this.schoolName &&
+          other.activeTermId == this.activeTermId);
+}
+
+class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
+  final Value<int> id;
+  final Value<String> schoolName;
+  final Value<String?> activeTermId;
+  const AppSettingsCompanion({
+    this.id = const Value.absent(),
+    this.schoolName = const Value.absent(),
+    this.activeTermId = const Value.absent(),
+  });
+  AppSettingsCompanion.insert({
+    this.id = const Value.absent(),
+    this.schoolName = const Value.absent(),
+    this.activeTermId = const Value.absent(),
+  });
+  static Insertable<AppSetting> custom({
+    Expression<int>? id,
+    Expression<String>? schoolName,
+    Expression<String>? activeTermId,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (schoolName != null) 'school_name': schoolName,
+      if (activeTermId != null) 'active_term_id': activeTermId,
+    });
+  }
+
+  AppSettingsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? schoolName,
+    Value<String?>? activeTermId,
+  }) {
+    return AppSettingsCompanion(
+      id: id ?? this.id,
+      schoolName: schoolName ?? this.schoolName,
+      activeTermId: activeTermId ?? this.activeTermId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (schoolName.present) {
+      map['school_name'] = Variable<String>(schoolName.value);
+    }
+    if (activeTermId.present) {
+      map['active_term_id'] = Variable<String>(activeTermId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppSettingsCompanion(')
+          ..write('id: $id, ')
+          ..write('schoolName: $schoolName, ')
+          ..write('activeTermId: $activeTermId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SchoolStagesTable extends SchoolStages
     with TableInfo<$SchoolStagesTable, SchoolStage> {
   @override
@@ -4483,6 +4743,18 @@ class $SubjectsTable extends Subjects with TableInfo<$SubjectsTable, Subject> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
@@ -4515,7 +4787,13 @@ class $SubjectsTable extends Subjects with TableInfo<$SubjectsTable, Subject> {
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, name, shortName, sortOrder];
+  List<GeneratedColumn> get $columns => [
+    id,
+    termId,
+    name,
+    shortName,
+    sortOrder,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4532,6 +4810,12 @@ class $SubjectsTable extends Subjects with TableInfo<$SubjectsTable, Subject> {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -4570,6 +4854,10 @@ class $SubjectsTable extends Subjects with TableInfo<$SubjectsTable, Subject> {
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      ),
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}name'],
@@ -4593,11 +4881,13 @@ class $SubjectsTable extends Subjects with TableInfo<$SubjectsTable, Subject> {
 
 class Subject extends DataClass implements Insertable<Subject> {
   final String id;
+  final String? termId;
   final String name;
   final String shortName;
   final int sortOrder;
   const Subject({
     required this.id,
+    this.termId,
     required this.name,
     required this.shortName,
     required this.sortOrder,
@@ -4606,6 +4896,9 @@ class Subject extends DataClass implements Insertable<Subject> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    if (!nullToAbsent || termId != null) {
+      map['term_id'] = Variable<String>(termId);
+    }
     map['name'] = Variable<String>(name);
     map['short_name'] = Variable<String>(shortName);
     map['sort_order'] = Variable<int>(sortOrder);
@@ -4615,6 +4908,9 @@ class Subject extends DataClass implements Insertable<Subject> {
   SubjectsCompanion toCompanion(bool nullToAbsent) {
     return SubjectsCompanion(
       id: Value(id),
+      termId: termId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(termId),
       name: Value(name),
       shortName: Value(shortName),
       sortOrder: Value(sortOrder),
@@ -4628,6 +4924,7 @@ class Subject extends DataClass implements Insertable<Subject> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Subject(
       id: serializer.fromJson<String>(json['id']),
+      termId: serializer.fromJson<String?>(json['termId']),
       name: serializer.fromJson<String>(json['name']),
       shortName: serializer.fromJson<String>(json['shortName']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
@@ -4638,6 +4935,7 @@ class Subject extends DataClass implements Insertable<Subject> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'termId': serializer.toJson<String?>(termId),
       'name': serializer.toJson<String>(name),
       'shortName': serializer.toJson<String>(shortName),
       'sortOrder': serializer.toJson<int>(sortOrder),
@@ -4646,11 +4944,13 @@ class Subject extends DataClass implements Insertable<Subject> {
 
   Subject copyWith({
     String? id,
+    Value<String?> termId = const Value.absent(),
     String? name,
     String? shortName,
     int? sortOrder,
   }) => Subject(
     id: id ?? this.id,
+    termId: termId.present ? termId.value : this.termId,
     name: name ?? this.name,
     shortName: shortName ?? this.shortName,
     sortOrder: sortOrder ?? this.sortOrder,
@@ -4658,6 +4958,7 @@ class Subject extends DataClass implements Insertable<Subject> {
   Subject copyWithCompanion(SubjectsCompanion data) {
     return Subject(
       id: data.id.present ? data.id.value : this.id,
+      termId: data.termId.present ? data.termId.value : this.termId,
       name: data.name.present ? data.name.value : this.name,
       shortName: data.shortName.present ? data.shortName.value : this.shortName,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
@@ -4668,6 +4969,7 @@ class Subject extends DataClass implements Insertable<Subject> {
   String toString() {
     return (StringBuffer('Subject(')
           ..write('id: $id, ')
+          ..write('termId: $termId, ')
           ..write('name: $name, ')
           ..write('shortName: $shortName, ')
           ..write('sortOrder: $sortOrder')
@@ -4676,12 +4978,13 @@ class Subject extends DataClass implements Insertable<Subject> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, shortName, sortOrder);
+  int get hashCode => Object.hash(id, termId, name, shortName, sortOrder);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is Subject &&
           other.id == this.id &&
+          other.termId == this.termId &&
           other.name == this.name &&
           other.shortName == this.shortName &&
           other.sortOrder == this.sortOrder);
@@ -4689,12 +4992,14 @@ class Subject extends DataClass implements Insertable<Subject> {
 
 class SubjectsCompanion extends UpdateCompanion<Subject> {
   final Value<String> id;
+  final Value<String?> termId;
   final Value<String> name;
   final Value<String> shortName;
   final Value<int> sortOrder;
   final Value<int> rowid;
   const SubjectsCompanion({
     this.id = const Value.absent(),
+    this.termId = const Value.absent(),
     this.name = const Value.absent(),
     this.shortName = const Value.absent(),
     this.sortOrder = const Value.absent(),
@@ -4702,6 +5007,7 @@ class SubjectsCompanion extends UpdateCompanion<Subject> {
   });
   SubjectsCompanion.insert({
     required String id,
+    this.termId = const Value.absent(),
     required String name,
     required String shortName,
     required int sortOrder,
@@ -4712,6 +5018,7 @@ class SubjectsCompanion extends UpdateCompanion<Subject> {
        sortOrder = Value(sortOrder);
   static Insertable<Subject> custom({
     Expression<String>? id,
+    Expression<String>? termId,
     Expression<String>? name,
     Expression<String>? shortName,
     Expression<int>? sortOrder,
@@ -4719,6 +5026,7 @@ class SubjectsCompanion extends UpdateCompanion<Subject> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (termId != null) 'term_id': termId,
       if (name != null) 'name': name,
       if (shortName != null) 'short_name': shortName,
       if (sortOrder != null) 'sort_order': sortOrder,
@@ -4728,6 +5036,7 @@ class SubjectsCompanion extends UpdateCompanion<Subject> {
 
   SubjectsCompanion copyWith({
     Value<String>? id,
+    Value<String?>? termId,
     Value<String>? name,
     Value<String>? shortName,
     Value<int>? sortOrder,
@@ -4735,6 +5044,7 @@ class SubjectsCompanion extends UpdateCompanion<Subject> {
   }) {
     return SubjectsCompanion(
       id: id ?? this.id,
+      termId: termId ?? this.termId,
       name: name ?? this.name,
       shortName: shortName ?? this.shortName,
       sortOrder: sortOrder ?? this.sortOrder,
@@ -4747,6 +5057,9 @@ class SubjectsCompanion extends UpdateCompanion<Subject> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -4767,6 +5080,7 @@ class SubjectsCompanion extends UpdateCompanion<Subject> {
   String toString() {
     return (StringBuffer('SubjectsCompanion(')
           ..write('id: $id, ')
+          ..write('termId: $termId, ')
           ..write('name: $name, ')
           ..write('shortName: $shortName, ')
           ..write('sortOrder: $sortOrder, ')
@@ -11350,6 +11664,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $AcademicTermsTable academicTerms = $AcademicTermsTable(this);
+  late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $SchoolStagesTable schoolStages = $SchoolStagesTable(this);
   late final $GradeGroupsTable gradeGroups = $GradeGroupsTable(this);
   late final $ClassGroupsTable classGroups = $ClassGroupsTable(this);
@@ -11395,6 +11710,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     academicTerms,
+    appSettings,
     schoolStages,
     gradeGroups,
     classGroups,
@@ -11423,6 +11739,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('app_settings', kind: UpdateKind.update)],
+    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'academic_terms',
@@ -11506,6 +11829,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('common_periods', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subjects', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -11793,6 +12123,24 @@ final class $$AcademicTermsTableReferences
     super.$_typedResult,
   );
 
+  static MultiTypedResultKey<$AppSettingsTable, List<AppSetting>>
+  _appSettingsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.appSettings,
+    aliasName: 'academic_terms__id__app_settings__active_term_id',
+  );
+
+  $$AppSettingsTableProcessedTableManager get appSettingsRefs {
+    final manager = $$AppSettingsTableTableManager(
+      $_db,
+      $_db.appSettings,
+    ).filter((f) => f.activeTermId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_appSettingsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$SchoolStagesTable, List<SchoolStage>>
   _schoolStagesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.schoolStages,
@@ -11827,6 +12175,25 @@ final class $$AcademicTermsTableReferences
     final cache = $_typedResult.readTableOrNull(
       _calendarExceptionsRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SubjectsTable, List<Subject>> _subjectsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.subjects,
+    aliasName: 'academic_terms__id__subjects__term_id',
+  );
+
+  $$SubjectsTableProcessedTableManager get subjectsRefs {
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_subjectsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -11989,6 +12356,31 @@ class $$AcademicTermsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  Expression<bool> appSettingsRefs(
+    Expression<bool> Function($$AppSettingsTableFilterComposer f) f,
+  ) {
+    final $$AppSettingsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.appSettings,
+      getReferencedColumn: (t) => t.activeTermId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppSettingsTableFilterComposer(
+            $db: $db,
+            $table: $db.appSettings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<bool> schoolStagesRefs(
     Expression<bool> Function($$SchoolStagesTableFilterComposer f) f,
   ) {
@@ -12030,6 +12422,31 @@ class $$AcademicTermsTableFilterComposer
           }) => $$CalendarExceptionsTableFilterComposer(
             $db: $db,
             $table: $db.calendarExceptions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> subjectsRefs(
+    Expression<bool> Function($$SubjectsTableFilterComposer f) f,
+  ) {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12258,6 +12675,31 @@ class $$AcademicTermsTableAnnotationComposer
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
+  Expression<T> appSettingsRefs<T extends Object>(
+    Expression<T> Function($$AppSettingsTableAnnotationComposer a) f,
+  ) {
+    final $$AppSettingsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.appSettings,
+      getReferencedColumn: (t) => t.activeTermId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppSettingsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.appSettings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> schoolStagesRefs<T extends Object>(
     Expression<T> Function($$SchoolStagesTableAnnotationComposer a) f,
   ) {
@@ -12306,6 +12748,31 @@ class $$AcademicTermsTableAnnotationComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
+    return f(composer);
+  }
+
+  Expression<T> subjectsRefs<T extends Object>(
+    Expression<T> Function($$SubjectsTableAnnotationComposer a) f,
+  ) {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
     return f(composer);
   }
 
@@ -12452,8 +12919,10 @@ class $$AcademicTermsTableTableManager
           (AcademicTerm, $$AcademicTermsTableReferences),
           AcademicTerm,
           PrefetchHooks Function({
+            bool appSettingsRefs,
             bool schoolStagesRefs,
             bool calendarExceptionsRefs,
+            bool subjectsRefs,
             bool subjectRoomAssignmentsRefs,
             bool subjectParallelLimitsRefs,
             bool teacherGroupsRefs,
@@ -12526,8 +12995,10 @@ class $$AcademicTermsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                appSettingsRefs = false,
                 schoolStagesRefs = false,
                 calendarExceptionsRefs = false,
+                subjectsRefs = false,
                 subjectRoomAssignmentsRefs = false,
                 subjectParallelLimitsRefs = false,
                 teacherGroupsRefs = false,
@@ -12537,8 +13008,10 @@ class $$AcademicTermsTableTableManager
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (appSettingsRefs) db.appSettings,
                     if (schoolStagesRefs) db.schoolStages,
                     if (calendarExceptionsRefs) db.calendarExceptions,
+                    if (subjectsRefs) db.subjects,
                     if (subjectRoomAssignmentsRefs) db.subjectRoomAssignments,
                     if (subjectParallelLimitsRefs) db.subjectParallelLimits,
                     if (teacherGroupsRefs) db.teacherGroups,
@@ -12548,6 +13021,27 @@ class $$AcademicTermsTableTableManager
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (appSettingsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          AppSetting
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._appSettingsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).appSettingsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.activeTermId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (schoolStagesRefs)
                         await $_getPrefetchedData<
                           AcademicTerm,
@@ -12584,6 +13078,27 @@ class $$AcademicTermsTableTableManager
                                 table,
                                 p0,
                               ).calendarExceptionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subjectsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          Subject
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._subjectsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subjectsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.termId == item.id,
@@ -12716,14 +13231,290 @@ typedef $$AcademicTermsTableProcessedTableManager =
       (AcademicTerm, $$AcademicTermsTableReferences),
       AcademicTerm,
       PrefetchHooks Function({
+        bool appSettingsRefs,
         bool schoolStagesRefs,
         bool calendarExceptionsRefs,
+        bool subjectsRefs,
         bool subjectRoomAssignmentsRefs,
         bool subjectParallelLimitsRefs,
         bool teacherGroupsRefs,
         bool teacherAssignmentsRefs,
         bool teacherPresetsRefs,
       })
+    >;
+typedef $$AppSettingsTableCreateCompanionBuilder =
+    AppSettingsCompanion Function({
+      Value<int> id,
+      Value<String> schoolName,
+      Value<String?> activeTermId,
+    });
+typedef $$AppSettingsTableUpdateCompanionBuilder =
+    AppSettingsCompanion Function({
+      Value<int> id,
+      Value<String> schoolName,
+      Value<String?> activeTermId,
+    });
+
+final class $$AppSettingsTableReferences
+    extends BaseReferences<_$AppDatabase, $AppSettingsTable, AppSetting> {
+  $$AppSettingsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $AcademicTermsTable _activeTermIdTable(_$AppDatabase db) => db
+      .academicTerms
+      .createAlias('app_settings__active_term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager? get activeTermId {
+    final $_column = $_itemColumn<String>('active_term_id');
+    if ($_column == null) return null;
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_activeTermIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AppSettingsTableFilterComposer
+    extends Composer<_$AppDatabase, $AppSettingsTable> {
+  $$AppSettingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get schoolName => $composableBuilder(
+    column: $table.schoolName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get activeTermId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.activeTermId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AppSettingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AppSettingsTable> {
+  $$AppSettingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get schoolName => $composableBuilder(
+    column: $table.schoolName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get activeTermId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.activeTermId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AppSettingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AppSettingsTable> {
+  $$AppSettingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get schoolName => $composableBuilder(
+    column: $table.schoolName,
+    builder: (column) => column,
+  );
+
+  $$AcademicTermsTableAnnotationComposer get activeTermId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.activeTermId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AppSettingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AppSettingsTable,
+          AppSetting,
+          $$AppSettingsTableFilterComposer,
+          $$AppSettingsTableOrderingComposer,
+          $$AppSettingsTableAnnotationComposer,
+          $$AppSettingsTableCreateCompanionBuilder,
+          $$AppSettingsTableUpdateCompanionBuilder,
+          (AppSetting, $$AppSettingsTableReferences),
+          AppSetting,
+          PrefetchHooks Function({bool activeTermId})
+        > {
+  $$AppSettingsTableTableManager(_$AppDatabase db, $AppSettingsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AppSettingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AppSettingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AppSettingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> schoolName = const Value.absent(),
+                Value<String?> activeTermId = const Value.absent(),
+              }) => AppSettingsCompanion(
+                id: id,
+                schoolName: schoolName,
+                activeTermId: activeTermId,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> schoolName = const Value.absent(),
+                Value<String?> activeTermId = const Value.absent(),
+              }) => AppSettingsCompanion.insert(
+                id: id,
+                schoolName: schoolName,
+                activeTermId: activeTermId,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AppSettingsTable, AppSetting>(table),
+                  $$AppSettingsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({activeTermId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (activeTermId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.activeTermId,
+                        referencedTable: $$AppSettingsTableReferences
+                            ._activeTermIdTable(db),
+                        referencedColumn: $$AppSettingsTableReferences
+                            ._activeTermIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AppSettingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AppSettingsTable,
+      AppSetting,
+      $$AppSettingsTableFilterComposer,
+      $$AppSettingsTableOrderingComposer,
+      $$AppSettingsTableAnnotationComposer,
+      $$AppSettingsTableCreateCompanionBuilder,
+      $$AppSettingsTableUpdateCompanionBuilder,
+      (AppSetting, $$AppSettingsTableReferences),
+      AppSetting,
+      PrefetchHooks Function({bool activeTermId})
     >;
 typedef $$SchoolStagesTableCreateCompanionBuilder =
     SchoolStagesCompanion Function({
@@ -18480,6 +19271,7 @@ typedef $$CommonPeriodsTableProcessedTableManager =
     >;
 typedef $$SubjectsTableCreateCompanionBuilder = SubjectsCompanion Function({
   required String id,
+  Value<String?> termId,
   required String name,
   required String shortName,
   required int sortOrder,
@@ -18487,6 +19279,7 @@ typedef $$SubjectsTableCreateCompanionBuilder = SubjectsCompanion Function({
 });
 typedef $$SubjectsTableUpdateCompanionBuilder = SubjectsCompanion Function({
   Value<String> id,
+  Value<String?> termId,
   Value<String> name,
   Value<String> shortName,
   Value<int> sortOrder,
@@ -18496,6 +19289,23 @@ typedef $$SubjectsTableUpdateCompanionBuilder = SubjectsCompanion Function({
 final class $$SubjectsTableReferences
     extends BaseReferences<_$AppDatabase, $SubjectsTable, Subject> {
   $$SubjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) =>
+      db.academicTerms.createAlias('subjects__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager? get termId {
+    final $_column = $_itemColumn<String>('term_id');
+    if ($_column == null) return null;
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static MultiTypedResultKey<
     $SubjectRequirementsTable,
@@ -18685,6 +19495,29 @@ class $$SubjectsTableFilterComposer
     column: $table.sortOrder,
     builder: (column) => ColumnFilters(column),
   );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<bool> subjectRequirementsRefs(
     Expression<bool> Function($$SubjectRequirementsTableFilterComposer f) f,
@@ -18894,6 +19727,29 @@ class $$SubjectsTableOrderingComposer
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$SubjectsTableAnnotationComposer
@@ -18916,6 +19772,29 @@ class $$SubjectsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<T> subjectRequirementsRefs<T extends Object>(
     Expression<T> Function($$SubjectRequirementsTableAnnotationComposer a) f,
@@ -19114,6 +19993,7 @@ class $$SubjectsTableTableManager
           (Subject, $$SubjectsTableReferences),
           Subject,
           PrefetchHooks Function({
+            bool termId,
             bool subjectRequirementsRefs,
             bool subjectPresetsRefs,
             bool subjectLessonConstraintsRefs,
@@ -19137,12 +20017,14 @@ class $$SubjectsTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
+                Value<String?> termId = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> shortName = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SubjectsCompanion(
                 id: id,
+                termId: termId,
                 name: name,
                 shortName: shortName,
                 sortOrder: sortOrder,
@@ -19151,12 +20033,14 @@ class $$SubjectsTableTableManager
           createCompanionCallback:
               ({
                 required String id,
+                Value<String?> termId = const Value.absent(),
                 required String name,
                 required String shortName,
                 required int sortOrder,
                 Value<int> rowid = const Value.absent(),
               }) => SubjectsCompanion.insert(
                 id: id,
+                termId: termId,
                 name: name,
                 shortName: shortName,
                 sortOrder: sortOrder,
@@ -19172,6 +20056,7 @@ class $$SubjectsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                termId = false,
                 subjectRequirementsRefs = false,
                 subjectPresetsRefs = false,
                 subjectLessonConstraintsRefs = false,
@@ -19192,7 +20077,36 @@ class $$SubjectsTableTableManager
                     if (teacherSubjectTagsRefs) db.teacherSubjectTags,
                     if (teacherAssignmentsRefs) db.teacherAssignments,
                   ],
-                  addJoins: null,
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (termId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.termId,
+                            referencedTable: $$SubjectsTableReferences
+                                ._termIdTable(db),
+                            referencedColumn: $$SubjectsTableReferences
+                                ._termIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (subjectRequirementsRefs)
@@ -19363,6 +20277,7 @@ typedef $$SubjectsTableProcessedTableManager =
       (Subject, $$SubjectsTableReferences),
       Subject,
       PrefetchHooks Function({
+        bool termId,
         bool subjectRequirementsRefs,
         bool subjectPresetsRefs,
         bool subjectLessonConstraintsRefs,
@@ -26914,6 +27829,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$AcademicTermsTableTableManager get academicTerms =>
       $$AcademicTermsTableTableManager(_db, _db.academicTerms);
+  $$AppSettingsTableTableManager get appSettings =>
+      $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$SchoolStagesTableTableManager get schoolStages =>
       $$SchoolStagesTableTableManager(_db, _db.schoolStages);
   $$GradeGroupsTableTableManager get gradeGroups =>

@@ -96,7 +96,9 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
     final classes =
         ref.watch(classesForTermProvider(widget.termId)).valueOrNull ??
         const [];
-    final subjects = ref.watch(subjectsProvider).valueOrNull ?? const [];
+    final subjects =
+        ref.watch(subjectsForTermProvider(widget.termId)).valueOrNull ??
+        const [];
     final stages =
         ref.watch(stagesProvider(widget.termId)).valueOrNull ?? const [];
     final requirements =

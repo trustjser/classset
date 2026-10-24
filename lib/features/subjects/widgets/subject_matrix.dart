@@ -29,6 +29,8 @@ class SubjectMatrix extends StatefulWidget {
     required this.summaries,
     required this.presetSummaries,
     required this.onCellTap,
+    required this.onEditSubject,
+    required this.onDeleteSubject,
     required this.onPresetTap,
     required this.visibleStages,
     required this.accentForStage,
@@ -56,6 +58,8 @@ class SubjectMatrix extends StatefulWidget {
   final Map<String, SubjectPresetSummary?> presetSummaries;
 
   final void Function(Subject subject, GradeGroup grade) onCellTap;
+  final ValueChanged<Subject> onEditSubject;
+  final ValueChanged<Subject> onDeleteSubject;
 
   /// 点击「科目预设」列（传入矩阵当前列年级）。
   final void Function(Subject subject, GradeGroup grade) onPresetTap;
@@ -361,6 +365,7 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
                 child: ListView.builder(
                   itemCount: widget.subjects.length,
                   itemBuilder: (context, index) => _SubjectRow(
+                    key: ValueKey('subject-row-${widget.subjects[index].id}'),
                     subject: widget.subjects[index],
                     visibleGrades: widget.visibleGrades,
                     classesByGrade: widget.classesByGrade,
@@ -368,6 +373,8 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
                     presetSummary:
                         widget.presetSummaries[widget.subjects[index].id],
                     onCellTap: widget.onCellTap,
+                    onEditSubject: widget.onEditSubject,
+                    onDeleteSubject: widget.onDeleteSubject,
                     onPresetTap: widget.onPresetTap,
                     horizontal: _horizontalScrollArea,
                     state: this,
@@ -380,12 +387,15 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
                 children: [
                   for (final subject in widget.subjects)
                     _SubjectRow(
+                      key: ValueKey('subject-row-${subject.id}'),
                       subject: subject,
                       visibleGrades: widget.visibleGrades,
                       classesByGrade: widget.classesByGrade,
                       valuesFor: widget.valuesFor,
                       presetSummary: widget.presetSummaries[subject.id],
                       onCellTap: widget.onCellTap,
+                      onEditSubject: widget.onEditSubject,
+                      onDeleteSubject: widget.onDeleteSubject,
                       onPresetTap: widget.onPresetTap,
                       horizontal: _horizontalScrollArea,
                       state: this,
@@ -499,6 +509,96 @@ class _MatrixHeaderRow extends StatelessWidget {
   }
 }
 
+class _SubjectNameCell extends StatefulWidget {
+  const _SubjectNameCell({
+    required this.subject,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Subject subject;
+  final ValueChanged<Subject> onEdit;
+  final ValueChanged<Subject> onDelete;
+
+  @override
+  State<_SubjectNameCell> createState() => _SubjectNameCellState();
+}
+
+class _SubjectNameCellState extends State<_SubjectNameCell> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) => f.FContextMenu(
+    secondaryPress: true,
+    longPress: false,
+    menuBuilder: (context, controller, menu) => [
+      f.FItemGroup(
+        divider: .none,
+        children: [
+          AppMenuTile(
+            item: AppMenuItem(
+              label: '编辑',
+              onPressed: () {
+                unawaited(controller.hide());
+                widget.onEdit(widget.subject);
+              },
+            ),
+          ),
+          AppMenuTile(
+            item: AppMenuItem(
+              label: '删除',
+              destructive: true,
+              onPressed: () {
+                unawaited(controller.hide());
+                widget.onDelete(widget.subject);
+              },
+            ),
+          ),
+        ],
+      ),
+    ],
+    child: MouseRegion(
+      cursor: SystemMouseCursors.contextMenu,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        width: SubjectMatrix._nameColumnWidth,
+        height: 40,
+        padding: const EdgeInsets.only(left: 14, right: 6),
+        decoration: BoxDecoration(
+          color: _hovered ? context.appColors.selectedBlue : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.subject.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _hovered
+                      ? context.appColors.blue
+                      : context.appColors.ink,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (_hovered)
+              Icon(
+                Icons.more_horiz_rounded,
+                size: 14,
+                color: context.appColors.blue,
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _SubjectRow extends StatelessWidget {
   const _SubjectRow({
     required this.subject,
@@ -507,9 +607,12 @@ class _SubjectRow extends StatelessWidget {
     required this.valuesFor,
     required this.presetSummary,
     required this.onCellTap,
+    required this.onEditSubject,
+    required this.onDeleteSubject,
     required this.onPresetTap,
     required this.horizontal,
     required this.state,
+    super.key,
   });
 
   final Subject subject;
@@ -520,6 +623,8 @@ class _SubjectRow extends StatelessWidget {
   /// 预设摘要与完整提示内容（null = 无预设）。
   final SubjectPresetSummary? presetSummary;
   final void Function(Subject subject, GradeGroup grade) onCellTap;
+  final ValueChanged<Subject> onEditSubject;
+  final ValueChanged<Subject> onDeleteSubject;
   final void Function(Subject subject, GradeGroup grade) onPresetTap;
   final HorizontalScrollAreaBuilder horizontal;
   final _SubjectMatrixState state;
@@ -529,21 +634,10 @@ class _SubjectRow extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(
       children: [
-        SizedBox(
-          width: SubjectMatrix._nameColumnWidth,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 14),
-            child: Text(
-              subject.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: context.appColors.ink,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
+        _SubjectNameCell(
+          subject: subject,
+          onEdit: onEditSubject,
+          onDelete: onDeleteSubject,
         ),
         Expanded(
           child: horizontal(
