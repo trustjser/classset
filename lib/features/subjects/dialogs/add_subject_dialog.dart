@@ -142,7 +142,7 @@ class _AddSubjectDialogState extends State<AddSubjectDialog> {
             if (widget.subject == null) ...[
               const SizedBox(height: 14),
               Text(
-                '从常用科目快速添加',
+                '从常用科目快速添加（可多选）',
                 style: TextStyle(
                   color: context.appColors.inkSecondary,
                   fontSize: 12,
