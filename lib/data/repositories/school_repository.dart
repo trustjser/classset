@@ -14,8 +14,45 @@ import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/models/teacher_group.dart';
 import 'package:class_set/domain/models/teacher_preset.dart';
+import 'package:class_set/domain/models/schedule_condition.dart';
+import 'package:class_set/domain/models/schedule_item.dart';
+import 'package:class_set/domain/models/schedule_lock.dart';
+import 'package:class_set/domain/models/schedule_preferences.dart';
+import 'package:class_set/domain/models/schedule_run.dart';
+import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
+
+class ScheduleViewData {
+  const ScheduleViewData({required this.items, this.latestRun});
+
+  final List<ScheduleItem> items;
+  final ScheduleRun? latestRun;
+}
+
+class ScheduleCommitResult {
+  const ScheduleCommitResult({this.backupWarning});
+
+  /// A completed commit remains valid when the post-commit mirror fails.
+  final String? backupWarning;
+}
 
 abstract interface class SchoolRepository {
+  Future<SchedulingSnapshot> loadSchedulingSnapshot(String termId);
+
+  Stream<ScheduleViewData> watchSchedule(String termId);
+
+  Future<void> saveScheduleConfiguration({
+    required String termId,
+    required List<ScheduleCondition> conditions,
+    required SchedulePreferences preferences,
+  });
+
+  Future<void> setScheduleLock(ScheduleLock lock, {required bool enabled});
+
+  Future<ScheduleCommitResult> commitScheduleRun(
+    ScheduleRun run, {
+    required Set<String> selectedClassIds,
+  });
+
   Future<String?> loadActiveTermId();
 
   Future<void> saveActiveTermId(String? termId);

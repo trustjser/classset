@@ -12,7 +12,7 @@ Widget _wrap(Widget child) => ProviderScope(
   child: MaterialApp(
     theme: AppTheme.light,
     builder: (context, child) => FTheme(
-      data: AppTheme.forui,
+      data: AppTheme.foruiFor(false),
       child: FToaster(child: child!),
     ),
     home: Scaffold(body: Center(child: child)),

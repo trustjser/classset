@@ -4,7 +4,6 @@ import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/features/subjects/subjects_data.dart';
 import 'package:flutter/material.dart';
-import 'package:forui/forui.dart' as f;
 
 /// 「各班不同」下钻弹窗：逐班填写 每周 / 单周 / 双周节数。
 ///
@@ -41,7 +40,6 @@ class ClassDetailDialog extends StatefulWidget {
 
 class _ClassDetailDialogState extends State<ClassDetailDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _quickFillController = TextEditingController();
   late final Map<String, ClassSubjectValues> _values;
 
   @override
@@ -52,36 +50,10 @@ class _ClassDetailDialogState extends State<ClassDetailDialog> {
     };
   }
 
-  @override
-  void dispose() {
-    _quickFillController.dispose();
-    super.dispose();
-  }
-
   void _setValue(String classId, {int? weekly, int? odd, int? even}) {
     final current = _values[classId] ?? const ClassSubjectValues();
     setState(() {
       _values[classId] = current.copyWith(weekly: weekly, odd: odd, even: even);
-    });
-  }
-
-  void _applyQuickFill() {
-    final parts = _quickFillController.text
-        .split(',')
-        .map((part) => int.tryParse(part.trim()))
-        .toList();
-    for (var index = 0; index < widget.classes.length; index++) {
-      final count = index < parts.length ? parts[index] : null;
-      if (count == null || count < 0) continue;
-      _setValue(widget.classes[index].id, weekly: count);
-    }
-  }
-
-  void _clearAll() {
-    setState(() {
-      for (final classBrief in widget.classes) {
-        _values[classBrief.id] = const ClassSubjectValues();
-      }
     });
   }
 

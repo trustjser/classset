@@ -20,7 +20,10 @@ import 'package:class_set/domain/models/teacher_group.dart';
 import 'package:class_set/domain/models/teacher_preset.dart';
 
 final schoolRepositoryProvider = Provider<SchoolRepository>(
-  (ref) => DriftSchoolRepository(ref.watch(appDatabaseProvider)),
+  (ref) => DriftSchoolRepository(
+    ref.watch(appDatabaseProvider),
+    databasePath: ref.watch(databasePathProvider),
+  ),
 );
 
 final termsProvider = StreamProvider<List<AcademicTerm>>(

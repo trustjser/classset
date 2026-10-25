@@ -26,7 +26,7 @@ Widget _wrap(ProviderContainer container, String termId) =>
       child: MaterialApp(
         theme: AppTheme.light,
         builder: (context, child) => f.FTheme(
-          data: AppTheme.forui,
+          data: AppTheme.foruiFor(false),
           child: f.FToaster(child: child!),
         ),
         home: Scaffold(body: SubjectsPage(termId: termId)),
@@ -399,7 +399,7 @@ void main() {
     final decoration =
         tester.widget<AnimatedContainer>(find.byKey(mathKey)).decoration
             as BoxDecoration;
-    expect(decoration.border, Border.all(color: AppTheme.blue));
+    expect(decoration.border, Border.all(color: AppThemeColors.light.blue));
 
     // C 复制数学的「2」（选中态裸键 / Ctrl+C 均可）。
     await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
@@ -877,7 +877,7 @@ void main() {
       find.byKey(const ValueKey('subject-settings-tabs-container')),
     );
     final tabsDecoration = tabsBackground.decoration as BoxDecoration;
-    expect(tabsDecoration.color, AppTheme.tableHeader);
+    expect(tabsDecoration.color, AppThemeColors.light.tableHeader);
     expect(tabsDecoration.borderRadius, BorderRadius.circular(6));
     final selectedTabLabel = tester.widget<Text>(
       find.descendant(
@@ -885,7 +885,7 @@ void main() {
         matching: find.text('科目预设'),
       ),
     );
-    expect(selectedTabLabel.style?.color, AppTheme.blue);
+    expect(selectedTabLabel.style?.color, AppThemeColors.light.blue);
     expect(selectedTabLabel.style?.fontSize, 13);
     expect(selectedTabLabel.style?.fontWeight, FontWeight.w600);
     expect(
@@ -1066,8 +1066,8 @@ void main() {
     );
     expect(inheritedLabel.hintText, isNull);
     expect(inheritedNumber.hintText, '3');
-    expect(inheritedLabel.hintStyle?.color, AppTheme.helpIcon);
-    expect(inheritedNumber.hintStyle?.color, AppTheme.helpIcon);
+    expect(inheritedLabel.hintStyle?.color, AppThemeColors.light.helpIcon);
+    expect(inheritedNumber.hintStyle?.color, AppThemeColors.light.helpIcon);
     expect(
       tester
           .getSize(
@@ -1076,7 +1076,7 @@ void main() {
           .width,
       lessThanOrEqualTo(28),
     );
-    expect(inheritedNumber.fillColor, AppTheme.selectedBlue);
+    expect(inheritedNumber.fillColor, AppThemeColors.light.selectedBlue);
 
     const fields = ['minDaily', 'maxDaily', 'maxDailyPairs', 'minDailyPairs'];
     final labelRects = [

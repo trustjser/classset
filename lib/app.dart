@@ -7,6 +7,7 @@ import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/features/classes/classes_page.dart';
 import 'package:class_set/features/routines/routine_page.dart';
+import 'package:class_set/features/scheduling/scheduling_page.dart';
 import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/teachers/teachers_page.dart';
@@ -26,6 +27,7 @@ enum AppSection {
   routines,
   subjects,
   teachers,
+  scheduling,
   publicRooms,
 }
 
@@ -277,6 +279,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
             AppSection.routines => '作息设置',
             AppSection.subjects => '科目节数',
             AppSection.teachers => '教师任课',
+            AppSection.scheduling => '自动排课',
             AppSection.publicRooms => '公共场室',
           };
           return Row(
@@ -317,7 +320,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
                               clipBehavior: Clip.hardEdge,
                               children: [
                                 ...previousChildren,
-                                if (currentChild != null) currentChild,
+                                ?currentChild,
                               ],
                             ),
                         transitionBuilder: (child, animation) => FadeTransition(
@@ -354,6 +357,10 @@ class _AppShellState extends ConsumerState<_AppShell> {
                               activeTermId == null
                                   ? const _ChooseTermMessage()
                                   : TeachersPage(termId: activeTermId),
+                            AppSection.scheduling =>
+                              activeTermId == null
+                                  ? const _ChooseTermMessage()
+                                  : SchedulingPage(termId: activeTermId),
                           },
                         ),
                       ),
@@ -508,10 +515,12 @@ class _Sidebar extends ConsumerWidget {
                       isSelected: section == AppSection.teachers,
                       onTap: () => onNavigate(AppSection.teachers),
                     ),
-                    _NavComingSoon(
+                    _NavItem(
                       label: '自动排课',
                       icon: Icons.auto_awesome_outlined,
                       isCompact: compactContents,
+                      isSelected: section == AppSection.scheduling,
+                      onTap: () => onNavigate(AppSection.scheduling),
                     ),
                     _NavComingSoon(
                       label: '课表编辑',

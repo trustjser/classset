@@ -1,4 +1,5 @@
 import 'package:class_set/data/database/app_database.dart';
+import 'package:class_set/data/repositories/drift_scheduling_repository.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart' as domain;
 import 'package:class_set/domain/models/calendar_exception.dart' as domain;
@@ -16,12 +17,52 @@ import 'package:class_set/domain/models/teacher.dart' as domain;
 import 'package:class_set/domain/models/teacher_assignment.dart' as domain;
 import 'package:class_set/domain/models/teacher_group.dart' as domain;
 import 'package:class_set/domain/models/teacher_preset.dart' as domain;
+import 'package:class_set/domain/models/schedule_condition.dart' as domain;
+import 'package:class_set/domain/models/schedule_lock.dart' as domain;
+import 'package:class_set/domain/models/schedule_preferences.dart' as domain;
+import 'package:class_set/domain/models/schedule_run.dart' as domain;
+import 'package:class_set/domain/scheduling/scheduling_snapshot.dart' as domain;
 import 'package:drift/drift.dart';
 
 class DriftSchoolRepository implements SchoolRepository {
-  const DriftSchoolRepository(this._database);
+  const DriftSchoolRepository(this._database, {this.databasePath});
 
   final AppDatabase _database;
+  final String? databasePath;
+
+  DriftSchedulingRepository get _scheduling =>
+      DriftSchedulingRepository(_database, this, databasePath: databasePath);
+
+  @override
+  Future<domain.SchedulingSnapshot> loadSchedulingSnapshot(String termId) =>
+      _scheduling.loadSchedulingSnapshot(termId);
+
+  @override
+  Stream<ScheduleViewData> watchSchedule(String termId) =>
+      _scheduling.watchSchedule(termId);
+
+  @override
+  Future<void> saveScheduleConfiguration({
+    required String termId,
+    required List<domain.ScheduleCondition> conditions,
+    required domain.SchedulePreferences preferences,
+  }) => _scheduling.saveScheduleConfiguration(
+    termId: termId,
+    conditions: conditions,
+    preferences: preferences,
+  );
+
+  @override
+  Future<void> setScheduleLock(
+    domain.ScheduleLock lock, {
+    required bool enabled,
+  }) => _scheduling.setScheduleLock(lock, enabled: enabled);
+
+  @override
+  Future<ScheduleCommitResult> commitScheduleRun(
+    domain.ScheduleRun run, {
+    required Set<String> selectedClassIds,
+  }) => _scheduling.commitScheduleRun(run, selectedClassIds: selectedClassIds);
 
   @override
   Future<String?> loadActiveTermId() async {

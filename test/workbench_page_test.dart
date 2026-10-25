@@ -18,7 +18,7 @@ Widget _wrap(ProviderContainer container) => UncontrolledProviderScope(
   child: MaterialApp(
     theme: AppTheme.light,
     builder: (context, child) => f.FTheme(
-      data: AppTheme.forui,
+      data: AppTheme.foruiFor(false),
       child: f.FToaster(child: child!),
     ),
     home: const Scaffold(body: WorkbenchPage()),
@@ -166,7 +166,7 @@ void main() {
       find.descendant(
         of: find.byKey(const Key('preparation-progress')),
         matching: find.byWidgetPredicate(
-          (w) => w is ColoredBox && w.color == AppTheme.blue,
+          (w) => w is ColoredBox && w.color == AppThemeColors.light.blue,
         ),
       ),
     );
@@ -243,7 +243,7 @@ void main() {
       find.descendant(
         of: find.byKey(const Key('preparation-progress')),
         matching: find.byWidgetPredicate(
-          (w) => w is ColoredBox && w.color == AppTheme.blue,
+          (w) => w is ColoredBox && w.color == AppThemeColors.light.blue,
         ),
       ),
     );

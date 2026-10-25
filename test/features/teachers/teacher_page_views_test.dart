@@ -131,7 +131,7 @@ Future<void> _mountTeacherPage(
       child: MaterialApp(
         theme: AppTheme.light,
         builder: (context, child) => FTheme(
-          data: AppTheme.forui,
+          data: AppTheme.foruiFor(false),
           child: FToaster(child: child!),
         ),
         home: const Scaffold(body: TeachersPage(termId: _termId)),
@@ -1304,7 +1304,7 @@ void main() {
     );
     final expandText = tester.widget<Text>(expandLabel);
     expect(expandText.style?.fontSize, 11);
-    expect(expandText.style?.color, AppTheme.muted);
+    expect(expandText.style?.color, AppThemeColors.light.muted);
     expect(tester.takeException(), isNull);
 
     await tester.tap(expand);
@@ -1560,11 +1560,11 @@ void main() {
     );
     expect(
       (oddTagBackground.decoration as BoxDecoration).color,
-      AppTheme.warningSurface,
+      AppThemeColors.light.warningSurface,
     );
     expect(
       (evenTagBackground.decoration as BoxDecoration).color,
-      AppTheme.successSurface,
+      AppThemeColors.light.successSurface,
     );
 
     final assignedCell = find.byKey(
@@ -1613,7 +1613,10 @@ void main() {
       of: find.byKey(const ValueKey('assignment-cell-class-1-physical')),
       matching: find.text('未分配(单.2)'),
     );
-    expect(tester.widget<Text>(unassignedLabel).style?.color, AppTheme.warning);
+    expect(
+      tester.widget<Text>(unassignedLabel).style?.color,
+      AppThemeColors.light.warning,
+    );
     final classHeader = find.byKey(
       const ValueKey('teacher-class-header-class-1'),
     );
@@ -1623,7 +1626,7 @@ void main() {
     );
     expect(
       tester.widget<Text>(classTitle).style?.color,
-      AppTheme.stageAccent(0),
+      AppThemeColors.light.blue,
     );
     final emptyCell = find.byKey(
       const ValueKey('assignment-cell-background-class-2-math'),
@@ -1634,7 +1637,7 @@ void main() {
     final dash = find.descendant(of: emptyCellStack, matching: find.text('—'));
     expect(
       tester.widget<Text>(dash).style?.color,
-      AppTheme.muted.withValues(alpha: 0.5),
+      AppThemeColors.light.muted.withValues(alpha: 0.5),
     );
 
     await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
@@ -1644,7 +1647,7 @@ void main() {
     );
     expect(
       (unassignedCount.decoration as BoxDecoration).color,
-      AppTheme.warningSurface,
+      AppThemeColors.light.warningSurface,
     );
     final unassignedTileText = find.text('体育与健康（单周） · 2 节');
     expect(unassignedTileText, findsOneWidget);
@@ -1719,8 +1722,8 @@ void main() {
     final tabsRect = tester.getRect(tabs);
     final classViewContentTop = blockRect.top;
 
-    expect(trackDecoration.color, AppTheme.selectedBlue);
-    expect(trackShape.side.color, AppTheme.border);
+    expect(trackDecoration.color, AppThemeColors.light.selectedBlue);
+    expect(trackShape.side.color, AppThemeColors.light.border);
     expect(tabsRect.height, lessThanOrEqualTo(38));
     expect(tabsRect.left, closeTo(blockRect.left, 0.5));
 
@@ -1790,7 +1793,7 @@ void main() {
     final line = tester.widget<ColoredBox>(
       find.descendant(of: divider, matching: find.byType(ColoredBox)),
     );
-    expect(line.color, AppTheme.border);
+    expect(line.color, AppThemeColors.light.border);
   });
 
   testWidgets('班级视角窄屏按科目数量撑开矩阵并支持整页滚动', (tester) async {
@@ -1930,7 +1933,7 @@ void main() {
       final header = tester.widget<AppDataTableHeader>(headerFinder);
       expect(header.height, 40);
       expect(header.backgroundColor, Colors.white);
-      expect(header.textColor, AppTheme.muted);
+      expect(header.textColor, AppThemeColors.light.muted);
       final textStyle = tester
           .widget<DefaultTextStyle>(
             find
@@ -1943,7 +1946,10 @@ void main() {
           .style;
       expect(textStyle.fontSize, 11);
       expect(textStyle.fontWeight, FontWeight.w600);
-      expect(textStyle, AppTheme.matrixHeaderTextStyle);
+      expect(
+        textStyle,
+        AppTheme.matrixHeaderTextStyle(tester.element(headerFinder)),
+      );
     }
 
     await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
@@ -1975,7 +1981,7 @@ void main() {
     );
     expect(teacherHeader.height, 40);
     expect(teacherHeader.backgroundColor, Colors.white);
-    expect(teacherHeader.textColor, AppTheme.muted);
+    expect(teacherHeader.textColor, AppThemeColors.light.muted);
     final teacherHeaderTextStyle = tester
         .widget<DefaultTextStyle>(
           find
@@ -1988,7 +1994,12 @@ void main() {
         .style;
     expect(teacherHeaderTextStyle.fontSize, 11);
     expect(teacherHeaderTextStyle.fontWeight, FontWeight.w600);
-    expect(teacherHeaderTextStyle, AppTheme.matrixHeaderTextStyle);
+    expect(
+      teacherHeaderTextStyle,
+      AppTheme.matrixHeaderTextStyle(
+        tester.element(find.byKey(teacherHeaderKey)),
+      ),
+    );
   });
 
   testWidgets('悬停单元格时只高亮当前单元格', (tester) async {
@@ -2053,7 +2064,7 @@ void main() {
         )
         .color;
 
-    expect(cellColor('class-1', 'math'), AppTheme.selectedBlue);
+    expect(cellColor('class-1', 'math'), AppThemeColors.light.selectedBlue);
     expect(cellColor('class-2', 'math'), Colors.white);
     expect(cellColor('class-1', 'english'), Colors.white);
     expect(cellColor('class-2', 'english'), Colors.white);
@@ -2281,7 +2292,10 @@ void main() {
       tester.getRect(assigned).right,
       lessThan(tester.getRect(unassigned).left),
     );
-    expect(tester.widget<Text>(unassigned).style?.color, AppTheme.warning);
+    expect(
+      tester.widget<Text>(unassigned).style?.color,
+      AppThemeColors.light.warning,
+    );
     final tooltip = tester.widget<Tooltip>(
       find.ancestor(of: assigned, matching: find.byType(Tooltip)).first,
     );

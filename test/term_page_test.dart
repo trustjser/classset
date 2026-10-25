@@ -23,7 +23,7 @@ Widget _wrap(
         ? AppTheme.light
         : AppTheme.light.copyWith(platform: platform),
     builder: (context, child) => FTheme(
-      data: AppTheme.forui,
+      data: AppTheme.foruiFor(false),
       child: FToaster(child: child!),
     ),
     home: Scaffold(body: child),

@@ -18,7 +18,7 @@ Widget _wrap(ProviderContainer container) => UncontrolledProviderScope(
   child: MaterialApp(
     theme: AppTheme.light,
     builder: (context, child) => FTheme(
-      data: AppTheme.forui,
+      data: AppTheme.foruiFor(false),
       child: FToaster(child: child!),
     ),
     home: const Scaffold(body: ClassesPage(termId: 't1')),
@@ -191,7 +191,7 @@ void main() {
     final dots = tester
         .widgetList<AppStageDot>(find.byType(AppStageDot))
         .toList();
-    expect(dots.first.color, AppTheme.blue);
+    expect(dots.first.color, AppThemeColors.light.blue);
     expect(dots.last.color, const Color(0xFF2BA471));
     expect(tester.getRect(find.textContaining('共 2 个学段')).top, lessThan(600));
     expect(tester.takeException(), isNull);

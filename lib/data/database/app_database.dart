@@ -480,6 +480,152 @@ class TeacherGroupPresets extends Table {
   ];
 }
 
+/// One expanded lesson occurrence, including lessons waiting for placement.
+@TableIndex(name: 'schedule_items_term', columns: {#termId})
+@TableIndex(name: 'schedule_items_assignment', columns: {#assignmentId})
+@TableIndex(
+  name: 'schedule_items_class_slot',
+  columns: {
+    #termId,
+    #classId,
+    #weekMode,
+    #weekday,
+    #periodTypeId,
+    #lessonIndex,
+  },
+)
+@TableIndex(
+  name: 'schedule_items_teacher_slot',
+  columns: {
+    #termId,
+    #teacherId,
+    #weekMode,
+    #weekday,
+    #periodTypeId,
+    #lessonIndex,
+  },
+)
+class ScheduleItems extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get assignmentId =>
+      text().references(TeacherAssignments, #id, onDelete: KeyAction.cascade)();
+  TextColumn get classId =>
+      text().references(ClassGroups, #id, onDelete: KeyAction.cascade)();
+  TextColumn get teacherId => text().nullable().references(
+    Teachers,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get subjectId =>
+      text().references(Subjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get weekMode => text().withDefault(const Constant('weekly'))();
+
+  /// Shared identifier for lessons taught to multiple classes together.
+  TextColumn get combinedGroupId => text().nullable()();
+
+  /// Shared identifier for occurrences placed at the same time.
+  TextColumn get meetingId => text().nullable()();
+
+  /// All four slot columns are null while the lesson is waiting for placement.
+  TextColumn get stageId => text().nullable().references(
+    SchoolStages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get weekday => integer().nullable()();
+  TextColumn get periodTypeId => text().nullable().references(
+    LessonPeriodTypes,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get lessonIndex => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// A user lock on an occurrence or another schedule target.
+@TableIndex(
+  name: 'schedule_locks_target',
+  columns: {#termId, #scope, #targetId},
+  unique: true,
+)
+class ScheduleLocks extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get scope => text()();
+  TextColumn get targetId => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// A hard or soft condition applied to a schedule target.
+@TableIndex(
+  name: 'schedule_conditions_target',
+  columns: {#termId, #targetKind, #targetId},
+)
+class ScheduleConditions extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get kind => text()();
+  TextColumn get name => text().nullable()();
+  TextColumn get targetKind => text().nullable()();
+  TextColumn get targetId => text().nullable()();
+  TextColumn get otherId => text().nullable()();
+  TextColumn get periodTypeId => text().nullable().references(
+    LessonPeriodTypes,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get weekday => integer().nullable()();
+  IntColumn get minCount => integer().nullable()();
+  IntColumn get maxCount => integer().nullable()();
+  IntColumn get exactCount => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Term-wide solver preferences.
+class SchedulePreferences extends Table {
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get strength => text()();
+  TextColumn get progressConsistency => text()();
+  TextColumn get teacherDistribution => text()();
+  BoolColumn get lunchProtection => boolean()();
+  TextColumn get consecutivePolicy => text()();
+  BoolColumn get detectProgressConsistency => boolean()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {termId};
+}
+
+/// Stored diagnostics and provenance for a solver run.
+@TableIndex(
+  name: 'schedule_run_reports_term_created',
+  columns: {#termId, #createdAt},
+)
+class ScheduleRunReports extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  IntColumn get createdAt => integer()();
+  TextColumn get solverVersion => text()();
+  IntColumn get seed => integer()();
+  TextColumn get strength => text()();
+  TextColumn get inputFingerprint => text()();
+  TextColumn get reportJson => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     AcademicTerms,
@@ -509,6 +655,11 @@ class TeacherGroupPresets extends Table {
     TeacherAssignments,
     TeacherPresets,
     TeacherGroupPresets,
+    ScheduleItems,
+    ScheduleLocks,
+    ScheduleConditions,
+    SchedulePreferences,
+    ScheduleRunReports,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -517,7 +668,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -592,6 +743,20 @@ class AppDatabase extends _$AppDatabase {
           }
         }
         await _migrateSubjectsToTerms();
+      }
+      if (from < 14) {
+        await migrator.createTable(scheduleItems);
+        await migrator.createTable(scheduleLocks);
+        await migrator.createTable(scheduleConditions);
+        await migrator.createTable(schedulePreferences);
+        await migrator.createTable(scheduleRunReports);
+        await migrator.createIndex(scheduleItemsTerm);
+        await migrator.createIndex(scheduleItemsAssignment);
+        await migrator.createIndex(scheduleItemsClassSlot);
+        await migrator.createIndex(scheduleItemsTeacherSlot);
+        await migrator.createIndex(scheduleLocksTarget);
+        await migrator.createIndex(scheduleConditionsTarget);
+        await migrator.createIndex(scheduleRunReportsTermCreated);
       }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),

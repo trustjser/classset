@@ -18,7 +18,7 @@ Widget _wrap(Widget child) => ProviderScope(
   child: MaterialApp(
     theme: AppTheme.light,
     builder: (context, child) => FTheme(
-      data: AppTheme.forui,
+      data: AppTheme.foruiFor(false),
       child: FToaster(child: child!),
     ),
     home: Scaffold(body: child),
@@ -143,7 +143,7 @@ void main() {
     expect(icon.color, const Color(0xFFA6A6A6));
     expect(
       icon.color!.computeLuminance(),
-      greaterThan(AppTheme.inkSecondary.computeLuminance()),
+      greaterThan(AppThemeColors.light.inkSecondary.computeLuminance()),
     );
   });
 
@@ -270,7 +270,7 @@ void main() {
     );
 
     final label = tester.widget<Text>(find.text('每周相同'));
-    expect(label.style?.color, AppTheme.inkSecondary);
+    expect(label.style?.color, AppThemeColors.light.inkSecondary);
   });
 
   testWidgets('补课例外行使用补课颜色', (tester) async {
@@ -518,7 +518,7 @@ void main() {
       ),
       reason: '操作按钮内必须留足文字行高，避免底部字形被裁切',
     );
-    expect(editLabel.style?.color, AppTheme.blue);
+    expect(editLabel.style?.color, AppThemeColors.light.blue);
     expect(tester.takeException(), isNull);
   });
 

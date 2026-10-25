@@ -142,7 +142,7 @@ void main() {
             : MaterialApp(
                 theme: AppTheme.light,
                 builder: (context, child) => f.FTheme(
-                  data: AppTheme.forui,
+                  data: AppTheme.foruiFor(false),
                   child: f.FToaster(child: child!),
                 ),
                 home: const Scaffold(body: PublicRoomsPage()),

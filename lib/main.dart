@@ -22,6 +22,7 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
+        databasePathProvider.overrideWithValue(databaseFile.path),
         activeTermIdProvider.overrideWith((ref) => activeTermId),
         lastPersistedAtProvider.overrideWith((ref) => lastPersistedAt),
       ],

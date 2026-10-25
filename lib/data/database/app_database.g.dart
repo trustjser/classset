@@ -11660,6 +11660,2884 @@ class TeacherGroupPresetsCompanion extends UpdateCompanion<TeacherGroupPreset> {
   }
 }
 
+class $ScheduleItemsTable extends ScheduleItems
+    with TableInfo<$ScheduleItemsTable, ScheduleItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScheduleItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _assignmentIdMeta = const VerificationMeta(
+    'assignmentId',
+  );
+  @override
+  late final GeneratedColumn<String> assignmentId = GeneratedColumn<String>(
+    'assignment_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES teacher_assignments (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _classIdMeta = const VerificationMeta(
+    'classId',
+  );
+  @override
+  late final GeneratedColumn<String> classId = GeneratedColumn<String>(
+    'class_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES class_groups (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _teacherIdMeta = const VerificationMeta(
+    'teacherId',
+  );
+  @override
+  late final GeneratedColumn<String> teacherId = GeneratedColumn<String>(
+    'teacher_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES teachers (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES subjects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _weekModeMeta = const VerificationMeta(
+    'weekMode',
+  );
+  @override
+  late final GeneratedColumn<String> weekMode = GeneratedColumn<String>(
+    'week_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('weekly'),
+  );
+  static const VerificationMeta _combinedGroupIdMeta = const VerificationMeta(
+    'combinedGroupId',
+  );
+  @override
+  late final GeneratedColumn<String> combinedGroupId = GeneratedColumn<String>(
+    'combined_group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _meetingIdMeta = const VerificationMeta(
+    'meetingId',
+  );
+  @override
+  late final GeneratedColumn<String> meetingId = GeneratedColumn<String>(
+    'meeting_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _stageIdMeta = const VerificationMeta(
+    'stageId',
+  );
+  @override
+  late final GeneratedColumn<String> stageId = GeneratedColumn<String>(
+    'stage_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES school_stages (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _weekdayMeta = const VerificationMeta(
+    'weekday',
+  );
+  @override
+  late final GeneratedColumn<int> weekday = GeneratedColumn<int>(
+    'weekday',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _periodTypeIdMeta = const VerificationMeta(
+    'periodTypeId',
+  );
+  @override
+  late final GeneratedColumn<String> periodTypeId = GeneratedColumn<String>(
+    'period_type_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES lesson_period_types (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _lessonIndexMeta = const VerificationMeta(
+    'lessonIndex',
+  );
+  @override
+  late final GeneratedColumn<int> lessonIndex = GeneratedColumn<int>(
+    'lesson_index',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    termId,
+    assignmentId,
+    classId,
+    teacherId,
+    subjectId,
+    weekMode,
+    combinedGroupId,
+    meetingId,
+    stageId,
+    weekday,
+    periodTypeId,
+    lessonIndex,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScheduleItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('assignment_id')) {
+      context.handle(
+        _assignmentIdMeta,
+        assignmentId.isAcceptableOrUnknown(
+          data['assignment_id']!,
+          _assignmentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_assignmentIdMeta);
+    }
+    if (data.containsKey('class_id')) {
+      context.handle(
+        _classIdMeta,
+        classId.isAcceptableOrUnknown(data['class_id']!, _classIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_classIdMeta);
+    }
+    if (data.containsKey('teacher_id')) {
+      context.handle(
+        _teacherIdMeta,
+        teacherId.isAcceptableOrUnknown(data['teacher_id']!, _teacherIdMeta),
+      );
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('week_mode')) {
+      context.handle(
+        _weekModeMeta,
+        weekMode.isAcceptableOrUnknown(data['week_mode']!, _weekModeMeta),
+      );
+    }
+    if (data.containsKey('combined_group_id')) {
+      context.handle(
+        _combinedGroupIdMeta,
+        combinedGroupId.isAcceptableOrUnknown(
+          data['combined_group_id']!,
+          _combinedGroupIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('meeting_id')) {
+      context.handle(
+        _meetingIdMeta,
+        meetingId.isAcceptableOrUnknown(data['meeting_id']!, _meetingIdMeta),
+      );
+    }
+    if (data.containsKey('stage_id')) {
+      context.handle(
+        _stageIdMeta,
+        stageId.isAcceptableOrUnknown(data['stage_id']!, _stageIdMeta),
+      );
+    }
+    if (data.containsKey('weekday')) {
+      context.handle(
+        _weekdayMeta,
+        weekday.isAcceptableOrUnknown(data['weekday']!, _weekdayMeta),
+      );
+    }
+    if (data.containsKey('period_type_id')) {
+      context.handle(
+        _periodTypeIdMeta,
+        periodTypeId.isAcceptableOrUnknown(
+          data['period_type_id']!,
+          _periodTypeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('lesson_index')) {
+      context.handle(
+        _lessonIndexMeta,
+        lessonIndex.isAcceptableOrUnknown(
+          data['lesson_index']!,
+          _lessonIndexMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ScheduleItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScheduleItem(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      assignmentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}assignment_id'],
+      )!,
+      classId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}class_id'],
+      )!,
+      teacherId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}teacher_id'],
+      ),
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      weekMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}week_mode'],
+      )!,
+      combinedGroupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}combined_group_id'],
+      ),
+      meetingId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meeting_id'],
+      ),
+      stageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage_id'],
+      ),
+      weekday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}weekday'],
+      ),
+      periodTypeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}period_type_id'],
+      ),
+      lessonIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}lesson_index'],
+      ),
+    );
+  }
+
+  @override
+  $ScheduleItemsTable createAlias(String alias) {
+    return $ScheduleItemsTable(attachedDatabase, alias);
+  }
+}
+
+class ScheduleItem extends DataClass implements Insertable<ScheduleItem> {
+  final String id;
+  final String termId;
+  final String assignmentId;
+  final String classId;
+  final String? teacherId;
+  final String subjectId;
+  final String weekMode;
+
+  /// Shared identifier for lessons taught to multiple classes together.
+  final String? combinedGroupId;
+
+  /// Shared identifier for occurrences placed at the same time.
+  final String? meetingId;
+
+  /// All four slot columns are null while the lesson is waiting for placement.
+  final String? stageId;
+  final int? weekday;
+  final String? periodTypeId;
+  final int? lessonIndex;
+  const ScheduleItem({
+    required this.id,
+    required this.termId,
+    required this.assignmentId,
+    required this.classId,
+    this.teacherId,
+    required this.subjectId,
+    required this.weekMode,
+    this.combinedGroupId,
+    this.meetingId,
+    this.stageId,
+    this.weekday,
+    this.periodTypeId,
+    this.lessonIndex,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['term_id'] = Variable<String>(termId);
+    map['assignment_id'] = Variable<String>(assignmentId);
+    map['class_id'] = Variable<String>(classId);
+    if (!nullToAbsent || teacherId != null) {
+      map['teacher_id'] = Variable<String>(teacherId);
+    }
+    map['subject_id'] = Variable<String>(subjectId);
+    map['week_mode'] = Variable<String>(weekMode);
+    if (!nullToAbsent || combinedGroupId != null) {
+      map['combined_group_id'] = Variable<String>(combinedGroupId);
+    }
+    if (!nullToAbsent || meetingId != null) {
+      map['meeting_id'] = Variable<String>(meetingId);
+    }
+    if (!nullToAbsent || stageId != null) {
+      map['stage_id'] = Variable<String>(stageId);
+    }
+    if (!nullToAbsent || weekday != null) {
+      map['weekday'] = Variable<int>(weekday);
+    }
+    if (!nullToAbsent || periodTypeId != null) {
+      map['period_type_id'] = Variable<String>(periodTypeId);
+    }
+    if (!nullToAbsent || lessonIndex != null) {
+      map['lesson_index'] = Variable<int>(lessonIndex);
+    }
+    return map;
+  }
+
+  ScheduleItemsCompanion toCompanion(bool nullToAbsent) {
+    return ScheduleItemsCompanion(
+      id: Value(id),
+      termId: Value(termId),
+      assignmentId: Value(assignmentId),
+      classId: Value(classId),
+      teacherId: teacherId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(teacherId),
+      subjectId: Value(subjectId),
+      weekMode: Value(weekMode),
+      combinedGroupId: combinedGroupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(combinedGroupId),
+      meetingId: meetingId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(meetingId),
+      stageId: stageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(stageId),
+      weekday: weekday == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weekday),
+      periodTypeId: periodTypeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(periodTypeId),
+      lessonIndex: lessonIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lessonIndex),
+    );
+  }
+
+  factory ScheduleItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScheduleItem(
+      id: serializer.fromJson<String>(json['id']),
+      termId: serializer.fromJson<String>(json['termId']),
+      assignmentId: serializer.fromJson<String>(json['assignmentId']),
+      classId: serializer.fromJson<String>(json['classId']),
+      teacherId: serializer.fromJson<String?>(json['teacherId']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+      weekMode: serializer.fromJson<String>(json['weekMode']),
+      combinedGroupId: serializer.fromJson<String?>(json['combinedGroupId']),
+      meetingId: serializer.fromJson<String?>(json['meetingId']),
+      stageId: serializer.fromJson<String?>(json['stageId']),
+      weekday: serializer.fromJson<int?>(json['weekday']),
+      periodTypeId: serializer.fromJson<String?>(json['periodTypeId']),
+      lessonIndex: serializer.fromJson<int?>(json['lessonIndex']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'termId': serializer.toJson<String>(termId),
+      'assignmentId': serializer.toJson<String>(assignmentId),
+      'classId': serializer.toJson<String>(classId),
+      'teacherId': serializer.toJson<String?>(teacherId),
+      'subjectId': serializer.toJson<String>(subjectId),
+      'weekMode': serializer.toJson<String>(weekMode),
+      'combinedGroupId': serializer.toJson<String?>(combinedGroupId),
+      'meetingId': serializer.toJson<String?>(meetingId),
+      'stageId': serializer.toJson<String?>(stageId),
+      'weekday': serializer.toJson<int?>(weekday),
+      'periodTypeId': serializer.toJson<String?>(periodTypeId),
+      'lessonIndex': serializer.toJson<int?>(lessonIndex),
+    };
+  }
+
+  ScheduleItem copyWith({
+    String? id,
+    String? termId,
+    String? assignmentId,
+    String? classId,
+    Value<String?> teacherId = const Value.absent(),
+    String? subjectId,
+    String? weekMode,
+    Value<String?> combinedGroupId = const Value.absent(),
+    Value<String?> meetingId = const Value.absent(),
+    Value<String?> stageId = const Value.absent(),
+    Value<int?> weekday = const Value.absent(),
+    Value<String?> periodTypeId = const Value.absent(),
+    Value<int?> lessonIndex = const Value.absent(),
+  }) => ScheduleItem(
+    id: id ?? this.id,
+    termId: termId ?? this.termId,
+    assignmentId: assignmentId ?? this.assignmentId,
+    classId: classId ?? this.classId,
+    teacherId: teacherId.present ? teacherId.value : this.teacherId,
+    subjectId: subjectId ?? this.subjectId,
+    weekMode: weekMode ?? this.weekMode,
+    combinedGroupId: combinedGroupId.present
+        ? combinedGroupId.value
+        : this.combinedGroupId,
+    meetingId: meetingId.present ? meetingId.value : this.meetingId,
+    stageId: stageId.present ? stageId.value : this.stageId,
+    weekday: weekday.present ? weekday.value : this.weekday,
+    periodTypeId: periodTypeId.present ? periodTypeId.value : this.periodTypeId,
+    lessonIndex: lessonIndex.present ? lessonIndex.value : this.lessonIndex,
+  );
+  ScheduleItem copyWithCompanion(ScheduleItemsCompanion data) {
+    return ScheduleItem(
+      id: data.id.present ? data.id.value : this.id,
+      termId: data.termId.present ? data.termId.value : this.termId,
+      assignmentId: data.assignmentId.present
+          ? data.assignmentId.value
+          : this.assignmentId,
+      classId: data.classId.present ? data.classId.value : this.classId,
+      teacherId: data.teacherId.present ? data.teacherId.value : this.teacherId,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      weekMode: data.weekMode.present ? data.weekMode.value : this.weekMode,
+      combinedGroupId: data.combinedGroupId.present
+          ? data.combinedGroupId.value
+          : this.combinedGroupId,
+      meetingId: data.meetingId.present ? data.meetingId.value : this.meetingId,
+      stageId: data.stageId.present ? data.stageId.value : this.stageId,
+      weekday: data.weekday.present ? data.weekday.value : this.weekday,
+      periodTypeId: data.periodTypeId.present
+          ? data.periodTypeId.value
+          : this.periodTypeId,
+      lessonIndex: data.lessonIndex.present
+          ? data.lessonIndex.value
+          : this.lessonIndex,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleItem(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('assignmentId: $assignmentId, ')
+          ..write('classId: $classId, ')
+          ..write('teacherId: $teacherId, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('weekMode: $weekMode, ')
+          ..write('combinedGroupId: $combinedGroupId, ')
+          ..write('meetingId: $meetingId, ')
+          ..write('stageId: $stageId, ')
+          ..write('weekday: $weekday, ')
+          ..write('periodTypeId: $periodTypeId, ')
+          ..write('lessonIndex: $lessonIndex')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    termId,
+    assignmentId,
+    classId,
+    teacherId,
+    subjectId,
+    weekMode,
+    combinedGroupId,
+    meetingId,
+    stageId,
+    weekday,
+    periodTypeId,
+    lessonIndex,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScheduleItem &&
+          other.id == this.id &&
+          other.termId == this.termId &&
+          other.assignmentId == this.assignmentId &&
+          other.classId == this.classId &&
+          other.teacherId == this.teacherId &&
+          other.subjectId == this.subjectId &&
+          other.weekMode == this.weekMode &&
+          other.combinedGroupId == this.combinedGroupId &&
+          other.meetingId == this.meetingId &&
+          other.stageId == this.stageId &&
+          other.weekday == this.weekday &&
+          other.periodTypeId == this.periodTypeId &&
+          other.lessonIndex == this.lessonIndex);
+}
+
+class ScheduleItemsCompanion extends UpdateCompanion<ScheduleItem> {
+  final Value<String> id;
+  final Value<String> termId;
+  final Value<String> assignmentId;
+  final Value<String> classId;
+  final Value<String?> teacherId;
+  final Value<String> subjectId;
+  final Value<String> weekMode;
+  final Value<String?> combinedGroupId;
+  final Value<String?> meetingId;
+  final Value<String?> stageId;
+  final Value<int?> weekday;
+  final Value<String?> periodTypeId;
+  final Value<int?> lessonIndex;
+  final Value<int> rowid;
+  const ScheduleItemsCompanion({
+    this.id = const Value.absent(),
+    this.termId = const Value.absent(),
+    this.assignmentId = const Value.absent(),
+    this.classId = const Value.absent(),
+    this.teacherId = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.weekMode = const Value.absent(),
+    this.combinedGroupId = const Value.absent(),
+    this.meetingId = const Value.absent(),
+    this.stageId = const Value.absent(),
+    this.weekday = const Value.absent(),
+    this.periodTypeId = const Value.absent(),
+    this.lessonIndex = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ScheduleItemsCompanion.insert({
+    required String id,
+    required String termId,
+    required String assignmentId,
+    required String classId,
+    this.teacherId = const Value.absent(),
+    required String subjectId,
+    this.weekMode = const Value.absent(),
+    this.combinedGroupId = const Value.absent(),
+    this.meetingId = const Value.absent(),
+    this.stageId = const Value.absent(),
+    this.weekday = const Value.absent(),
+    this.periodTypeId = const Value.absent(),
+    this.lessonIndex = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       termId = Value(termId),
+       assignmentId = Value(assignmentId),
+       classId = Value(classId),
+       subjectId = Value(subjectId);
+  static Insertable<ScheduleItem> custom({
+    Expression<String>? id,
+    Expression<String>? termId,
+    Expression<String>? assignmentId,
+    Expression<String>? classId,
+    Expression<String>? teacherId,
+    Expression<String>? subjectId,
+    Expression<String>? weekMode,
+    Expression<String>? combinedGroupId,
+    Expression<String>? meetingId,
+    Expression<String>? stageId,
+    Expression<int>? weekday,
+    Expression<String>? periodTypeId,
+    Expression<int>? lessonIndex,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (termId != null) 'term_id': termId,
+      if (assignmentId != null) 'assignment_id': assignmentId,
+      if (classId != null) 'class_id': classId,
+      if (teacherId != null) 'teacher_id': teacherId,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (weekMode != null) 'week_mode': weekMode,
+      if (combinedGroupId != null) 'combined_group_id': combinedGroupId,
+      if (meetingId != null) 'meeting_id': meetingId,
+      if (stageId != null) 'stage_id': stageId,
+      if (weekday != null) 'weekday': weekday,
+      if (periodTypeId != null) 'period_type_id': periodTypeId,
+      if (lessonIndex != null) 'lesson_index': lessonIndex,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ScheduleItemsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? termId,
+    Value<String>? assignmentId,
+    Value<String>? classId,
+    Value<String?>? teacherId,
+    Value<String>? subjectId,
+    Value<String>? weekMode,
+    Value<String?>? combinedGroupId,
+    Value<String?>? meetingId,
+    Value<String?>? stageId,
+    Value<int?>? weekday,
+    Value<String?>? periodTypeId,
+    Value<int?>? lessonIndex,
+    Value<int>? rowid,
+  }) {
+    return ScheduleItemsCompanion(
+      id: id ?? this.id,
+      termId: termId ?? this.termId,
+      assignmentId: assignmentId ?? this.assignmentId,
+      classId: classId ?? this.classId,
+      teacherId: teacherId ?? this.teacherId,
+      subjectId: subjectId ?? this.subjectId,
+      weekMode: weekMode ?? this.weekMode,
+      combinedGroupId: combinedGroupId ?? this.combinedGroupId,
+      meetingId: meetingId ?? this.meetingId,
+      stageId: stageId ?? this.stageId,
+      weekday: weekday ?? this.weekday,
+      periodTypeId: periodTypeId ?? this.periodTypeId,
+      lessonIndex: lessonIndex ?? this.lessonIndex,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (assignmentId.present) {
+      map['assignment_id'] = Variable<String>(assignmentId.value);
+    }
+    if (classId.present) {
+      map['class_id'] = Variable<String>(classId.value);
+    }
+    if (teacherId.present) {
+      map['teacher_id'] = Variable<String>(teacherId.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (weekMode.present) {
+      map['week_mode'] = Variable<String>(weekMode.value);
+    }
+    if (combinedGroupId.present) {
+      map['combined_group_id'] = Variable<String>(combinedGroupId.value);
+    }
+    if (meetingId.present) {
+      map['meeting_id'] = Variable<String>(meetingId.value);
+    }
+    if (stageId.present) {
+      map['stage_id'] = Variable<String>(stageId.value);
+    }
+    if (weekday.present) {
+      map['weekday'] = Variable<int>(weekday.value);
+    }
+    if (periodTypeId.present) {
+      map['period_type_id'] = Variable<String>(periodTypeId.value);
+    }
+    if (lessonIndex.present) {
+      map['lesson_index'] = Variable<int>(lessonIndex.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('assignmentId: $assignmentId, ')
+          ..write('classId: $classId, ')
+          ..write('teacherId: $teacherId, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('weekMode: $weekMode, ')
+          ..write('combinedGroupId: $combinedGroupId, ')
+          ..write('meetingId: $meetingId, ')
+          ..write('stageId: $stageId, ')
+          ..write('weekday: $weekday, ')
+          ..write('periodTypeId: $periodTypeId, ')
+          ..write('lessonIndex: $lessonIndex, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ScheduleLocksTable extends ScheduleLocks
+    with TableInfo<$ScheduleLocksTable, ScheduleLock> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScheduleLocksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetIdMeta = const VerificationMeta(
+    'targetId',
+  );
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+    'target_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, termId, scope, targetId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_locks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScheduleLock> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(
+        _targetIdMeta,
+        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ScheduleLock map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScheduleLock(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+      targetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_id'],
+      )!,
+    );
+  }
+
+  @override
+  $ScheduleLocksTable createAlias(String alias) {
+    return $ScheduleLocksTable(attachedDatabase, alias);
+  }
+}
+
+class ScheduleLock extends DataClass implements Insertable<ScheduleLock> {
+  final String id;
+  final String termId;
+  final String scope;
+  final String targetId;
+  const ScheduleLock({
+    required this.id,
+    required this.termId,
+    required this.scope,
+    required this.targetId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['term_id'] = Variable<String>(termId);
+    map['scope'] = Variable<String>(scope);
+    map['target_id'] = Variable<String>(targetId);
+    return map;
+  }
+
+  ScheduleLocksCompanion toCompanion(bool nullToAbsent) {
+    return ScheduleLocksCompanion(
+      id: Value(id),
+      termId: Value(termId),
+      scope: Value(scope),
+      targetId: Value(targetId),
+    );
+  }
+
+  factory ScheduleLock.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScheduleLock(
+      id: serializer.fromJson<String>(json['id']),
+      termId: serializer.fromJson<String>(json['termId']),
+      scope: serializer.fromJson<String>(json['scope']),
+      targetId: serializer.fromJson<String>(json['targetId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'termId': serializer.toJson<String>(termId),
+      'scope': serializer.toJson<String>(scope),
+      'targetId': serializer.toJson<String>(targetId),
+    };
+  }
+
+  ScheduleLock copyWith({
+    String? id,
+    String? termId,
+    String? scope,
+    String? targetId,
+  }) => ScheduleLock(
+    id: id ?? this.id,
+    termId: termId ?? this.termId,
+    scope: scope ?? this.scope,
+    targetId: targetId ?? this.targetId,
+  );
+  ScheduleLock copyWithCompanion(ScheduleLocksCompanion data) {
+    return ScheduleLock(
+      id: data.id.present ? data.id.value : this.id,
+      termId: data.termId.present ? data.termId.value : this.termId,
+      scope: data.scope.present ? data.scope.value : this.scope,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleLock(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('scope: $scope, ')
+          ..write('targetId: $targetId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, termId, scope, targetId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScheduleLock &&
+          other.id == this.id &&
+          other.termId == this.termId &&
+          other.scope == this.scope &&
+          other.targetId == this.targetId);
+}
+
+class ScheduleLocksCompanion extends UpdateCompanion<ScheduleLock> {
+  final Value<String> id;
+  final Value<String> termId;
+  final Value<String> scope;
+  final Value<String> targetId;
+  final Value<int> rowid;
+  const ScheduleLocksCompanion({
+    this.id = const Value.absent(),
+    this.termId = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ScheduleLocksCompanion.insert({
+    required String id,
+    required String termId,
+    required String scope,
+    required String targetId,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       termId = Value(termId),
+       scope = Value(scope),
+       targetId = Value(targetId);
+  static Insertable<ScheduleLock> custom({
+    Expression<String>? id,
+    Expression<String>? termId,
+    Expression<String>? scope,
+    Expression<String>? targetId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (termId != null) 'term_id': termId,
+      if (scope != null) 'scope': scope,
+      if (targetId != null) 'target_id': targetId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ScheduleLocksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? termId,
+    Value<String>? scope,
+    Value<String>? targetId,
+    Value<int>? rowid,
+  }) {
+    return ScheduleLocksCompanion(
+      id: id ?? this.id,
+      termId: termId ?? this.termId,
+      scope: scope ?? this.scope,
+      targetId: targetId ?? this.targetId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleLocksCompanion(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('scope: $scope, ')
+          ..write('targetId: $targetId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ScheduleConditionsTable extends ScheduleConditions
+    with TableInfo<$ScheduleConditionsTable, ScheduleCondition> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScheduleConditionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetKindMeta = const VerificationMeta(
+    'targetKind',
+  );
+  @override
+  late final GeneratedColumn<String> targetKind = GeneratedColumn<String>(
+    'target_kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetIdMeta = const VerificationMeta(
+    'targetId',
+  );
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+    'target_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _otherIdMeta = const VerificationMeta(
+    'otherId',
+  );
+  @override
+  late final GeneratedColumn<String> otherId = GeneratedColumn<String>(
+    'other_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _periodTypeIdMeta = const VerificationMeta(
+    'periodTypeId',
+  );
+  @override
+  late final GeneratedColumn<String> periodTypeId = GeneratedColumn<String>(
+    'period_type_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES lesson_period_types (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _weekdayMeta = const VerificationMeta(
+    'weekday',
+  );
+  @override
+  late final GeneratedColumn<int> weekday = GeneratedColumn<int>(
+    'weekday',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _minCountMeta = const VerificationMeta(
+    'minCount',
+  );
+  @override
+  late final GeneratedColumn<int> minCount = GeneratedColumn<int>(
+    'min_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _maxCountMeta = const VerificationMeta(
+    'maxCount',
+  );
+  @override
+  late final GeneratedColumn<int> maxCount = GeneratedColumn<int>(
+    'max_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _exactCountMeta = const VerificationMeta(
+    'exactCount',
+  );
+  @override
+  late final GeneratedColumn<int> exactCount = GeneratedColumn<int>(
+    'exact_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    termId,
+    kind,
+    name,
+    targetKind,
+    targetId,
+    otherId,
+    periodTypeId,
+    weekday,
+    minCount,
+    maxCount,
+    exactCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_conditions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScheduleCondition> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    if (data.containsKey('target_kind')) {
+      context.handle(
+        _targetKindMeta,
+        targetKind.isAcceptableOrUnknown(data['target_kind']!, _targetKindMeta),
+      );
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(
+        _targetIdMeta,
+        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
+      );
+    }
+    if (data.containsKey('other_id')) {
+      context.handle(
+        _otherIdMeta,
+        otherId.isAcceptableOrUnknown(data['other_id']!, _otherIdMeta),
+      );
+    }
+    if (data.containsKey('period_type_id')) {
+      context.handle(
+        _periodTypeIdMeta,
+        periodTypeId.isAcceptableOrUnknown(
+          data['period_type_id']!,
+          _periodTypeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('weekday')) {
+      context.handle(
+        _weekdayMeta,
+        weekday.isAcceptableOrUnknown(data['weekday']!, _weekdayMeta),
+      );
+    }
+    if (data.containsKey('min_count')) {
+      context.handle(
+        _minCountMeta,
+        minCount.isAcceptableOrUnknown(data['min_count']!, _minCountMeta),
+      );
+    }
+    if (data.containsKey('max_count')) {
+      context.handle(
+        _maxCountMeta,
+        maxCount.isAcceptableOrUnknown(data['max_count']!, _maxCountMeta),
+      );
+    }
+    if (data.containsKey('exact_count')) {
+      context.handle(
+        _exactCountMeta,
+        exactCount.isAcceptableOrUnknown(data['exact_count']!, _exactCountMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ScheduleCondition map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScheduleCondition(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      ),
+      targetKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_kind'],
+      ),
+      targetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_id'],
+      ),
+      otherId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}other_id'],
+      ),
+      periodTypeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}period_type_id'],
+      ),
+      weekday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}weekday'],
+      ),
+      minCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}min_count'],
+      ),
+      maxCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_count'],
+      ),
+      exactCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}exact_count'],
+      ),
+    );
+  }
+
+  @override
+  $ScheduleConditionsTable createAlias(String alias) {
+    return $ScheduleConditionsTable(attachedDatabase, alias);
+  }
+}
+
+class ScheduleCondition extends DataClass
+    implements Insertable<ScheduleCondition> {
+  final String id;
+  final String termId;
+  final String kind;
+  final String? name;
+  final String? targetKind;
+  final String? targetId;
+  final String? otherId;
+  final String? periodTypeId;
+  final int? weekday;
+  final int? minCount;
+  final int? maxCount;
+  final int? exactCount;
+  const ScheduleCondition({
+    required this.id,
+    required this.termId,
+    required this.kind,
+    this.name,
+    this.targetKind,
+    this.targetId,
+    this.otherId,
+    this.periodTypeId,
+    this.weekday,
+    this.minCount,
+    this.maxCount,
+    this.exactCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['term_id'] = Variable<String>(termId);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
+    if (!nullToAbsent || targetKind != null) {
+      map['target_kind'] = Variable<String>(targetKind);
+    }
+    if (!nullToAbsent || targetId != null) {
+      map['target_id'] = Variable<String>(targetId);
+    }
+    if (!nullToAbsent || otherId != null) {
+      map['other_id'] = Variable<String>(otherId);
+    }
+    if (!nullToAbsent || periodTypeId != null) {
+      map['period_type_id'] = Variable<String>(periodTypeId);
+    }
+    if (!nullToAbsent || weekday != null) {
+      map['weekday'] = Variable<int>(weekday);
+    }
+    if (!nullToAbsent || minCount != null) {
+      map['min_count'] = Variable<int>(minCount);
+    }
+    if (!nullToAbsent || maxCount != null) {
+      map['max_count'] = Variable<int>(maxCount);
+    }
+    if (!nullToAbsent || exactCount != null) {
+      map['exact_count'] = Variable<int>(exactCount);
+    }
+    return map;
+  }
+
+  ScheduleConditionsCompanion toCompanion(bool nullToAbsent) {
+    return ScheduleConditionsCompanion(
+      id: Value(id),
+      termId: Value(termId),
+      kind: Value(kind),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
+      targetKind: targetKind == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetKind),
+      targetId: targetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetId),
+      otherId: otherId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(otherId),
+      periodTypeId: periodTypeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(periodTypeId),
+      weekday: weekday == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weekday),
+      minCount: minCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(minCount),
+      maxCount: maxCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maxCount),
+      exactCount: exactCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(exactCount),
+    );
+  }
+
+  factory ScheduleCondition.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScheduleCondition(
+      id: serializer.fromJson<String>(json['id']),
+      termId: serializer.fromJson<String>(json['termId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      name: serializer.fromJson<String?>(json['name']),
+      targetKind: serializer.fromJson<String?>(json['targetKind']),
+      targetId: serializer.fromJson<String?>(json['targetId']),
+      otherId: serializer.fromJson<String?>(json['otherId']),
+      periodTypeId: serializer.fromJson<String?>(json['periodTypeId']),
+      weekday: serializer.fromJson<int?>(json['weekday']),
+      minCount: serializer.fromJson<int?>(json['minCount']),
+      maxCount: serializer.fromJson<int?>(json['maxCount']),
+      exactCount: serializer.fromJson<int?>(json['exactCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'termId': serializer.toJson<String>(termId),
+      'kind': serializer.toJson<String>(kind),
+      'name': serializer.toJson<String?>(name),
+      'targetKind': serializer.toJson<String?>(targetKind),
+      'targetId': serializer.toJson<String?>(targetId),
+      'otherId': serializer.toJson<String?>(otherId),
+      'periodTypeId': serializer.toJson<String?>(periodTypeId),
+      'weekday': serializer.toJson<int?>(weekday),
+      'minCount': serializer.toJson<int?>(minCount),
+      'maxCount': serializer.toJson<int?>(maxCount),
+      'exactCount': serializer.toJson<int?>(exactCount),
+    };
+  }
+
+  ScheduleCondition copyWith({
+    String? id,
+    String? termId,
+    String? kind,
+    Value<String?> name = const Value.absent(),
+    Value<String?> targetKind = const Value.absent(),
+    Value<String?> targetId = const Value.absent(),
+    Value<String?> otherId = const Value.absent(),
+    Value<String?> periodTypeId = const Value.absent(),
+    Value<int?> weekday = const Value.absent(),
+    Value<int?> minCount = const Value.absent(),
+    Value<int?> maxCount = const Value.absent(),
+    Value<int?> exactCount = const Value.absent(),
+  }) => ScheduleCondition(
+    id: id ?? this.id,
+    termId: termId ?? this.termId,
+    kind: kind ?? this.kind,
+    name: name.present ? name.value : this.name,
+    targetKind: targetKind.present ? targetKind.value : this.targetKind,
+    targetId: targetId.present ? targetId.value : this.targetId,
+    otherId: otherId.present ? otherId.value : this.otherId,
+    periodTypeId: periodTypeId.present ? periodTypeId.value : this.periodTypeId,
+    weekday: weekday.present ? weekday.value : this.weekday,
+    minCount: minCount.present ? minCount.value : this.minCount,
+    maxCount: maxCount.present ? maxCount.value : this.maxCount,
+    exactCount: exactCount.present ? exactCount.value : this.exactCount,
+  );
+  ScheduleCondition copyWithCompanion(ScheduleConditionsCompanion data) {
+    return ScheduleCondition(
+      id: data.id.present ? data.id.value : this.id,
+      termId: data.termId.present ? data.termId.value : this.termId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      name: data.name.present ? data.name.value : this.name,
+      targetKind: data.targetKind.present
+          ? data.targetKind.value
+          : this.targetKind,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      otherId: data.otherId.present ? data.otherId.value : this.otherId,
+      periodTypeId: data.periodTypeId.present
+          ? data.periodTypeId.value
+          : this.periodTypeId,
+      weekday: data.weekday.present ? data.weekday.value : this.weekday,
+      minCount: data.minCount.present ? data.minCount.value : this.minCount,
+      maxCount: data.maxCount.present ? data.maxCount.value : this.maxCount,
+      exactCount: data.exactCount.present
+          ? data.exactCount.value
+          : this.exactCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleCondition(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('kind: $kind, ')
+          ..write('name: $name, ')
+          ..write('targetKind: $targetKind, ')
+          ..write('targetId: $targetId, ')
+          ..write('otherId: $otherId, ')
+          ..write('periodTypeId: $periodTypeId, ')
+          ..write('weekday: $weekday, ')
+          ..write('minCount: $minCount, ')
+          ..write('maxCount: $maxCount, ')
+          ..write('exactCount: $exactCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    termId,
+    kind,
+    name,
+    targetKind,
+    targetId,
+    otherId,
+    periodTypeId,
+    weekday,
+    minCount,
+    maxCount,
+    exactCount,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScheduleCondition &&
+          other.id == this.id &&
+          other.termId == this.termId &&
+          other.kind == this.kind &&
+          other.name == this.name &&
+          other.targetKind == this.targetKind &&
+          other.targetId == this.targetId &&
+          other.otherId == this.otherId &&
+          other.periodTypeId == this.periodTypeId &&
+          other.weekday == this.weekday &&
+          other.minCount == this.minCount &&
+          other.maxCount == this.maxCount &&
+          other.exactCount == this.exactCount);
+}
+
+class ScheduleConditionsCompanion extends UpdateCompanion<ScheduleCondition> {
+  final Value<String> id;
+  final Value<String> termId;
+  final Value<String> kind;
+  final Value<String?> name;
+  final Value<String?> targetKind;
+  final Value<String?> targetId;
+  final Value<String?> otherId;
+  final Value<String?> periodTypeId;
+  final Value<int?> weekday;
+  final Value<int?> minCount;
+  final Value<int?> maxCount;
+  final Value<int?> exactCount;
+  final Value<int> rowid;
+  const ScheduleConditionsCompanion({
+    this.id = const Value.absent(),
+    this.termId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.name = const Value.absent(),
+    this.targetKind = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.otherId = const Value.absent(),
+    this.periodTypeId = const Value.absent(),
+    this.weekday = const Value.absent(),
+    this.minCount = const Value.absent(),
+    this.maxCount = const Value.absent(),
+    this.exactCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ScheduleConditionsCompanion.insert({
+    required String id,
+    required String termId,
+    required String kind,
+    this.name = const Value.absent(),
+    this.targetKind = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.otherId = const Value.absent(),
+    this.periodTypeId = const Value.absent(),
+    this.weekday = const Value.absent(),
+    this.minCount = const Value.absent(),
+    this.maxCount = const Value.absent(),
+    this.exactCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       termId = Value(termId),
+       kind = Value(kind);
+  static Insertable<ScheduleCondition> custom({
+    Expression<String>? id,
+    Expression<String>? termId,
+    Expression<String>? kind,
+    Expression<String>? name,
+    Expression<String>? targetKind,
+    Expression<String>? targetId,
+    Expression<String>? otherId,
+    Expression<String>? periodTypeId,
+    Expression<int>? weekday,
+    Expression<int>? minCount,
+    Expression<int>? maxCount,
+    Expression<int>? exactCount,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (termId != null) 'term_id': termId,
+      if (kind != null) 'kind': kind,
+      if (name != null) 'name': name,
+      if (targetKind != null) 'target_kind': targetKind,
+      if (targetId != null) 'target_id': targetId,
+      if (otherId != null) 'other_id': otherId,
+      if (periodTypeId != null) 'period_type_id': periodTypeId,
+      if (weekday != null) 'weekday': weekday,
+      if (minCount != null) 'min_count': minCount,
+      if (maxCount != null) 'max_count': maxCount,
+      if (exactCount != null) 'exact_count': exactCount,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ScheduleConditionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? termId,
+    Value<String>? kind,
+    Value<String?>? name,
+    Value<String?>? targetKind,
+    Value<String?>? targetId,
+    Value<String?>? otherId,
+    Value<String?>? periodTypeId,
+    Value<int?>? weekday,
+    Value<int?>? minCount,
+    Value<int?>? maxCount,
+    Value<int?>? exactCount,
+    Value<int>? rowid,
+  }) {
+    return ScheduleConditionsCompanion(
+      id: id ?? this.id,
+      termId: termId ?? this.termId,
+      kind: kind ?? this.kind,
+      name: name ?? this.name,
+      targetKind: targetKind ?? this.targetKind,
+      targetId: targetId ?? this.targetId,
+      otherId: otherId ?? this.otherId,
+      periodTypeId: periodTypeId ?? this.periodTypeId,
+      weekday: weekday ?? this.weekday,
+      minCount: minCount ?? this.minCount,
+      maxCount: maxCount ?? this.maxCount,
+      exactCount: exactCount ?? this.exactCount,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (targetKind.present) {
+      map['target_kind'] = Variable<String>(targetKind.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (otherId.present) {
+      map['other_id'] = Variable<String>(otherId.value);
+    }
+    if (periodTypeId.present) {
+      map['period_type_id'] = Variable<String>(periodTypeId.value);
+    }
+    if (weekday.present) {
+      map['weekday'] = Variable<int>(weekday.value);
+    }
+    if (minCount.present) {
+      map['min_count'] = Variable<int>(minCount.value);
+    }
+    if (maxCount.present) {
+      map['max_count'] = Variable<int>(maxCount.value);
+    }
+    if (exactCount.present) {
+      map['exact_count'] = Variable<int>(exactCount.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleConditionsCompanion(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('kind: $kind, ')
+          ..write('name: $name, ')
+          ..write('targetKind: $targetKind, ')
+          ..write('targetId: $targetId, ')
+          ..write('otherId: $otherId, ')
+          ..write('periodTypeId: $periodTypeId, ')
+          ..write('weekday: $weekday, ')
+          ..write('minCount: $minCount, ')
+          ..write('maxCount: $maxCount, ')
+          ..write('exactCount: $exactCount, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SchedulePreferencesTable extends SchedulePreferences
+    with TableInfo<$SchedulePreferencesTable, SchedulePreference> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SchedulePreferencesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _strengthMeta = const VerificationMeta(
+    'strength',
+  );
+  @override
+  late final GeneratedColumn<String> strength = GeneratedColumn<String>(
+    'strength',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _progressConsistencyMeta =
+      const VerificationMeta('progressConsistency');
+  @override
+  late final GeneratedColumn<String> progressConsistency =
+      GeneratedColumn<String>(
+        'progress_consistency',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _teacherDistributionMeta =
+      const VerificationMeta('teacherDistribution');
+  @override
+  late final GeneratedColumn<String> teacherDistribution =
+      GeneratedColumn<String>(
+        'teacher_distribution',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _lunchProtectionMeta = const VerificationMeta(
+    'lunchProtection',
+  );
+  @override
+  late final GeneratedColumn<bool> lunchProtection = GeneratedColumn<bool>(
+    'lunch_protection',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("lunch_protection" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _consecutivePolicyMeta = const VerificationMeta(
+    'consecutivePolicy',
+  );
+  @override
+  late final GeneratedColumn<String> consecutivePolicy =
+      GeneratedColumn<String>(
+        'consecutive_policy',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _detectProgressConsistencyMeta =
+      const VerificationMeta('detectProgressConsistency');
+  @override
+  late final GeneratedColumn<bool> detectProgressConsistency =
+      GeneratedColumn<bool>(
+        'detect_progress_consistency',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: true,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("detect_progress_consistency" IN (0, 1))',
+        ),
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    termId,
+    strength,
+    progressConsistency,
+    teacherDistribution,
+    lunchProtection,
+    consecutivePolicy,
+    detectProgressConsistency,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_preferences';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SchedulePreference> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('strength')) {
+      context.handle(
+        _strengthMeta,
+        strength.isAcceptableOrUnknown(data['strength']!, _strengthMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_strengthMeta);
+    }
+    if (data.containsKey('progress_consistency')) {
+      context.handle(
+        _progressConsistencyMeta,
+        progressConsistency.isAcceptableOrUnknown(
+          data['progress_consistency']!,
+          _progressConsistencyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_progressConsistencyMeta);
+    }
+    if (data.containsKey('teacher_distribution')) {
+      context.handle(
+        _teacherDistributionMeta,
+        teacherDistribution.isAcceptableOrUnknown(
+          data['teacher_distribution']!,
+          _teacherDistributionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_teacherDistributionMeta);
+    }
+    if (data.containsKey('lunch_protection')) {
+      context.handle(
+        _lunchProtectionMeta,
+        lunchProtection.isAcceptableOrUnknown(
+          data['lunch_protection']!,
+          _lunchProtectionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lunchProtectionMeta);
+    }
+    if (data.containsKey('consecutive_policy')) {
+      context.handle(
+        _consecutivePolicyMeta,
+        consecutivePolicy.isAcceptableOrUnknown(
+          data['consecutive_policy']!,
+          _consecutivePolicyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_consecutivePolicyMeta);
+    }
+    if (data.containsKey('detect_progress_consistency')) {
+      context.handle(
+        _detectProgressConsistencyMeta,
+        detectProgressConsistency.isAcceptableOrUnknown(
+          data['detect_progress_consistency']!,
+          _detectProgressConsistencyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_detectProgressConsistencyMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {termId};
+  @override
+  SchedulePreference map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SchedulePreference(
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      strength: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}strength'],
+      )!,
+      progressConsistency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}progress_consistency'],
+      )!,
+      teacherDistribution: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}teacher_distribution'],
+      )!,
+      lunchProtection: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}lunch_protection'],
+      )!,
+      consecutivePolicy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}consecutive_policy'],
+      )!,
+      detectProgressConsistency: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}detect_progress_consistency'],
+      )!,
+    );
+  }
+
+  @override
+  $SchedulePreferencesTable createAlias(String alias) {
+    return $SchedulePreferencesTable(attachedDatabase, alias);
+  }
+}
+
+class SchedulePreference extends DataClass
+    implements Insertable<SchedulePreference> {
+  final String termId;
+  final String strength;
+  final String progressConsistency;
+  final String teacherDistribution;
+  final bool lunchProtection;
+  final String consecutivePolicy;
+  final bool detectProgressConsistency;
+  const SchedulePreference({
+    required this.termId,
+    required this.strength,
+    required this.progressConsistency,
+    required this.teacherDistribution,
+    required this.lunchProtection,
+    required this.consecutivePolicy,
+    required this.detectProgressConsistency,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['term_id'] = Variable<String>(termId);
+    map['strength'] = Variable<String>(strength);
+    map['progress_consistency'] = Variable<String>(progressConsistency);
+    map['teacher_distribution'] = Variable<String>(teacherDistribution);
+    map['lunch_protection'] = Variable<bool>(lunchProtection);
+    map['consecutive_policy'] = Variable<String>(consecutivePolicy);
+    map['detect_progress_consistency'] = Variable<bool>(
+      detectProgressConsistency,
+    );
+    return map;
+  }
+
+  SchedulePreferencesCompanion toCompanion(bool nullToAbsent) {
+    return SchedulePreferencesCompanion(
+      termId: Value(termId),
+      strength: Value(strength),
+      progressConsistency: Value(progressConsistency),
+      teacherDistribution: Value(teacherDistribution),
+      lunchProtection: Value(lunchProtection),
+      consecutivePolicy: Value(consecutivePolicy),
+      detectProgressConsistency: Value(detectProgressConsistency),
+    );
+  }
+
+  factory SchedulePreference.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SchedulePreference(
+      termId: serializer.fromJson<String>(json['termId']),
+      strength: serializer.fromJson<String>(json['strength']),
+      progressConsistency: serializer.fromJson<String>(
+        json['progressConsistency'],
+      ),
+      teacherDistribution: serializer.fromJson<String>(
+        json['teacherDistribution'],
+      ),
+      lunchProtection: serializer.fromJson<bool>(json['lunchProtection']),
+      consecutivePolicy: serializer.fromJson<String>(json['consecutivePolicy']),
+      detectProgressConsistency: serializer.fromJson<bool>(
+        json['detectProgressConsistency'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'termId': serializer.toJson<String>(termId),
+      'strength': serializer.toJson<String>(strength),
+      'progressConsistency': serializer.toJson<String>(progressConsistency),
+      'teacherDistribution': serializer.toJson<String>(teacherDistribution),
+      'lunchProtection': serializer.toJson<bool>(lunchProtection),
+      'consecutivePolicy': serializer.toJson<String>(consecutivePolicy),
+      'detectProgressConsistency': serializer.toJson<bool>(
+        detectProgressConsistency,
+      ),
+    };
+  }
+
+  SchedulePreference copyWith({
+    String? termId,
+    String? strength,
+    String? progressConsistency,
+    String? teacherDistribution,
+    bool? lunchProtection,
+    String? consecutivePolicy,
+    bool? detectProgressConsistency,
+  }) => SchedulePreference(
+    termId: termId ?? this.termId,
+    strength: strength ?? this.strength,
+    progressConsistency: progressConsistency ?? this.progressConsistency,
+    teacherDistribution: teacherDistribution ?? this.teacherDistribution,
+    lunchProtection: lunchProtection ?? this.lunchProtection,
+    consecutivePolicy: consecutivePolicy ?? this.consecutivePolicy,
+    detectProgressConsistency:
+        detectProgressConsistency ?? this.detectProgressConsistency,
+  );
+  SchedulePreference copyWithCompanion(SchedulePreferencesCompanion data) {
+    return SchedulePreference(
+      termId: data.termId.present ? data.termId.value : this.termId,
+      strength: data.strength.present ? data.strength.value : this.strength,
+      progressConsistency: data.progressConsistency.present
+          ? data.progressConsistency.value
+          : this.progressConsistency,
+      teacherDistribution: data.teacherDistribution.present
+          ? data.teacherDistribution.value
+          : this.teacherDistribution,
+      lunchProtection: data.lunchProtection.present
+          ? data.lunchProtection.value
+          : this.lunchProtection,
+      consecutivePolicy: data.consecutivePolicy.present
+          ? data.consecutivePolicy.value
+          : this.consecutivePolicy,
+      detectProgressConsistency: data.detectProgressConsistency.present
+          ? data.detectProgressConsistency.value
+          : this.detectProgressConsistency,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SchedulePreference(')
+          ..write('termId: $termId, ')
+          ..write('strength: $strength, ')
+          ..write('progressConsistency: $progressConsistency, ')
+          ..write('teacherDistribution: $teacherDistribution, ')
+          ..write('lunchProtection: $lunchProtection, ')
+          ..write('consecutivePolicy: $consecutivePolicy, ')
+          ..write('detectProgressConsistency: $detectProgressConsistency')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    termId,
+    strength,
+    progressConsistency,
+    teacherDistribution,
+    lunchProtection,
+    consecutivePolicy,
+    detectProgressConsistency,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SchedulePreference &&
+          other.termId == this.termId &&
+          other.strength == this.strength &&
+          other.progressConsistency == this.progressConsistency &&
+          other.teacherDistribution == this.teacherDistribution &&
+          other.lunchProtection == this.lunchProtection &&
+          other.consecutivePolicy == this.consecutivePolicy &&
+          other.detectProgressConsistency == this.detectProgressConsistency);
+}
+
+class SchedulePreferencesCompanion extends UpdateCompanion<SchedulePreference> {
+  final Value<String> termId;
+  final Value<String> strength;
+  final Value<String> progressConsistency;
+  final Value<String> teacherDistribution;
+  final Value<bool> lunchProtection;
+  final Value<String> consecutivePolicy;
+  final Value<bool> detectProgressConsistency;
+  final Value<int> rowid;
+  const SchedulePreferencesCompanion({
+    this.termId = const Value.absent(),
+    this.strength = const Value.absent(),
+    this.progressConsistency = const Value.absent(),
+    this.teacherDistribution = const Value.absent(),
+    this.lunchProtection = const Value.absent(),
+    this.consecutivePolicy = const Value.absent(),
+    this.detectProgressConsistency = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SchedulePreferencesCompanion.insert({
+    required String termId,
+    required String strength,
+    required String progressConsistency,
+    required String teacherDistribution,
+    required bool lunchProtection,
+    required String consecutivePolicy,
+    required bool detectProgressConsistency,
+    this.rowid = const Value.absent(),
+  }) : termId = Value(termId),
+       strength = Value(strength),
+       progressConsistency = Value(progressConsistency),
+       teacherDistribution = Value(teacherDistribution),
+       lunchProtection = Value(lunchProtection),
+       consecutivePolicy = Value(consecutivePolicy),
+       detectProgressConsistency = Value(detectProgressConsistency);
+  static Insertable<SchedulePreference> custom({
+    Expression<String>? termId,
+    Expression<String>? strength,
+    Expression<String>? progressConsistency,
+    Expression<String>? teacherDistribution,
+    Expression<bool>? lunchProtection,
+    Expression<String>? consecutivePolicy,
+    Expression<bool>? detectProgressConsistency,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (termId != null) 'term_id': termId,
+      if (strength != null) 'strength': strength,
+      if (progressConsistency != null)
+        'progress_consistency': progressConsistency,
+      if (teacherDistribution != null)
+        'teacher_distribution': teacherDistribution,
+      if (lunchProtection != null) 'lunch_protection': lunchProtection,
+      if (consecutivePolicy != null) 'consecutive_policy': consecutivePolicy,
+      if (detectProgressConsistency != null)
+        'detect_progress_consistency': detectProgressConsistency,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SchedulePreferencesCompanion copyWith({
+    Value<String>? termId,
+    Value<String>? strength,
+    Value<String>? progressConsistency,
+    Value<String>? teacherDistribution,
+    Value<bool>? lunchProtection,
+    Value<String>? consecutivePolicy,
+    Value<bool>? detectProgressConsistency,
+    Value<int>? rowid,
+  }) {
+    return SchedulePreferencesCompanion(
+      termId: termId ?? this.termId,
+      strength: strength ?? this.strength,
+      progressConsistency: progressConsistency ?? this.progressConsistency,
+      teacherDistribution: teacherDistribution ?? this.teacherDistribution,
+      lunchProtection: lunchProtection ?? this.lunchProtection,
+      consecutivePolicy: consecutivePolicy ?? this.consecutivePolicy,
+      detectProgressConsistency:
+          detectProgressConsistency ?? this.detectProgressConsistency,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (strength.present) {
+      map['strength'] = Variable<String>(strength.value);
+    }
+    if (progressConsistency.present) {
+      map['progress_consistency'] = Variable<String>(progressConsistency.value);
+    }
+    if (teacherDistribution.present) {
+      map['teacher_distribution'] = Variable<String>(teacherDistribution.value);
+    }
+    if (lunchProtection.present) {
+      map['lunch_protection'] = Variable<bool>(lunchProtection.value);
+    }
+    if (consecutivePolicy.present) {
+      map['consecutive_policy'] = Variable<String>(consecutivePolicy.value);
+    }
+    if (detectProgressConsistency.present) {
+      map['detect_progress_consistency'] = Variable<bool>(
+        detectProgressConsistency.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SchedulePreferencesCompanion(')
+          ..write('termId: $termId, ')
+          ..write('strength: $strength, ')
+          ..write('progressConsistency: $progressConsistency, ')
+          ..write('teacherDistribution: $teacherDistribution, ')
+          ..write('lunchProtection: $lunchProtection, ')
+          ..write('consecutivePolicy: $consecutivePolicy, ')
+          ..write('detectProgressConsistency: $detectProgressConsistency, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ScheduleRunReportsTable extends ScheduleRunReports
+    with TableInfo<$ScheduleRunReportsTable, ScheduleRunReport> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScheduleRunReportsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _solverVersionMeta = const VerificationMeta(
+    'solverVersion',
+  );
+  @override
+  late final GeneratedColumn<String> solverVersion = GeneratedColumn<String>(
+    'solver_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _seedMeta = const VerificationMeta('seed');
+  @override
+  late final GeneratedColumn<int> seed = GeneratedColumn<int>(
+    'seed',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _strengthMeta = const VerificationMeta(
+    'strength',
+  );
+  @override
+  late final GeneratedColumn<String> strength = GeneratedColumn<String>(
+    'strength',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _inputFingerprintMeta = const VerificationMeta(
+    'inputFingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> inputFingerprint = GeneratedColumn<String>(
+    'input_fingerprint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reportJsonMeta = const VerificationMeta(
+    'reportJson',
+  );
+  @override
+  late final GeneratedColumn<String> reportJson = GeneratedColumn<String>(
+    'report_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    termId,
+    createdAt,
+    solverVersion,
+    seed,
+    strength,
+    inputFingerprint,
+    reportJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_run_reports';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScheduleRunReport> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('solver_version')) {
+      context.handle(
+        _solverVersionMeta,
+        solverVersion.isAcceptableOrUnknown(
+          data['solver_version']!,
+          _solverVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_solverVersionMeta);
+    }
+    if (data.containsKey('seed')) {
+      context.handle(
+        _seedMeta,
+        seed.isAcceptableOrUnknown(data['seed']!, _seedMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seedMeta);
+    }
+    if (data.containsKey('strength')) {
+      context.handle(
+        _strengthMeta,
+        strength.isAcceptableOrUnknown(data['strength']!, _strengthMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_strengthMeta);
+    }
+    if (data.containsKey('input_fingerprint')) {
+      context.handle(
+        _inputFingerprintMeta,
+        inputFingerprint.isAcceptableOrUnknown(
+          data['input_fingerprint']!,
+          _inputFingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_inputFingerprintMeta);
+    }
+    if (data.containsKey('report_json')) {
+      context.handle(
+        _reportJsonMeta,
+        reportJson.isAcceptableOrUnknown(data['report_json']!, _reportJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reportJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ScheduleRunReport map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScheduleRunReport(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      solverVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}solver_version'],
+      )!,
+      seed: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seed'],
+      )!,
+      strength: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}strength'],
+      )!,
+      inputFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}input_fingerprint'],
+      )!,
+      reportJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}report_json'],
+      )!,
+    );
+  }
+
+  @override
+  $ScheduleRunReportsTable createAlias(String alias) {
+    return $ScheduleRunReportsTable(attachedDatabase, alias);
+  }
+}
+
+class ScheduleRunReport extends DataClass
+    implements Insertable<ScheduleRunReport> {
+  final String id;
+  final String termId;
+  final int createdAt;
+  final String solverVersion;
+  final int seed;
+  final String strength;
+  final String inputFingerprint;
+  final String reportJson;
+  const ScheduleRunReport({
+    required this.id,
+    required this.termId,
+    required this.createdAt,
+    required this.solverVersion,
+    required this.seed,
+    required this.strength,
+    required this.inputFingerprint,
+    required this.reportJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['term_id'] = Variable<String>(termId);
+    map['created_at'] = Variable<int>(createdAt);
+    map['solver_version'] = Variable<String>(solverVersion);
+    map['seed'] = Variable<int>(seed);
+    map['strength'] = Variable<String>(strength);
+    map['input_fingerprint'] = Variable<String>(inputFingerprint);
+    map['report_json'] = Variable<String>(reportJson);
+    return map;
+  }
+
+  ScheduleRunReportsCompanion toCompanion(bool nullToAbsent) {
+    return ScheduleRunReportsCompanion(
+      id: Value(id),
+      termId: Value(termId),
+      createdAt: Value(createdAt),
+      solverVersion: Value(solverVersion),
+      seed: Value(seed),
+      strength: Value(strength),
+      inputFingerprint: Value(inputFingerprint),
+      reportJson: Value(reportJson),
+    );
+  }
+
+  factory ScheduleRunReport.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScheduleRunReport(
+      id: serializer.fromJson<String>(json['id']),
+      termId: serializer.fromJson<String>(json['termId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      solverVersion: serializer.fromJson<String>(json['solverVersion']),
+      seed: serializer.fromJson<int>(json['seed']),
+      strength: serializer.fromJson<String>(json['strength']),
+      inputFingerprint: serializer.fromJson<String>(json['inputFingerprint']),
+      reportJson: serializer.fromJson<String>(json['reportJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'termId': serializer.toJson<String>(termId),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'solverVersion': serializer.toJson<String>(solverVersion),
+      'seed': serializer.toJson<int>(seed),
+      'strength': serializer.toJson<String>(strength),
+      'inputFingerprint': serializer.toJson<String>(inputFingerprint),
+      'reportJson': serializer.toJson<String>(reportJson),
+    };
+  }
+
+  ScheduleRunReport copyWith({
+    String? id,
+    String? termId,
+    int? createdAt,
+    String? solverVersion,
+    int? seed,
+    String? strength,
+    String? inputFingerprint,
+    String? reportJson,
+  }) => ScheduleRunReport(
+    id: id ?? this.id,
+    termId: termId ?? this.termId,
+    createdAt: createdAt ?? this.createdAt,
+    solverVersion: solverVersion ?? this.solverVersion,
+    seed: seed ?? this.seed,
+    strength: strength ?? this.strength,
+    inputFingerprint: inputFingerprint ?? this.inputFingerprint,
+    reportJson: reportJson ?? this.reportJson,
+  );
+  ScheduleRunReport copyWithCompanion(ScheduleRunReportsCompanion data) {
+    return ScheduleRunReport(
+      id: data.id.present ? data.id.value : this.id,
+      termId: data.termId.present ? data.termId.value : this.termId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      solverVersion: data.solverVersion.present
+          ? data.solverVersion.value
+          : this.solverVersion,
+      seed: data.seed.present ? data.seed.value : this.seed,
+      strength: data.strength.present ? data.strength.value : this.strength,
+      inputFingerprint: data.inputFingerprint.present
+          ? data.inputFingerprint.value
+          : this.inputFingerprint,
+      reportJson: data.reportJson.present
+          ? data.reportJson.value
+          : this.reportJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleRunReport(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('solverVersion: $solverVersion, ')
+          ..write('seed: $seed, ')
+          ..write('strength: $strength, ')
+          ..write('inputFingerprint: $inputFingerprint, ')
+          ..write('reportJson: $reportJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    termId,
+    createdAt,
+    solverVersion,
+    seed,
+    strength,
+    inputFingerprint,
+    reportJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScheduleRunReport &&
+          other.id == this.id &&
+          other.termId == this.termId &&
+          other.createdAt == this.createdAt &&
+          other.solverVersion == this.solverVersion &&
+          other.seed == this.seed &&
+          other.strength == this.strength &&
+          other.inputFingerprint == this.inputFingerprint &&
+          other.reportJson == this.reportJson);
+}
+
+class ScheduleRunReportsCompanion extends UpdateCompanion<ScheduleRunReport> {
+  final Value<String> id;
+  final Value<String> termId;
+  final Value<int> createdAt;
+  final Value<String> solverVersion;
+  final Value<int> seed;
+  final Value<String> strength;
+  final Value<String> inputFingerprint;
+  final Value<String> reportJson;
+  final Value<int> rowid;
+  const ScheduleRunReportsCompanion({
+    this.id = const Value.absent(),
+    this.termId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.solverVersion = const Value.absent(),
+    this.seed = const Value.absent(),
+    this.strength = const Value.absent(),
+    this.inputFingerprint = const Value.absent(),
+    this.reportJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ScheduleRunReportsCompanion.insert({
+    required String id,
+    required String termId,
+    required int createdAt,
+    required String solverVersion,
+    required int seed,
+    required String strength,
+    required String inputFingerprint,
+    required String reportJson,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       termId = Value(termId),
+       createdAt = Value(createdAt),
+       solverVersion = Value(solverVersion),
+       seed = Value(seed),
+       strength = Value(strength),
+       inputFingerprint = Value(inputFingerprint),
+       reportJson = Value(reportJson);
+  static Insertable<ScheduleRunReport> custom({
+    Expression<String>? id,
+    Expression<String>? termId,
+    Expression<int>? createdAt,
+    Expression<String>? solverVersion,
+    Expression<int>? seed,
+    Expression<String>? strength,
+    Expression<String>? inputFingerprint,
+    Expression<String>? reportJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (termId != null) 'term_id': termId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (solverVersion != null) 'solver_version': solverVersion,
+      if (seed != null) 'seed': seed,
+      if (strength != null) 'strength': strength,
+      if (inputFingerprint != null) 'input_fingerprint': inputFingerprint,
+      if (reportJson != null) 'report_json': reportJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ScheduleRunReportsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? termId,
+    Value<int>? createdAt,
+    Value<String>? solverVersion,
+    Value<int>? seed,
+    Value<String>? strength,
+    Value<String>? inputFingerprint,
+    Value<String>? reportJson,
+    Value<int>? rowid,
+  }) {
+    return ScheduleRunReportsCompanion(
+      id: id ?? this.id,
+      termId: termId ?? this.termId,
+      createdAt: createdAt ?? this.createdAt,
+      solverVersion: solverVersion ?? this.solverVersion,
+      seed: seed ?? this.seed,
+      strength: strength ?? this.strength,
+      inputFingerprint: inputFingerprint ?? this.inputFingerprint,
+      reportJson: reportJson ?? this.reportJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (solverVersion.present) {
+      map['solver_version'] = Variable<String>(solverVersion.value);
+    }
+    if (seed.present) {
+      map['seed'] = Variable<int>(seed.value);
+    }
+    if (strength.present) {
+      map['strength'] = Variable<String>(strength.value);
+    }
+    if (inputFingerprint.present) {
+      map['input_fingerprint'] = Variable<String>(inputFingerprint.value);
+    }
+    if (reportJson.present) {
+      map['report_json'] = Variable<String>(reportJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleRunReportsCompanion(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('solverVersion: $solverVersion, ')
+          ..write('seed: $seed, ')
+          ..write('strength: $strength, ')
+          ..write('inputFingerprint: $inputFingerprint, ')
+          ..write('reportJson: $reportJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -11704,6 +14582,42 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TeacherPresetsTable teacherPresets = $TeacherPresetsTable(this);
   late final $TeacherGroupPresetsTable teacherGroupPresets =
       $TeacherGroupPresetsTable(this);
+  late final $ScheduleItemsTable scheduleItems = $ScheduleItemsTable(this);
+  late final $ScheduleLocksTable scheduleLocks = $ScheduleLocksTable(this);
+  late final $ScheduleConditionsTable scheduleConditions =
+      $ScheduleConditionsTable(this);
+  late final $SchedulePreferencesTable schedulePreferences =
+      $SchedulePreferencesTable(this);
+  late final $ScheduleRunReportsTable scheduleRunReports =
+      $ScheduleRunReportsTable(this);
+  late final Index scheduleItemsTerm = Index(
+    'schedule_items_term',
+    'CREATE INDEX schedule_items_term ON schedule_items (term_id)',
+  );
+  late final Index scheduleItemsAssignment = Index(
+    'schedule_items_assignment',
+    'CREATE INDEX schedule_items_assignment ON schedule_items (assignment_id)',
+  );
+  late final Index scheduleItemsClassSlot = Index(
+    'schedule_items_class_slot',
+    'CREATE INDEX schedule_items_class_slot ON schedule_items (term_id, class_id, week_mode, weekday, period_type_id, lesson_index)',
+  );
+  late final Index scheduleItemsTeacherSlot = Index(
+    'schedule_items_teacher_slot',
+    'CREATE INDEX schedule_items_teacher_slot ON schedule_items (term_id, teacher_id, week_mode, weekday, period_type_id, lesson_index)',
+  );
+  late final Index scheduleLocksTarget = Index(
+    'schedule_locks_target',
+    'CREATE UNIQUE INDEX schedule_locks_target ON schedule_locks (term_id, scope, target_id)',
+  );
+  late final Index scheduleConditionsTarget = Index(
+    'schedule_conditions_target',
+    'CREATE INDEX schedule_conditions_target ON schedule_conditions (term_id, target_kind, target_id)',
+  );
+  late final Index scheduleRunReportsTermCreated = Index(
+    'schedule_run_reports_term_created',
+    'CREATE INDEX schedule_run_reports_term_created ON schedule_run_reports (term_id, created_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -11736,6 +14650,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     teacherAssignments,
     teacherPresets,
     teacherGroupPresets,
+    scheduleItems,
+    scheduleLocks,
+    scheduleConditions,
+    schedulePreferences,
+    scheduleRunReports,
+    scheduleItemsTerm,
+    scheduleItemsAssignment,
+    scheduleItemsClassSlot,
+    scheduleItemsTeacherSlot,
+    scheduleLocksTarget,
+    scheduleConditionsTarget,
+    scheduleRunReportsTermCreated,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -12087,6 +15013,90 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       ),
       result: [TableUpdate('teacher_group_presets', kind: UpdateKind.delete)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'teacher_assignments',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'class_groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'teachers',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_items', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'subjects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'school_stages',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'lesson_period_types',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_locks', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_conditions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'lesson_period_types',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_conditions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_preferences', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_run_reports', kind: UpdateKind.delete)],
+    ),
   ]);
 }
 
@@ -12301,6 +15311,108 @@ final class $$AcademicTermsTableReferences
     ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_teacherPresetsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleItemsTable, List<ScheduleItem>>
+  _scheduleItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleItems,
+    aliasName: 'academic_terms__id__schedule_items__term_id',
+  );
+
+  $$ScheduleItemsTableProcessedTableManager get scheduleItemsRefs {
+    final manager = $$ScheduleItemsTableTableManager(
+      $_db,
+      $_db.scheduleItems,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleLocksTable, List<ScheduleLock>>
+  _scheduleLocksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleLocks,
+    aliasName: 'academic_terms__id__schedule_locks__term_id',
+  );
+
+  $$ScheduleLocksTableProcessedTableManager get scheduleLocksRefs {
+    final manager = $$ScheduleLocksTableTableManager(
+      $_db,
+      $_db.scheduleLocks,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleLocksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleConditionsTable, List<ScheduleCondition>>
+  _scheduleConditionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.scheduleConditions,
+        aliasName: 'academic_terms__id__schedule_conditions__term_id',
+      );
+
+  $$ScheduleConditionsTableProcessedTableManager get scheduleConditionsRefs {
+    final manager = $$ScheduleConditionsTableTableManager(
+      $_db,
+      $_db.scheduleConditions,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleConditionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SchedulePreferencesTable,
+    List<SchedulePreference>
+  >
+  _schedulePreferencesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.schedulePreferences,
+        aliasName: 'academic_terms__id__schedule_preferences__term_id',
+      );
+
+  $$SchedulePreferencesTableProcessedTableManager get schedulePreferencesRefs {
+    final manager = $$SchedulePreferencesTableTableManager(
+      $_db,
+      $_db.schedulePreferences,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _schedulePreferencesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleRunReportsTable, List<ScheduleRunReport>>
+  _scheduleRunReportsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.scheduleRunReports,
+        aliasName: 'academic_terms__id__schedule_run_reports__term_id',
+      );
+
+  $$ScheduleRunReportsTableProcessedTableManager get scheduleRunReportsRefs {
+    final manager = $$ScheduleRunReportsTableTableManager(
+      $_db,
+      $_db.scheduleRunReports,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleRunReportsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -12574,6 +15686,131 @@ class $$AcademicTermsTableFilterComposer
           }) => $$TeacherPresetsTableFilterComposer(
             $db: $db,
             $table: $db.teacherPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleItemsRefs(
+    Expression<bool> Function($$ScheduleItemsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleLocksRefs(
+    Expression<bool> Function($$ScheduleLocksTableFilterComposer f) f,
+  ) {
+    final $$ScheduleLocksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleLocks,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleLocksTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleLocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleConditionsRefs(
+    Expression<bool> Function($$ScheduleConditionsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleConditionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleConditions,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleConditionsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleConditions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> schedulePreferencesRefs(
+    Expression<bool> Function($$SchedulePreferencesTableFilterComposer f) f,
+  ) {
+    final $$SchedulePreferencesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.schedulePreferences,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchedulePreferencesTableFilterComposer(
+            $db: $db,
+            $table: $db.schedulePreferences,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleRunReportsRefs(
+    Expression<bool> Function($$ScheduleRunReportsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleRunReportsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleRunReports,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleRunReportsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleRunReports,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12903,6 +16140,134 @@ class $$AcademicTermsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> scheduleItemsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleItemsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> scheduleLocksRefs<T extends Object>(
+    Expression<T> Function($$ScheduleLocksTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleLocksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleLocks,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleLocksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleLocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> scheduleConditionsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleConditionsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleConditionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scheduleConditions,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleConditionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scheduleConditions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> schedulePreferencesRefs<T extends Object>(
+    Expression<T> Function($$SchedulePreferencesTableAnnotationComposer a) f,
+  ) {
+    final $$SchedulePreferencesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.schedulePreferences,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SchedulePreferencesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.schedulePreferences,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> scheduleRunReportsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleRunReportsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleRunReportsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scheduleRunReports,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleRunReportsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scheduleRunReports,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AcademicTermsTableTableManager
@@ -12928,6 +16293,11 @@ class $$AcademicTermsTableTableManager
             bool teacherGroupsRefs,
             bool teacherAssignmentsRefs,
             bool teacherPresetsRefs,
+            bool scheduleItemsRefs,
+            bool scheduleLocksRefs,
+            bool scheduleConditionsRefs,
+            bool schedulePreferencesRefs,
+            bool scheduleRunReportsRefs,
           })
         > {
   $$AcademicTermsTableTableManager(_$AppDatabase db, $AcademicTermsTable table)
@@ -13004,6 +16374,11 @@ class $$AcademicTermsTableTableManager
                 teacherGroupsRefs = false,
                 teacherAssignmentsRefs = false,
                 teacherPresetsRefs = false,
+                scheduleItemsRefs = false,
+                scheduleLocksRefs = false,
+                scheduleConditionsRefs = false,
+                schedulePreferencesRefs = false,
+                scheduleRunReportsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -13017,6 +16392,11 @@ class $$AcademicTermsTableTableManager
                     if (teacherGroupsRefs) db.teacherGroups,
                     if (teacherAssignmentsRefs) db.teacherAssignments,
                     if (teacherPresetsRefs) db.teacherPresets,
+                    if (scheduleItemsRefs) db.scheduleItems,
+                    if (scheduleLocksRefs) db.scheduleLocks,
+                    if (scheduleConditionsRefs) db.scheduleConditions,
+                    if (schedulePreferencesRefs) db.schedulePreferences,
+                    if (scheduleRunReportsRefs) db.scheduleRunReports,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -13210,6 +16590,111 @@ class $$AcademicTermsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleItemsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          ScheduleItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._scheduleItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (scheduleLocksRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          ScheduleLock
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._scheduleLocksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleLocksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (scheduleConditionsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          ScheduleCondition
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._scheduleConditionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleConditionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (schedulePreferencesRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          SchedulePreference
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._schedulePreferencesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).schedulePreferencesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (scheduleRunReportsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          ScheduleRunReport
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._scheduleRunReportsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleRunReportsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -13240,6 +16725,11 @@ typedef $$AcademicTermsTableProcessedTableManager =
         bool teacherGroupsRefs,
         bool teacherAssignmentsRefs,
         bool teacherPresetsRefs,
+        bool scheduleItemsRefs,
+        bool scheduleLocksRefs,
+        bool scheduleConditionsRefs,
+        bool schedulePreferencesRefs,
+        bool scheduleRunReportsRefs,
       })
     >;
 typedef $$AppSettingsTableCreateCompanionBuilder =
@@ -13809,6 +17299,24 @@ final class $$SchoolStagesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ScheduleItemsTable, List<ScheduleItem>>
+  _scheduleItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleItems,
+    aliasName: 'school_stages__id__schedule_items__stage_id',
+  );
+
+  $$ScheduleItemsTableProcessedTableManager get scheduleItemsRefs {
+    final manager = $$ScheduleItemsTableTableManager(
+      $_db,
+      $_db.scheduleItems,
+    ).filter((f) => f.stageId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SchoolStagesTableFilterComposer
@@ -14153,6 +17661,31 @@ class $$SchoolStagesTableFilterComposer
           }) => $$TeacherGroupPresetsTableFilterComposer(
             $db: $db,
             $table: $db.teacherGroupPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleItemsRefs(
+    Expression<bool> Function($$ScheduleItemsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.stageId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14559,6 +18092,31 @@ class $$SchoolStagesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> scheduleItemsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleItemsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.stageId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SchoolStagesTableTableManager
@@ -14588,6 +18146,7 @@ class $$SchoolStagesTableTableManager
             bool subjectParallelLimitsRefs,
             bool teacherPresetsRefs,
             bool teacherGroupPresetsRefs,
+            bool scheduleItemsRefs,
           })
         > {
   $$SchoolStagesTableTableManager(_$AppDatabase db, $SchoolStagesTable table)
@@ -14652,6 +18211,7 @@ class $$SchoolStagesTableTableManager
                 subjectParallelLimitsRefs = false,
                 teacherPresetsRefs = false,
                 teacherGroupPresetsRefs = false,
+                scheduleItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -14669,6 +18229,7 @@ class $$SchoolStagesTableTableManager
                     if (subjectParallelLimitsRefs) db.subjectParallelLimits,
                     if (teacherPresetsRefs) db.teacherPresets,
                     if (teacherGroupPresetsRefs) db.teacherGroupPresets,
+                    if (scheduleItemsRefs) db.scheduleItems,
                   ],
                   addJoins:
                       <
@@ -14954,6 +18515,27 @@ class $$SchoolStagesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleItemsRefs)
+                        await $_getPrefetchedData<
+                          SchoolStage,
+                          $SchoolStagesTable,
+                          ScheduleItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SchoolStagesTableReferences
+                              ._scheduleItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SchoolStagesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.stageId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -14988,6 +18570,7 @@ typedef $$SchoolStagesTableProcessedTableManager =
         bool subjectParallelLimitsRefs,
         bool teacherPresetsRefs,
         bool teacherGroupPresetsRefs,
+        bool scheduleItemsRefs,
       })
     >;
 typedef $$GradeGroupsTableCreateCompanionBuilder =
@@ -15590,6 +19173,24 @@ final class $$ClassGroupsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ScheduleItemsTable, List<ScheduleItem>>
+  _scheduleItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleItems,
+    aliasName: 'class_groups__id__schedule_items__class_id',
+  );
+
+  $$ScheduleItemsTableProcessedTableManager get scheduleItemsRefs {
+    final manager = $$ScheduleItemsTableTableManager(
+      $_db,
+      $_db.scheduleItems,
+    ).filter((f) => f.classId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ClassGroupsTableFilterComposer
@@ -15705,6 +19306,31 @@ class $$ClassGroupsTableFilterComposer
           }) => $$TeacherAssignmentsTableFilterComposer(
             $db: $db,
             $table: $db.teacherAssignments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleItemsRefs(
+    Expression<bool> Function($$ScheduleItemsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.classId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15880,6 +19506,31 @@ class $$ClassGroupsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> scheduleItemsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleItemsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.classId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ClassGroupsTableTableManager
@@ -15900,6 +19551,7 @@ class $$ClassGroupsTableTableManager
             bool subjectRequirementsRefs,
             bool subjectPairingsRefs,
             bool teacherAssignmentsRefs,
+            bool scheduleItemsRefs,
           })
         > {
   $$ClassGroupsTableTableManager(_$AppDatabase db, $ClassGroupsTable table)
@@ -15955,6 +19607,7 @@ class $$ClassGroupsTableTableManager
                 subjectRequirementsRefs = false,
                 subjectPairingsRefs = false,
                 teacherAssignmentsRefs = false,
+                scheduleItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -15962,6 +19615,7 @@ class $$ClassGroupsTableTableManager
                     if (subjectRequirementsRefs) db.subjectRequirements,
                     if (subjectPairingsRefs) db.subjectPairings,
                     if (teacherAssignmentsRefs) db.teacherAssignments,
+                    if (scheduleItemsRefs) db.scheduleItems,
                   ],
                   addJoins:
                       <
@@ -16058,6 +19712,27 @@ class $$ClassGroupsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleItemsRefs)
+                        await $_getPrefetchedData<
+                          ClassGroup,
+                          $ClassGroupsTable,
+                          ScheduleItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClassGroupsTableReferences
+                              ._scheduleItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClassGroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.classId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -16083,6 +19758,7 @@ typedef $$ClassGroupsTableProcessedTableManager =
         bool subjectRequirementsRefs,
         bool subjectPairingsRefs,
         bool teacherAssignmentsRefs,
+        bool scheduleItemsRefs,
       })
     >;
 typedef $$StageTeachingDaysTableCreateCompanionBuilder =
@@ -16568,6 +20244,46 @@ final class $$LessonPeriodTypesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ScheduleItemsTable, List<ScheduleItem>>
+  _scheduleItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleItems,
+    aliasName: 'lesson_period_types__id__schedule_items__period_type_id',
+  );
+
+  $$ScheduleItemsTableProcessedTableManager get scheduleItemsRefs {
+    final manager = $$ScheduleItemsTableTableManager(
+      $_db,
+      $_db.scheduleItems,
+    ).filter((f) => f.periodTypeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleConditionsTable, List<ScheduleCondition>>
+  _scheduleConditionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.scheduleConditions,
+        aliasName:
+            'lesson_period_types__id__schedule_conditions__period_type_id',
+      );
+
+  $$ScheduleConditionsTableProcessedTableManager get scheduleConditionsRefs {
+    final manager = $$ScheduleConditionsTableTableManager(
+      $_db,
+      $_db.scheduleConditions,
+    ).filter((f) => f.periodTypeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleConditionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$LessonPeriodTypesTableFilterComposer
@@ -16763,6 +20479,56 @@ class $$LessonPeriodTypesTableFilterComposer
           }) => $$TeacherGroupPresetsTableFilterComposer(
             $db: $db,
             $table: $db.teacherGroupPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleItemsRefs(
+    Expression<bool> Function($$ScheduleItemsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.periodTypeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleConditionsRefs(
+    Expression<bool> Function($$ScheduleConditionsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleConditionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleConditions,
+      getReferencedColumn: (t) => t.periodTypeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleConditionsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleConditions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -17023,6 +20789,57 @@ class $$LessonPeriodTypesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> scheduleItemsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleItemsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.periodTypeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> scheduleConditionsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleConditionsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleConditionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scheduleConditions,
+          getReferencedColumn: (t) => t.periodTypeId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleConditionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scheduleConditions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$LessonPeriodTypesTableTableManager
@@ -17046,6 +20863,8 @@ class $$LessonPeriodTypesTableTableManager
             bool subjectPresetsRefs,
             bool teacherPresetsRefs,
             bool teacherGroupPresetsRefs,
+            bool scheduleItemsRefs,
+            bool scheduleConditionsRefs,
           })
         > {
   $$LessonPeriodTypesTableTableManager(
@@ -17113,6 +20932,8 @@ class $$LessonPeriodTypesTableTableManager
                 subjectPresetsRefs = false,
                 teacherPresetsRefs = false,
                 teacherGroupPresetsRefs = false,
+                scheduleItemsRefs = false,
+                scheduleConditionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -17123,6 +20944,8 @@ class $$LessonPeriodTypesTableTableManager
                     if (subjectPresetsRefs) db.subjectPresets,
                     if (teacherPresetsRefs) db.teacherPresets,
                     if (teacherGroupPresetsRefs) db.teacherGroupPresets,
+                    if (scheduleItemsRefs) db.scheduleItems,
+                    if (scheduleConditionsRefs) db.scheduleConditions,
                   ],
                   addJoins:
                       <
@@ -17282,6 +21105,48 @@ class $$LessonPeriodTypesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleItemsRefs)
+                        await $_getPrefetchedData<
+                          LessonPeriodType,
+                          $LessonPeriodTypesTable,
+                          ScheduleItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$LessonPeriodTypesTableReferences
+                              ._scheduleItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$LessonPeriodTypesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.periodTypeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (scheduleConditionsRefs)
+                        await $_getPrefetchedData<
+                          LessonPeriodType,
+                          $LessonPeriodTypesTable,
+                          ScheduleCondition
+                        >(
+                          currentTable: table,
+                          referencedTable: $$LessonPeriodTypesTableReferences
+                              ._scheduleConditionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$LessonPeriodTypesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleConditionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.periodTypeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -17310,6 +21175,8 @@ typedef $$LessonPeriodTypesTableProcessedTableManager =
         bool subjectPresetsRefs,
         bool teacherPresetsRefs,
         bool teacherGroupPresetsRefs,
+        bool scheduleItemsRefs,
+        bool scheduleConditionsRefs,
       })
     >;
 typedef $$DailyLessonOverridesTableCreateCompanionBuilder =
@@ -19465,6 +23332,24 @@ final class $$SubjectsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ScheduleItemsTable, List<ScheduleItem>>
+  _scheduleItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleItems,
+    aliasName: 'subjects__id__schedule_items__subject_id',
+  );
+
+  $$ScheduleItemsTableProcessedTableManager get scheduleItemsRefs {
+    final manager = $$ScheduleItemsTableTableManager(
+      $_db,
+      $_db.scheduleItems,
+    ).filter((f) => f.subjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SubjectsTableFilterComposer
@@ -19689,6 +23574,31 @@ class $$SubjectsTableFilterComposer
           }) => $$TeacherAssignmentsTableFilterComposer(
             $db: $db,
             $table: $db.teacherAssignments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleItemsRefs(
+    Expression<bool> Function($$ScheduleItemsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.subjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19977,6 +23887,31 @@ class $$SubjectsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> scheduleItemsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleItemsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.subjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SubjectsTableTableManager
@@ -20001,6 +23936,7 @@ class $$SubjectsTableTableManager
             bool subjectParallelLimitsRefs,
             bool teacherSubjectTagsRefs,
             bool teacherAssignmentsRefs,
+            bool scheduleItemsRefs,
           })
         > {
   $$SubjectsTableTableManager(_$AppDatabase db, $SubjectsTable table)
@@ -20064,6 +24000,7 @@ class $$SubjectsTableTableManager
                 subjectParallelLimitsRefs = false,
                 teacherSubjectTagsRefs = false,
                 teacherAssignmentsRefs = false,
+                scheduleItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -20076,6 +24013,7 @@ class $$SubjectsTableTableManager
                     if (subjectParallelLimitsRefs) db.subjectParallelLimits,
                     if (teacherSubjectTagsRefs) db.teacherSubjectTags,
                     if (teacherAssignmentsRefs) db.teacherAssignments,
+                    if (scheduleItemsRefs) db.scheduleItems,
                   ],
                   addJoins:
                       <
@@ -20256,6 +24194,27 @@ class $$SubjectsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleItemsRefs)
+                        await $_getPrefetchedData<
+                          Subject,
+                          $SubjectsTable,
+                          ScheduleItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SubjectsTableReferences
+                              ._scheduleItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SubjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.subjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -20285,6 +24244,7 @@ typedef $$SubjectsTableProcessedTableManager =
         bool subjectParallelLimitsRefs,
         bool teacherSubjectTagsRefs,
         bool teacherAssignmentsRefs,
+        bool scheduleItemsRefs,
       })
     >;
 typedef $$SubjectRequirementsTableCreateCompanionBuilder =
@@ -24069,6 +28029,24 @@ final class $$TeachersTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ScheduleItemsTable, List<ScheduleItem>>
+  _scheduleItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleItems,
+    aliasName: 'teachers__id__schedule_items__teacher_id',
+  );
+
+  $$ScheduleItemsTableProcessedTableManager get scheduleItemsRefs {
+    final manager = $$ScheduleItemsTableTableManager(
+      $_db,
+      $_db.scheduleItems,
+    ).filter((f) => f.teacherId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TeachersTableFilterComposer
@@ -24196,6 +28174,31 @@ class $$TeachersTableFilterComposer
           }) => $$TeacherPresetsTableFilterComposer(
             $db: $db,
             $table: $db.teacherPresets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleItemsRefs(
+    Expression<bool> Function($$ScheduleItemsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.teacherId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -24369,6 +28372,31 @@ class $$TeachersTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> scheduleItemsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleItemsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.teacherId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TeachersTableTableManager
@@ -24389,6 +28417,7 @@ class $$TeachersTableTableManager
             bool teacherGroupMembersRefs,
             bool teacherAssignmentsRefs,
             bool teacherPresetsRefs,
+            bool scheduleItemsRefs,
           })
         > {
   $$TeachersTableTableManager(_$AppDatabase db, $TeachersTable table)
@@ -24448,6 +28477,7 @@ class $$TeachersTableTableManager
                 teacherGroupMembersRefs = false,
                 teacherAssignmentsRefs = false,
                 teacherPresetsRefs = false,
+                scheduleItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -24456,6 +28486,7 @@ class $$TeachersTableTableManager
                     if (teacherGroupMembersRefs) db.teacherGroupMembers,
                     if (teacherAssignmentsRefs) db.teacherAssignments,
                     if (teacherPresetsRefs) db.teacherPresets,
+                    if (scheduleItemsRefs) db.scheduleItems,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -24544,6 +28575,27 @@ class $$TeachersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleItemsRefs)
+                        await $_getPrefetchedData<
+                          Teacher,
+                          $TeachersTable,
+                          ScheduleItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TeachersTableReferences
+                              ._scheduleItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TeachersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.teacherId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -24569,6 +28621,7 @@ typedef $$TeachersTableProcessedTableManager =
         bool teacherGroupMembersRefs,
         bool teacherAssignmentsRefs,
         bool teacherPresetsRefs,
+        bool scheduleItemsRefs,
       })
     >;
 typedef $$TeacherSubjectTagsTableCreateCompanionBuilder =
@@ -25927,6 +29980,24 @@ final class $$TeacherAssignmentsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$ScheduleItemsTable, List<ScheduleItem>>
+  _scheduleItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleItems,
+    aliasName: 'teacher_assignments__id__schedule_items__assignment_id',
+  );
+
+  $$ScheduleItemsTableProcessedTableManager get scheduleItemsRefs {
+    final manager = $$ScheduleItemsTableTableManager(
+      $_db,
+      $_db.scheduleItems,
+    ).filter((f) => f.assignmentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_scheduleItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TeacherAssignmentsTableFilterComposer
@@ -26053,6 +30124,31 @@ class $$TeacherAssignmentsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> scheduleItemsRefs(
+    Expression<bool> Function($$ScheduleItemsTableFilterComposer f) f,
+  ) {
+    final $$ScheduleItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.assignmentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -26302,6 +30398,31 @@ class $$TeacherAssignmentsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> scheduleItemsRefs<T extends Object>(
+    Expression<T> Function($$ScheduleItemsTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleItems,
+      getReferencedColumn: (t) => t.assignmentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TeacherAssignmentsTableTableManager
@@ -26322,6 +30443,7 @@ class $$TeacherAssignmentsTableTableManager
             bool teacherId,
             bool subjectId,
             bool classId,
+            bool scheduleItemsRefs,
           })
         > {
   $$TeacherAssignmentsTableTableManager(
@@ -26404,10 +30526,13 @@ class $$TeacherAssignmentsTableTableManager
                 teacherId = false,
                 subjectId = false,
                 classId = false,
+                scheduleItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
-                  explicitlyWatchedTables: [],
+                  explicitlyWatchedTables: [
+                    if (scheduleItemsRefs) db.scheduleItems,
+                  ],
                   addJoins:
                       <
                         T extends TableManagerState<
@@ -26476,7 +30601,29 @@ class $$TeacherAssignmentsTableTableManager
                         return state;
                       },
                   getPrefetchedDataCallback: (items) async {
-                    return [];
+                    return [
+                      if (scheduleItemsRefs)
+                        await $_getPrefetchedData<
+                          TeacherAssignment,
+                          $TeacherAssignmentsTable,
+                          ScheduleItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TeacherAssignmentsTableReferences
+                              ._scheduleItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TeacherAssignmentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.assignmentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
                 );
               },
@@ -26501,6 +30648,7 @@ typedef $$TeacherAssignmentsTableProcessedTableManager =
         bool teacherId,
         bool subjectId,
         bool classId,
+        bool scheduleItemsRefs,
       })
     >;
 typedef $$TeacherPresetsTableCreateCompanionBuilder =
@@ -27823,6 +31971,2645 @@ typedef $$TeacherGroupPresetsTableProcessedTableManager =
       TeacherGroupPreset,
       PrefetchHooks Function({bool groupId, bool stageId, bool periodTypeId})
     >;
+typedef $$ScheduleItemsTableCreateCompanionBuilder =
+    ScheduleItemsCompanion Function({
+      required String id,
+      required String termId,
+      required String assignmentId,
+      required String classId,
+      Value<String?> teacherId,
+      required String subjectId,
+      Value<String> weekMode,
+      Value<String?> combinedGroupId,
+      Value<String?> meetingId,
+      Value<String?> stageId,
+      Value<int?> weekday,
+      Value<String?> periodTypeId,
+      Value<int?> lessonIndex,
+      Value<int> rowid,
+    });
+typedef $$ScheduleItemsTableUpdateCompanionBuilder =
+    ScheduleItemsCompanion Function({
+      Value<String> id,
+      Value<String> termId,
+      Value<String> assignmentId,
+      Value<String> classId,
+      Value<String?> teacherId,
+      Value<String> subjectId,
+      Value<String> weekMode,
+      Value<String?> combinedGroupId,
+      Value<String?> meetingId,
+      Value<String?> stageId,
+      Value<int?> weekday,
+      Value<String?> periodTypeId,
+      Value<int?> lessonIndex,
+      Value<int> rowid,
+    });
+
+final class $$ScheduleItemsTableReferences
+    extends BaseReferences<_$AppDatabase, $ScheduleItemsTable, ScheduleItem> {
+  $$ScheduleItemsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('schedule_items__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $TeacherAssignmentsTable _assignmentIdTable(_$AppDatabase db) => db
+      .teacherAssignments
+      .createAlias('schedule_items__assignment_id__teacher_assignments__id');
+
+  $$TeacherAssignmentsTableProcessedTableManager get assignmentId {
+    final $_column = $_itemColumn<String>('assignment_id')!;
+
+    final manager = $$TeacherAssignmentsTableTableManager(
+      $_db,
+      $_db.teacherAssignments,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_assignmentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ClassGroupsTable _classIdTable(_$AppDatabase db) =>
+      db.classGroups.createAlias('schedule_items__class_id__class_groups__id');
+
+  $$ClassGroupsTableProcessedTableManager get classId {
+    final $_column = $_itemColumn<String>('class_id')!;
+
+    final manager = $$ClassGroupsTableTableManager(
+      $_db,
+      $_db.classGroups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_classIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $TeachersTable _teacherIdTable(_$AppDatabase db) =>
+      db.teachers.createAlias('schedule_items__teacher_id__teachers__id');
+
+  $$TeachersTableProcessedTableManager? get teacherId {
+    final $_column = $_itemColumn<String>('teacher_id');
+    if ($_column == null) return null;
+    final manager = $$TeachersTableTableManager(
+      $_db,
+      $_db.teachers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_teacherIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SubjectsTable _subjectIdTable(_$AppDatabase db) =>
+      db.subjects.createAlias('schedule_items__subject_id__subjects__id');
+
+  $$SubjectsTableProcessedTableManager get subjectId {
+    final $_column = $_itemColumn<String>('subject_id')!;
+
+    final manager = $$SubjectsTableTableManager(
+      $_db,
+      $_db.subjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_subjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SchoolStagesTable _stageIdTable(_$AppDatabase db) => db.schoolStages
+      .createAlias('schedule_items__stage_id__school_stages__id');
+
+  $$SchoolStagesTableProcessedTableManager? get stageId {
+    final $_column = $_itemColumn<String>('stage_id');
+    if ($_column == null) return null;
+    final manager = $$SchoolStagesTableTableManager(
+      $_db,
+      $_db.schoolStages,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_stageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $LessonPeriodTypesTable _periodTypeIdTable(_$AppDatabase db) => db
+      .lessonPeriodTypes
+      .createAlias('schedule_items__period_type_id__lesson_period_types__id');
+
+  $$LessonPeriodTypesTableProcessedTableManager? get periodTypeId {
+    final $_column = $_itemColumn<String>('period_type_id');
+    if ($_column == null) return null;
+    final manager = $$LessonPeriodTypesTableTableManager(
+      $_db,
+      $_db.lessonPeriodTypes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_periodTypeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ScheduleItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $ScheduleItemsTable> {
+  $$ScheduleItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get weekMode => $composableBuilder(
+    column: $table.weekMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get combinedGroupId => $composableBuilder(
+    column: $table.combinedGroupId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meetingId => $composableBuilder(
+    column: $table.meetingId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lessonIndex => $composableBuilder(
+    column: $table.lessonIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TeacherAssignmentsTableFilterComposer get assignmentId {
+    final $$TeacherAssignmentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.assignmentId,
+      referencedTable: $db.teacherAssignments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TeacherAssignmentsTableFilterComposer(
+            $db: $db,
+            $table: $db.teacherAssignments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClassGroupsTableFilterComposer get classId {
+    final $$ClassGroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TeachersTableFilterComposer get teacherId {
+    final $$TeachersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.teacherId,
+      referencedTable: $db.teachers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TeachersTableFilterComposer(
+            $db: $db,
+            $table: $db.teachers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableFilterComposer get subjectId {
+    final $$SubjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableFilterComposer get stageId {
+    final $$SchoolStagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableFilterComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableFilterComposer get periodTypeId {
+    final $$LessonPeriodTypesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.periodTypeId,
+      referencedTable: $db.lessonPeriodTypes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LessonPeriodTypesTableFilterComposer(
+            $db: $db,
+            $table: $db.lessonPeriodTypes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ScheduleItemsTable> {
+  $$ScheduleItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get weekMode => $composableBuilder(
+    column: $table.weekMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get combinedGroupId => $composableBuilder(
+    column: $table.combinedGroupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get meetingId => $composableBuilder(
+    column: $table.meetingId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lessonIndex => $composableBuilder(
+    column: $table.lessonIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TeacherAssignmentsTableOrderingComposer get assignmentId {
+    final $$TeacherAssignmentsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.assignmentId,
+      referencedTable: $db.teacherAssignments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TeacherAssignmentsTableOrderingComposer(
+            $db: $db,
+            $table: $db.teacherAssignments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClassGroupsTableOrderingComposer get classId {
+    final $$ClassGroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TeachersTableOrderingComposer get teacherId {
+    final $$TeachersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.teacherId,
+      referencedTable: $db.teachers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TeachersTableOrderingComposer(
+            $db: $db,
+            $table: $db.teachers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableOrderingComposer get subjectId {
+    final $$SubjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableOrderingComposer get stageId {
+    final $$SchoolStagesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableOrderingComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableOrderingComposer get periodTypeId {
+    final $$LessonPeriodTypesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.periodTypeId,
+      referencedTable: $db.lessonPeriodTypes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LessonPeriodTypesTableOrderingComposer(
+            $db: $db,
+            $table: $db.lessonPeriodTypes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ScheduleItemsTable> {
+  $$ScheduleItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get weekMode =>
+      $composableBuilder(column: $table.weekMode, builder: (column) => column);
+
+  GeneratedColumn<String> get combinedGroupId => $composableBuilder(
+    column: $table.combinedGroupId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get meetingId =>
+      $composableBuilder(column: $table.meetingId, builder: (column) => column);
+
+  GeneratedColumn<int> get weekday =>
+      $composableBuilder(column: $table.weekday, builder: (column) => column);
+
+  GeneratedColumn<int> get lessonIndex => $composableBuilder(
+    column: $table.lessonIndex,
+    builder: (column) => column,
+  );
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TeacherAssignmentsTableAnnotationComposer get assignmentId {
+    final $$TeacherAssignmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.assignmentId,
+          referencedTable: $db.teacherAssignments,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$TeacherAssignmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.teacherAssignments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$ClassGroupsTableAnnotationComposer get classId {
+    final $$ClassGroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.classId,
+      referencedTable: $db.classGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClassGroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.classGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TeachersTableAnnotationComposer get teacherId {
+    final $$TeachersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.teacherId,
+      referencedTable: $db.teachers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TeachersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.teachers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SubjectsTableAnnotationComposer get subjectId {
+    final $$SubjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.subjectId,
+      referencedTable: $db.subjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SchoolStagesTableAnnotationComposer get stageId {
+    final $$SchoolStagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.stageId,
+      referencedTable: $db.schoolStages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SchoolStagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.schoolStages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableAnnotationComposer get periodTypeId {
+    final $$LessonPeriodTypesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.periodTypeId,
+          referencedTable: $db.lessonPeriodTypes,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LessonPeriodTypesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.lessonPeriodTypes,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ScheduleItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ScheduleItemsTable,
+          ScheduleItem,
+          $$ScheduleItemsTableFilterComposer,
+          $$ScheduleItemsTableOrderingComposer,
+          $$ScheduleItemsTableAnnotationComposer,
+          $$ScheduleItemsTableCreateCompanionBuilder,
+          $$ScheduleItemsTableUpdateCompanionBuilder,
+          (ScheduleItem, $$ScheduleItemsTableReferences),
+          ScheduleItem,
+          PrefetchHooks Function({
+            bool termId,
+            bool assignmentId,
+            bool classId,
+            bool teacherId,
+            bool subjectId,
+            bool stageId,
+            bool periodTypeId,
+          })
+        > {
+  $$ScheduleItemsTableTableManager(_$AppDatabase db, $ScheduleItemsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScheduleItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScheduleItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScheduleItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> termId = const Value.absent(),
+                Value<String> assignmentId = const Value.absent(),
+                Value<String> classId = const Value.absent(),
+                Value<String?> teacherId = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<String> weekMode = const Value.absent(),
+                Value<String?> combinedGroupId = const Value.absent(),
+                Value<String?> meetingId = const Value.absent(),
+                Value<String?> stageId = const Value.absent(),
+                Value<int?> weekday = const Value.absent(),
+                Value<String?> periodTypeId = const Value.absent(),
+                Value<int?> lessonIndex = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleItemsCompanion(
+                id: id,
+                termId: termId,
+                assignmentId: assignmentId,
+                classId: classId,
+                teacherId: teacherId,
+                subjectId: subjectId,
+                weekMode: weekMode,
+                combinedGroupId: combinedGroupId,
+                meetingId: meetingId,
+                stageId: stageId,
+                weekday: weekday,
+                periodTypeId: periodTypeId,
+                lessonIndex: lessonIndex,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String termId,
+                required String assignmentId,
+                required String classId,
+                Value<String?> teacherId = const Value.absent(),
+                required String subjectId,
+                Value<String> weekMode = const Value.absent(),
+                Value<String?> combinedGroupId = const Value.absent(),
+                Value<String?> meetingId = const Value.absent(),
+                Value<String?> stageId = const Value.absent(),
+                Value<int?> weekday = const Value.absent(),
+                Value<String?> periodTypeId = const Value.absent(),
+                Value<int?> lessonIndex = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleItemsCompanion.insert(
+                id: id,
+                termId: termId,
+                assignmentId: assignmentId,
+                classId: classId,
+                teacherId: teacherId,
+                subjectId: subjectId,
+                weekMode: weekMode,
+                combinedGroupId: combinedGroupId,
+                meetingId: meetingId,
+                stageId: stageId,
+                weekday: weekday,
+                periodTypeId: periodTypeId,
+                lessonIndex: lessonIndex,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ScheduleItemsTable, ScheduleItem>(table),
+                  $$ScheduleItemsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                termId = false,
+                assignmentId = false,
+                classId = false,
+                teacherId = false,
+                subjectId = false,
+                stageId = false,
+                periodTypeId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (termId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.termId,
+                            referencedTable: $$ScheduleItemsTableReferences
+                                ._termIdTable(db),
+                            referencedColumn: $$ScheduleItemsTableReferences
+                                ._termIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (assignmentId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.assignmentId,
+                            referencedTable: $$ScheduleItemsTableReferences
+                                ._assignmentIdTable(db),
+                            referencedColumn: $$ScheduleItemsTableReferences
+                                ._assignmentIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (classId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.classId,
+                            referencedTable: $$ScheduleItemsTableReferences
+                                ._classIdTable(db),
+                            referencedColumn: $$ScheduleItemsTableReferences
+                                ._classIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (teacherId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.teacherId,
+                            referencedTable: $$ScheduleItemsTableReferences
+                                ._teacherIdTable(db),
+                            referencedColumn: $$ScheduleItemsTableReferences
+                                ._teacherIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (subjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.subjectId,
+                            referencedTable: $$ScheduleItemsTableReferences
+                                ._subjectIdTable(db),
+                            referencedColumn: $$ScheduleItemsTableReferences
+                                ._subjectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (stageId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.stageId,
+                            referencedTable: $$ScheduleItemsTableReferences
+                                ._stageIdTable(db),
+                            referencedColumn: $$ScheduleItemsTableReferences
+                                ._stageIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (periodTypeId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.periodTypeId,
+                            referencedTable: $$ScheduleItemsTableReferences
+                                ._periodTypeIdTable(db),
+                            referencedColumn: $$ScheduleItemsTableReferences
+                                ._periodTypeIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$ScheduleItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ScheduleItemsTable,
+      ScheduleItem,
+      $$ScheduleItemsTableFilterComposer,
+      $$ScheduleItemsTableOrderingComposer,
+      $$ScheduleItemsTableAnnotationComposer,
+      $$ScheduleItemsTableCreateCompanionBuilder,
+      $$ScheduleItemsTableUpdateCompanionBuilder,
+      (ScheduleItem, $$ScheduleItemsTableReferences),
+      ScheduleItem,
+      PrefetchHooks Function({
+        bool termId,
+        bool assignmentId,
+        bool classId,
+        bool teacherId,
+        bool subjectId,
+        bool stageId,
+        bool periodTypeId,
+      })
+    >;
+typedef $$ScheduleLocksTableCreateCompanionBuilder =
+    ScheduleLocksCompanion Function({
+      required String id,
+      required String termId,
+      required String scope,
+      required String targetId,
+      Value<int> rowid,
+    });
+typedef $$ScheduleLocksTableUpdateCompanionBuilder =
+    ScheduleLocksCompanion Function({
+      Value<String> id,
+      Value<String> termId,
+      Value<String> scope,
+      Value<String> targetId,
+      Value<int> rowid,
+    });
+
+final class $$ScheduleLocksTableReferences
+    extends BaseReferences<_$AppDatabase, $ScheduleLocksTable, ScheduleLock> {
+  $$ScheduleLocksTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('schedule_locks__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ScheduleLocksTableFilterComposer
+    extends Composer<_$AppDatabase, $ScheduleLocksTable> {
+  $$ScheduleLocksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleLocksTableOrderingComposer
+    extends Composer<_$AppDatabase, $ScheduleLocksTable> {
+  $$ScheduleLocksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleLocksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ScheduleLocksTable> {
+  $$ScheduleLocksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleLocksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ScheduleLocksTable,
+          ScheduleLock,
+          $$ScheduleLocksTableFilterComposer,
+          $$ScheduleLocksTableOrderingComposer,
+          $$ScheduleLocksTableAnnotationComposer,
+          $$ScheduleLocksTableCreateCompanionBuilder,
+          $$ScheduleLocksTableUpdateCompanionBuilder,
+          (ScheduleLock, $$ScheduleLocksTableReferences),
+          ScheduleLock,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$ScheduleLocksTableTableManager(_$AppDatabase db, $ScheduleLocksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScheduleLocksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScheduleLocksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScheduleLocksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> termId = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<String> targetId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleLocksCompanion(
+                id: id,
+                termId: termId,
+                scope: scope,
+                targetId: targetId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String termId,
+                required String scope,
+                required String targetId,
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleLocksCompanion.insert(
+                id: id,
+                termId: termId,
+                scope: scope,
+                targetId: targetId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ScheduleLocksTable, ScheduleLock>(table),
+                  $$ScheduleLocksTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable: $$ScheduleLocksTableReferences
+                            ._termIdTable(db),
+                        referencedColumn: $$ScheduleLocksTableReferences
+                            ._termIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ScheduleLocksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ScheduleLocksTable,
+      ScheduleLock,
+      $$ScheduleLocksTableFilterComposer,
+      $$ScheduleLocksTableOrderingComposer,
+      $$ScheduleLocksTableAnnotationComposer,
+      $$ScheduleLocksTableCreateCompanionBuilder,
+      $$ScheduleLocksTableUpdateCompanionBuilder,
+      (ScheduleLock, $$ScheduleLocksTableReferences),
+      ScheduleLock,
+      PrefetchHooks Function({bool termId})
+    >;
+typedef $$ScheduleConditionsTableCreateCompanionBuilder =
+    ScheduleConditionsCompanion Function({
+      required String id,
+      required String termId,
+      required String kind,
+      Value<String?> name,
+      Value<String?> targetKind,
+      Value<String?> targetId,
+      Value<String?> otherId,
+      Value<String?> periodTypeId,
+      Value<int?> weekday,
+      Value<int?> minCount,
+      Value<int?> maxCount,
+      Value<int?> exactCount,
+      Value<int> rowid,
+    });
+typedef $$ScheduleConditionsTableUpdateCompanionBuilder =
+    ScheduleConditionsCompanion Function({
+      Value<String> id,
+      Value<String> termId,
+      Value<String> kind,
+      Value<String?> name,
+      Value<String?> targetKind,
+      Value<String?> targetId,
+      Value<String?> otherId,
+      Value<String?> periodTypeId,
+      Value<int?> weekday,
+      Value<int?> minCount,
+      Value<int?> maxCount,
+      Value<int?> exactCount,
+      Value<int> rowid,
+    });
+
+final class $$ScheduleConditionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ScheduleConditionsTable,
+          ScheduleCondition
+        > {
+  $$ScheduleConditionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('schedule_conditions__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $LessonPeriodTypesTable _periodTypeIdTable(_$AppDatabase db) =>
+      db.lessonPeriodTypes.createAlias(
+        'schedule_conditions__period_type_id__lesson_period_types__id',
+      );
+
+  $$LessonPeriodTypesTableProcessedTableManager? get periodTypeId {
+    final $_column = $_itemColumn<String>('period_type_id');
+    if ($_column == null) return null;
+    final manager = $$LessonPeriodTypesTableTableManager(
+      $_db,
+      $_db.lessonPeriodTypes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_periodTypeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ScheduleConditionsTableFilterComposer
+    extends Composer<_$AppDatabase, $ScheduleConditionsTable> {
+  $$ScheduleConditionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get otherId => $composableBuilder(
+    column: $table.otherId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get minCount => $composableBuilder(
+    column: $table.minCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxCount => $composableBuilder(
+    column: $table.maxCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get exactCount => $composableBuilder(
+    column: $table.exactCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableFilterComposer get periodTypeId {
+    final $$LessonPeriodTypesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.periodTypeId,
+      referencedTable: $db.lessonPeriodTypes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LessonPeriodTypesTableFilterComposer(
+            $db: $db,
+            $table: $db.lessonPeriodTypes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleConditionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ScheduleConditionsTable> {
+  $$ScheduleConditionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get otherId => $composableBuilder(
+    column: $table.otherId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get minCount => $composableBuilder(
+    column: $table.minCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxCount => $composableBuilder(
+    column: $table.maxCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get exactCount => $composableBuilder(
+    column: $table.exactCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableOrderingComposer get periodTypeId {
+    final $$LessonPeriodTypesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.periodTypeId,
+      referencedTable: $db.lessonPeriodTypes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LessonPeriodTypesTableOrderingComposer(
+            $db: $db,
+            $table: $db.lessonPeriodTypes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleConditionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ScheduleConditionsTable> {
+  $$ScheduleConditionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<String> get otherId =>
+      $composableBuilder(column: $table.otherId, builder: (column) => column);
+
+  GeneratedColumn<int> get weekday =>
+      $composableBuilder(column: $table.weekday, builder: (column) => column);
+
+  GeneratedColumn<int> get minCount =>
+      $composableBuilder(column: $table.minCount, builder: (column) => column);
+
+  GeneratedColumn<int> get maxCount =>
+      $composableBuilder(column: $table.maxCount, builder: (column) => column);
+
+  GeneratedColumn<int> get exactCount => $composableBuilder(
+    column: $table.exactCount,
+    builder: (column) => column,
+  );
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$LessonPeriodTypesTableAnnotationComposer get periodTypeId {
+    final $$LessonPeriodTypesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.periodTypeId,
+          referencedTable: $db.lessonPeriodTypes,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LessonPeriodTypesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.lessonPeriodTypes,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ScheduleConditionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ScheduleConditionsTable,
+          ScheduleCondition,
+          $$ScheduleConditionsTableFilterComposer,
+          $$ScheduleConditionsTableOrderingComposer,
+          $$ScheduleConditionsTableAnnotationComposer,
+          $$ScheduleConditionsTableCreateCompanionBuilder,
+          $$ScheduleConditionsTableUpdateCompanionBuilder,
+          (ScheduleCondition, $$ScheduleConditionsTableReferences),
+          ScheduleCondition,
+          PrefetchHooks Function({bool termId, bool periodTypeId})
+        > {
+  $$ScheduleConditionsTableTableManager(
+    _$AppDatabase db,
+    $ScheduleConditionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScheduleConditionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScheduleConditionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScheduleConditionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> termId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> name = const Value.absent(),
+                Value<String?> targetKind = const Value.absent(),
+                Value<String?> targetId = const Value.absent(),
+                Value<String?> otherId = const Value.absent(),
+                Value<String?> periodTypeId = const Value.absent(),
+                Value<int?> weekday = const Value.absent(),
+                Value<int?> minCount = const Value.absent(),
+                Value<int?> maxCount = const Value.absent(),
+                Value<int?> exactCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleConditionsCompanion(
+                id: id,
+                termId: termId,
+                kind: kind,
+                name: name,
+                targetKind: targetKind,
+                targetId: targetId,
+                otherId: otherId,
+                periodTypeId: periodTypeId,
+                weekday: weekday,
+                minCount: minCount,
+                maxCount: maxCount,
+                exactCount: exactCount,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String termId,
+                required String kind,
+                Value<String?> name = const Value.absent(),
+                Value<String?> targetKind = const Value.absent(),
+                Value<String?> targetId = const Value.absent(),
+                Value<String?> otherId = const Value.absent(),
+                Value<String?> periodTypeId = const Value.absent(),
+                Value<int?> weekday = const Value.absent(),
+                Value<int?> minCount = const Value.absent(),
+                Value<int?> maxCount = const Value.absent(),
+                Value<int?> exactCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleConditionsCompanion.insert(
+                id: id,
+                termId: termId,
+                kind: kind,
+                name: name,
+                targetKind: targetKind,
+                targetId: targetId,
+                otherId: otherId,
+                periodTypeId: periodTypeId,
+                weekday: weekday,
+                minCount: minCount,
+                maxCount: maxCount,
+                exactCount: exactCount,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ScheduleConditionsTable, ScheduleCondition>(
+                    table,
+                  ),
+                  $$ScheduleConditionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false, periodTypeId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable: $$ScheduleConditionsTableReferences
+                            ._termIdTable(db),
+                        referencedColumn: $$ScheduleConditionsTableReferences
+                            ._termIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+                    if (periodTypeId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.periodTypeId,
+                        referencedTable: $$ScheduleConditionsTableReferences
+                            ._periodTypeIdTable(db),
+                        referencedColumn: $$ScheduleConditionsTableReferences
+                            ._periodTypeIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ScheduleConditionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ScheduleConditionsTable,
+      ScheduleCondition,
+      $$ScheduleConditionsTableFilterComposer,
+      $$ScheduleConditionsTableOrderingComposer,
+      $$ScheduleConditionsTableAnnotationComposer,
+      $$ScheduleConditionsTableCreateCompanionBuilder,
+      $$ScheduleConditionsTableUpdateCompanionBuilder,
+      (ScheduleCondition, $$ScheduleConditionsTableReferences),
+      ScheduleCondition,
+      PrefetchHooks Function({bool termId, bool periodTypeId})
+    >;
+typedef $$SchedulePreferencesTableCreateCompanionBuilder =
+    SchedulePreferencesCompanion Function({
+      required String termId,
+      required String strength,
+      required String progressConsistency,
+      required String teacherDistribution,
+      required bool lunchProtection,
+      required String consecutivePolicy,
+      required bool detectProgressConsistency,
+      Value<int> rowid,
+    });
+typedef $$SchedulePreferencesTableUpdateCompanionBuilder =
+    SchedulePreferencesCompanion Function({
+      Value<String> termId,
+      Value<String> strength,
+      Value<String> progressConsistency,
+      Value<String> teacherDistribution,
+      Value<bool> lunchProtection,
+      Value<String> consecutivePolicy,
+      Value<bool> detectProgressConsistency,
+      Value<int> rowid,
+    });
+
+final class $$SchedulePreferencesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SchedulePreferencesTable,
+          SchedulePreference
+        > {
+  $$SchedulePreferencesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('schedule_preferences__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SchedulePreferencesTableFilterComposer
+    extends Composer<_$AppDatabase, $SchedulePreferencesTable> {
+  $$SchedulePreferencesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get strength => $composableBuilder(
+    column: $table.strength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get progressConsistency => $composableBuilder(
+    column: $table.progressConsistency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get teacherDistribution => $composableBuilder(
+    column: $table.teacherDistribution,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get lunchProtection => $composableBuilder(
+    column: $table.lunchProtection,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get consecutivePolicy => $composableBuilder(
+    column: $table.consecutivePolicy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get detectProgressConsistency => $composableBuilder(
+    column: $table.detectProgressConsistency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SchedulePreferencesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SchedulePreferencesTable> {
+  $$SchedulePreferencesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get strength => $composableBuilder(
+    column: $table.strength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get progressConsistency => $composableBuilder(
+    column: $table.progressConsistency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get teacherDistribution => $composableBuilder(
+    column: $table.teacherDistribution,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get lunchProtection => $composableBuilder(
+    column: $table.lunchProtection,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get consecutivePolicy => $composableBuilder(
+    column: $table.consecutivePolicy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get detectProgressConsistency => $composableBuilder(
+    column: $table.detectProgressConsistency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SchedulePreferencesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SchedulePreferencesTable> {
+  $$SchedulePreferencesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get strength =>
+      $composableBuilder(column: $table.strength, builder: (column) => column);
+
+  GeneratedColumn<String> get progressConsistency => $composableBuilder(
+    column: $table.progressConsistency,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get teacherDistribution => $composableBuilder(
+    column: $table.teacherDistribution,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get lunchProtection => $composableBuilder(
+    column: $table.lunchProtection,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get consecutivePolicy => $composableBuilder(
+    column: $table.consecutivePolicy,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get detectProgressConsistency => $composableBuilder(
+    column: $table.detectProgressConsistency,
+    builder: (column) => column,
+  );
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SchedulePreferencesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SchedulePreferencesTable,
+          SchedulePreference,
+          $$SchedulePreferencesTableFilterComposer,
+          $$SchedulePreferencesTableOrderingComposer,
+          $$SchedulePreferencesTableAnnotationComposer,
+          $$SchedulePreferencesTableCreateCompanionBuilder,
+          $$SchedulePreferencesTableUpdateCompanionBuilder,
+          (SchedulePreference, $$SchedulePreferencesTableReferences),
+          SchedulePreference,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$SchedulePreferencesTableTableManager(
+    _$AppDatabase db,
+    $SchedulePreferencesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SchedulePreferencesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SchedulePreferencesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SchedulePreferencesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> termId = const Value.absent(),
+                Value<String> strength = const Value.absent(),
+                Value<String> progressConsistency = const Value.absent(),
+                Value<String> teacherDistribution = const Value.absent(),
+                Value<bool> lunchProtection = const Value.absent(),
+                Value<String> consecutivePolicy = const Value.absent(),
+                Value<bool> detectProgressConsistency = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SchedulePreferencesCompanion(
+                termId: termId,
+                strength: strength,
+                progressConsistency: progressConsistency,
+                teacherDistribution: teacherDistribution,
+                lunchProtection: lunchProtection,
+                consecutivePolicy: consecutivePolicy,
+                detectProgressConsistency: detectProgressConsistency,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String termId,
+                required String strength,
+                required String progressConsistency,
+                required String teacherDistribution,
+                required bool lunchProtection,
+                required String consecutivePolicy,
+                required bool detectProgressConsistency,
+                Value<int> rowid = const Value.absent(),
+              }) => SchedulePreferencesCompanion.insert(
+                termId: termId,
+                strength: strength,
+                progressConsistency: progressConsistency,
+                teacherDistribution: teacherDistribution,
+                lunchProtection: lunchProtection,
+                consecutivePolicy: consecutivePolicy,
+                detectProgressConsistency: detectProgressConsistency,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SchedulePreferencesTable, SchedulePreference>(
+                    table,
+                  ),
+                  $$SchedulePreferencesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable: $$SchedulePreferencesTableReferences
+                            ._termIdTable(db),
+                        referencedColumn: $$SchedulePreferencesTableReferences
+                            ._termIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SchedulePreferencesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SchedulePreferencesTable,
+      SchedulePreference,
+      $$SchedulePreferencesTableFilterComposer,
+      $$SchedulePreferencesTableOrderingComposer,
+      $$SchedulePreferencesTableAnnotationComposer,
+      $$SchedulePreferencesTableCreateCompanionBuilder,
+      $$SchedulePreferencesTableUpdateCompanionBuilder,
+      (SchedulePreference, $$SchedulePreferencesTableReferences),
+      SchedulePreference,
+      PrefetchHooks Function({bool termId})
+    >;
+typedef $$ScheduleRunReportsTableCreateCompanionBuilder =
+    ScheduleRunReportsCompanion Function({
+      required String id,
+      required String termId,
+      required int createdAt,
+      required String solverVersion,
+      required int seed,
+      required String strength,
+      required String inputFingerprint,
+      required String reportJson,
+      Value<int> rowid,
+    });
+typedef $$ScheduleRunReportsTableUpdateCompanionBuilder =
+    ScheduleRunReportsCompanion Function({
+      Value<String> id,
+      Value<String> termId,
+      Value<int> createdAt,
+      Value<String> solverVersion,
+      Value<int> seed,
+      Value<String> strength,
+      Value<String> inputFingerprint,
+      Value<String> reportJson,
+      Value<int> rowid,
+    });
+
+final class $$ScheduleRunReportsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ScheduleRunReportsTable,
+          ScheduleRunReport
+        > {
+  $$ScheduleRunReportsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('schedule_run_reports__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ScheduleRunReportsTableFilterComposer
+    extends Composer<_$AppDatabase, $ScheduleRunReportsTable> {
+  $$ScheduleRunReportsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get solverVersion => $composableBuilder(
+    column: $table.solverVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seed => $composableBuilder(
+    column: $table.seed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get strength => $composableBuilder(
+    column: $table.strength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inputFingerprint => $composableBuilder(
+    column: $table.inputFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reportJson => $composableBuilder(
+    column: $table.reportJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleRunReportsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ScheduleRunReportsTable> {
+  $$ScheduleRunReportsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get solverVersion => $composableBuilder(
+    column: $table.solverVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seed => $composableBuilder(
+    column: $table.seed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get strength => $composableBuilder(
+    column: $table.strength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get inputFingerprint => $composableBuilder(
+    column: $table.inputFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reportJson => $composableBuilder(
+    column: $table.reportJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleRunReportsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ScheduleRunReportsTable> {
+  $$ScheduleRunReportsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get solverVersion => $composableBuilder(
+    column: $table.solverVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seed =>
+      $composableBuilder(column: $table.seed, builder: (column) => column);
+
+  GeneratedColumn<String> get strength =>
+      $composableBuilder(column: $table.strength, builder: (column) => column);
+
+  GeneratedColumn<String> get inputFingerprint => $composableBuilder(
+    column: $table.inputFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reportJson => $composableBuilder(
+    column: $table.reportJson,
+    builder: (column) => column,
+  );
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleRunReportsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ScheduleRunReportsTable,
+          ScheduleRunReport,
+          $$ScheduleRunReportsTableFilterComposer,
+          $$ScheduleRunReportsTableOrderingComposer,
+          $$ScheduleRunReportsTableAnnotationComposer,
+          $$ScheduleRunReportsTableCreateCompanionBuilder,
+          $$ScheduleRunReportsTableUpdateCompanionBuilder,
+          (ScheduleRunReport, $$ScheduleRunReportsTableReferences),
+          ScheduleRunReport,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$ScheduleRunReportsTableTableManager(
+    _$AppDatabase db,
+    $ScheduleRunReportsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScheduleRunReportsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScheduleRunReportsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScheduleRunReportsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> termId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<String> solverVersion = const Value.absent(),
+                Value<int> seed = const Value.absent(),
+                Value<String> strength = const Value.absent(),
+                Value<String> inputFingerprint = const Value.absent(),
+                Value<String> reportJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleRunReportsCompanion(
+                id: id,
+                termId: termId,
+                createdAt: createdAt,
+                solverVersion: solverVersion,
+                seed: seed,
+                strength: strength,
+                inputFingerprint: inputFingerprint,
+                reportJson: reportJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String termId,
+                required int createdAt,
+                required String solverVersion,
+                required int seed,
+                required String strength,
+                required String inputFingerprint,
+                required String reportJson,
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleRunReportsCompanion.insert(
+                id: id,
+                termId: termId,
+                createdAt: createdAt,
+                solverVersion: solverVersion,
+                seed: seed,
+                strength: strength,
+                inputFingerprint: inputFingerprint,
+                reportJson: reportJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ScheduleRunReportsTable, ScheduleRunReport>(
+                    table,
+                  ),
+                  $$ScheduleRunReportsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable: $$ScheduleRunReportsTableReferences
+                            ._termIdTable(db),
+                        referencedColumn: $$ScheduleRunReportsTableReferences
+                            ._termIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ScheduleRunReportsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ScheduleRunReportsTable,
+      ScheduleRunReport,
+      $$ScheduleRunReportsTableFilterComposer,
+      $$ScheduleRunReportsTableOrderingComposer,
+      $$ScheduleRunReportsTableAnnotationComposer,
+      $$ScheduleRunReportsTableCreateCompanionBuilder,
+      $$ScheduleRunReportsTableUpdateCompanionBuilder,
+      (ScheduleRunReport, $$ScheduleRunReportsTableReferences),
+      ScheduleRunReport,
+      PrefetchHooks Function({bool termId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -27887,4 +34674,14 @@ class $AppDatabaseManager {
       $$TeacherPresetsTableTableManager(_db, _db.teacherPresets);
   $$TeacherGroupPresetsTableTableManager get teacherGroupPresets =>
       $$TeacherGroupPresetsTableTableManager(_db, _db.teacherGroupPresets);
+  $$ScheduleItemsTableTableManager get scheduleItems =>
+      $$ScheduleItemsTableTableManager(_db, _db.scheduleItems);
+  $$ScheduleLocksTableTableManager get scheduleLocks =>
+      $$ScheduleLocksTableTableManager(_db, _db.scheduleLocks);
+  $$ScheduleConditionsTableTableManager get scheduleConditions =>
+      $$ScheduleConditionsTableTableManager(_db, _db.scheduleConditions);
+  $$SchedulePreferencesTableTableManager get schedulePreferences =>
+      $$SchedulePreferencesTableTableManager(_db, _db.schedulePreferences);
+  $$ScheduleRunReportsTableTableManager get scheduleRunReports =>
+      $$ScheduleRunReportsTableTableManager(_db, _db.scheduleRunReports);
 }
