@@ -148,6 +148,37 @@ class ConstraintEvaluator {
     List<ScheduleItem> items,
   ) {
     final snapshot = problem.snapshot;
+    final hasConditionMinimum = snapshot.conditions.any(
+      (condition) =>
+          (condition.type == ScheduleConditionType.periodLimit ||
+              condition.type == ScheduleConditionType.dailyLimit) &&
+          (condition.exact != null || condition.minimum != null),
+    );
+    final hasLessonMinimum = snapshot.lessonConstraints.any(
+      (rule) =>
+          rule.minimumDailyLessons != null ||
+          rule.minimumDailyConsecutivePairs != null ||
+          rule.minimumWeeklyConsecutivePairs != null,
+    );
+    final hasMustPreset =
+        snapshot.subjectPresets.any(
+          (preset) => preset.value == PresetValue.must,
+        ) ||
+        snapshot.teacherPresets.any(
+          (preset) => preset.value == PresetValue.must,
+        ) ||
+        snapshot.teacherGroupPresets.any(
+          (preset) => preset.value == PresetValue.must,
+        );
+    final hasRequiredProgress =
+        snapshot.preferences.checkProgressConsistency &&
+        snapshot.preferences.progressConsistency == ProgressConsistency.require;
+    if (!hasConditionMinimum &&
+        !hasLessonMinimum &&
+        !hasMustPreset &&
+        !hasRequiredProgress) {
+      return const [];
+    }
     final unmet = <ScheduleBlocker>[];
     final byClassSubject = <String, List<ScheduleItem>>{};
     for (final item in items) {
@@ -767,30 +798,41 @@ void _checkLessonLimits(
   List<ScheduleItem> all,
   _Block block,
 ) {
+  final subjectConstraints = snapshot.lessonConstraints
+      .where((rule) => rule.subjectId == item.subjectId)
+      .toList();
+  if (!subjectConstraints.any(
+    (rule) =>
+        rule.maximumDailyLessons != null ||
+        rule.maximumDailyConsecutivePairs != null ||
+        rule.maximumWeeklyConsecutivePairs != null,
+  )) {
+    return;
+  }
   final p = item.position!;
   final gradeId = snapshot.gradeIdForClass(item.classId);
   for (final oddWeek in [true, false]) {
     if (!occursInWeek(item.weekMode, oddWeek: oddWeek)) continue;
     final limits = resolveSubjectLessonConstraints(
-      constraints: snapshot.lessonConstraints.where(
-        (row) => row.subjectId == item.subjectId,
-      ),
+      constraints: subjectConstraints,
       scope: FreeSlotScope.schoolClass,
       scopeId: item.classId,
       stageId: p.stageId,
       weekday: p.weekday,
       parentGradeId: gradeId,
     );
-    final count = all
-        .where(
-          (row) =>
-              row.position != null &&
-              row.classId == item.classId &&
-              row.subjectId == item.subjectId &&
-              row.position!.weekday == p.weekday &&
-              occursInWeek(row.weekMode, oddWeek: oddWeek),
-        )
-        .length;
+    final count = limits.maximumDailyLessons == null
+        ? 0
+        : all
+              .where(
+                (row) =>
+                    row.position != null &&
+                    row.classId == item.classId &&
+                    row.subjectId == item.subjectId &&
+                    row.position!.weekday == p.weekday &&
+                    occursInWeek(row.weekMode, oddWeek: oddWeek),
+              )
+              .length;
     if (limits.maximumDailyLessons != null &&
         count > limits.maximumDailyLessons!) {
       block('subjectDailyMaximum', '科目单日节数超过上限', item);
@@ -802,28 +844,34 @@ void _checkLessonLimits(
           row.subjectId == item.subjectId &&
           occursInWeek(row.weekMode, oddWeek: oddWeek),
     );
-    final dayPairs = _consecutivePairCount(
-      snapshot,
-      weeklyRows.where((row) => row.position!.weekday == p.weekday).toList(),
-    );
+    final dayPairs = limits.maximumDailyConsecutivePairs == null
+        ? 0
+        : _consecutivePairCount(
+            snapshot,
+            weeklyRows
+                .where((row) => row.position!.weekday == p.weekday)
+                .toList(),
+          );
     if (limits.maximumDailyConsecutivePairs != null &&
         dayPairs > limits.maximumDailyConsecutivePairs!) {
       block('dailyConsecutiveMaximum', '科目单日连堂次数超过上限', item);
     }
-    final weeklyPairs = snapshot.routines
-        .where((row) => row.stageId == p.stageId)
-        .expand((row) => row.teachingWeekdays)
-        .fold<int>(
-          0,
-          (sum, day) =>
-              sum +
-              _consecutivePairCount(
-                snapshot,
-                weeklyRows
-                    .where((row) => row.position!.weekday == day)
-                    .toList(),
-              ),
-        );
+    final weeklyPairs = limits.maximumWeeklyConsecutivePairs == null
+        ? 0
+        : snapshot.routines
+              .where((row) => row.stageId == p.stageId)
+              .expand((row) => row.teachingWeekdays)
+              .fold<int>(
+                0,
+                (sum, day) =>
+                    sum +
+                    _consecutivePairCount(
+                      snapshot,
+                      weeklyRows
+                          .where((row) => row.position!.weekday == day)
+                          .toList(),
+                    ),
+              );
     if (limits.maximumWeeklyConsecutivePairs != null &&
         weeklyPairs > limits.maximumWeeklyConsecutivePairs!) {
       block('weeklyConsecutiveMaximum', '科目每周连堂次数超过上限', item);

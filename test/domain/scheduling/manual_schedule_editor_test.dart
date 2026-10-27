@@ -1,10 +1,12 @@
 import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/schedule_condition.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
 import 'package:class_set/domain/models/schedule_position.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/domain/scheduling/manual_schedule_editor.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
@@ -121,6 +123,47 @@ void main() {
     expect(result.blockers.any((blocker) => blocker.code == 'minimum'), isTrue);
   });
 
+  test('拖动到同一天超出科目节数上限时仍会阻止', () {
+    const tuesday = SchedulePosition(
+      stageId: 'stage',
+      weekday: 2,
+      periodTypeId: 'morning',
+      lessonIndex: 1,
+      startMinute: 480,
+      endMinute: 525,
+    );
+    final items = [
+      _item('a', 'class-a', 'teacher-a', tuesday),
+      _item('b', 'class-a', 'teacher-b', _first),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      lessonConstraints: const [
+        SubjectLessonConstraint(
+          id: 'limit',
+          subjectId: 'subject',
+          scope: FreeSlotScope.grade,
+          scopeId: 'grade',
+          stageId: 'stage',
+          weekday: null,
+          maximumDailyLessons: 1,
+        ),
+      ],
+    );
+    final result = editor.previewMove(
+      snapshot: snapshot,
+      items: items,
+      itemId: 'a',
+      target: _second,
+      problem: _problem(snapshot),
+    );
+    expect(result.allowed, isFalse);
+    expect(
+      result.blockers.any((blocker) => blocker.code == 'subjectDailyMaximum'),
+      isTrue,
+    );
+  });
+
   test('班级锁会阻止拖入暂放区', () {
     final items = [_item('a', 'class-a', 'teacher-a', _first)];
     final snapshot = _snapshot(
@@ -192,6 +235,7 @@ SchedulingSnapshot _snapshot({
   required List<ScheduleItem> items,
   List<ScheduleCondition> conditions = const [],
   List<ScheduleLock> locks = const [],
+  List<SubjectLessonConstraint> lessonConstraints = const [],
 }) => SchedulingSnapshot(
   term: AcademicTerm(
     id: 'term',
@@ -214,6 +258,7 @@ SchedulingSnapshot _snapshot({
     ClassGroup(id: 'class-b', gradeId: 'grade', name: '二班', sortOrder: 1),
   ],
   conditions: conditions,
+  lessonConstraints: lessonConstraints,
   locks: locks,
   existingItems: items,
 );
