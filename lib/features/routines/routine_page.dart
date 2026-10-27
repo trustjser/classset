@@ -469,20 +469,10 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       ),
       const SizedBox(height: 12),
       AppSectionPanel(
-        title: '上课日',
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: AppWeekdaySelector(
-          compact: true,
-          fontSize: 13,
-          labels: _weekdayNames,
-          selectedWeekdays: _teachingDays,
-          onChanged: _toggleTeachingDay,
-        ),
-      ),
-      const SizedBox(height: 12),
-      AppSectionPanel(
         title: '每天节数',
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        useShadow: true,
+        headerPadding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -495,6 +485,20 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           ],
         ),
       ),
+      const SizedBox(height: 12),
+      AppSectionPanel(
+        title: '上课日',
+        useShadow: true,
+        headerPadding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+        child: AppWeekdaySelector(
+          compact: true,
+          fontSize: 13,
+          labels: _weekdayNames,
+          selectedWeekdays: _teachingDays,
+          onChanged: _toggleTeachingDay,
+        ),
+      ),
     ],
   );
 
@@ -504,6 +508,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         const <CommonPeriod>[];
     final commonPeriods = _effectiveCommonPeriods(persistedCommonPeriods);
     return AppSectionPanel(
+      useShadow: true,
       // 右侧留白 = 该内边距 + 表格滚动条槽宽，与左侧 16 保持一致。
       padding: EdgeInsets.fromLTRB(
         16,
@@ -1728,7 +1733,9 @@ class _ScopeTreeCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => AppSectionPanel(
     title: '免任课范围',
-    padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+    useShadow: true,
+    headerPadding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
     child: Column(
       children: [
         for (final stage in stages)
@@ -1779,26 +1786,17 @@ class _ScopeStageNode extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final grades =
         ref.watch(gradesProvider(stage.id)).valueOrNull ?? const <GradeGroup>[];
-    // 设计稿 02b：编辑中的学段绿色高亮「（编辑中）」，其他学段标注「（独立作息）」。
-    final highlight = isEditing
-        ? (
-            context.appColors.successSurface,
-            context.appColors.success,
-            '${stage.name}（编辑中）',
-            FontWeight.w600,
-          )
-        : (
-            context.appColors.selectedBlue,
-            context.appColors.blue,
-            '${stage.name}（独立作息）',
-            FontWeight.w400,
-          );
+    // 清新版范围树：编辑中学段绿色圆点 + 绿底高亮 + 右侧「编辑中」标签；
+    // 其他学段灰色圆点，行下方以辅助小字标注「独立作息」。
     return Column(
       children: [
         AppTreeTile(
           isSelected: isEditing || isSelected,
-          selectedBackground: highlight.$1,
-          selectedForeground: isEditing ? highlight.$2 : null,
+          selectedBackground: isEditing
+              ? context.appColors.successSurface
+              : context.appColors.selectedBlue,
+          selectedForeground: isEditing ? context.appColors.success : null,
+          borderRadius: BorderRadius.circular(8),
           leading: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1814,26 +1812,36 @@ class _ScopeStageNode extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 2),
-              Icon(
-                Icons.layers_outlined,
-                size: 15,
+              const SizedBox(width: 4),
+              AppStageDot(
                 color: isEditing
-                    ? context.appColors.blue
+                    ? context.appColors.success
                     : context.appColors.sidebarMuted,
+                size: 7,
               ),
             ],
           ),
-          title: Text(
-            highlight.$3,
-            style: TextStyle(
-              fontSize: 13,
-              color: isEditing ? highlight.$2 : null,
-              fontWeight: highlight.$4,
-            ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  stage.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isEditing
+                        ? context.appColors.success
+                        : context.appColors.inkSecondary,
+                    fontWeight: isEditing ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              if (isEditing) const _TreeTag(label: '编辑中'),
+            ],
           ),
           height: 30,
-          contentPadding: const EdgeInsets.only(left: 8, right: 8),
+          contentPadding: const EdgeInsets.only(left: 12, right: 8),
           onTap: () => onSelectScope(
             stage.id,
             _FreeSlotScopeSelection(
@@ -1842,11 +1850,23 @@ class _ScopeStageNode extends ConsumerWidget {
             ),
           ),
         ),
+        if (!isEditing)
+          Padding(
+            padding: const EdgeInsets.only(left: 32, right: 8, bottom: 2),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '独立作息',
+                style: TextStyle(color: context.appColors.muted, fontSize: 11),
+              ),
+            ),
+          ),
         if (isExpanded)
           for (final grade in grades)
             _ScopeGradeNode(
               stage: stage,
               grade: grade,
+              stageIsEditing: isEditing,
               isSelected:
                   scope.scope == FreeSlotScope.grade &&
                   scope.scopeId == grade.id,
@@ -1860,10 +1880,37 @@ class _ScopeStageNode extends ConsumerWidget {
   }
 }
 
+/// 范围树行尾的状态小标签（「编辑中」）。
+class _TreeTag extends StatelessWidget {
+  const _TreeTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 18,
+    padding: const EdgeInsets.symmetric(horizontal: 5),
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: context.appColors.surface,
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        color: context.appColors.success,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  );
+}
+
 class _ScopeGradeNode extends ConsumerWidget {
   const _ScopeGradeNode({
     required this.stage,
     required this.grade,
+    required this.stageIsEditing,
     required this.isSelected,
     required this.isExpanded,
     required this.scope,
@@ -1873,6 +1920,9 @@ class _ScopeGradeNode extends ConsumerWidget {
 
   final SchoolStage stage;
   final GradeGroup grade;
+
+  /// 所属学段是否处于编辑中（年级圆点随之用浅绿）。
+  final bool stageIsEditing;
   final bool isSelected;
   final bool isExpanded;
   final _FreeSlotScopeSelection scope;
@@ -1888,6 +1938,7 @@ class _ScopeGradeNode extends ConsumerWidget {
       children: [
         AppTreeTile(
           isSelected: isSelected,
+          borderRadius: BorderRadius.circular(8),
           leading: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1903,13 +1954,26 @@ class _ScopeGradeNode extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 2),
-              const Icon(Icons.school_outlined, size: 14),
+              const SizedBox(width: 4),
+              AppStageDot(
+                color: stageIsEditing
+                    ? context.appColors.success.withValues(alpha: 0.38)
+                    : context.appColors.sidebarMuted.withValues(alpha: 0.5),
+                size: 6,
+              ),
             ],
           ),
-          title: Text(grade.name, style: const TextStyle(fontSize: 12)),
+          title: Text(
+            grade.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: context.appColors.inkSecondary,
+            ),
+          ),
           height: 28,
-          contentPadding: const EdgeInsets.only(left: 20, right: 8),
+          contentPadding: const EdgeInsets.only(left: 24, right: 8),
           onTap: () => onSelectScope(
             _FreeSlotScopeSelection(
               scope: FreeSlotScope.grade,
@@ -1923,16 +1987,25 @@ class _ScopeGradeNode extends ConsumerWidget {
               isSelected:
                   scope.scope == FreeSlotScope.schoolClass &&
                   scope.scopeId == schoolClass.id,
-              leading: const Padding(
-                padding: EdgeInsets.only(left: 26),
-                child: Icon(Icons.class_outlined, size: 13),
+              borderRadius: BorderRadius.circular(8),
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 26),
+                child: AppStageDot(
+                  color: context.appColors.sidebarMuted.withValues(alpha: 0.5),
+                  size: 5,
+                ),
               ),
               title: Text(
                 schoolClass.name,
-                style: const TextStyle(fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: context.appColors.inkSecondary,
+                ),
               ),
               height: 26,
-              contentPadding: const EdgeInsets.only(left: 8, right: 8),
+              contentPadding: const EdgeInsets.only(left: 12, right: 8),
               onTap: () => onSelectScope(
                 _FreeSlotScopeSelection(
                   scope: FreeSlotScope.schoolClass,
@@ -2515,16 +2588,16 @@ class _PeriodCountRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 7),
       child: Row(
         children: [
           AppStageDot(color: visual.color, size: 8),
-          const SizedBox(width: 7),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               period.name,
               style: TextStyle(
-                color: visual.color,
+                color: context.appColors.ink,
                 fontWeight: FontWeight.w500,
                 fontSize: 13,
               ),
@@ -2535,7 +2608,6 @@ class _PeriodCountRow extends StatelessWidget {
             onChanged: (value) => onChanged(period.id, value),
             min: 0,
             max: 9,
-            compact: true,
           ),
         ],
       ),
@@ -2903,6 +2975,7 @@ class _LessonTimePanel extends StatelessWidget {
     ];
     return AppSectionPanel(
       title: '节次与时间',
+      useShadow: true,
       expandChild: scrollable,
       // 右侧留白 = 该内边距 + 滚动条槽宽，与左侧 12 保持一致。
       padding: EdgeInsets.fromLTRB(

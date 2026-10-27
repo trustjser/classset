@@ -1,0 +1,2437 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/domain/models/free_slot.dart';
+import 'package:class_set/domain/models/schedule_item.dart';
+import 'package:class_set/domain/models/schedule_lock.dart';
+import 'package:class_set/domain/models/schedule_position.dart';
+import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/scheduling/manual_schedule_editor.dart';
+import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
+import 'package:class_set/features/scheduling/scheduling_controller.dart';
+import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
+
+enum _ScheduleView { schoolClass, teacher, all, room }
+
+enum _WeekView { merged, odd, even }
+
+abstract final class _SchedulePalette {
+  static const background = Color(0xFFF8F9FA);
+  static const surface = Colors.white;
+  static const surfaceSoft = Color(0xFFF6F8FB);
+  static const border = Color(0xFFE6E9F0);
+  static const borderStrong = Color(0xFFD8DDE7);
+  static const ink = Color(0xFF1F2329);
+  static const secondary = Color(0xFF646A73);
+  static const muted = Color(0xFF9CA1AB);
+  static const blue = Color(0xFF0052D9);
+  static const success = Color(0xFF1F8A5D);
+  static const warning = Color(0xFFB07415);
+
+  static const lessonBackgrounds = [
+    Color(0xFFEAF2FF),
+    Color(0xFFE6F5EE),
+    Color(0xFFFFF3E0),
+    Color(0xFFF1EDFF),
+    Color(0xFFFDEBEE),
+  ];
+  static const lessonForegrounds = [
+    Color(0xFF2E6BC6),
+    Color(0xFF1F8A5D),
+    Color(0xFFB07415),
+    Color(0xFF6D4FD0),
+    Color(0xFFC2506A),
+  ];
+
+  static int subjectColorIndex(String subjectId, String? subjectName) {
+    if (subjectName?.contains('语文') == true) return 0;
+    if (subjectName?.contains('数学') == true) return 1;
+    if (subjectName?.contains('英语') == true) return 2;
+    if (subjectName?.contains('科学') == true) return 3;
+    if (subjectName?.contains('体育') == true) return 4;
+    return subjectId.codeUnits.fold<int>(0, (sum, code) => sum + code) %
+        lessonBackgrounds.length;
+  }
+
+  static BoxDecoration panel() => BoxDecoration(
+    color: surface,
+    border: Border.all(color: border),
+    borderRadius: BorderRadius.circular(12),
+    boxShadow: const [
+      BoxShadow(color: Color(0x0D1F1E1A), blurRadius: 2, offset: Offset(0, 1)),
+    ],
+  );
+}
+
+/// The timetable remains visible while the solver runs, matching the design's
+/// toolbar, right rail and bottom task bar.
+class SchedulingTimetable extends StatefulWidget {
+  const SchedulingTimetable({
+    required this.snapshot,
+    required this.state,
+    required this.onStart,
+    required this.onRefresh,
+    required this.onRules,
+    required this.onReport,
+    required this.onDetectionReport,
+    required this.onCancel,
+    required this.onDone,
+    required this.onExport,
+    required this.onPreviewMove,
+    required this.onMove,
+    required this.onUndo,
+    required this.onRedo,
+    required this.onSetLock,
+    required this.onSetAllLocks,
+    super.key,
+  });
+
+  final SchedulingSnapshot snapshot;
+  final SchedulingState state;
+  final VoidCallback onStart;
+  final VoidCallback onRefresh;
+  final VoidCallback onRules;
+  final VoidCallback onReport;
+  final VoidCallback onDetectionReport;
+  final VoidCallback onCancel;
+  final VoidCallback onDone;
+  final void Function(List<ScheduleItem> items, String title) onExport;
+  final ManualMoveResult Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onPreviewMove;
+  final Future<ManualMoveResult> Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onMove;
+  final VoidCallback onUndo;
+  final VoidCallback onRedo;
+  final Future<void> Function(ScheduleLock lock, bool enabled) onSetLock;
+  final Future<void> Function(bool enabled) onSetAllLocks;
+
+  @override
+  State<SchedulingTimetable> createState() => _SchedulingTimetableState();
+}
+
+class _SchedulingTimetableState extends State<SchedulingTimetable> {
+  _ScheduleView _view = _ScheduleView.schoolClass;
+  _WeekView _week = _WeekView.merged;
+  String? _classId;
+  String? _teacherId;
+  String? _roomId;
+  bool _groupUnplacedBySubject = false;
+  final ValueNotifier<String?> _draggedItemId = ValueNotifier(null);
+  final ScrollController _pageScrollController = ScrollController();
+  final ScrollController _gridScrollController = ScrollController();
+  final GlobalKey _pageViewportKey = GlobalKey();
+  final GlobalKey _gridViewportKey = GlobalKey();
+  Timer? _dragScrollTimer;
+  Offset? _dragPointer;
+
+  @override
+  void initState() {
+    super.initState();
+    _draggedItemId.addListener(_onDragStateChanged);
+  }
+
+  void _onDragStateChanged() {
+    if (_draggedItemId.value == null) {
+      _dragPointer = null;
+      _dragScrollTimer?.cancel();
+      _dragScrollTimer = null;
+    } else {
+      _dragScrollTimer ??= Timer.periodic(
+        const Duration(milliseconds: 16),
+        (_) => _scrollNearDragEdge(),
+      );
+    }
+  }
+
+  void _scrollNearDragEdge() {
+    final pointer = _dragPointer;
+    if (pointer == null) return;
+    _scrollAtEdge(
+      pointer: pointer,
+      viewportKey: _pageViewportKey,
+      controller: _pageScrollController,
+      axis: Axis.vertical,
+    );
+    _scrollAtEdge(
+      pointer: pointer,
+      viewportKey: _gridViewportKey,
+      controller: _gridScrollController,
+      axis: Axis.horizontal,
+    );
+  }
+
+  void _scrollAtEdge({
+    required Offset pointer,
+    required GlobalKey viewportKey,
+    required ScrollController controller,
+    required Axis axis,
+  }) {
+    if (!controller.hasClients) return;
+    final renderObject = viewportKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+    final local = renderObject.globalToLocal(pointer);
+    final crossPosition = axis == Axis.vertical ? local.dx : local.dy;
+    final crossSize = axis == Axis.vertical
+        ? renderObject.size.width
+        : renderObject.size.height;
+    if (crossPosition < 0 || crossPosition > crossSize) return;
+    final position = axis == Axis.vertical ? local.dy : local.dx;
+    final size = axis == Axis.vertical
+        ? renderObject.size.height
+        : renderObject.size.width;
+    final edge = math.min(80.0, size / 4);
+    if (edge <= 0) return;
+    if (axis == Axis.horizontal && (position < -24 || position > size + 24)) {
+      return;
+    }
+    final proximity = position < edge
+        ? -(edge - position) / edge
+        : position > size - edge
+        ? (position - (size - edge)) / edge
+        : 0.0;
+    if (proximity == 0) return;
+    final scrollPosition = controller.position;
+    final delta = proximity.clamp(-1.0, 1.0) * 22;
+    final next = (scrollPosition.pixels + delta).clamp(
+      scrollPosition.minScrollExtent,
+      scrollPosition.maxScrollExtent,
+    );
+    if ((next - scrollPosition.pixels).abs() >= 0.5) {
+      controller.jumpTo(next);
+    }
+  }
+
+  @override
+  void dispose() {
+    _dragScrollTimer?.cancel();
+    _draggedItemId.removeListener(_onDragStateChanged);
+    _draggedItemId.dispose();
+    _pageScrollController.dispose();
+    _gridScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final snapshot = widget.snapshot;
+    final classIds = snapshot.classes.map((item) => item.id).toSet();
+    final teacherIds = snapshot.teachers.map((item) => item.id).toSet();
+    final roomIds = snapshot.rooms.map((item) => item.id).toSet();
+    final classId = classIds.contains(_classId)
+        ? _classId
+        : snapshot.classes.firstOrNull?.id;
+    final teacherId = teacherIds.contains(_teacherId)
+        ? _teacherId
+        : snapshot.teachers.firstOrNull?.id;
+    final roomId = roomIds.contains(_roomId)
+        ? _roomId
+        : snapshot.rooms.firstOrNull?.id;
+    final items = widget.state.items;
+    final visible = items.where((item) {
+      if (item.position == null || !_matchesWeek(item)) return false;
+      return switch (_view) {
+        _ScheduleView.schoolClass => item.classId == classId,
+        _ScheduleView.teacher => item.teacherId == teacherId,
+        _ScheduleView.all => true,
+        _ScheduleView.room => _roomIdFor(snapshot, item) == roomId,
+      };
+    }).toList();
+    final solving =
+        widget.state.status == SchedulingStatus.solving ||
+        widget.state.status == SchedulingStatus.committing ||
+        widget.state.status == SchedulingStatus.savingEdit;
+    final editable =
+        widget.state.status == SchedulingStatus.ready ||
+        widget.state.status == SchedulingStatus.completed;
+
+    return Listener(
+      onPointerMove: (event) {
+        if (_draggedItemId.value != null) _dragPointer = event.position;
+      },
+      onPointerUp: (_) => _dragPointer = null,
+      onPointerCancel: (_) => _dragPointer = null,
+      child: ColoredBox(
+        color: _SchedulePalette.background,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                key: _pageViewportKey,
+                builder: (context, viewport) {
+                  final horizontalInset = viewport.maxWidth < 700 ? 16.0 : 24.0;
+                  return ListView(
+                    controller: _pageScrollController,
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalInset,
+                      20,
+                      horizontalInset,
+                      32,
+                    ),
+                    children: [
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1440),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _toolbar(
+                                context,
+                                classId,
+                                teacherId,
+                                roomId,
+                                visible,
+                                solving,
+                              ),
+                              const SizedBox(height: 16),
+                              if (widget.state.error case final error?) ...[
+                                AppInlineMessage(
+                                  message: error,
+                                  icon: Icons.error_outline,
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                              if (widget.state.backupWarning
+                                  case final warning?) ...[
+                                AppInlineMessage(
+                                  message: warning,
+                                  icon: Icons.warning_amber_outlined,
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final grid = _TimetableGrid(
+                                    snapshot: snapshot,
+                                    items: visible,
+                                    allItems: items,
+                                    view: _view,
+                                    week: _week,
+                                    selectedClassId: classId,
+                                    editable: editable,
+                                    draggedItemId: _draggedItemId,
+                                    scrollController: _gridScrollController,
+                                    viewportKey: _gridViewportKey,
+                                    onPreviewMove: widget.onPreviewMove,
+                                    onMove: widget.onMove,
+                                  );
+                                  final rail = _RightRail(
+                                    snapshot: snapshot,
+                                    state: widget.state,
+                                    week: _week,
+                                    onRefresh: widget.onRefresh,
+                                    onReport: widget.onReport,
+                                    onDetectionReport: widget.onDetectionReport,
+                                    editable: editable,
+                                    draggedItemId: _draggedItemId,
+                                    groupBySubject: _groupUnplacedBySubject,
+                                    onToggleGrouping: () => setState(
+                                      () => _groupUnplacedBySubject =
+                                          !_groupUnplacedBySubject,
+                                    ),
+                                    onPreviewMove: widget.onPreviewMove,
+                                    onMove: widget.onMove,
+                                  );
+                                  if (constraints.maxWidth < 1100) {
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        grid,
+                                        const SizedBox(height: 16),
+                                        rail,
+                                      ],
+                                    );
+                                  }
+                                  return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: grid),
+                                      const SizedBox(width: 16),
+                                      SizedBox(width: 264, child: rail),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            if (solving || widget.state.status == SchedulingStatus.completed)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1440),
+                    child: _taskBar(context),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _matchesWeek(ScheduleItem item) => switch (_week) {
+    _WeekView.merged => true,
+    _WeekView.odd => item.weekMode != WeekMode.even,
+    _WeekView.even => item.weekMode != WeekMode.odd,
+  };
+
+  Widget _toolbar(
+    BuildContext context,
+    String? classId,
+    String? teacherId,
+    String? roomId,
+    List<ScheduleItem> visible,
+    bool solving,
+  ) {
+    final snapshot = widget.snapshot;
+    final lockedClasses = snapshot.locks
+        .where((lock) => lock.scope == ScheduleLockScope.schoolClass)
+        .map((lock) => lock.targetId)
+        .toSet();
+    final lockedTeachers = snapshot.locks
+        .where((lock) => lock.scope == ScheduleLockScope.teacher)
+        .map((lock) => lock.targetId)
+        .toSet();
+    final scopeLocked = switch (_view) {
+      _ScheduleView.schoolClass => lockedClasses.contains(classId),
+      _ScheduleView.teacher => lockedTeachers.contains(teacherId),
+      _ScheduleView.all =>
+        snapshot.classes.isNotEmpty &&
+            snapshot.classes.every((item) => lockedClasses.contains(item.id)),
+      _ScheduleView.room => false,
+    };
+    final selector = switch (_view) {
+      _ScheduleView.schoolClass => AppSelectField<String>(
+        key: const ValueKey('schedule-class-selector'),
+        items: _uniqueSelectorItems(
+          snapshot.classes.map(
+            (item) => (
+              '${_stageName(snapshot, item.id)} · ${_gradeName(snapshot, item.id)} ${item.name}',
+              item.id,
+            ),
+          ),
+        ),
+        value: classId,
+        onChanged: (value) => setState(() => _classId = value),
+        hint: '选择班级',
+      ),
+      _ScheduleView.teacher => AppSelectField<String>(
+        key: const ValueKey('schedule-teacher-selector'),
+        items: _uniqueSelectorItems(
+          snapshot.teachers.map((item) => (item.displayName, item.id)),
+        ),
+        value: teacherId,
+        onChanged: (value) => setState(() => _teacherId = value),
+        hint: '选择教师',
+      ),
+      _ScheduleView.room => AppSelectField<String>(
+        key: const ValueKey('schedule-room-selector'),
+        items: _uniqueSelectorItems(
+          snapshot.rooms.map((item) => (item.name, item.id)),
+        ),
+        value: roomId,
+        onChanged: (value) => setState(() => _roomId = value),
+        hint: '选择场室',
+      ),
+      _ScheduleView.all => const SizedBox.shrink(),
+    };
+    final navigation = Wrap(
+      spacing: 2,
+      runSpacing: 8,
+      children: [
+        for (final entry in const [
+          (_ScheduleView.schoolClass, '班级课程表'),
+          (_ScheduleView.teacher, '教师课程表'),
+          (_ScheduleView.all, '总课程表'),
+          (_ScheduleView.room, '场室课程表'),
+        ])
+          _viewTab(context, entry.$1, entry.$2),
+      ],
+    );
+    final startButton = AppPrimaryButton.icon(
+      onPressed: solving ? null : widget.onStart,
+      icon: const Icon(Icons.auto_awesome_outlined, size: 16),
+      label: const Text('自动排课'),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) => constraints.maxWidth >= 820
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: navigation),
+                    const SizedBox(width: 20),
+                    startButton,
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    navigation,
+                    const SizedBox(height: 16),
+                    startButton,
+                  ],
+                ),
+        ),
+        const SizedBox(height: 13),
+        const Divider(height: 1, color: _SchedulePalette.border),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _SchedulePalette.surface,
+            border: Border.all(color: _SchedulePalette.border),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D1F1E1A),
+                blurRadius: 2,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              if (_view != _ScheduleView.all)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _controlLabel(context, switch (_view) {
+                      _ScheduleView.schoolClass => '班级',
+                      _ScheduleView.teacher => '教师',
+                      _ScheduleView.room => '场室',
+                      _ScheduleView.all => '',
+                    }),
+                    const SizedBox(width: 8),
+                    SizedBox(width: 230, child: selector),
+                  ],
+                ),
+              if (_view != _ScheduleView.all) _toolbarDivider(),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _controlLabel(context, '周别'),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECF0F6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final entry in const [
+                          (_WeekView.merged, '合并'),
+                          (_WeekView.odd, '单周'),
+                          (_WeekView.even, '双周'),
+                        ])
+                          _weekSegment(entry.$1, entry.$2),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              _toolbarDivider(),
+              Wrap(
+                spacing: 2,
+                runSpacing: 4,
+                children: [
+                  AppGhostButton.icon(
+                    onPressed: solving || widget.state.undoCount == 0
+                        ? null
+                        : widget.onUndo,
+                    icon: const Icon(Icons.undo, size: 16),
+                    label: const Text('撤销'),
+                  ),
+                  AppGhostButton.icon(
+                    onPressed: solving || widget.state.redoCount == 0
+                        ? null
+                        : widget.onRedo,
+                    icon: const Icon(Icons.redo, size: 16),
+                    label: const Text('重做'),
+                  ),
+                ],
+              ),
+              _toolbarDivider(),
+              Wrap(
+                spacing: 2,
+                runSpacing: 4,
+                children: [
+                  if (_view != _ScheduleView.room)
+                    AppGhostButton.icon(
+                      onPressed: solving
+                          ? null
+                          : () {
+                              if (_view == _ScheduleView.all) {
+                                unawaited(widget.onSetAllLocks(!scopeLocked));
+                                return;
+                              }
+                              final id = _view == _ScheduleView.schoolClass
+                                  ? classId
+                                  : teacherId;
+                              if (id == null) return;
+                              unawaited(
+                                widget.onSetLock(
+                                  ScheduleLock(
+                                    termId: snapshot.term.id,
+                                    scope: _view == _ScheduleView.schoolClass
+                                        ? ScheduleLockScope.schoolClass
+                                        : ScheduleLockScope.teacher,
+                                    targetId: id,
+                                  ),
+                                  !scopeLocked,
+                                ),
+                              );
+                            },
+                      icon: Icon(
+                        scopeLocked
+                            ? Icons.lock_outline
+                            : Icons.lock_open_outlined,
+                        size: 16,
+                        color: scopeLocked ? context.appColors.warning : null,
+                      ),
+                      label: Text(
+                        scopeLocked ? '已锁定' : '锁定',
+                        style: TextStyle(
+                          color: scopeLocked ? context.appColors.warning : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              _toolbarDivider(),
+              Wrap(
+                spacing: 2,
+                runSpacing: 4,
+                children: [
+                  AppGhostButton.icon(
+                    onPressed: solving ? null : widget.onRefresh,
+                    icon: const Icon(Icons.fact_check_outlined, size: 16),
+                    label: const Text('检测'),
+                  ),
+                  AppGhostButton.icon(
+                    onPressed: solving ? null : widget.onRules,
+                    icon: const Icon(Icons.tune_outlined, size: 16),
+                    label: const Text('规则'),
+                  ),
+                ],
+              ),
+              _toolbarDivider(),
+              Wrap(
+                spacing: 2,
+                runSpacing: 4,
+                children: [
+                  AppGhostButton.icon(
+                    onPressed: visible.isEmpty
+                        ? null
+                        : () => widget.onExport(
+                            visible,
+                            '${_viewLabel(_view)} · ${_weekLabel(_week)}',
+                          ),
+                    icon: const Icon(Icons.ios_share_outlined, size: 16),
+                    label: const Text('导出/打印'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _viewTab(BuildContext context, _ScheduleView view, String label) {
+    final selected = _view == view;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppGhostButton(
+          onPressed: () => setState(() => _view = view),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected
+                  ? context.appColors.ink
+                  : context.appColors.inkSecondary,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          height: 3,
+          width: 48,
+          decoration: BoxDecoration(
+            color: selected ? _SchedulePalette.blue : Colors.transparent,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _controlLabel(BuildContext context, String label) => Text(
+    label,
+    style: const TextStyle(
+      color: _SchedulePalette.muted,
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+    ),
+  );
+
+  Widget _toolbarDivider() =>
+      Container(width: 1, height: 20, color: _SchedulePalette.border);
+
+  Widget _weekSegment(_WeekView value, String label) {
+    final selected = _week == value;
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => setState(() => _week = value),
+      child: Container(
+        height: 26,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: selected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x1F1F1E1A),
+                    blurRadius: 3,
+                    offset: Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? _SchedulePalette.ink : _SchedulePalette.secondary,
+            fontSize: 12.5,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _taskBar(BuildContext context) {
+    final state = widget.state;
+    final completed = state.status == SchedulingStatus.completed;
+    final report = state.run?.report;
+    final fraction = state.progress?.fraction.clamp(0.0, 1.0) ?? 0.0;
+    final selected = state.selectedClassIds.length;
+    final total = widget.snapshot.classes.length;
+    return AppSurface(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 8,
+          children: [
+            Icon(
+              completed ? Icons.check_circle_outline : Icons.autorenew,
+              color: completed
+                  ? context.appColors.success
+                  : context.appColors.blue,
+              size: 20,
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 470),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    completed
+                        ? '排课完成 · 已选 $selected/$total 个班级'
+                        : '正在自动排课 · 已选 $selected/$total 个班级',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  if (completed)
+                    Text(
+                      '已排 ${report?.placedItems ?? 0}/${report?.totalItems ?? 0} 节 · '
+                      '未排 ${report?.unplaced.length ?? 0} 节进入暂放区',
+                      style: TextStyle(
+                        color: context.appColors.inkSecondary,
+                        fontSize: 12,
+                      ),
+                    )
+                  else
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 170,
+                          child: FDeterminateProgress(value: fraction),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${(fraction * 100).toStringAsFixed(0)}% · '
+                          '已检查 ${state.progress?.candidateChecks ?? 0} 个候选',
+                          style: TextStyle(
+                            color: context.appColors.inkSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            if (completed) ...[
+              AppSecondaryButton(
+                onPressed: widget.onReport,
+                child: const Text('查看未排课程报告'),
+              ),
+              AppPrimaryButton(
+                onPressed: widget.onDone,
+                child: const Text('完成'),
+              ),
+            ] else
+              AppSecondaryButton(
+                onPressed: state.status == SchedulingStatus.solving
+                    ? widget.onCancel
+                    : null,
+                child: const Text('取消排课'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimetableGrid extends StatelessWidget {
+  const _TimetableGrid({
+    required this.snapshot,
+    required this.items,
+    required this.allItems,
+    required this.view,
+    required this.week,
+    required this.selectedClassId,
+    required this.editable,
+    required this.draggedItemId,
+    required this.scrollController,
+    required this.viewportKey,
+    required this.onPreviewMove,
+    required this.onMove,
+  });
+
+  final SchedulingSnapshot snapshot;
+  final List<ScheduleItem> items;
+  final List<ScheduleItem> allItems;
+  final _ScheduleView view;
+  final _WeekView week;
+  final String? selectedClassId;
+  final bool editable;
+  final ValueNotifier<String?> draggedItemId;
+  final ScrollController scrollController;
+  final GlobalKey viewportKey;
+  final ManualMoveResult Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onPreviewMove;
+  final Future<ManualMoveResult> Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onMove;
+
+  @override
+  Widget build(BuildContext context) {
+    final stageId = view == _ScheduleView.schoolClass && selectedClassId != null
+        ? snapshot.stageIdForClass(selectedClassId!)
+        : null;
+    final routines = snapshot.routines
+        .where((routine) => stageId == null || routine.stageId == stageId)
+        .toList();
+    final days =
+        routines.expand((routine) => routine.teachingWeekdays).toSet().toList()
+          ..sort();
+    final rows = <String, _GridRow>{};
+    for (final routine in routines) {
+      for (final period in routine.periodTypes) {
+        for (final day in routine.teachingWeekdays) {
+          final count = routine.effectiveLessonCount(period.id, day);
+          for (var index = 1; index <= count; index++) {
+            final key = '${routine.stageId}:${period.id}:$index';
+            rows.putIfAbsent(
+              key,
+              () => _GridRow(
+                routine.stageId,
+                period.id,
+                period.name,
+                index,
+                period.sortOrder,
+                routines.indexOf(routine),
+                period.lessonTimes
+                    .where((time) => time.lessonIndex == index)
+                    .firstOrNull
+                    ?.startMinute,
+              ),
+            );
+          }
+        }
+      }
+    }
+    final orderedRows = rows.values.toList()
+      ..sort((a, b) {
+        if (view == _ScheduleView.teacher || view == _ScheduleView.room) {
+          final clockOrder = (a.startMinute ?? 1440).compareTo(
+            b.startMinute ?? 1440,
+          );
+          if (clockOrder != 0) return clockOrder;
+        }
+        final stageOrder = a.stageOrder.compareTo(b.stageOrder);
+        if (stageOrder != 0) return stageOrder;
+        final order = a.sortOrder.compareTo(b.sortOrder);
+        return order != 0 ? order : a.lessonIndex.compareTo(b.lessonIndex);
+      });
+    final stageNames = {
+      for (final stage in snapshot.stages) stage.id: stage.name,
+    };
+    final classNames = {
+      for (final item in snapshot.classes) item.id: item.name,
+    };
+    final subjectNames = {
+      for (final item in snapshot.subjects) item.id: item.name,
+    };
+    final teacherNames = {
+      for (final item in snapshot.teachers) item.id: item.displayName,
+    };
+    final itemsByCell = <String, List<ScheduleItem>>{};
+    for (final item in items) {
+      final position = item.position!;
+      final key =
+          '${position.stageId}:${position.weekday}:${position.periodTypeId}:${position.lessonIndex}';
+      itemsByCell.putIfAbsent(key, () => []).add(item);
+    }
+    return Container(
+      decoration: _SchedulePalette.panel(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Text(
+                  '课表安排',
+                  style: TextStyle(
+                    color: _SchedulePalette.ink,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    '${_viewLabel(view)} · ${_weekLabel(week)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _SchedulePalette.muted,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${items.length} 节课',
+                  style: const TextStyle(
+                    color: _SchedulePalette.muted,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (days.isEmpty || orderedRows.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text('尚未设置可上课的节次。请先完成作息设置。'),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  key: viewportKey,
+                  controller: scrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: math.max(constraints.maxWidth, 680),
+                    child: ValueListenableBuilder<String?>(
+                      valueListenable: draggedItemId,
+                      builder: (context, draggedId, _) {
+                        final tableRows = <TableRow>[
+                          TableRow(
+                            children: [
+                              _tableCell(context, '节次', header: true),
+                              for (final day in days)
+                                _tableCell(
+                                  context,
+                                  _dayLabel(day),
+                                  header: true,
+                                ),
+                            ],
+                          ),
+                        ];
+                        for (
+                          var index = 0;
+                          index < orderedRows.length;
+                          index++
+                        ) {
+                          final row = orderedRows[index];
+                          if (view == _ScheduleView.schoolClass &&
+                              index > 0 &&
+                              _isLunchTransition(orderedRows[index - 1], row)) {
+                            tableRows.add(_lunchRow(days.length));
+                          }
+                          tableRows.add(
+                            TableRow(
+                              children: [
+                                _periodCell(
+                                  row,
+                                  stageName: routines.length > 1
+                                      ? stageNames[row.stageId]
+                                      : null,
+                                ),
+                                for (final day in days)
+                                  _dropCell(
+                                    context,
+                                    day,
+                                    row,
+                                    itemsByCell['${row.stageId}:$day:${row.periodTypeId}:${row.lessonIndex}'] ??
+                                        const [],
+                                    classNames,
+                                    subjectNames,
+                                    teacherNames,
+                                    draggedId,
+                                  ),
+                              ],
+                            ),
+                          );
+                        }
+                        return Table(
+                          columnWidths: const {0: FixedColumnWidth(92)},
+                          defaultColumnWidth: const FlexColumnWidth(),
+                          defaultVerticalAlignment:
+                              TableCellVerticalAlignment.top,
+                          children: tableRows,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tableCell(BuildContext context, String text, {bool header = false}) =>
+      Padding(
+        padding: const EdgeInsets.fromLTRB(3, 3, 3, 3),
+        child: Container(
+          constraints: BoxConstraints(minHeight: header ? 34 : 54),
+          alignment: header ? Alignment.center : Alignment.centerLeft,
+          padding: EdgeInsets.symmetric(horizontal: header ? 4 : 2),
+          child: Text(
+            text,
+            textAlign: header ? TextAlign.center : TextAlign.left,
+            style: TextStyle(
+              height: 1.4,
+              fontSize: header ? 12 : 11.5,
+              color: header ? _SchedulePalette.secondary : _SchedulePalette.ink,
+              fontWeight: header ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+
+  Widget _periodCell(_GridRow row, {String? stageName}) => TableCell(
+    verticalAlignment: TableCellVerticalAlignment.fill,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(2, 3, 8, 3),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            stageName == null
+                ? _shortPeriodName(row.periodName)
+                : '$stageName · ${_shortPeriodName(row.periodName)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _SchedulePalette.ink,
+              fontSize: stageName == null ? 12 : 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _SchedulePalette.muted,
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  bool _isLunchTransition(_GridRow before, _GridRow after) =>
+      before.stageId == after.stageId &&
+      (before.periodName.contains('上午') ||
+          before.periodName.contains('早上') ||
+          (before.startMinute != null && before.startMinute! < 12 * 60)) &&
+      (after.periodName.contains('下午') ||
+          (after.startMinute != null &&
+              after.startMinute! >= 12 * 60 &&
+              after.startMinute! < 18 * 60));
+
+  TableRow _lunchRow(int dayCount) => TableRow(
+    decoration: BoxDecoration(
+      color: _SchedulePalette.surfaceSoft,
+      borderRadius: BorderRadius.circular(6),
+    ),
+    children: [
+      const SizedBox(height: 26),
+      for (var day = 0; day < dayCount; day++)
+        SizedBox(
+          height: 26,
+          child: day == dayCount ~/ 2
+              ? const Center(
+                  child: Text(
+                    '午 休',
+                    style: TextStyle(
+                      color: _SchedulePalette.muted,
+                      fontSize: 11.5,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                )
+              : null,
+        ),
+    ],
+  );
+
+  Widget _dropCell(
+    BuildContext context,
+    int weekday,
+    _GridRow row,
+    List<ScheduleItem> cellItems,
+    Map<String, String> classNames,
+    Map<String, String> subjectNames,
+    Map<String, String> teacherNames,
+    String? draggedId,
+  ) {
+    Widget content() =>
+        _lessonCell(cellItems, classNames, subjectNames, teacherNames);
+    if (!editable) return content();
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) {
+        final target = _targetFor(details.data, weekday, row);
+        if (target == null) return false;
+        final swapWithItemId = cellItems.length == 1
+            ? cellItems.single.id
+            : null;
+        final preview = onPreviewMove(details.data, target, swapWithItemId);
+        return preview.allowed && preview.changedItemIds.isNotEmpty;
+      },
+      onAcceptWithDetails: (details) {
+        final target = _targetFor(details.data, weekday, row);
+        final swapWithItemId = cellItems.length == 1
+            ? cellItems.single.id
+            : null;
+        if (target == null) return;
+        final preview = onPreviewMove(details.data, target, swapWithItemId);
+        if (preview.allowed && preview.changedItemIds.isNotEmpty) {
+          unawaited(onMove(details.data, target, swapWithItemId));
+        }
+      },
+      builder: (context, candidates, rejected) {
+        final itemId = [...candidates, ...rejected].firstOrNull;
+        final sourceId = itemId ?? draggedId;
+        final target = sourceId == null
+            ? null
+            : _targetFor(sourceId, weekday, row);
+        final preview = sourceId == null || target == null
+            ? null
+            : onPreviewMove(
+                sourceId,
+                target,
+                cellItems.length == 1 ? cellItems.single.id : null,
+              );
+        final canDrop =
+            preview?.allowed == true && preview!.changedItemIds.isNotEmpty;
+        final hint = target == null
+            ? '该班级没有此节次'
+            : canDrop
+            ? '可以调入'
+            : preview?.allowed == true
+            ? '课程已在当前课位'
+            : preview?.blockers.firstOrNull?.message ?? '此位置不可调入';
+        return _DropCellFeedback(
+          active: itemId != null,
+          dragging: sourceId != null,
+          allowed: canDrop,
+          message: hint,
+          child: content(),
+        );
+      },
+    );
+  }
+
+  SchedulePosition? _targetFor(String itemId, int weekday, _GridRow row) {
+    final source = allItems.where((item) => item.id == itemId).firstOrNull;
+    if (source == null) return null;
+    final routine = snapshot.routines
+        .where((item) => item.stageId == row.stageId)
+        .firstOrNull;
+    if (routine == null || !routine.teachingWeekdays.contains(weekday)) {
+      return null;
+    }
+    final period = routine.periodTypes
+        .where((item) => item.id == row.periodTypeId)
+        .firstOrNull;
+    if (period == null ||
+        row.lessonIndex > routine.effectiveLessonCount(period.id, weekday)) {
+      return null;
+    }
+    final time = period.lessonTimes
+        .where((item) => item.lessonIndex == row.lessonIndex)
+        .firstOrNull;
+    return SchedulePosition(
+      stageId: row.stageId,
+      weekday: weekday,
+      periodTypeId: period.id,
+      lessonIndex: row.lessonIndex,
+      startMinute: time?.startMinute,
+      endMinute: time?.endMinute,
+    );
+  }
+
+  Widget _lessonCell(
+    List<ScheduleItem> cellItems,
+    Map<String, String> classNames,
+    Map<String, String> subjectNames,
+    Map<String, String> teacherNames,
+  ) {
+    if (cellItems.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(3),
+        child: CustomPaint(
+          painter: const _DashedOutline(),
+          child: const SizedBox(height: 54),
+        ),
+      );
+    }
+    final first = cellItems.first;
+    final colorIndex = _SchedulePalette.subjectColorIndex(
+      first.subjectId,
+      subjectNames[first.subjectId],
+    );
+    final sameMeeting =
+        first.meetingId != null &&
+        cellItems.every((item) => item.meetingId == first.meetingId);
+    final wholeCellDrag =
+        view != _ScheduleView.all &&
+        cellItems.length <= 3 &&
+        (cellItems.length == 1 || sameMeeting);
+    final card = Padding(
+      padding: const EdgeInsets.all(3),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 54),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: _SchedulePalette.lessonBackgrounds[colorIndex],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: view == _ScheduleView.all || cellItems.length > 3
+              ? [
+                  _AllLessonsCell(
+                    items: cellItems,
+                    classNames: classNames,
+                    subjectNames: subjectNames,
+                    teacherNames: teacherNames,
+                    editable: editable,
+                    draggedItemId: draggedItemId,
+                    onPreviewMove: onPreviewMove,
+                    onMove: onMove,
+                  ),
+                ]
+              : [
+                  for (final item in cellItems.take(3)) ...[
+                    if (item != first) const SizedBox(height: 5),
+                    if (wholeCellDrag)
+                      _lessonSummary(
+                        '${_weekPrefix(item)}${switch (view) {
+                          _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
+                          _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
+                          _ScheduleView.all => '',
+                        }}',
+                        switch (view) {
+                          _ScheduleView.schoolClass =>
+                            teacherNames[item.teacherId] ?? item.teacherId,
+                          _ScheduleView.teacher =>
+                            subjectNames[item.subjectId] ?? item.subjectId,
+                          _ScheduleView.room =>
+                            classNames[item.classId] ?? item.classId,
+                          _ScheduleView.all => '',
+                        },
+                        _SchedulePalette.lessonForegrounds[colorIndex],
+                      )
+                    else
+                      _draggableItem(
+                        item,
+                        '${classNames[item.classId] ?? item.classId} · ${subjectNames[item.subjectId] ?? item.subjectId}',
+                        _lessonSummary(
+                          '${_weekPrefix(item)}${switch (view) {
+                            _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
+                            _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
+                            _ScheduleView.all => '',
+                          }}',
+                          switch (view) {
+                            _ScheduleView.schoolClass =>
+                              teacherNames[item.teacherId] ?? item.teacherId,
+                            _ScheduleView.teacher =>
+                              subjectNames[item.subjectId] ?? item.subjectId,
+                            _ScheduleView.room =>
+                              classNames[item.classId] ?? item.classId,
+                            _ScheduleView.all => '',
+                          },
+                          _SchedulePalette.lessonForegrounds[colorIndex],
+                        ),
+                        _SchedulePalette.lessonBackgrounds[colorIndex],
+                      ),
+                  ],
+                ],
+        ),
+      ),
+    );
+    if (!wholeCellDrag || !editable) return card;
+    return _draggableItem(
+      first,
+      '${classNames[first.classId] ?? first.classId} · ${subjectNames[first.subjectId] ?? first.subjectId}',
+      card,
+      _SchedulePalette.lessonBackgrounds[colorIndex],
+    );
+  }
+
+  Widget _draggableItem(
+    ScheduleItem item,
+    String label,
+    Widget child,
+    Color feedbackColor,
+  ) {
+    if (!editable) return child;
+    return _LessonDragHandle(
+      item: item,
+      label: label,
+      feedbackColor: feedbackColor,
+      draggedItemId: draggedItemId,
+      onPreviewMove: onPreviewMove,
+      onMove: onMove,
+      child: SizedBox(width: double.infinity, child: child),
+    );
+  }
+
+  Widget _lessonSummary(String headline, String detail, Color foreground) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            headline,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            detail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: foreground.withValues(alpha: .72),
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      );
+}
+
+class _LessonDragHandle extends StatefulWidget {
+  const _LessonDragHandle({
+    required this.item,
+    required this.label,
+    required this.feedbackColor,
+    required this.draggedItemId,
+    required this.onPreviewMove,
+    required this.onMove,
+    required this.child,
+  });
+
+  final ScheduleItem item;
+  final String label;
+  final Color feedbackColor;
+  final ValueNotifier<String?> draggedItemId;
+  final ManualMoveResult Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onPreviewMove;
+  final Future<ManualMoveResult> Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onMove;
+  final Widget child;
+
+  @override
+  State<_LessonDragHandle> createState() => _LessonDragHandleState();
+}
+
+class _LessonDragHandleState extends State<_LessonDragHandle> {
+  bool _hovered = false;
+  Offset _menuOffset = Offset.zero;
+
+  void _showContextMenu(TapDownDetails details, FPopoverController controller) {
+    setState(() => _menuOffset = details.localPosition);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(controller.show());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lesson = Container(
+      decoration: BoxDecoration(
+        color: _hovered ? _SchedulePalette.blue.withValues(alpha: .08) : null,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      foregroundDecoration: _hovered
+          ? BoxDecoration(
+              border: Border.all(
+                color: _SchedulePalette.blue.withValues(alpha: .72),
+                width: 1.5,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : null,
+      child: widget.child,
+    );
+    return FPopoverMenu(
+      menuAnchor: Alignment.topLeft,
+      childAnchor: Alignment.topLeft,
+      offset: _menuOffset,
+      menuBuilder: (context, controller, menu) {
+        final preview = widget.onPreviewMove(widget.item.id, null, null);
+        return [
+          FItemGroup(
+            divider: .none,
+            children: [
+              AppMenuTile(
+                item: AppMenuItem(
+                  label: '移到暂放区',
+                  enabled: preview.allowed,
+                  onPressed: () {
+                    unawaited(controller.hide());
+                    unawaited(widget.onMove(widget.item.id, null, null));
+                  },
+                ),
+              ),
+              if (!preview.allowed)
+                FItem.raw(
+                  onPress: null,
+                  child: SizedBox(
+                    width: 220,
+                    child: Text(
+                      preview.blockers.firstOrNull?.message ?? '这节课不能暂放',
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.appColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ];
+      },
+      builder: (context, controller, child) => MouseRegion(
+        cursor: SystemMouseCursors.grab,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onSecondaryTapDown: widget.item.isPlaced
+              ? (details) => _showContextMenu(details, controller)
+              : null,
+          child: Draggable<String>(
+            data: widget.item.id,
+            onDragStarted: () => widget.draggedItemId.value = widget.item.id,
+            onDragEnd: (_) {
+              if (widget.draggedItemId.value == widget.item.id) {
+                widget.draggedItemId.value = null;
+              }
+            },
+            feedback: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 176,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.feedbackColor,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .12),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  widget.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _SchedulePalette.ink,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            childWhenDragging: Opacity(opacity: .35, child: lesson),
+            child: lesson,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DropCellFeedback extends StatefulWidget {
+  const _DropCellFeedback({
+    required this.active,
+    required this.dragging,
+    required this.allowed,
+    required this.message,
+    required this.child,
+  });
+
+  final bool active;
+  final bool dragging;
+  final bool allowed;
+  final String message;
+  final Widget child;
+
+  @override
+  State<_DropCellFeedback> createState() => _DropCellFeedbackState();
+}
+
+class _DropCellFeedbackState extends State<_DropCellFeedback> {
+  final _layerLink = LayerLink();
+  OverlayEntry? _hintEntry;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _scheduleOverlayUpdate();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DropCellFeedback oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active != oldWidget.active ||
+        widget.allowed != oldWidget.allowed ||
+        widget.message != oldWidget.message) {
+      _scheduleOverlayUpdate();
+    }
+  }
+
+  void _scheduleOverlayUpdate() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.active) {
+        _showHint();
+      } else {
+        _hideHint();
+      }
+    });
+  }
+
+  void _showHint() {
+    if (_hintEntry != null) {
+      _hintEntry!.markNeedsBuild();
+      return;
+    }
+    _hintEntry = OverlayEntry(
+      builder: (context) {
+        final color = widget.allowed
+            ? _SchedulePalette.success
+            : _SchedulePalette.warning;
+        return Positioned(
+          left: 0,
+          top: 0,
+          child: IgnorePointer(
+            child: CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.topCenter,
+              followerAnchor: Alignment.bottomCenter,
+              offset: const Offset(0, -4),
+              child: _DropHintBubble(
+                message: widget.message,
+                color: color,
+                allowed: widget.allowed,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    Overlay.of(context, rootOverlay: true).insert(_hintEntry!);
+  }
+
+  void _hideHint() {
+    _hintEntry?.remove();
+    _hintEntry?.dispose();
+    _hintEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _hideHint();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.allowed
+        ? _SchedulePalette.success
+        : widget.active
+        ? _SchedulePalette.warning
+        : _SchedulePalette.borderStrong;
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          widget.child,
+          if (widget.dragging)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  margin: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: widget.allowed
+                        ? _SchedulePalette.success.withValues(alpha: .08)
+                        : _SchedulePalette.surfaceSoft.withValues(alpha: .88),
+                    border: Border.all(
+                      color: color,
+                      width: widget.active ? 1.8 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: widget.allowed
+                      ? null
+                      : Align(
+                          alignment: Alignment.topRight,
+                          child: Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: Icon(
+                              Icons.block_outlined,
+                              size: 15,
+                              color: _SchedulePalette.muted.withValues(
+                                alpha: .85,
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DropHintBubble extends StatelessWidget {
+  const _DropHintBubble({
+    required this.message,
+    required this.color,
+    required this.allowed,
+  });
+
+  final String message;
+  final Color color;
+  final bool allowed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          constraints: const BoxConstraints(maxWidth: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: color.withValues(alpha: .55)),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                allowed ? Icons.check_circle_outline : Icons.info_outline,
+                size: 16,
+                color: color,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  message,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _SchedulePalette.ink,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        CustomPaint(
+          size: const Size(12, 7),
+          painter: _BubbleTailPainter(color),
+        ),
+      ],
+    ),
+  );
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  const _BubbleTailPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color.withValues(alpha: .55)
+        ..strokeWidth = 1
+        ..style = PaintingStyle.stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubbleTailPainter oldDelegate) =>
+      color != oldDelegate.color;
+}
+
+class _GridRow {
+  const _GridRow(
+    this.stageId,
+    this.periodTypeId,
+    this.periodName,
+    this.lessonIndex,
+    this.sortOrder,
+    this.stageOrder,
+    this.startMinute,
+  );
+  final String stageId;
+  final String periodTypeId;
+  final String periodName;
+  final int lessonIndex;
+  final int sortOrder;
+  final int stageOrder;
+  final int? startMinute;
+}
+
+class _DashedOutline extends CustomPainter {
+  const _DashedOutline({this.color = _SchedulePalette.border});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+      );
+    for (final metric in path.computeMetrics()) {
+      var offset = 0.0;
+      while (offset < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(offset, math.min(offset + 5, metric.length)),
+          paint,
+        );
+        offset += 9;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedOutline oldDelegate) =>
+      color != oldDelegate.color;
+}
+
+class _AllLessonsCell extends StatefulWidget {
+  const _AllLessonsCell({
+    required this.items,
+    required this.classNames,
+    required this.subjectNames,
+    required this.teacherNames,
+    required this.editable,
+    required this.draggedItemId,
+    required this.onPreviewMove,
+    required this.onMove,
+  });
+
+  final List<ScheduleItem> items;
+  final Map<String, String> classNames;
+  final Map<String, String> subjectNames;
+  final Map<String, String> teacherNames;
+  final bool editable;
+  final ValueNotifier<String?> draggedItemId;
+  final ManualMoveResult Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onPreviewMove;
+  final Future<ManualMoveResult> Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onMove;
+
+  @override
+  State<_AllLessonsCell> createState() => _AllLessonsCellState();
+}
+
+class _AllLessonsCellState extends State<_AllLessonsCell> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = _expanded
+        ? widget.items.length
+        : math.min(3, widget.items.length);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${widget.items.length} 节课程',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: math.min(count * 38.0, 220.0),
+          child: ListView.builder(
+            itemCount: count,
+            itemBuilder: (context, index) {
+              final item = widget.items[index];
+              final label =
+                  '${_weekPrefix(item)}${widget.classNames[item.classId] ?? item.classId} · ${widget.subjectNames[item.subjectId] ?? item.subjectId}';
+              final detail =
+                  widget.teacherNames[item.teacherId] ?? item.teacherId;
+              final child = Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.appColors.inkSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              if (!widget.editable) return child;
+              return _LessonDragHandle(
+                item: item,
+                label: label,
+                feedbackColor:
+                    _SchedulePalette
+                        .lessonBackgrounds[_SchedulePalette.subjectColorIndex(
+                      item.subjectId,
+                      widget.subjectNames[item.subjectId],
+                    )],
+                draggedItemId: widget.draggedItemId,
+                onPreviewMove: widget.onPreviewMove,
+                onMove: widget.onMove,
+                child: child,
+              );
+            },
+          ),
+        ),
+        if (widget.items.length > 3)
+          AppGhostButton(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            child: Text(_expanded ? '收起' : '查看全部 ${widget.items.length} 节'),
+          ),
+      ],
+    );
+  }
+}
+
+class _RightRail extends StatelessWidget {
+  const _RightRail({
+    required this.snapshot,
+    required this.state,
+    required this.week,
+    required this.onRefresh,
+    required this.onReport,
+    required this.onDetectionReport,
+    required this.editable,
+    required this.draggedItemId,
+    required this.groupBySubject,
+    required this.onToggleGrouping,
+    required this.onPreviewMove,
+    required this.onMove,
+  });
+
+  final SchedulingSnapshot snapshot;
+  final SchedulingState state;
+  final _WeekView week;
+  final VoidCallback onRefresh;
+  final VoidCallback onReport;
+  final VoidCallback onDetectionReport;
+  final bool editable;
+  final ValueNotifier<String?> draggedItemId;
+  final bool groupBySubject;
+  final VoidCallback onToggleGrouping;
+  final ManualMoveResult Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onPreviewMove;
+  final Future<ManualMoveResult> Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  onMove;
+
+  @override
+  Widget build(BuildContext context) {
+    final unplaced = state.items
+        .where(
+          (item) =>
+              !item.isPlaced &&
+              (week == _WeekView.merged ||
+                  (week == _WeekView.odd && item.weekMode != WeekMode.even) ||
+                  (week == _WeekView.even && item.weekMode != WeekMode.odd)),
+        )
+        .toList();
+    final blockers = {
+      for (final entry in state.run?.report.unplaced ?? const [])
+        entry.itemId: entry.blockers,
+    };
+    final classNames = {
+      for (final item in snapshot.classes) item.id: item.name,
+    };
+    final subjectNames = {
+      for (final item in snapshot.subjects) item.id: item.name,
+    };
+    final teacherNames = {
+      for (final item in snapshot.teachers) item.id: item.displayName,
+    };
+    unplaced.sort((a, b) {
+      final left = groupBySubject
+          ? '${subjectNames[a.subjectId]}:${classNames[a.classId]}'
+          : '${classNames[a.classId]}:${subjectNames[a.subjectId]}';
+      final right = groupBySubject
+          ? '${subjectNames[b.subjectId]}:${classNames[b.classId]}'
+          : '${classNames[b.classId]}:${subjectNames[b.subjectId]}';
+      return left.compareTo(right);
+    });
+    final preflightIssues = state.checks
+        .where((check) => !check.ready || check.code == 'capacity')
+        .toList();
+    final detectionIssues = state.detectionIssues;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DragTarget<String>(
+          onWillAcceptWithDetails: (details) =>
+              editable && onPreviewMove(details.data, null, null).allowed,
+          onAcceptWithDetails: (details) {
+            if (onPreviewMove(details.data, null, null).allowed) {
+              unawaited(onMove(details.data, null, null));
+            }
+          },
+          builder: (context, candidates, rejected) {
+            final itemId = [...candidates, ...rejected].firstOrNull;
+            final preview = itemId == null
+                ? null
+                : onPreviewMove(itemId, null, null);
+            final canDrop = preview?.allowed == true;
+            return _RailCard(
+              title: '暂放区',
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _SchedulePalette.surfaceSoft,
+                  border: Border.all(color: _SchedulePalette.border),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${unplaced.length} 节',
+                  style: const TextStyle(
+                    color: _SchedulePalette.secondary,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (itemId != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color:
+                            (canDrop
+                                    ? context.appColors.success
+                                    : context.appColors.warning)
+                                .withValues(alpha: .13),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        canDrop
+                            ? '松开后移入暂放区'
+                            : preview?.blockers.firstOrNull?.message ??
+                                  '这节课不能暂放',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (unplaced.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(minHeight: 96),
+                      decoration: BoxDecoration(
+                        color: _SchedulePalette.surfaceSoft,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const CustomPaint(
+                        painter: _DashedOutline(
+                          color: _SchedulePalette.borderStrong,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.file_upload_outlined,
+                              size: 22,
+                              color: _SchedulePalette.muted,
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              '拖拽课程卡片到此处暂存',
+                              style: TextStyle(
+                                color: _SchedulePalette.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    AppGhostButton(
+                      onPressed: onToggleGrouping,
+                      child: Text(groupBySubject ? '按班级排列' : '按科目聚合'),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: math.min(unplaced.length * 72.0, 320.0),
+                      child: ListView.builder(
+                        itemCount: unplaced.length,
+                        itemBuilder: (context, index) {
+                          final item = unplaced[index];
+                          final title =
+                              '${subjectNames[item.subjectId] ?? item.subjectId} · ${classNames[item.classId] ?? item.classId}';
+                          final detail =
+                              teacherNames[item.teacherId] ?? item.teacherId;
+                          final lesson = Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${_weekPrefix(item)}$title',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$detail · ${blockers[item.id]?.firstOrNull == null ? '手工暂放或尚未安排' : '上次自动排课：${blockers[item.id]!.first.message}'}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: context.appColors.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (!editable) return lesson;
+                          return MouseRegion(
+                            cursor: SystemMouseCursors.grab,
+                            child: Draggable<String>(
+                              data: item.id,
+                              onDragStarted: () =>
+                                  draggedItemId.value = item.id,
+                              onDragEnd: (_) {
+                                if (draggedItemId.value == item.id) {
+                                  draggedItemId.value = null;
+                                }
+                              },
+                              feedback: Material(
+                                color: Colors.transparent,
+                                child: Container(
+                                  width: 200,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: _SchedulePalette.surface,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: .12,
+                                        ),
+                                        blurRadius: 16,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(title),
+                                ),
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: .35,
+                                child: lesson,
+                              ),
+                              child: lesson,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    AppGhostButton(
+                      onPressed: onReport,
+                      child: const Text('查看未排课程报告'),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        _RailCard(
+          title: '检测结果',
+          trailing: AppGhostButton(
+            onPressed: onRefresh,
+            child: const Text('重新检测'),
+          ),
+          child: preflightIssues.isEmpty && detectionIssues.isEmpty
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: _SchedulePalette.success,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        state.detectionRan ? '未发现课表硬约束冲突' : '点击检测，核对整张课表',
+                        style: TextStyle(
+                          color: context.appColors.inkSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final message in [
+                      ...preflightIssues.map((check) => check.message),
+                      ...detectionIssues.map((issue) => issue.message),
+                    ].take(3))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 17,
+                              color: context.appColors.warning,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                message,
+                                style: TextStyle(
+                                  color: context.appColors.inkSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (preflightIssues.length + detectionIssues.length > 3)
+                      Text(
+                        '还有 ${preflightIssues.length + detectionIssues.length - 3} 项需要查看',
+                        style: TextStyle(
+                          color: context.appColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    if (detectionIssues.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      AppGhostButton(
+                        onPressed: onDetectionReport,
+                        child: Text('查看全部 ${detectionIssues.length} 项检测结果'),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RailCard extends StatelessWidget {
+  const _RailCard({required this.title, required this.child, this.trailing});
+
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: _SchedulePalette.panel(),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: _SchedulePalette.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    ),
+  );
+}
+
+String? _roomIdFor(SchedulingSnapshot snapshot, ScheduleItem item) {
+  final stageId = snapshot.stageIdForClass(item.classId);
+  final gradeId = snapshot.gradeIdForClass(item.classId);
+  if (stageId == null) return null;
+  return resolveSubjectRoomAssignment(
+    assignments: snapshot.roomAssignments,
+    subjectId: item.subjectId,
+    termId: snapshot.term.id,
+    stageId: stageId,
+    scope: FreeSlotScope.schoolClass,
+    scopeId: item.classId,
+    parentGradeId: gradeId,
+  )?.roomId;
+}
+
+String _stageName(SchedulingSnapshot snapshot, String classId) {
+  final stageId = snapshot.stageIdForClass(classId);
+  for (final stage in snapshot.stages) {
+    if (stage.id == stageId) return stage.name;
+  }
+  return '';
+}
+
+String _gradeName(SchedulingSnapshot snapshot, String classId) {
+  final gradeId = snapshot.gradeIdForClass(classId);
+  for (final grade in snapshot.grades) {
+    if (grade.id == gradeId) return grade.name;
+  }
+  return '';
+}
+
+String _viewLabel(_ScheduleView view) => switch (view) {
+  _ScheduleView.schoolClass => '班级课程表',
+  _ScheduleView.teacher => '教师课程表',
+  _ScheduleView.all => '总课程表',
+  _ScheduleView.room => '场室课程表',
+};
+
+String _weekLabel(_WeekView week) => switch (week) {
+  _WeekView.merged => '单双周合并',
+  _WeekView.odd => '单周',
+  _WeekView.even => '双周',
+};
+
+String _weekPrefix(ScheduleItem item) => switch (item.weekMode) {
+  WeekMode.weekly => '',
+  WeekMode.odd => '单周 · ',
+  WeekMode.even => '双周 · ',
+};
+
+String _dayLabel(int day) => switch (day) {
+  1 => '周一',
+  2 => '周二',
+  3 => '周三',
+  4 => '周四',
+  5 => '周五',
+  6 => '周六',
+  _ => '周日',
+};
+
+String _minuteLabel(int minute) =>
+    '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';
+
+String _shortPeriodName(String name) => name.endsWith('时段') && name.length > 2
+    ? name.substring(0, name.length - 2)
+    : name;
+
+Map<String, String> _uniqueSelectorItems(Iterable<(String, String)> entries) {
+  final items = <String, String>{};
+  for (final (rawLabel, id) in entries) {
+    final label = rawLabel.trim().isEmpty ? '未命名' : rawLabel.trim();
+    var uniqueLabel = label;
+    var number = 2;
+    while (items.containsKey(uniqueLabel)) {
+      uniqueLabel = '$label（$number）';
+      number++;
+    }
+    items[uniqueLabel] = id;
+  }
+  return items;
+}

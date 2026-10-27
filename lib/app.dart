@@ -279,7 +279,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
             AppSection.routines => '作息设置',
             AppSection.subjects => '科目节数',
             AppSection.teachers => '教师任课',
-            AppSection.scheduling => '自动排课',
+            AppSection.scheduling => '排课与课表',
             AppSection.publicRooms => '公共场室',
           };
           return Row(
@@ -516,7 +516,7 @@ class _Sidebar extends ConsumerWidget {
                       onTap: () => onNavigate(AppSection.teachers),
                     ),
                     _NavItem(
-                      label: '自动排课',
+                      label: '排课与课表',
                       icon: Icons.auto_awesome_outlined,
                       isCompact: compactContents,
                       isSelected: section == AppSection.scheduling,

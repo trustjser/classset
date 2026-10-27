@@ -15,6 +15,7 @@ import 'package:class_set/domain/models/schedule_run.dart' as domain;
 import 'package:class_set/domain/models/subject.dart' as domain;
 import 'package:class_set/domain/models/teacher_assignment.dart' as domain;
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart' as domain;
+import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
 import 'package:drift/drift.dart';
 
 /// Persistence boundary for scheduling. Existing school data is converted to
@@ -178,6 +179,136 @@ class DriftSchedulingRepository {
         );
       });
 
+  Future<domain.SchedulingSnapshot?> loadPendingSchedulingBaseline(
+    String termId,
+  ) async {
+    final row = await (_database.select(
+      _database.scheduleReconciliationBaselines,
+    )..where((entry) => entry.termId.equals(termId))).getSingleOrNull();
+    if (row == null) return null;
+    return domain.SchedulingSnapshot.fromJson(
+      (jsonDecode(row.snapshotJson) as Map).cast<String, Object?>(),
+    );
+  }
+
+  /// Called in the same transaction as a settings edit, before it can cascade
+  /// away assignments, periods, or timetable items.
+  Future<void> captureReconciliationBaselineIfNeeded(String termId) async {
+    final pending = await (_database.select(
+      _database.scheduleReconciliationBaselines,
+    )..where((entry) => entry.termId.equals(termId))).getSingleOrNull();
+    if (pending != null) return;
+    final firstItem =
+        await (_database.select(_database.scheduleItems)
+              ..where((item) => item.termId.equals(termId))
+              ..limit(1))
+            .getSingleOrNull();
+    if (firstItem == null) return;
+    final snapshot = await loadSchedulingSnapshot(termId);
+    await _database
+        .into(_database.scheduleReconciliationBaselines)
+        .insert(
+          ScheduleReconciliationBaselinesCompanion.insert(
+            termId: termId,
+            snapshotJson: jsonEncode(snapshot.toJson()),
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+  }
+
+  Future<ScheduleCommitResult> commitScheduleReconciliation({
+    required String termId,
+    required String expectedFingerprint,
+  }) async {
+    final baseline = await loadPendingSchedulingBaseline(termId);
+    if (baseline == null) throw StateError('没有待协调的课表变更');
+    final current = await loadSchedulingSnapshot(termId);
+    if (current.inputFingerprint != expectedFingerprint) {
+      throw StateError('排课设置已再次变化，请重新生成调整预览');
+    }
+    final preview = const ScheduleReconciler().preview(baseline, current);
+    if (!preview.canApply) {
+      throw StateError('任课或作息资料仍有待处理项，请先完成设置');
+    }
+    final backup = databasePath == null
+        ? null
+        : LocalBackupService(_database, File(databasePath!));
+    if (backup != null) {
+      await backup.createSnapshot(label: 'before-incremental-scheduling');
+    }
+    await _database.transaction(() async {
+      if (await _inputFingerprint() != expectedFingerprint) {
+        throw StateError('排课设置已再次变化，请重新生成调整预览');
+      }
+      final pending = await (_database.select(
+        _database.scheduleReconciliationBaselines,
+      )..where((entry) => entry.termId.equals(termId))).getSingleOrNull();
+      if (pending == null) throw StateError('待协调记录已失效，请刷新');
+      for (final entry in preview.assignmentLessonCounts.entries) {
+        if (entry.value == 0) {
+          await (_database.delete(_database.teacherAssignments)..where(
+                (row) => row.termId.equals(termId) & row.id.equals(entry.key),
+              ))
+              .go();
+        } else {
+          await (_database.update(_database.teacherAssignments)..where(
+                (row) => row.termId.equals(termId) & row.id.equals(entry.key),
+              ))
+              .write(
+                TeacherAssignmentsCompanion(lessonCount: Value(entry.value)),
+              );
+        }
+      }
+      for (final lock in preview.locksToRelease) {
+        final scope = lock.scope == domain.ScheduleLockScope.teacher
+            ? 'teacher'
+            : 'class';
+        await (_database.delete(_database.scheduleLocks)..where(
+              (row) =>
+                  row.termId.equals(termId) &
+                  row.scope.equals(scope) &
+                  row.targetId.equals(lock.targetId),
+            ))
+            .go();
+      }
+      await (_database.delete(
+        _database.scheduleItems,
+      )..where((row) => row.termId.equals(termId))).go();
+      for (final item in preview.items) {
+        final position = item.position;
+        await _database
+            .into(_database.scheduleItems)
+            .insert(
+              ScheduleItemsCompanion.insert(
+                id: item.id,
+                termId: item.termId,
+                assignmentId: item.assignmentId,
+                classId: item.classId,
+                teacherId: Value(item.teacherId),
+                subjectId: item.subjectId,
+                weekMode: Value(item.weekMode.storageValue),
+                combinedGroupId: Value(item.combinedGroupId),
+                meetingId: Value(item.meetingId),
+                stageId: Value(position?.stageId),
+                weekday: Value(position?.weekday),
+                periodTypeId: Value(position?.periodTypeId),
+                lessonIndex: Value(position?.lessonIndex),
+              ),
+            );
+      }
+      await (_database.delete(
+        _database.scheduleReconciliationBaselines,
+      )..where((entry) => entry.termId.equals(termId))).go();
+    });
+    if (backup == null) return const ScheduleCommitResult();
+    try {
+      await backup.createSnapshot(label: 'after-incremental-scheduling');
+      return const ScheduleCommitResult();
+    } on Object catch (error) {
+      return ScheduleCommitResult(backupWarning: '课表已保存，但自动备份失败：$error');
+    }
+  }
+
   Future<String> _inputFingerprint() async {
     // Two independent 32-bit rolling hashes give a stable, compact change
     // detector without adding a package dependency. Table names are fixed.
@@ -331,6 +462,35 @@ class DriftSchedulingRepository {
     for (final condition in conditions) {
       condition.validate();
     }
+    String conditionSignature(List<domain.ScheduleCondition> rows) {
+      final sorted = [...rows]..sort((a, b) => a.id.compareTo(b.id));
+      return jsonEncode([
+        for (final row in sorted)
+          [
+            row.id,
+            row.type.name,
+            row.name,
+            row.targetType?.name,
+            row.targetId,
+            row.otherTargetId,
+            row.periodTypeId,
+            row.weekday,
+            row.minimum,
+            row.maximum,
+            row.exact,
+          ],
+      ]);
+    }
+
+    final previousConditions = await _loadConditions(termId);
+    final previousPreferences = await _loadPreferences(termId);
+    if (conditionSignature(previousConditions) ==
+            conditionSignature(conditions) &&
+        jsonEncode(previousPreferences.toJson()) ==
+            jsonEncode(preferences.toJson())) {
+      return;
+    }
+    await captureReconciliationBaselineIfNeeded(termId);
     await (_database.delete(
       _database.scheduleConditions,
     )..where((row) => row.termId.equals(termId))).go();
@@ -372,28 +532,182 @@ class DriftSchedulingRepository {
   Future<void> setScheduleLock(
     domain.ScheduleLock lock, {
     required bool enabled,
-  }) => _database.transaction(() async {
-    final scope = lock.scope == domain.ScheduleLockScope.teacher
-        ? 'teacher'
-        : 'class';
-    final id = '${lock.termId}:$scope:${lock.targetId}';
-    if (enabled) {
-      await _database
-          .into(_database.scheduleLocks)
-          .insertOnConflictUpdate(
-            ScheduleLocksCompanion.insert(
-              id: id,
-              termId: lock.termId,
-              scope: scope,
-              targetId: lock.targetId,
-            ),
-          );
-    } else {
-      await (_database.delete(
-        _database.scheduleLocks,
-      )..where((row) => row.id.equals(id))).go();
+  }) => setScheduleLocks(locks: [lock], enabled: enabled);
+
+  Future<void> setScheduleLocks({
+    required List<domain.ScheduleLock> locks,
+    required bool enabled,
+  }) async {
+    if (locks.any(
+      (lock) => lock.termId.trim().isEmpty || lock.targetId.trim().isEmpty,
+    )) {
+      throw ArgumentError('排课锁的学期或对象不能为空');
     }
-  });
+    await _database.transaction(() async {
+      for (final lock in locks) {
+        final scope = lock.scope == domain.ScheduleLockScope.teacher
+            ? 'teacher'
+            : 'class';
+        final id = '${lock.termId}:$scope:${lock.targetId}';
+        if (enabled) {
+          await _database
+              .into(_database.scheduleLocks)
+              .insertOnConflictUpdate(
+                ScheduleLocksCompanion.insert(
+                  id: id,
+                  termId: lock.termId,
+                  scope: scope,
+                  targetId: lock.targetId,
+                ),
+              );
+        } else {
+          await (_database.delete(
+            _database.scheduleLocks,
+          )..where((row) => row.id.equals(id))).go();
+        }
+      }
+    });
+  }
+
+  Future<void> commitManualScheduleEdit({
+    required String termId,
+    required String expectedFingerprint,
+    required List<domain.ScheduleItem> before,
+    required List<domain.ScheduleItem> after,
+  }) async {
+    if (termId.trim().isEmpty ||
+        expectedFingerprint.trim().isEmpty ||
+        before.isEmpty ||
+        before.length != after.length) {
+      throw ArgumentError('手动排课的课节范围无效');
+    }
+
+    final beforeById = <String, domain.ScheduleItem>{};
+    for (final item in before) {
+      if (item.id.trim().isEmpty ||
+          item.termId != termId ||
+          beforeById.containsKey(item.id)) {
+        throw ArgumentError('手动排课包含重复课节或错误学期');
+      }
+      beforeById[item.id] = item;
+    }
+    final afterById = <String, domain.ScheduleItem>{};
+    for (final item in after) {
+      final original = beforeById[item.id];
+      if (item.id.trim().isEmpty ||
+          original == null ||
+          item.termId != termId ||
+          afterById.containsKey(item.id) ||
+          !_sameScheduleIdentity(original, item)) {
+        throw ArgumentError('手动排课只能更改原有课节的位置');
+      }
+      afterById[item.id] = item;
+    }
+    final changed = before
+        .where(
+          (item) =>
+              _positionKey(item.position) !=
+              _positionKey(afterById[item.id]!.position),
+        )
+        .toList(growable: false);
+
+    if (await _inputFingerprint() != expectedFingerprint) {
+      throw StateError('排课资料已改变，请刷新后重试');
+    }
+
+    if (changed.isNotEmpty && databasePath != null) {
+      await LocalBackupService(
+        _database,
+        File(databasePath!),
+      ).createSnapshot(label: 'before-manual-scheduling');
+    }
+
+    await _database.transaction(() async {
+      if (await _inputFingerprint() != expectedFingerprint) {
+        throw StateError('排课资料已改变，请刷新后重试');
+      }
+      final currentItems = await _loadItems(termId);
+      final currentById = {for (final item in currentItems) item.id: item};
+      for (final original in before) {
+        final current = currentById[original.id];
+        if (current == null ||
+            !_sameScheduleIdentity(current, original) ||
+            _positionKey(current.position) != _positionKey(original.position)) {
+          throw StateError('课表已改变，请刷新后重试');
+        }
+      }
+
+      if (changed.isEmpty) return;
+
+      final locks = await _loadLocks(termId);
+      bool isLocked(domain.ScheduleItem item) => locks.any(
+        (lock) =>
+            (lock.scope == domain.ScheduleLockScope.schoolClass &&
+                lock.targetId == item.classId) ||
+            (lock.scope == domain.ScheduleLockScope.teacher &&
+                lock.targetId == item.teacherId),
+      );
+
+      for (final original in changed) {
+        if (isLocked(original)) {
+          throw StateError('受锁保护的课节不能移动');
+        }
+        final destination = afterById[original.id]!.position;
+        if (destination == null) continue;
+        for (final occupant in currentItems) {
+          if (occupant.id == original.id ||
+              occupant.classId != original.classId ||
+              _positionKey(occupant.position) != destination.cellKey ||
+              !_weekModesOverlap(occupant.weekMode, original.weekMode)) {
+            continue;
+          }
+          if (isLocked(occupant)) {
+            throw StateError('目标位置有受锁保护的课节');
+          }
+        }
+      }
+
+      for (final original in changed) {
+        final position = afterById[original.id]!.position;
+        final updated =
+            await (_database.update(_database.scheduleItems)..where(
+                  (row) =>
+                      row.id.equals(original.id) & row.termId.equals(termId),
+                ))
+                .write(
+                  ScheduleItemsCompanion(
+                    stageId: Value(position?.stageId),
+                    weekday: Value(position?.weekday),
+                    periodTypeId: Value(position?.periodTypeId),
+                    lessonIndex: Value(position?.lessonIndex),
+                  ),
+                );
+        if (updated != 1) throw StateError('课表已改变，请刷新后重试');
+      }
+    });
+  }
+
+  static bool _sameScheduleIdentity(
+    domain.ScheduleItem left,
+    domain.ScheduleItem right,
+  ) =>
+      left.id == right.id &&
+      left.termId == right.termId &&
+      left.assignmentId == right.assignmentId &&
+      left.classId == right.classId &&
+      left.teacherId == right.teacherId &&
+      left.subjectId == right.subjectId &&
+      left.weekMode == right.weekMode &&
+      left.combinedGroupId == right.combinedGroupId &&
+      left.meetingId == right.meetingId;
+
+  static String? _positionKey(domain.SchedulePosition? position) =>
+      position?.cellKey;
+
+  static bool _weekModesOverlap(domain.WeekMode left, domain.WeekMode right) =>
+      left == domain.WeekMode.weekly ||
+      right == domain.WeekMode.weekly ||
+      left == right;
 
   Future<ScheduleCommitResult> commitScheduleRun(
     domain.ScheduleRun run, {

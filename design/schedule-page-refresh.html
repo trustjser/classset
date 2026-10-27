@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>排课与课表 · 清新优化稿</title>
+<style>
+:root{
+  /* 色板：冷调浅灰蓝底 + 品牌蓝克制使用（更清爽） */
+  --bg:#F4F6FA;
+  --surface:#FFFFFF;
+  --surface-2:#F6F8FB;
+  --border:#E6E9F0;
+  --border-strong:#D8DDE7;
+  --text:#1F2329;
+  --text-2:#646A73;
+  --text-3:#9CA1AB;
+  --primary:#0052D9;
+  --primary-hover:#0043B4;
+  --primary-soft:#EBF1FF;
+  --success:#1F8A5D;
+  --success-soft:#E6F5EE;
+  --radius-s:6px;
+  --radius-m:8px;
+  --radius-l:12px;
+  --shadow-1:0 1px 2px rgba(31,30,26,.05);
+  --shadow-2:0 4px 16px rgba(31,30,26,.07);
+  --font:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+button{font-family:var(--font);border:none;background:none;cursor:pointer;color:inherit}
+button:focus-visible,select:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:var(--radius-s)}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* ========== 应用骨架 ========== */
+.app{display:flex;height:100vh;overflow:hidden}
+
+/* ---- 侧边导航 ---- */
+.sidebar{width:216px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px}
+.logo{display:flex;align-items:center;gap:10px;padding:4px 8px 16px}
+.logo-mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#2E6BE6,#0052D9);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
+.logo-name{font-size:15px;font-weight:700;line-height:1.2}
+.logo-sub{font-size:10px;letter-spacing:.14em;color:var(--text-3);font-weight:600}
+.school-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-m);padding:8px 10px;margin-bottom:16px}
+.school-name{font-size:13px;font-weight:600}
+.school-term{font-size:11.5px;color:var(--text-3)}
+.nav-sec{margin-bottom:14px}
+.nav-title{font-size:11px;color:var(--text-3);font-weight:600;padding:0 10px;margin-bottom:4px;letter-spacing:.05em}
+.nav-item{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 10px;border-radius:var(--radius-m);font-size:13.5px;color:var(--text-2);text-align:left}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;opacity:.75}
+.nav-item:hover{background:var(--surface-2);color:var(--text)}
+.nav-item.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
+.nav-item.active svg{opacity:1}
+.nav-badge{margin-left:auto;font-size:10.5px;color:var(--text-3)}
+.sidebar-foot{margin-top:auto;background:var(--surface-2);border-radius:var(--radius-m);padding:8px 10px;font-size:11.5px;color:var(--text-2)}
+.sidebar-foot b{display:block;font-size:12px;color:var(--text)}
+.dot-ok{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--success);margin-right:5px}
+
+/* ---- 主区 ---- */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{height:52px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border)}
+.topbar-title{font-size:15px;font-weight:600}
+.term-pill{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--border-strong);border-radius:999px;font-size:12.5px;color:var(--text);background:var(--surface)}
+.term-pill:hover{background:var(--surface-2)}
+.term-pill svg{width:12px;height:12px;color:var(--text-3)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.icon-btn{width:30px;height:30px;border-radius:var(--radius-m);display:flex;align-items:center;justify-content:center;color:var(--text-2)}
+.icon-btn:hover{background:var(--surface-2)}
+.icon-btn svg{width:16px;height:16px}
+.saved-pill{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--success-soft);color:var(--success);font-size:12px}
+.saved-pill i{width:6px;height:6px;border-radius:50%;background:var(--success)}
+
+.content{flex:1;overflow:auto;padding:20px 24px 32px}
+
+/* ========== 页面头：页签 + 主操作 ========== */
+.page-head{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.tabs{display:flex;gap:2px}
+.tab{position:relative;height:38px;padding:0 14px;font-size:14px;color:var(--text-2);border-radius:var(--radius-m) var(--radius-m) 0 0}
+.tab:hover{color:var(--text);background:var(--surface-2)}
+.tab.active{color:var(--text);font-weight:600}
+.tab.active::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--primary)}
+.tabs-rule{height:1px;background:var(--border);margin-bottom:16px;margin-top:-15px}
+
+.btn-primary{display:flex;align-items:center;gap:7px;height:34px;padding:0 16px;margin-left:auto;border-radius:var(--radius-m);background:var(--primary);color:#fff;font-size:13.5px;font-weight:600;box-shadow:var(--shadow-1);transition:background .15s}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-primary:active{transform:translateY(1px)}
+.btn-primary svg{width:15px;height:15px}
+
+/* ========== 分组工具栏（核心改动） ========== */
+.toolbar{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;box-shadow:var(--shadow-1);margin-bottom:16px;flex-wrap:wrap}
+.tb-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
+
+/* 范围选择：标签内联进控件，省一行高度 */
+.select{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px solid var(--border-strong);border-radius:var(--radius-m);background:var(--surface);font-size:13px;min-width:0}
+.select:hover{border-color:#C6CDD9}
+.select-label{color:var(--text-3);font-size:12px;flex-shrink:0}
+.select-value{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.select svg{width:12px;height:12px;color:var(--text-3);flex-shrink:0}
+
+/* 周别胶囊分段 */
+.seg-wrap{display:flex;align-items:center;gap:8px}
+.seg-label{font-size:12px;color:var(--text-3)}
+.seg{display:flex;background:#ECF0F6;border-radius:8px;padding:2px}
+.seg button{height:26px;padding:0 12px;border-radius:6px;font-size:12.5px;color:var(--text-2);transition:all .12s}
+.seg button:hover{color:var(--text)}
+.seg button.active{background:#fff;color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(31,30,26,.12)}
+
+/* 工具按钮 */
+.tbtn{display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:var(--radius-m);font-size:13px;color:var(--text-2);transition:all .12s}
+.tbtn svg{width:15px;height:15px}
+.tbtn:hover:not(:disabled){background:var(--surface-2);color:var(--text)}
+.tbtn:active:not(:disabled){background:#EEF2F8}
+.tbtn:disabled{opacity:.35;cursor:not-allowed}
+.tbtn.caret::after{content:"";width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--text-3);margin-left:2px}
+
+/* ========== 主体：课表 + 右栏 ========== */
+.body-grid{display:grid;grid-template-columns:1fr 264px;gap:16px;align-items:start}
+@media (max-width:1100px){.body-grid{grid-template-columns:1fr}}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-l);padding:18px 20px;box-shadow:var(--shadow-1)}
+.panel-head{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+.panel-title{font-size:15.5px;font-weight:700}
+.panel-sub{font-size:12.5px;color:var(--text-3)}
+.panel-count{margin-left:auto;font-size:12.5px;color:var(--text-3)}
+.panel-count b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+
+.timetable{display:grid;grid-template-columns:92px repeat(5,1fr);gap:6px;margin-top:14px}
+.tt-head{height:34px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text-2)}
+.tt-head:first-child{color:var(--text-3);font-weight:500;font-size:12px}
+.tt-period{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 10px 0 2px}
+.tt-period .ampm{font-size:12px;font-weight:600;color:var(--text)}
+.tt-period .no{font-size:11.5px;color:var(--text-3)}
+.course{border-radius:var(--radius-m);padding:8px 10px;min-height:54px;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.course .subj{font-size:13.5px;font-weight:600;line-height:1.35}
+.course .meta{font-size:11.5px;opacity:.72;line-height:1.35}
+.course.empty{border:1.5px dashed var(--border);background:transparent;min-height:54px}
+.course.empty::after{content:"";font-size:12px;color:var(--text-3)}
+.lunch{grid-column:1/-1;height:26px;display:flex;align-items:center;justify-content:center;font-size:11.5px;color:var(--text-3);background:var(--surface-2);border-radius:var(--radius-s);letter-spacing:.1em}
+.merged-head{font-size:11px;font-weight:600;opacity:.65;margin-bottom:2px;font-variant-numeric:tabular-nums}
+.merged-item{font-size:11.5px;line-height:1.45}
+.merged-item b{font-weight:600;display:block;font-size:12px}
+
+/* 科目色：柔和粉彩 + 同系深字 */
+.c-chinese{background:#EAF2FF;color:#2E6BC6}
+.c-math{background:#E6F5EE;color:#1F8A5D}
+.c-english{background:#FFF3E0;color:#B07415}
+.c-science{background:#F1EDFF;color:#6D4FD0}
+.c-pe{background:#FDEBEE;color:#C2506A}
+
+/* 右栏 */
+.rail{display:flex;flex-direction:column;gap:14px}
+.rail-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-l);padding:16px;box-shadow:var(--shadow-1)}
+.rail-head{display:flex;align-items:center;margin-bottom:10px}
+.rail-title{font-size:14px;font-weight:700}
+.badge{margin-left:auto;height:22px;padding:0 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);font-size:11.5px;color:var(--text-2);display:flex;align-items:center;font-variant-numeric:tabular-nums}
+.link-btn{margin-left:auto;height:26px;padding:0 10px;border-radius:var(--radius-s);border:1px solid var(--border-strong);font-size:12px;color:var(--text-2);background:var(--surface)}
+.link-btn:hover{color:var(--text);background:var(--surface-2)}
+.dropzone{border:1.5px dashed var(--border-strong);border-radius:var(--radius-m);min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text-3);font-size:12.5px;background:var(--surface-2)}
+.dropzone svg{width:22px;height:22px;opacity:.55}
+.check-body{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-2)}
+.check-ico{width:30px;height:30px;border-radius:50%;background:var(--success-soft);color:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.check-ico svg{width:15px;height:15px}
+
+/* 视图切换 */
+.view{display:none}
+.view.active{display:block}
+.hint-banner{display:flex;align-items:center;gap:10px;background:var(--primary-soft);color:var(--primary);border-radius:var(--radius-m);padding:10px 14px;font-size:13px;margin-bottom:14px}
+.hint-banner svg{width:15px;height:15px;flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== 侧边导航 ===== -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">课</div>
+      <div><div class="logo-name">课集</div><div class="logo-sub">CLASSSET</div></div>
+    </div>
+    <div class="school-card">
+      <div class="school-name">阳光小学</div>
+      <div class="school-term">2026 学年 · 秋季学期</div>
+    </div>
+    <div class="nav-sec">
+      <div class="nav-title">排课准备</div>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/></svg>工作台</button>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="3" width="11" height="10.5" rx="2"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3"/></svg>学期与日历</button>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>班级与学段</button>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/></svg>作息设置<span class="nav-badge">分享中</span></button>
+    </div>
+    <div class="nav-sec">
+      <div class="nav-title">排课与课表</div>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>科目节数</button>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/></svg>教师任课</button>
+      <button class="nav-item active"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6.5h11M6.5 6.5v7"/></svg>排课与课表</button>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13.5V7l5-4 5 4v6.5"/><path d="M6.5 13.5V9.5h3v4"/></svg>课表编辑</button>
+    </div>
+    <div class="nav-sec">
+      <div class="nav-title">更多</div>
+      <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13.5V6l5-3.5L13 6v7.5"/><path d="M6.5 13.5v-4h3v4"/></svg>公共场室</button>
+    </div>
+    <div class="sidebar-foot"><b><span class="dot-ok"></span>本地数据 · 离线可用</b>数据保存在这台设备</div>
+  </aside>
+
+  <!-- ===== 主区 ===== -->
+  <div class="main">
+    <header class="topbar">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#646A73" stroke-width="1.4"><path d="M6 3L2.5 8 6 13M10 3l3.5 5L10 13"/></svg>
+      <span class="topbar-title">排课与课表</span>
+      <button class="term-pill">2026 学年 · 秋季学期 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg></button>
+      <div class="topbar-right">
+        <button class="icon-btn" title="外观"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg></button>
+        <span class="saved-pill"><i></i>上次保存 · 10:12</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- 页面头：页签 + 主操作 -->
+      <div class="page-head">
+        <nav class="tabs">
+          <button class="tab active" data-view="class">班级课程表</button>
+          <button class="tab" data-view="teacher">教师课程表</button>
+          <button class="tab" data-view="total">总课程表</button>
+          <button class="tab" data-view="room">场室课程表</button>
+        </nav>
+        <button class="btn-primary">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.4 4.1 4.1 1.4-4.1 1.4L8 12.5 6.6 8.4 2.5 7l4.1-1.4L8 1.5zM13 10.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z"/></svg>
+          自动排课
+        </button>
+      </div>
+      <div class="tabs-rule"></div>
+
+      <!-- 分组工具栏 -->
+      <div class="toolbar">
+        <!-- ① 查看范围 -->
+        <div class="select" id="scopeSelect">
+          <span class="select-label" id="scopeLabel">班级</span>
+          <span class="select-value" id="scopeValue">小学部 · 一年级 · 一年级 1 班</span>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg>
+        </div>
+
+        <div class="tb-sep"></div>
+
+        <!-- ② 课表周别 -->
+        <div class="seg-wrap">
+          <span class="seg-label">周别</span>
+          <div class="seg" id="weekSeg">
+            <button class="active">合并</button>
+            <button>单周</button>
+            <button>双周</button>
+          </div>
+        </div>
+
+        <div class="tb-sep"></div>
+
+        <!-- ③ 编辑历史 -->
+        <button class="tbtn" title="撤销">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 3L3 6.5 6.5 10"/><path d="M3 6.5h6a4 4 0 0 1 0 8H7"/></svg>撤销
+        </button>
+        <button class="tbtn" disabled title="重做">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.5 3L13 6.5 9.5 10"/><path d="M13 6.5H7a4 4 0 0 0 0 8h2"/></svg>重做
+        </button>
+
+        <div class="tb-sep"></div>
+
+        <!-- ④ 视图 -->
+        <button class="tbtn" title="锁定单元格">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>锁定
+        </button>
+
+        <div class="tb-sep"></div>
+
+        <!-- ⑤ 校验 -->
+        <button class="tbtn" title="冲突检测">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5.5 8.2l2 2 3.2-3.6"/></svg>检测
+        </button>
+        <button class="tbtn" title="排课规则">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4.5h8M4 8h8M4 11.5h5"/></svg>规则
+        </button>
+
+        <div class="tb-sep"></div>
+
+        <!-- ⑥ 导出 -->
+        <button class="tbtn caret" title="导出 / 打印">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5v7.5M5 7.5l3 3 3-3"/><path d="M3 12.5h10"/></svg>导出 / 打印
+        </button>
+      </div>
+
+      <!-- ===== 视图：班级课程表 ===== -->
+      <section class="view active" id="view-class">
+        <div class="body-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">课表安排</span>
+              <span class="panel-sub">班级课程表 · 单双周合并</span>
+              <span class="panel-count"><b>13</b> 节课</span>
+            </div>
+            <div class="timetable">
+              <div class="tt-head">节次</div><div class="tt-head">周一</div><div class="tt-head">周二</div><div class="tt-head">周三</div><div class="tt-head">周四</div><div class="tt-head">周五</div>
+
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 1 节 · 08:20</span></div>
+              <div class="course c-chinese"><span class="subj">语文</span><span class="meta">张老师</span></div>
+              <div class="course c-math"><span class="subj">数学</span><span class="meta">丁丁</span></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 2 节 · 09:10</span></div>
+              <div class="course c-chinese"><span class="subj">语文</span><span class="meta">张老师</span></div>
+              <div class="course c-math"><span class="subj">数学</span><span class="meta">丁丁</span></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 3 节 · 10:10</span></div>
+              <div class="course c-chinese"><span class="subj">语文</span><span class="meta">张老师</span></div>
+              <div class="course c-math"><span class="subj">数学</span><span class="meta">晴晴晴 😊</span></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+
+              <div class="lunch">午 休 · 12:00 – 14:00</div>
+
+              <div class="tt-period"><span class="ampm">下午</span><span class="no">第 1 节 · 14:00</span></div>
+              <div class="course c-math"><span class="subj">数学</span><span class="meta">丁丁</span></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+
+              <div class="tt-period"><span class="ampm">下午</span><span class="no">第 2 节 · 14:55</span></div>
+              <div class="course c-chinese"><span class="subj">语文</span><span class="meta">张三</span></div>
+              <div class="course c-math"><span class="subj">数学</span><span class="meta">晴晴晴 😊</span></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+              <div class="course empty"></div>
+            </div>
+          </div>
+
+          <aside class="rail">
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">暂放区</span><span class="badge">0 节</span></div>
+              <div class="dropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V5M8 8.5L12 4.5l4 4"/><path d="M4.5 15v3.5a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+                拖拽课程卡片到此处暂存
+              </div>
+            </div>
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">检测结果</span><button class="link-btn">重新检测</button></div>
+              <div class="check-body">
+                <span class="check-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-6.5"/></svg></span>
+                课程都已安排妥当
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== 视图：教师课程表 ===== -->
+      <section class="view" id="view-teacher">
+        <div class="body-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">课表安排</span>
+              <span class="panel-sub">教师课程表 · 单双周合并</span>
+              <span class="panel-count"><b>0</b> 节课</span>
+            </div>
+            <div style="margin-top:12px" class="hint-banner">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.2v3.3M8 5.2v.1"/></svg>
+              在左上角选择一位教师，即可查看 TA 的完整授课安排
+            </div>
+            <div class="timetable">
+              <div class="tt-head">节次</div><div class="tt-head">周一</div><div class="tt-head">周二</div><div class="tt-head">周三</div><div class="tt-head">周四</div><div class="tt-head">周五</div>
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 1 节</span></div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 2 节</span></div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+              <div class="lunch">午 休</div>
+              <div class="tt-period"><span class="ampm">下午</span><span class="no">第 1 节</span></div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+              <div class="tt-period"><span class="ampm">下午</span><span class="no">第 2 节</span></div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+            </div>
+          </div>
+
+          <aside class="rail">
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">暂放区</span><span class="badge">0 节</span></div>
+              <div class="dropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V5M8 8.5L12 4.5l4 4"/><path d="M4.5 15v3.5a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+                拖拽课程卡片到此处暂存
+              </div>
+            </div>
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">检测结果</span><button class="link-btn">重新检测</button></div>
+              <div class="check-body">
+                <span class="check-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-6.5"/></svg></span>
+                点击检测，核对整张课表
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== 视图：总课程表 ===== -->
+      <section class="view" id="view-total">
+        <div class="body-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">课表安排</span>
+              <span class="panel-sub">总课程表 · 单双周合并</span>
+              <span class="panel-count"><b>39</b> 节课</span>
+            </div>
+            <div class="timetable">
+              <div class="tt-head">节次</div><div class="tt-head">周一</div><div class="tt-head">周二</div><div class="tt-head">周三</div><div class="tt-head">周四</div><div class="tt-head">周五</div>
+
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 1 节</span></div>
+              <div class="course c-chinese">
+                <span class="merged-head">3 节课程</span>
+                <span class="merged-item"><b>一年级 1 班</b>语文 · 张老师</span>
+                <span class="merged-item"><b>一年级 2 班</b>语文 · 凤太仔</span>
+                <span class="merged-item"><b>一年级 3 班</b>语文 · 周丹纯</span>
+              </div>
+              <div class="course c-math">
+                <span class="merged-head">3 节课程</span>
+                <span class="merged-item"><b>一年级 1 班</b>数学 · 丁丁</span>
+                <span class="merged-item"><b>一年级 2 班</b>数学 · 陈欣宥</span>
+                <span class="merged-item"><b>一年级 3 班</b>数学 · 唐佳佳</span>
+              </div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 2 节</span></div>
+              <div class="course c-chinese">
+                <span class="merged-head">3 节课程</span>
+                <span class="merged-item"><b>一年级 1 班</b>语文 · 张老师</span>
+                <span class="merged-item"><b>一年级 2 班</b>语文 · 凤太仔</span>
+                <span class="merged-item"><b>一年级 3 班</b>语文 · 周丹纯</span>
+              </div>
+              <div class="course c-math">
+                <span class="merged-head">3 节课程</span>
+                <span class="merged-item"><b>一年级 1 班</b>数学 · 丁丁</span>
+                <span class="merged-item"><b>一年级 2 班</b>数学 · 陈欣宥</span>
+                <span class="merged-item"><b>一年级 3 班</b>数学 · 唐佳佳</span>
+              </div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+
+              <div class="lunch">午 休</div>
+
+              <div class="tt-period"><span class="ampm">下午</span><span class="no">第 1 节</span></div>
+              <div class="course c-science">
+                <span class="merged-head">2 节课程</span>
+                <span class="merged-item"><b>一年级 1 班</b>科学 · 何小小</span>
+                <span class="merged-item"><b>一年级 2 班</b>科学 · 何小小</span>
+              </div>
+              <div class="course c-english">
+                <span class="merged-head">2 节课程</span>
+                <span class="merged-item"><b>一年级 1 班</b>英语 · 李单</span>
+                <span class="merged-item"><b>一年级 3 班</b>英语 · 李单</span>
+              </div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+            </div>
+          </div>
+
+          <aside class="rail">
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">暂放区</span><span class="badge">0 节</span></div>
+              <div class="dropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V5M8 8.5L12 4.5l4 4"/><path d="M4.5 15v3.5a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+                拖拽课程卡片到此处暂存
+              </div>
+            </div>
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">检测结果</span><button class="link-btn">重新检测</button></div>
+              <div class="check-body">
+                <span class="check-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-6.5"/></svg></span>
+                点击检测，核对整张课表
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== 视图：场室课程表 ===== -->
+      <section class="view" id="view-room">
+        <div class="body-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">课表安排</span>
+              <span class="panel-sub">场室课程表 · 单双周合并</span>
+              <span class="panel-count"><b>—</b> 节课</span>
+            </div>
+            <div style="margin-top:12px" class="hint-banner">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.2v3.3M8 5.2v.1"/></svg>
+              在左上角选择一间场室（如音乐室、机房），查看该场室的使用安排
+            </div>
+            <div class="timetable">
+              <div class="tt-head">节次</div><div class="tt-head">周一</div><div class="tt-head">周二</div><div class="tt-head">周三</div><div class="tt-head">周四</div><div class="tt-head">周五</div>
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 1 节</span></div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+              <div class="tt-period"><span class="ampm">上午</span><span class="no">第 2 节</span></div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+              <div class="lunch">午 休</div>
+              <div class="tt-period"><span class="ampm">下午</span><span class="no">第 1 节</span></div>
+              <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+            </div>
+          </div>
+
+          <aside class="rail">
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">暂放区</span><span class="badge">0 节</span></div>
+              <div class="dropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V5M8 8.5L12 4.5l4 4"/><path d="M4.5 15v3.5a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+                拖拽课程卡片到此处暂存
+              </div>
+            </div>
+            <div class="rail-card">
+              <div class="rail-head"><span class="rail-title">检测结果</span><button class="link-btn">重新检测</button></div>
+              <div class="check-body">
+                <span class="check-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-6.5"/></svg></span>
+                点击检测，核对整张课表
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+// 页签切换：联动范围选择器的标签与值
+var scope = {
+  'class':   { label: '班级', value: '小学部 · 一年级 · 一年级 1 班', show: true  },
+  'teacher': { label: '教师', value: '王老师 · 语文',                 show: true  },
+  'total':   { label: '',     value: '',                              show: false },
+  'room':    { label: '场室', value: '选择场室',                       show: true  }
+};
+document.querySelectorAll('.tab').forEach(function(tab){
+  tab.addEventListener('click', function(){
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    tab.classList.add('active');
+    var key = tab.dataset.view;
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    document.getElementById('view-' + key).classList.add('active');
+    var sel = document.getElementById('scopeSelect');
+    var cfg = scope[key];
+    sel.style.display = cfg.show ? 'flex' : 'none';
+    document.getElementById('scopeLabel').textContent = cfg.label;
+    document.getElementById('scopeValue').textContent = cfg.value;
+  });
+});
+// 周别分段切换（视觉演示）
+document.querySelectorAll('#weekSeg button').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('#weekSeg button').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

@@ -86,7 +86,8 @@ class AppSectionPanel extends StatelessWidget {
     this.headerPadding,
     this.headerDivider = false,
     this.expandChild = false,
-    this.showBorder = true,
+    this.showBorder = false,
+    this.useShadow = true,
     super.key,
   });
 
@@ -99,9 +100,13 @@ class AppSectionPanel extends StatelessWidget {
   final bool expandChild;
   final bool showBorder;
 
+  /// 用主题卡片阴影（`cardShadow`）代替描边的无框卡片样式。
+  final bool useShadow;
+
   @override
   Widget build(BuildContext context) => AppSurface(
     showBorder: showBorder,
+    useShadow: useShadow,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -136,21 +141,28 @@ class AppSectionPanel extends StatelessWidget {
 class AppSurface extends StatelessWidget {
   const AppSurface({
     required this.child,
-    this.showBorder = true,
+    this.showBorder = false,
+    this.useShadow = true,
     this.backgroundColor,
     super.key,
   });
 
   final Widget child;
   final bool showBorder;
+
+  /// 用主题卡片阴影（`cardShadow`）代替描边；两者都开时阴影优先。
+  final bool useShadow;
   final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: backgroundColor ?? context.appColors.surface,
-      border: showBorder ? Border.all(color: context.appColors.border) : null,
+      border: showBorder && !useShadow
+          ? Border.all(color: context.appColors.border)
+          : null,
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+      boxShadow: useShadow ? context.appColors.cardShadow : null,
     ),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
@@ -170,6 +182,7 @@ class AppTreeTile extends StatelessWidget {
     this.selectedForeground,
     this.contentPadding = const EdgeInsets.symmetric(horizontal: 12),
     this.height = 38,
+    this.borderRadius,
     super.key,
   });
 
@@ -186,6 +199,9 @@ class AppTreeTile extends StatelessWidget {
   final EdgeInsetsGeometry contentPadding;
   final double height;
 
+  /// 悬停与点击水波纹圆角；为 null 时保持直角（老样式）。
+  final BorderRadius? borderRadius;
+
   @override
   Widget build(BuildContext context) {
     final showSelectedStyle = isSelected && selectedForeground != null;
@@ -193,8 +209,14 @@ class AppTreeTile extends StatelessWidget {
       color: isSelected
           ? selectedBackground ?? context.appColors.selectedBlue
           : Colors.transparent,
+      // 选中底色画在外层 Material 上，圆角必须同步给它，
+      // 否则只有 InkWell 水波纹是圆角、高亮仍是直角。
+      shape: borderRadius == null
+          ? null
+          : RoundedRectangleBorder(borderRadius: borderRadius!),
       child: InkWell(
         onTap: onTap,
+        borderRadius: borderRadius,
         child: SizedBox(
           height: height,
           child: Padding(
@@ -473,23 +495,51 @@ class _CompactWeekdayOption extends StatelessWidget {
   final double fontSize;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 24,
-    child: InkWell(
+  Widget build(BuildContext context) {
+    // 清新版上课天复选框：18px 圆角方块，选中为品牌蓝实底白勾；
+    // 未选中行的文字降为辅助灰（设计稿 .check-row）。
+    return InkWell(
       onTap: onChanged,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 24,
-            height: 24,
-            child: FCheckbox(value: isSelected, onChange: (_) => onChanged()),
-          ),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: fontSize)),
-        ],
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? context.appColors.blue
+                    : context.appColors.surface,
+                border: Border.all(
+                  color: isSelected
+                      ? context.appColors.blue
+                      : context.appColors.border,
+                  width: 1.5,
+                ),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 12, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: fontSize,
+                color: isSelected
+                    ? context.appColors.ink
+                    : context.appColors.muted,
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _WeekdayOption extends StatelessWidget {
@@ -560,7 +610,6 @@ class AppNumberStepper extends StatelessWidget {
     this.min = 0,
     this.max = 9,
     this.suffix = '节',
-    this.compact = false,
     super.key,
   });
 
@@ -569,43 +618,95 @@ class AppNumberStepper extends StatelessWidget {
   final int min;
   final int max;
   final String suffix;
-  final bool compact;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      border: Border.all(color: context.appColors.border),
-      borderRadius: BorderRadius.circular(9),
-      color: context.appColors.surface,
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FButton.icon(
-          variant: .ghost,
-          size: .sm,
-          semanticsTooltip: '减少',
-          onPress: value <= min ? null : () => onChanged(value - 1),
-          child: const Icon(Icons.remove, size: 16),
-        ),
-        SizedBox(
-          width: compact ? 38 : 48,
-          child: Text(
-            '$value$suffix',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall,
+  Widget build(BuildContext context) {
+    final borderColor = context.appColors.border;
+    Widget stepButton({
+      required IconData icon,
+      required String semanticLabel,
+      required bool enabled,
+      required VoidCallback? onTap,
+    }) => Semantics(
+      label: semanticLabel,
+      button: true,
+      child: SizedBox(
+        width: 28,
+        height: 30,
+        child: InkWell(
+          onTap: onTap,
+          child: Icon(
+            icon,
+            size: 15,
+            color: enabled
+                ? context.appColors.inkSecondary
+                : context.appColors.helpIcon,
           ),
         ),
-        FButton.icon(
-          variant: .ghost,
-          size: .sm,
-          semanticsTooltip: '增加',
-          onPress: value >= max ? null : () => onChanged(value + 1),
-          child: const Icon(Icons.add, size: 16),
-        ),
-      ],
-    ),
-  );
+      ),
+    );
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(8),
+        color: context.appColors.surface,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          stepButton(
+            icon: Icons.remove,
+            semanticLabel: '减少',
+            enabled: value > min,
+            onTap: value > min ? () => onChanged(value - 1) : null,
+          ),
+          Container(
+            width: 44,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(color: borderColor),
+                right: BorderSide(color: borderColor),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              // 数字与「节」按视觉垂直居中对齐（基线对齐会让小号
+              // CJK 字形看起来浮起，见设计稿 .val small）。
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    color: context.appColors.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(width: 1),
+                Text(
+                  suffix,
+                  style: TextStyle(
+                    color: context.appColors.muted,
+                    fontSize: 10,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          stepButton(
+            icon: Icons.add,
+            semanticLabel: '增加',
+            enabled: value < max,
+            onTap: value < max ? () => onChanged(value + 1) : null,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Shared Forui button adapters for actions across feature modules.

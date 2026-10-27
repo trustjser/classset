@@ -80,6 +80,41 @@ class SchedulingSnapshot {
   final Map<String, Set<String>> allowedPeriodTypeIdsBySubject;
   final Map<String, int> requiredConsecutivePairsByRequirement;
 
+  SchedulingSnapshot copyWith({
+    List<ScheduleItem>? existingItems,
+    List<ScheduleLock>? locks,
+    List<TeacherAssignment>? assignments,
+  }) => SchedulingSnapshot(
+    term: term,
+    inputFingerprint: inputFingerprint,
+    stages: stages,
+    grades: grades,
+    classes: classes,
+    routines: routines,
+    subjects: subjects,
+    requirements: requirements,
+    teachers: teachers,
+    assignments: assignments ?? this.assignments,
+    freeSlots: freeSlots,
+    subjectPresets: subjectPresets,
+    teacherPresets: teacherPresets,
+    teacherGroupPresets: teacherGroupPresets,
+    teacherGroupMembers: teacherGroupMembers,
+    conditions: conditions,
+    preferences: preferences,
+    locks: locks ?? this.locks,
+    existingItems: existingItems ?? this.existingItems,
+    rooms: rooms,
+    roomAssignments: roomAssignments,
+    parallelLimits: parallelLimits,
+    combinedGroups: combinedGroups,
+    pairings: pairings,
+    lessonConstraints: lessonConstraints,
+    allowedPeriodTypeIdsBySubject: allowedPeriodTypeIdsBySubject,
+    requiredConsecutivePairsByRequirement:
+        requiredConsecutivePairsByRequirement,
+  );
+
   String? gradeIdForClass(String classId) {
     for (final schoolClass in classes) {
       if (schoolClass.id == classId) return schoolClass.gradeId;

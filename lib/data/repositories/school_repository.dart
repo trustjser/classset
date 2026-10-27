@@ -38,6 +38,15 @@ class ScheduleCommitResult {
 abstract interface class SchoolRepository {
   Future<SchedulingSnapshot> loadSchedulingSnapshot(String termId);
 
+  /// The timetable and settings as they were before the first pending edit.
+  Future<SchedulingSnapshot?> loadPendingSchedulingBaseline(String termId);
+
+  /// Applies a reviewed incremental reconciliation if settings are unchanged.
+  Future<ScheduleCommitResult> commitScheduleReconciliation({
+    required String termId,
+    required String expectedFingerprint,
+  });
+
   Stream<ScheduleViewData> watchSchedule(String termId);
 
   Future<void> saveScheduleConfiguration({
@@ -48,9 +57,24 @@ abstract interface class SchoolRepository {
 
   Future<void> setScheduleLock(ScheduleLock lock, {required bool enabled});
 
+  /// Applies a group of class or teacher locks in one transaction.
+  Future<void> setScheduleLocks({
+    required List<ScheduleLock> locks,
+    required bool enabled,
+  });
+
   Future<ScheduleCommitResult> commitScheduleRun(
     ScheduleRun run, {
     required Set<String> selectedClassIds,
+  });
+
+  /// Atomically saves position changes after checking the displayed items
+  /// against the current timetable and its locks.
+  Future<void> commitManualScheduleEdit({
+    required String termId,
+    required String expectedFingerprint,
+    required List<ScheduleItem> before,
+    required List<ScheduleItem> after,
   });
 
   Future<String?> loadActiveTermId();

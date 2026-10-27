@@ -14538,6 +14538,293 @@ class ScheduleRunReportsCompanion extends UpdateCompanion<ScheduleRunReport> {
   }
 }
 
+class $ScheduleReconciliationBaselinesTable
+    extends ScheduleReconciliationBaselines
+    with
+        TableInfo<
+          $ScheduleReconciliationBaselinesTable,
+          ScheduleReconciliationBaseline
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScheduleReconciliationBaselinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _snapshotJsonMeta = const VerificationMeta(
+    'snapshotJson',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotJson = GeneratedColumn<String>(
+    'snapshot_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [termId, snapshotJson, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_reconciliation_baselines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScheduleReconciliationBaseline> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('snapshot_json')) {
+      context.handle(
+        _snapshotJsonMeta,
+        snapshotJson.isAcceptableOrUnknown(
+          data['snapshot_json']!,
+          _snapshotJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotJsonMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {termId};
+  @override
+  ScheduleReconciliationBaseline map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScheduleReconciliationBaseline(
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      snapshotJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_json'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ScheduleReconciliationBaselinesTable createAlias(String alias) {
+    return $ScheduleReconciliationBaselinesTable(attachedDatabase, alias);
+  }
+}
+
+class ScheduleReconciliationBaseline extends DataClass
+    implements Insertable<ScheduleReconciliationBaseline> {
+  final String termId;
+  final String snapshotJson;
+  final int createdAt;
+  const ScheduleReconciliationBaseline({
+    required this.termId,
+    required this.snapshotJson,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['term_id'] = Variable<String>(termId);
+    map['snapshot_json'] = Variable<String>(snapshotJson);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  ScheduleReconciliationBaselinesCompanion toCompanion(bool nullToAbsent) {
+    return ScheduleReconciliationBaselinesCompanion(
+      termId: Value(termId),
+      snapshotJson: Value(snapshotJson),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ScheduleReconciliationBaseline.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScheduleReconciliationBaseline(
+      termId: serializer.fromJson<String>(json['termId']),
+      snapshotJson: serializer.fromJson<String>(json['snapshotJson']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'termId': serializer.toJson<String>(termId),
+      'snapshotJson': serializer.toJson<String>(snapshotJson),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  ScheduleReconciliationBaseline copyWith({
+    String? termId,
+    String? snapshotJson,
+    int? createdAt,
+  }) => ScheduleReconciliationBaseline(
+    termId: termId ?? this.termId,
+    snapshotJson: snapshotJson ?? this.snapshotJson,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ScheduleReconciliationBaseline copyWithCompanion(
+    ScheduleReconciliationBaselinesCompanion data,
+  ) {
+    return ScheduleReconciliationBaseline(
+      termId: data.termId.present ? data.termId.value : this.termId,
+      snapshotJson: data.snapshotJson.present
+          ? data.snapshotJson.value
+          : this.snapshotJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleReconciliationBaseline(')
+          ..write('termId: $termId, ')
+          ..write('snapshotJson: $snapshotJson, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(termId, snapshotJson, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScheduleReconciliationBaseline &&
+          other.termId == this.termId &&
+          other.snapshotJson == this.snapshotJson &&
+          other.createdAt == this.createdAt);
+}
+
+class ScheduleReconciliationBaselinesCompanion
+    extends UpdateCompanion<ScheduleReconciliationBaseline> {
+  final Value<String> termId;
+  final Value<String> snapshotJson;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const ScheduleReconciliationBaselinesCompanion({
+    this.termId = const Value.absent(),
+    this.snapshotJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ScheduleReconciliationBaselinesCompanion.insert({
+    required String termId,
+    required String snapshotJson,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : termId = Value(termId),
+       snapshotJson = Value(snapshotJson),
+       createdAt = Value(createdAt);
+  static Insertable<ScheduleReconciliationBaseline> custom({
+    Expression<String>? termId,
+    Expression<String>? snapshotJson,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (termId != null) 'term_id': termId,
+      if (snapshotJson != null) 'snapshot_json': snapshotJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ScheduleReconciliationBaselinesCompanion copyWith({
+    Value<String>? termId,
+    Value<String>? snapshotJson,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ScheduleReconciliationBaselinesCompanion(
+      termId: termId ?? this.termId,
+      snapshotJson: snapshotJson ?? this.snapshotJson,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (snapshotJson.present) {
+      map['snapshot_json'] = Variable<String>(snapshotJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleReconciliationBaselinesCompanion(')
+          ..write('termId: $termId, ')
+          ..write('snapshotJson: $snapshotJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -14590,6 +14877,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $SchedulePreferencesTable(this);
   late final $ScheduleRunReportsTable scheduleRunReports =
       $ScheduleRunReportsTable(this);
+  late final $ScheduleReconciliationBaselinesTable
+  scheduleReconciliationBaselines = $ScheduleReconciliationBaselinesTable(this);
   late final Index scheduleItemsTerm = Index(
     'schedule_items_term',
     'CREATE INDEX schedule_items_term ON schedule_items (term_id)',
@@ -14655,6 +14944,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     scheduleConditions,
     schedulePreferences,
     scheduleRunReports,
+    scheduleReconciliationBaselines,
     scheduleItemsTerm,
     scheduleItemsAssignment,
     scheduleItemsClassSlot,
@@ -15097,6 +15387,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       ),
       result: [TableUpdate('schedule_run_reports', kind: UpdateKind.delete)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate(
+          'schedule_reconciliation_baselines',
+          kind: UpdateKind.delete,
+        ),
+      ],
+    ),
   ]);
 }
 
@@ -15412,6 +15714,32 @@ final class $$AcademicTermsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleRunReportsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ScheduleReconciliationBaselinesTable,
+    List<ScheduleReconciliationBaseline>
+  >
+  _scheduleReconciliationBaselinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.scheduleReconciliationBaselines,
+        aliasName:
+            'academic_terms__id__schedule_reconciliation_baselines__term_id',
+      );
+
+  $$ScheduleReconciliationBaselinesTableProcessedTableManager
+  get scheduleReconciliationBaselinesRefs {
+    final manager = $$ScheduleReconciliationBaselinesTableTableManager(
+      $_db,
+      $_db.scheduleReconciliationBaselines,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleReconciliationBaselinesRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -15817,6 +16145,35 @@ class $$AcademicTermsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleReconciliationBaselinesRefs(
+    Expression<bool> Function(
+      $$ScheduleReconciliationBaselinesTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$ScheduleReconciliationBaselinesTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scheduleReconciliationBaselines,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleReconciliationBaselinesTableFilterComposer(
+                $db: $db,
+                $table: $db.scheduleReconciliationBaselines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -16268,6 +16625,35 @@ class $$AcademicTermsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> scheduleReconciliationBaselinesRefs<T extends Object>(
+    Expression<T> Function(
+      $$ScheduleReconciliationBaselinesTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$ScheduleReconciliationBaselinesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scheduleReconciliationBaselines,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleReconciliationBaselinesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scheduleReconciliationBaselines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AcademicTermsTableTableManager
@@ -16298,6 +16684,7 @@ class $$AcademicTermsTableTableManager
             bool scheduleConditionsRefs,
             bool schedulePreferencesRefs,
             bool scheduleRunReportsRefs,
+            bool scheduleReconciliationBaselinesRefs,
           })
         > {
   $$AcademicTermsTableTableManager(_$AppDatabase db, $AcademicTermsTable table)
@@ -16379,6 +16766,7 @@ class $$AcademicTermsTableTableManager
                 scheduleConditionsRefs = false,
                 schedulePreferencesRefs = false,
                 scheduleRunReportsRefs = false,
+                scheduleReconciliationBaselinesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -16397,6 +16785,8 @@ class $$AcademicTermsTableTableManager
                     if (scheduleConditionsRefs) db.scheduleConditions,
                     if (schedulePreferencesRefs) db.schedulePreferences,
                     if (scheduleRunReportsRefs) db.scheduleRunReports,
+                    if (scheduleReconciliationBaselinesRefs)
+                      db.scheduleReconciliationBaselines,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -16695,6 +17085,27 @@ class $$AcademicTermsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleReconciliationBaselinesRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          ScheduleReconciliationBaseline
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._scheduleReconciliationBaselinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleReconciliationBaselinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -16730,6 +17141,7 @@ typedef $$AcademicTermsTableProcessedTableManager =
         bool scheduleConditionsRefs,
         bool schedulePreferencesRefs,
         bool scheduleRunReportsRefs,
+        bool scheduleReconciliationBaselinesRefs,
       })
     >;
 typedef $$AppSettingsTableCreateCompanionBuilder =
@@ -34610,6 +35022,322 @@ typedef $$ScheduleRunReportsTableProcessedTableManager =
       ScheduleRunReport,
       PrefetchHooks Function({bool termId})
     >;
+typedef $$ScheduleReconciliationBaselinesTableCreateCompanionBuilder =
+    ScheduleReconciliationBaselinesCompanion Function({
+      required String termId,
+      required String snapshotJson,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$ScheduleReconciliationBaselinesTableUpdateCompanionBuilder =
+    ScheduleReconciliationBaselinesCompanion Function({
+      Value<String> termId,
+      Value<String> snapshotJson,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$ScheduleReconciliationBaselinesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ScheduleReconciliationBaselinesTable,
+          ScheduleReconciliationBaseline
+        > {
+  $$ScheduleReconciliationBaselinesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) =>
+      db.academicTerms.createAlias(
+        'schedule_reconciliation_baselines__term_id__academic_terms__id',
+      );
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ScheduleReconciliationBaselinesTableFilterComposer
+    extends Composer<_$AppDatabase, $ScheduleReconciliationBaselinesTable> {
+  $$ScheduleReconciliationBaselinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleReconciliationBaselinesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ScheduleReconciliationBaselinesTable> {
+  $$ScheduleReconciliationBaselinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleReconciliationBaselinesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ScheduleReconciliationBaselinesTable> {
+  $$ScheduleReconciliationBaselinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScheduleReconciliationBaselinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ScheduleReconciliationBaselinesTable,
+          ScheduleReconciliationBaseline,
+          $$ScheduleReconciliationBaselinesTableFilterComposer,
+          $$ScheduleReconciliationBaselinesTableOrderingComposer,
+          $$ScheduleReconciliationBaselinesTableAnnotationComposer,
+          $$ScheduleReconciliationBaselinesTableCreateCompanionBuilder,
+          $$ScheduleReconciliationBaselinesTableUpdateCompanionBuilder,
+          (
+            ScheduleReconciliationBaseline,
+            $$ScheduleReconciliationBaselinesTableReferences,
+          ),
+          ScheduleReconciliationBaseline,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$ScheduleReconciliationBaselinesTableTableManager(
+    _$AppDatabase db,
+    $ScheduleReconciliationBaselinesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScheduleReconciliationBaselinesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ScheduleReconciliationBaselinesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ScheduleReconciliationBaselinesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> termId = const Value.absent(),
+                Value<String> snapshotJson = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleReconciliationBaselinesCompanion(
+                termId: termId,
+                snapshotJson: snapshotJson,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String termId,
+                required String snapshotJson,
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleReconciliationBaselinesCompanion.insert(
+                termId: termId,
+                snapshotJson: snapshotJson,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $ScheduleReconciliationBaselinesTable,
+                    ScheduleReconciliationBaseline
+                  >(table),
+                  $$ScheduleReconciliationBaselinesTableReferences(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable:
+                            $$ScheduleReconciliationBaselinesTableReferences
+                                ._termIdTable(db),
+                        referencedColumn:
+                            $$ScheduleReconciliationBaselinesTableReferences
+                                ._termIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ScheduleReconciliationBaselinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ScheduleReconciliationBaselinesTable,
+      ScheduleReconciliationBaseline,
+      $$ScheduleReconciliationBaselinesTableFilterComposer,
+      $$ScheduleReconciliationBaselinesTableOrderingComposer,
+      $$ScheduleReconciliationBaselinesTableAnnotationComposer,
+      $$ScheduleReconciliationBaselinesTableCreateCompanionBuilder,
+      $$ScheduleReconciliationBaselinesTableUpdateCompanionBuilder,
+      (
+        ScheduleReconciliationBaseline,
+        $$ScheduleReconciliationBaselinesTableReferences,
+      ),
+      ScheduleReconciliationBaseline,
+      PrefetchHooks Function({bool termId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -34684,4 +35412,10 @@ class $AppDatabaseManager {
       $$SchedulePreferencesTableTableManager(_db, _db.schedulePreferences);
   $$ScheduleRunReportsTableTableManager get scheduleRunReports =>
       $$ScheduleRunReportsTableTableManager(_db, _db.scheduleRunReports);
+  $$ScheduleReconciliationBaselinesTableTableManager
+  get scheduleReconciliationBaselines =>
+      $$ScheduleReconciliationBaselinesTableTableManager(
+        _db,
+        _db.scheduleReconciliationBaselines,
+      );
 }

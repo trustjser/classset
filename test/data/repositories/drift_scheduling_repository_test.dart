@@ -5,14 +5,18 @@ import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/repositories/drift_scheduling_repository.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/free_slot.dart';
+import 'package:class_set/domain/models/schedule_lock.dart';
 import 'package:class_set/domain/models/schedule_preferences.dart';
 import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/school_structure.dart';
+import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/scheduling/course_scheduler.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
+import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -136,7 +140,7 @@ void main() {
     );
   });
 
-  test('需求与任课经过求解、提交后可重新读取课表', () async {
+  test('需求与任课经过求解、手工暂放及恢复后可重新读取课表', () async {
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     final school = DriftSchoolRepository(database);
@@ -223,5 +227,252 @@ void main() {
       run.items.single.position?.cellKey,
     );
     expect(saved.latestRun?.id, run.id);
+
+    final beforeManual = await scheduling.loadSchedulingSnapshot('term-flow');
+    final placed = beforeManual.existingItems.single;
+    final unplaced = placed.at(null);
+    await scheduling.commitManualScheduleEdit(
+      termId: 'term-flow',
+      expectedFingerprint: beforeManual.inputFingerprint,
+      before: [placed],
+      after: [unplaced],
+    );
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow'))
+          .existingItems
+          .single
+          .position,
+      isNull,
+    );
+    await expectLater(
+      scheduling.commitManualScheduleEdit(
+        termId: 'term-flow',
+        expectedFingerprint: beforeManual.inputFingerprint,
+        before: [unplaced],
+        after: [placed],
+      ),
+      throwsStateError,
+    );
+    final beforeRestore = await scheduling.loadSchedulingSnapshot('term-flow');
+    await scheduling.commitManualScheduleEdit(
+      termId: 'term-flow',
+      expectedFingerprint: beforeRestore.inputFingerprint,
+      before: [unplaced],
+      after: [placed],
+    );
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow'))
+          .existingItems
+          .single
+          .position
+          ?.cellKey,
+      placed.position?.cellKey,
+    );
+
+    await scheduling.setScheduleLock(
+      const ScheduleLock(
+        termId: 'term-flow',
+        scope: ScheduleLockScope.schoolClass,
+        targetId: 'class-flow',
+      ),
+      enabled: true,
+    );
+    final routine = (await school.watchRoutine(stage.id).first)!;
+    final renamed = StageRoutine(
+      stageId: routine.stageId,
+      teachingWeekdays: routine.teachingWeekdays,
+      overrides: routine.overrides,
+      periodTypes: [
+        for (final period in routine.periodTypes)
+          LessonPeriodType(
+            id: period.id,
+            name: '${period.name}新',
+            defaultLessonCount: period.defaultLessonCount,
+            sortOrder: period.sortOrder,
+            lessonTimes: period.lessonTimes,
+          ),
+      ],
+    );
+    await school.saveRoutine(renamed);
+    final baseline = await scheduling.loadPendingSchedulingBaseline(
+      'term-flow',
+    );
+    expect(baseline, isNotNull);
+    expect(
+      baseline!.existingItems.single.position?.cellKey,
+      placed.position?.cellKey,
+    );
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow'))
+          .existingItems
+          .single
+          .position
+          ?.cellKey,
+      placed.position?.cellKey,
+    );
+
+    final removingDay = StageRoutine(
+      stageId: renamed.stageId,
+      teachingWeekdays: renamed.teachingWeekdays.difference({
+        placed.position!.weekday,
+      }),
+      overrides: renamed.overrides,
+      periodTypes: renamed.periodTypes,
+    );
+    await school.saveRoutine(removingDay);
+    final current = await scheduling.loadSchedulingSnapshot('term-flow');
+    final preview = const ScheduleReconciler().preview(baseline, current);
+    expect(preview.canApply, isTrue);
+    expect(preview.movedCount, 1);
+    expect(preview.locksToRelease, hasLength(1));
+    expect(
+      preview.items.single.position?.weekday,
+      isNot(placed.position!.weekday),
+    );
+    await scheduling.commitScheduleReconciliation(
+      termId: 'term-flow',
+      expectedFingerprint: preview.inputFingerprint,
+    );
+    final reconciled = await scheduling.loadSchedulingSnapshot('term-flow');
+    expect(
+      reconciled.existingItems.single.position?.cellKey,
+      preview.items.single.position?.cellKey,
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
+    expect(reconciled.locks, isEmpty);
+    await school.saveRoutine(removingDay);
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: reconciled.conditions,
+      preferences: reconciled.preferences,
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [],
+      preferences: const SchedulePreferences(strength: ScheduleStrength.high),
+    );
+    final ruleBaseline = (await scheduling.loadPendingSchedulingBaseline(
+      'term-flow',
+    ))!;
+    final ruleCurrent = await scheduling.loadSchedulingSnapshot('term-flow');
+    final rulePreview = const ScheduleReconciler().preview(
+      ruleBaseline,
+      ruleCurrent,
+    );
+    expect(rulePreview.canApply, isTrue);
+    expect(rulePreview.keptCount, 1);
+    expect(
+      rulePreview.changes.any(
+        (change) =>
+            change.label == '排课强度' &&
+            change.before == '标准' &&
+            change.after == '高强度',
+      ),
+      isTrue,
+    );
+    await scheduling.commitScheduleReconciliation(
+      termId: 'term-flow',
+      expectedFingerprint: rulePreview.inputFingerprint,
+    );
+
+    await school.saveTeachers(const [
+      Teacher(id: 'teacher-flow', name: '李老师', shortName: '李', sortOrder: 0),
+      Teacher(id: 'teacher-next', name: '王老师', shortName: '王', sortOrder: 1),
+    ]);
+    await school.replaceTeacherAssignments(
+      termId: 'term-flow',
+      classId: 'class-flow',
+      subjectId: 'subject-flow',
+      assignments: const [
+        TeacherAssignment(
+          id: 'assignment-next',
+          termId: 'term-flow',
+          teacherId: 'teacher-next',
+          classId: 'class-flow',
+          subjectId: 'subject-flow',
+          weekMode: WeekMode.weekly,
+          lessonCount: 1,
+        ),
+      ],
+    );
+    expect(
+      (await scheduling.loadPendingSchedulingBaseline('term-flow'))
+          ?.existingItems,
+      hasLength(1),
+    );
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow')).existingItems,
+      isEmpty,
+    );
+    final replacementPreview = const ScheduleReconciler().preview(
+      (await scheduling.loadPendingSchedulingBaseline('term-flow'))!,
+      await scheduling.loadSchedulingSnapshot('term-flow'),
+    );
+    expect(replacementPreview.canApply, isTrue);
+    expect(replacementPreview.items.single.assignmentId, 'assignment-next');
+    await scheduling.commitScheduleReconciliation(
+      termId: 'term-flow',
+      expectedFingerprint: replacementPreview.inputFingerprint,
+    );
+
+    await school.replaceGradeRequirements(
+      gradeId: 'grade-flow',
+      requirements: const [
+        SubjectRequirement(
+          id: 'requirement-flow',
+          subjectId: 'subject-flow',
+          gradeId: 'grade-flow',
+          weekMode: WeekMode.weekly,
+          lessonCount: 2,
+        ),
+      ],
+    );
+    final increasePreview = const ScheduleReconciler().preview(
+      (await scheduling.loadPendingSchedulingBaseline('term-flow'))!,
+      await scheduling.loadSchedulingSnapshot('term-flow'),
+    );
+    expect(increasePreview.canApply, isTrue);
+    expect(increasePreview.addedCount, 1);
+    expect(increasePreview.keptCount, 1);
+    await scheduling.commitScheduleReconciliation(
+      termId: 'term-flow',
+      expectedFingerprint: increasePreview.inputFingerprint,
+    );
+    final expanded = await scheduling.loadSchedulingSnapshot('term-flow');
+    expect(expanded.existingItems, hasLength(2));
+    expect(expanded.assignments.single.lessonCount, 2);
+
+    final position = expanded.existingItems.first.position!;
+    await school.saveFreeSlot(
+      FreeSlot(
+        id: 'blocked-free-slot',
+        scope: FreeSlotScope.schoolClass,
+        scopeId: 'class-flow',
+        stageId: position.stageId,
+        periodTypeId: position.periodTypeId,
+        weekday: position.weekday,
+        lessonIndex: position.lessonIndex,
+        label: '无课',
+      ),
+    );
+    expect(
+      await scheduling.loadPendingSchedulingBaseline('term-flow'),
+      isNotNull,
+    );
+    await school.deleteTeacherAssignments(
+      termId: 'term-flow',
+      assignmentIds: const ['assignment-next'],
+    );
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow')).existingItems,
+      isEmpty,
+    );
+    expect(
+      (await scheduling.loadPendingSchedulingBaseline('term-flow'))!
+          .existingItems,
+      hasLength(2),
+    );
   });
 }

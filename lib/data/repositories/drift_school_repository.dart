@@ -18,6 +18,7 @@ import 'package:class_set/domain/models/teacher_assignment.dart' as domain;
 import 'package:class_set/domain/models/teacher_group.dart' as domain;
 import 'package:class_set/domain/models/teacher_preset.dart' as domain;
 import 'package:class_set/domain/models/schedule_condition.dart' as domain;
+import 'package:class_set/domain/models/schedule_item.dart' as domain;
 import 'package:class_set/domain/models/schedule_lock.dart' as domain;
 import 'package:class_set/domain/models/schedule_preferences.dart' as domain;
 import 'package:class_set/domain/models/schedule_run.dart' as domain;
@@ -33,9 +34,43 @@ class DriftSchoolRepository implements SchoolRepository {
   DriftSchedulingRepository get _scheduling =>
       DriftSchedulingRepository(_database, this, databasePath: databasePath);
 
+  Future<void> _captureForStage(String stageId) async {
+    final stage = await (_database.select(
+      _database.schoolStages,
+    )..where((row) => row.id.equals(stageId))).getSingleOrNull();
+    if (stage != null) {
+      await _scheduling.captureReconciliationBaselineIfNeeded(stage.termId);
+    }
+  }
+
+  Future<void> _captureForClass(String classId) async {
+    final schoolClass = await (_database.select(
+      _database.classGroups,
+    )..where((row) => row.id.equals(classId))).getSingleOrNull();
+    if (schoolClass == null) return;
+    final grade = await (_database.select(
+      _database.gradeGroups,
+    )..where((row) => row.id.equals(schoolClass.gradeId))).getSingleOrNull();
+    if (grade != null) await _captureForStage(grade.stageId);
+  }
+
   @override
   Future<domain.SchedulingSnapshot> loadSchedulingSnapshot(String termId) =>
       _scheduling.loadSchedulingSnapshot(termId);
+
+  @override
+  Future<domain.SchedulingSnapshot?> loadPendingSchedulingBaseline(
+    String termId,
+  ) => _scheduling.loadPendingSchedulingBaseline(termId);
+
+  @override
+  Future<ScheduleCommitResult> commitScheduleReconciliation({
+    required String termId,
+    required String expectedFingerprint,
+  }) => _scheduling.commitScheduleReconciliation(
+    termId: termId,
+    expectedFingerprint: expectedFingerprint,
+  );
 
   @override
   Stream<ScheduleViewData> watchSchedule(String termId) =>
@@ -59,10 +94,29 @@ class DriftSchoolRepository implements SchoolRepository {
   }) => _scheduling.setScheduleLock(lock, enabled: enabled);
 
   @override
+  Future<void> setScheduleLocks({
+    required List<domain.ScheduleLock> locks,
+    required bool enabled,
+  }) => _scheduling.setScheduleLocks(locks: locks, enabled: enabled);
+
+  @override
   Future<ScheduleCommitResult> commitScheduleRun(
     domain.ScheduleRun run, {
     required Set<String> selectedClassIds,
   }) => _scheduling.commitScheduleRun(run, selectedClassIds: selectedClassIds);
+
+  @override
+  Future<void> commitManualScheduleEdit({
+    required String termId,
+    required String expectedFingerprint,
+    required List<domain.ScheduleItem> before,
+    required List<domain.ScheduleItem> after,
+  }) => _scheduling.commitManualScheduleEdit(
+    termId: termId,
+    expectedFingerprint: expectedFingerprint,
+    before: before,
+    after: after,
+  );
 
   @override
   Future<String?> loadActiveTermId() async {
@@ -779,6 +833,8 @@ class DriftSchoolRepository implements SchoolRepository {
           _database.gradeGroups,
         )..where((row) => row.id.equals(grade.id))).getSingleOrNull();
         if (existing != null && existing.stageId != grade.stageId) {
+          await _captureForStage(existing.stageId);
+          await _captureForStage(grade.stageId);
           await _remapGradeFreeSlots(grade.id, existing.stageId, grade.stageId);
         }
         await _database
@@ -875,6 +931,10 @@ class DriftSchoolRepository implements SchoolRepository {
 
   @override
   Future<void> deleteGrade(String gradeId) => _database.transaction(() async {
+    final grade = await (_database.select(
+      _database.gradeGroups,
+    )..where((row) => row.id.equals(gradeId))).getSingleOrNull();
+    if (grade != null) await _captureForStage(grade.stageId);
     final childClasses = await (_database.select(
       _database.classGroups,
     )..where((schoolClass) => schoolClass.gradeId.equals(gradeId))).get();
@@ -921,23 +981,34 @@ class DriftSchoolRepository implements SchoolRepository {
           .map((rows) => rows.map(_toDomainClass).toList(growable: false));
 
   @override
-  Future<void> saveClass(domain.ClassGroup classGroup) =>
-      _database.transaction(() async {
-        await _database
-            .into(_database.classGroups)
-            .insertOnConflictUpdate(
-              ClassGroupsCompanion.insert(
-                id: classGroup.id,
-                gradeId: classGroup.gradeId,
-                name: classGroup.name.trim(),
-                sortOrder: classGroup.sortOrder,
-              ),
-            );
-        final grade = await (_database.select(
+  Future<void> saveClass(domain.ClassGroup classGroup) => _database.transaction(
+    () async {
+      final existing = await (_database.select(
+        _database.classGroups,
+      )..where((row) => row.id.equals(classGroup.id))).getSingleOrNull();
+      if (existing != null && existing.gradeId != classGroup.gradeId) {
+        await _captureForClass(classGroup.id);
+        final targetGrade = await (_database.select(
           _database.gradeGroups,
-        )..where((row) => row.id.equals(classGroup.gradeId))).getSingle();
-        await _remapRoomScope('class', [classGroup.id], grade.stageId);
-      });
+        )..where((row) => row.id.equals(classGroup.gradeId))).getSingleOrNull();
+        if (targetGrade != null) await _captureForStage(targetGrade.stageId);
+      }
+      await _database
+          .into(_database.classGroups)
+          .insertOnConflictUpdate(
+            ClassGroupsCompanion.insert(
+              id: classGroup.id,
+              gradeId: classGroup.gradeId,
+              name: classGroup.name.trim(),
+              sortOrder: classGroup.sortOrder,
+            ),
+          );
+      final grade = await (_database.select(
+        _database.gradeGroups,
+      )..where((row) => row.id.equals(classGroup.gradeId))).getSingle();
+      await _remapRoomScope('class', [classGroup.id], grade.stageId);
+    },
+  );
 
   @override
   Future<void> saveClasses(List<domain.ClassGroup> classes) =>
@@ -949,6 +1020,7 @@ class DriftSchoolRepository implements SchoolRepository {
 
   @override
   Future<void> deleteClass(String classId) => _database.transaction(() async {
+    await _captureForClass(classId);
     await _deleteRoomScope('class', [classId]);
     await (_database.delete(_database.freeSlots)..where(
           (slot) =>
@@ -988,7 +1060,16 @@ class DriftSchoolRepository implements SchoolRepository {
   Future<void> saveRoutine(domain.StageRoutine routine) async {
     _validateRoutine(routine);
     await _database.transaction(() async {
-      // 免任课与公共时段不随时段类型重建而丢失：先保留，重建后按有效性恢复。
+      final previous = await _loadRoutine(routine.stageId);
+      if (_sameRoutine(previous, routine)) return;
+      final stage = await (_database.select(
+        _database.schoolStages,
+      )..where((row) => row.id.equals(routine.stageId))).getSingleOrNull();
+      if (stage != null) {
+        await _scheduling.captureReconciliationBaselineIfNeeded(stage.termId);
+      }
+      // 保留现有时段类型的主键，避免更新作息时级联删除课表与免任课。
+      // 删除无效节次前保留免任课和公共时段挂载点，用于后续清理与修复。
       final preservedFreeSlots = await (_database.select(
         _database.freeSlots,
       )..where((slot) => slot.stageId.equals(routine.stageId))).get();
@@ -1000,8 +1081,20 @@ class DriftSchoolRepository implements SchoolRepository {
         _database.stageTeachingDays,
       )..where((day) => day.stageId.equals(routine.stageId))).go();
       await (_database.delete(
-        _database.lessonPeriodTypes,
-      )..where((period) => period.stageId.equals(routine.stageId))).go();
+        _database.dailyLessonOverrides,
+      )..where((item) => item.stageId.equals(routine.stageId))).go();
+      final nextPeriodIds = routine.periodTypes
+          .map((period) => period.id)
+          .toSet();
+      final previousPeriodIds = previous.periodTypes
+          .map((period) => period.id)
+          .toSet();
+      for (final oldPeriod in previous.periodTypes) {
+        if (nextPeriodIds.contains(oldPeriod.id)) continue;
+        await (_database.delete(
+          _database.lessonPeriodTypes,
+        )..where((period) => period.id.equals(oldPeriod.id))).go();
+      }
 
       for (
         var weekday = DateTime.monday;
@@ -1021,17 +1114,32 @@ class DriftSchoolRepository implements SchoolRepository {
       }
 
       for (final period in routine.periodTypes) {
-        await _database
-            .into(_database.lessonPeriodTypes)
-            .insert(
-              LessonPeriodTypesCompanion.insert(
-                id: period.id,
-                stageId: routine.stageId,
-                name: period.name.trim(),
-                defaultLessonCount: period.defaultLessonCount,
-                sortOrder: period.sortOrder,
-              ),
-            );
+        if (previousPeriodIds.contains(period.id)) {
+          await (_database.update(
+            _database.lessonPeriodTypes,
+          )..where((row) => row.id.equals(period.id))).write(
+            LessonPeriodTypesCompanion(
+              name: Value(period.name.trim()),
+              defaultLessonCount: Value(period.defaultLessonCount),
+              sortOrder: Value(period.sortOrder),
+            ),
+          );
+        } else {
+          await _database
+              .into(_database.lessonPeriodTypes)
+              .insert(
+                LessonPeriodTypesCompanion.insert(
+                  id: period.id,
+                  stageId: routine.stageId,
+                  name: period.name.trim(),
+                  defaultLessonCount: period.defaultLessonCount,
+                  sortOrder: period.sortOrder,
+                ),
+              );
+        }
+        await (_database.delete(
+          _database.lessonTimes,
+        )..where((time) => time.periodTypeId.equals(period.id))).go();
         for (final override in routine.overrides.where(
           (item) => item.periodTypeId == period.id,
         )) {
@@ -1063,32 +1171,21 @@ class DriftSchoolRepository implements SchoolRepository {
         }
       }
 
-      // 恢复仍有效的免任课（时段与节次均存在）。
+      // 清理已删除节次的免任课；保留的时段不会重建外键记录。
       final validLessonIds = <String>{
         for (final period in routine.periodTypes)
           for (final time in period.lessonTimes)
             '${period.id}_${time.lessonIndex}',
       };
       for (final slot in preservedFreeSlots) {
-        if (!validLessonIds.contains(
+        if (validLessonIds.contains(
           '${slot.periodTypeId}_${slot.lessonIndex}',
         )) {
           continue;
         }
-        await _database
-            .into(_database.freeSlots)
-            .insertOnConflictUpdate(
-              FreeSlotsCompanion.insert(
-                id: slot.id,
-                scopeType: slot.scopeType,
-                scopeId: slot.scopeId,
-                stageId: slot.stageId,
-                periodTypeId: slot.periodTypeId,
-                weekday: slot.weekday,
-                lessonIndex: slot.lessonIndex,
-                label: slot.label,
-              ),
-            );
+        await (_database.delete(
+          _database.freeSlots,
+        )..where((row) => row.id.equals(slot.id))).go();
       }
 
       // 公共时段挂载点漂移时修复：优先挂到原时段最后一节，时段已删除则移到最前。
@@ -1113,6 +1210,49 @@ class DriftSchoolRepository implements SchoolRepository {
         );
       }
     });
+  }
+
+  bool _sameRoutine(domain.StageRoutine left, domain.StageRoutine right) {
+    if (left.stageId != right.stageId ||
+        left.teachingWeekdays.length != right.teachingWeekdays.length ||
+        !left.teachingWeekdays.containsAll(right.teachingWeekdays) ||
+        left.periodTypes.length != right.periodTypes.length ||
+        left.overrides.length != right.overrides.length) {
+      return false;
+    }
+    final periods = {for (final row in left.periodTypes) row.id: row};
+    for (final row in right.periodTypes) {
+      final old = periods[row.id];
+      if (old == null ||
+          old.name != row.name ||
+          old.defaultLessonCount != row.defaultLessonCount ||
+          old.sortOrder != row.sortOrder ||
+          old.lessonTimes.length != row.lessonTimes.length) {
+        return false;
+      }
+      final times = {
+        for (final time in old.lessonTimes) time.lessonIndex: time,
+      };
+      for (final time in row.lessonTimes) {
+        final before = times[time.lessonIndex];
+        if (before == null ||
+            before.label != time.label ||
+            before.startMinute != time.startMinute ||
+            before.endMinute != time.endMinute) {
+          return false;
+        }
+      }
+    }
+    final overrides = {
+      for (final row in left.overrides)
+        '${row.periodTypeId}:${row.weekday}': row.lessonCount,
+    };
+    for (final row in right.overrides) {
+      if (overrides['${row.periodTypeId}:${row.weekday}'] != row.lessonCount) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // —— 教学日历例外 ——
@@ -1211,25 +1351,47 @@ class DriftSchoolRepository implements SchoolRepository {
           .map((rows) => rows.map(_toDomainFreeSlot).toList(growable: false));
 
   @override
-  Future<void> saveFreeSlot(domain.FreeSlot slot) => _database
-      .into(_database.freeSlots)
-      .insertOnConflictUpdate(
-        FreeSlotsCompanion.insert(
-          id: slot.id,
-          scopeType: slot.scope.storageValue,
-          scopeId: slot.scopeId,
-          stageId: slot.stageId,
-          periodTypeId: slot.periodTypeId,
-          weekday: slot.weekday,
-          lessonIndex: slot.lessonIndex,
-          label: slot.label,
-        ),
-      );
+  Future<void> saveFreeSlot(domain.FreeSlot slot) =>
+      _database.transaction(() async {
+        final stage = await (_database.select(
+          _database.schoolStages,
+        )..where((row) => row.id.equals(slot.stageId))).getSingleOrNull();
+        if (stage != null) {
+          await _scheduling.captureReconciliationBaselineIfNeeded(stage.termId);
+        }
+        await _database
+            .into(_database.freeSlots)
+            .insertOnConflictUpdate(
+              FreeSlotsCompanion.insert(
+                id: slot.id,
+                scopeType: slot.scope.storageValue,
+                scopeId: slot.scopeId,
+                stageId: slot.stageId,
+                periodTypeId: slot.periodTypeId,
+                weekday: slot.weekday,
+                lessonIndex: slot.lessonIndex,
+                label: slot.label,
+              ),
+            );
+      });
 
   @override
-  Future<void> deleteFreeSlot(String slotId) => (_database.delete(
-    _database.freeSlots,
-  )..where((slot) => slot.id.equals(slotId))).go();
+  Future<void> deleteFreeSlot(String slotId) => _database.transaction(() async {
+    final slot = await (_database.select(
+      _database.freeSlots,
+    )..where((row) => row.id.equals(slotId))).getSingleOrNull();
+    if (slot != null) {
+      final stage = await (_database.select(
+        _database.schoolStages,
+      )..where((row) => row.id.equals(slot.stageId))).getSingleOrNull();
+      if (stage != null) {
+        await _scheduling.captureReconciliationBaselineIfNeeded(stage.termId);
+      }
+    }
+    await (_database.delete(
+      _database.freeSlots,
+    )..where((row) => row.id.equals(slotId))).go();
+  });
 
   // —— 公共时段 ——
 
@@ -1578,9 +1740,18 @@ class DriftSchoolRepository implements SchoolRepository {
   }
 
   @override
-  Future<void> deleteSubject(String subjectId) => (_database.delete(
-    _database.subjects,
-  )..where((subject) => subject.id.equals(subjectId))).go();
+  Future<void> deleteSubject(String subjectId) =>
+      _database.transaction(() async {
+        final subject = await (_database.select(
+          _database.subjects,
+        )..where((row) => row.id.equals(subjectId))).getSingleOrNull();
+        if (subject?.termId case final termId?) {
+          await _scheduling.captureReconciliationBaselineIfNeeded(termId);
+        }
+        await (_database.delete(
+          _database.subjects,
+        )..where((row) => row.id.equals(subjectId))).go();
+      });
 
   @override
   Stream<List<domain.SubjectRequirement>> watchRequirementsForGrade(
@@ -1734,6 +1905,33 @@ class DriftSchoolRepository implements SchoolRepository {
     required List<domain.SubjectRequirement> requirements,
   }) async {
     await _database.transaction(() async {
+      final previous = await (_database.select(
+        _database.subjectRequirements,
+      )..where((row) => row.gradeId.equals(gradeId))).get();
+      final oldValues = {
+        for (final row in previous)
+          '${row.classId}:${row.subjectId}:${row.weekMode}:${row.lessonCount}',
+      };
+      final newValues = {
+        for (final row in requirements)
+          '${row.classId}:${row.subjectId}:${row.weekMode.storageValue}:${row.lessonCount}',
+      };
+      if (oldValues.length != newValues.length ||
+          !oldValues.containsAll(newValues)) {
+        final grade = await (_database.select(
+          _database.gradeGroups,
+        )..where((row) => row.id.equals(gradeId))).getSingleOrNull();
+        if (grade != null) {
+          final stage = await (_database.select(
+            _database.schoolStages,
+          )..where((row) => row.id.equals(grade.stageId))).getSingleOrNull();
+          if (stage != null) {
+            await _scheduling.captureReconciliationBaselineIfNeeded(
+              stage.termId,
+            );
+          }
+        }
+      }
       await (_database.delete(
         _database.subjectRequirements,
       )..where((row) => row.gradeId.equals(gradeId))).go();
@@ -1789,6 +1987,7 @@ class DriftSchoolRepository implements SchoolRepository {
     await _database.transaction(() async {
       // 范围网格总是对应单个学段的作息；即使 scope 为 school，也只替换
       // 当前学段的数据，避免把某一套作息的星期与时段映射到其他学段。
+      await _captureForStage(stageId);
       await _deleteSubjectPresets(subjectId, scope, scopeId, stageId);
       if (presets.isEmpty) return;
       await _insertSubjectPresets(presets);
@@ -1836,6 +2035,7 @@ class DriftSchoolRepository implements SchoolRepository {
       }
     }
     await _database.transaction(() async {
+      await _captureForStage(stageId);
       await (_database.delete(_database.subjectLessonConstraints)..where(
             (row) =>
                 row.subjectId.equals(subjectId) &
@@ -1922,6 +2122,7 @@ class DriftSchoolRepository implements SchoolRepository {
     required List<domain.SubjectPairing> pairings,
   }) async {
     await _database.transaction(() async {
+      await _captureForClass(classId);
       await (_database.delete(
         _database.subjectPairings,
       )..where((row) => row.classId.equals(classId))).go();
@@ -2016,6 +2217,10 @@ class DriftSchoolRepository implements SchoolRepository {
       if (!ids.add(room.id)) throw ArgumentError('公共教室 ID 重复');
     }
     await _database.transaction(() async {
+      for (final term
+          in await _database.select(_database.academicTerms).get()) {
+        await _scheduling.captureReconciliationBaselineIfNeeded(term.id);
+      }
       for (final room in rooms) {
         await _database
             .into(_database.publicRooms)
@@ -2035,6 +2240,10 @@ class DriftSchoolRepository implements SchoolRepository {
   @override
   Future<void> deletePublicRoom(String roomId) =>
       _database.transaction(() async {
+        for (final term
+            in await _database.select(_database.academicTerms).get()) {
+          await _scheduling.captureReconciliationBaselineIfNeeded(term.id);
+        }
         await (_database.delete(
           _database.subjectRoomAssignments,
         )..where((row) => row.roomId.equals(roomId))).go();
@@ -2221,6 +2430,7 @@ class DriftSchoolRepository implements SchoolRepository {
         allowClass: false,
       );
     }
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     await (_database.delete(_database.subjectRoomAssignments)..where(
           (row) => row.termId.equals(termId) & row.subjectId.equals(subjectId),
         ))
@@ -2260,6 +2470,7 @@ class DriftSchoolRepository implements SchoolRepository {
         )) {
       throw ArgumentError('同一范围只能保存一条公共教室设置');
     }
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     await (_database.delete(_database.subjectRoomAssignments)..where(
           (row) =>
               row.subjectId.equals(subjectId) &
@@ -2300,6 +2511,7 @@ class DriftSchoolRepository implements SchoolRepository {
         )) {
       throw ArgumentError('同一范围只能保存一条正数并行课节限制');
     }
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     await (_database.delete(_database.subjectParallelLimits)..where(
           (row) =>
               row.subjectId.equals(subjectId) &
@@ -2428,6 +2640,15 @@ class DriftSchoolRepository implements SchoolRepository {
   @override
   Future<void> deleteTeacher(String teacherId) =>
       _database.transaction(() async {
+        final terms =
+            (await (_database.select(
+                  _database.teacherAssignments,
+                )..where((row) => row.teacherId.equals(teacherId))).get())
+                .map((row) => row.termId)
+                .toSet();
+        for (final termId in terms) {
+          await _scheduling.captureReconciliationBaselineIfNeeded(termId);
+        }
         await (_database.update(_database.teacherAssignments)
               ..where((row) => row.teacherId.equals(teacherId)))
             .write(const TeacherAssignmentsCompanion(teacherId: Value(null)));
@@ -2550,6 +2771,22 @@ class DriftSchoolRepository implements SchoolRepository {
                   row.subjectId.equals(subjectId),
             ))
             .get();
+    final replacementById = {
+      for (final assignment in assignments) assignment.id: assignment,
+    };
+    final unchanged =
+        currentRows.length == assignments.length &&
+        currentRows.every((current) {
+          final replacement = replacementById[current.id];
+          return replacement != null &&
+              current.teacherId == replacement.teacherId &&
+              current.weekMode == replacement.weekMode.storageValue &&
+              current.lessonCount == replacement.lessonCount &&
+              current.sortOrder == replacement.sortOrder &&
+              current.combinedLessonGroupId == null;
+        });
+    if (unchanged) return;
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     final combinedGroupIds = currentRows
         .map((row) => row.combinedLessonGroupId)
         .whereType<String>()
@@ -2741,6 +2978,7 @@ class DriftSchoolRepository implements SchoolRepository {
       }
     }
 
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     for (final assignment in assignments) {
       await _database
           .into(_database.teacherAssignments)
@@ -2769,6 +3007,7 @@ class DriftSchoolRepository implements SchoolRepository {
     final rows = await (_database.select(
       _database.teacherAssignments,
     )..where((row) => row.termId.equals(termId) & row.id.isIn(ids))).get();
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     final combinedGroupIds = rows
         .map((row) => row.combinedLessonGroupId)
         .whereType<String>()
@@ -2829,6 +3068,7 @@ class DriftSchoolRepository implements SchoolRepository {
             ))
             .getSingleOrNull();
     if (groupInUse != null) throw StateError('合班标识已存在，请重试');
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     await (_database.update(
       _database.teacherAssignments,
     )..where((row) => row.termId.equals(termId) & row.id.isIn(ids))).write(
@@ -2843,6 +3083,7 @@ class DriftSchoolRepository implements SchoolRepository {
     required String termId,
     required String combinedGroupId,
   }) => _database.transaction(() async {
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     final affected =
         await (_database.update(_database.teacherAssignments)..where(
               (row) =>
@@ -2976,9 +3217,24 @@ class DriftSchoolRepository implements SchoolRepository {
   });
 
   @override
-  Future<void> deleteTeacherGroup(String groupId) => (_database.delete(
-    _database.teacherGroups,
-  )..where((row) => row.id.equals(groupId))).go();
+  Future<void> deleteTeacherGroup(String groupId) =>
+      _database.transaction(() async {
+        final group = await (_database.select(
+          _database.teacherGroups,
+        )..where((row) => row.id.equals(groupId))).getSingleOrNull();
+        if (group == null) return;
+        final preset =
+            await (_database.select(_database.teacherGroupPresets)
+                  ..where((row) => row.groupId.equals(groupId))
+                  ..limit(1))
+                .getSingleOrNull();
+        if (preset != null) {
+          await _scheduling.captureReconciliationBaselineIfNeeded(group.termId);
+        }
+        await (_database.delete(
+          _database.teacherGroups,
+        )..where((row) => row.id.equals(groupId))).go();
+      });
 
   @override
   Future<void> replaceTeacherGroupMembers({
@@ -2997,6 +3253,20 @@ class DriftSchoolRepository implements SchoolRepository {
           !teacherIds.contains(member.teacherId) ||
           !ids.add(member.teacherId)) {
         throw ArgumentError('分组成员无效或重复');
+      }
+    }
+    final existing = await (_database.select(
+      _database.teacherGroupMembers,
+    )..where((row) => row.groupId.equals(groupId))).get();
+    final oldIds = existing.map((row) => row.teacherId).toSet();
+    if (oldIds.length != ids.length || !oldIds.containsAll(ids)) {
+      final preset =
+          await (_database.select(_database.teacherGroupPresets)
+                ..where((row) => row.groupId.equals(groupId))
+                ..limit(1))
+              .getSingleOrNull();
+      if (preset != null) {
+        await _scheduling.captureReconciliationBaselineIfNeeded(group.termId);
       }
     }
     await (_database.delete(
@@ -3076,6 +3346,7 @@ class DriftSchoolRepository implements SchoolRepository {
     required String teacherId,
     required List<domain.TeacherPreset> presets,
   }) => _database.transaction(() async {
+    await _scheduling.captureReconciliationBaselineIfNeeded(termId);
     await (_database.delete(_database.teacherPresets)..where(
           (row) => row.termId.equals(termId) & row.teacherId.equals(teacherId),
         ))
@@ -3106,6 +3377,12 @@ class DriftSchoolRepository implements SchoolRepository {
     required String groupId,
     required List<domain.TeacherGroupPreset> presets,
   }) => _database.transaction(() async {
+    final group = await (_database.select(
+      _database.teacherGroups,
+    )..where((row) => row.id.equals(groupId))).getSingleOrNull();
+    if (group != null) {
+      await _scheduling.captureReconciliationBaselineIfNeeded(group.termId);
+    }
     await (_database.delete(
       _database.teacherGroupPresets,
     )..where((row) => row.groupId.equals(groupId))).go();

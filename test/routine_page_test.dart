@@ -251,9 +251,10 @@ void main() {
     await pumpPage(tester);
     await selectJuniorStage(tester);
 
-    expect(find.text('全校'), findsOneWidget);
-    expect(find.text('小学部（独立作息）'), findsOneWidget);
-    expect(find.text('初中部（编辑中）'), findsOneWidget);
+    expect(find.text('小学部'), findsOneWidget);
+    expect(find.text('初中部'), findsOneWidget);
+    expect(find.text('编辑中'), findsOneWidget);
+    expect(find.text('独立作息'), findsOneWidget);
   });
 
   testWidgets('点击其他学段下的年级/班级自动切换到对应学段并保留选中项', (tester) async {
@@ -261,20 +262,10 @@ void main() {
       final stages = await repository.watchStages('t1').first;
       final primaryId = stages.firstWhere((stage) => stage.name == '小学部').id;
       await repository.saveGrade(
-        GradeGroup(
-          id: 'pr_g1',
-          stageId: primaryId,
-          name: '一年级',
-          sortOrder: 0,
-        ),
+        GradeGroup(id: 'pr_g1', stageId: primaryId, name: '一年级', sortOrder: 0),
       );
       await repository.saveGrade(
-        const GradeGroup(
-          id: 'jr_g1',
-          stageId: 'jr',
-          name: '七年级',
-          sortOrder: 0,
-        ),
+        const GradeGroup(id: 'jr_g1', stageId: 'jr', name: '七年级', sortOrder: 0),
       );
       await repository.saveClass(
         const ClassGroup(
@@ -288,21 +279,17 @@ void main() {
     await pumpPage(tester);
     await selectJuniorStage(tester);
 
-    Finder stageTile(String title) => find.ancestor(
-      of: find.text(title),
-      matching: find.byType(AppTreeTile),
-    );
-    Finder gradeTile(String title) => find.ancestor(
-      of: find.text(title),
-      matching: find.byType(AppTreeTile),
-    );
+    Finder stageTile(String title) =>
+        find.ancestor(of: find.text(title), matching: find.byType(AppTreeTile));
+    Finder gradeTile(String title) =>
+        find.ancestor(of: find.text(title), matching: find.byType(AppTreeTile));
     bool isTileSelected(Finder tile) =>
         tester.widget<AppTreeTile>(tile.first).isSelected;
 
     // 展开小学部，点击其下的年级：应切到小学部并选中该年级。
     await tester.tap(
       find.descendant(
-        of: stageTile('小学部（独立作息）'),
+        of: stageTile('小学部'),
         matching: find.byIcon(Icons.chevron_right),
       ),
     );
@@ -312,14 +299,14 @@ void main() {
     await tester.tap(find.text('一年级'));
     await tester.pumpAndSettle();
 
-    expect(find.text('小学部（编辑中）'), findsOneWidget);
-    expect(find.text('初中部（独立作息）'), findsOneWidget);
+    expect(find.text('编辑中'), findsOneWidget);
+    expect(find.text('独立作息'), findsOneWidget);
     expect(isTileSelected(gradeTile('一年级')), isTrue);
 
     // 展开初中部的七年级，点击其下的班级：应切回初中部并选中该班级。
     await tester.tap(
       find.descendant(
-        of: stageTile('初中部（独立作息）'),
+        of: stageTile('初中部'),
         matching: find.byIcon(Icons.chevron_right),
       ),
     );
@@ -336,8 +323,8 @@ void main() {
     await tester.tap(find.text('七年级 1 班'));
     await tester.pumpAndSettle();
 
-    expect(find.text('初中部（编辑中）'), findsOneWidget);
-    expect(find.text('小学部（独立作息）'), findsOneWidget);
+    expect(find.text('编辑中'), findsOneWidget);
+    expect(find.text('独立作息'), findsOneWidget);
     expect(isTileSelected(gradeTile('七年级 1 班')), isTrue);
     expect(tester.takeException(), isNull);
   });
@@ -717,10 +704,12 @@ void main() {
 
     // 打开「位置」下拉，选择「第 1 节之前」。
     await tester.tap(
-      find.descendant(
-        of: dialog,
-        matching: find.byType(AppSelectField<String?>),
-      ).first,
+      find
+          .descendant(
+            of: dialog,
+            matching: find.byType(AppSelectField<String?>),
+          )
+          .first,
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('第 1 节之前').last);

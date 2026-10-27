@@ -626,6 +626,18 @@ class ScheduleRunReports extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Frozen scheduling input and manually adjusted timetable before settings
+/// change. It survives cascades from edited routines and assignments.
+class ScheduleReconciliationBaselines extends Table {
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get snapshotJson => text()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {termId};
+}
+
 @DriftDatabase(
   tables: [
     AcademicTerms,
@@ -660,6 +672,7 @@ class ScheduleRunReports extends Table {
     ScheduleConditions,
     SchedulePreferences,
     ScheduleRunReports,
+    ScheduleReconciliationBaselines,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -668,7 +681,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -757,6 +770,9 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createIndex(scheduleLocksTarget);
         await migrator.createIndex(scheduleConditionsTarget);
         await migrator.createIndex(scheduleRunReportsTermCreated);
+      }
+      if (from < 15) {
+        await migrator.createTable(scheduleReconciliationBaselines);
       }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),

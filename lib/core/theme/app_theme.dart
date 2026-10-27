@@ -28,6 +28,7 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     required this.destructive,
     required this.destructiveSurface,
     required this.dialogBarrier,
+    required this.cardShadow,
   });
 
   final Color ink;
@@ -55,12 +56,16 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
   final Color destructiveSurface;
   final Color dialogBarrier;
 
+  /// 卡片投影（代替描边的轻阴影）。设计值 0 0 8px rgba(0,0,0,.05)；
+  /// 暗色模式下加深以保证在深色画布上可感知。
+  final List<BoxShadow> cardShadow;
+
   static const light = AppThemeColors(
     ink: Color(0xFF1A1A1A),
     inkSecondary: Color(0xFF615D59),
     muted: Color(0xFFA39E98),
     helpIcon: Color(0xFFB4AEA8),
-    canvas: Color(0xFFF6F5F4),
+    canvas: Color(0xFFF8F9FA),
     surface: Colors.white,
     blue: Color(0xFF0075DE),
     purple: Color(0xFF7568B5),
@@ -72,7 +77,7 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     sidebarAccent: Color(0xFF0075DE),
     selectedBlue: Color(0xFFE8F1FC),
     tableHeader: Color(0xFFFAF9F8),
-    tableDivider: Color(0xFFF0EEEC),
+    tableDivider: Colors.white,
     success: Color(0xFF2BA471),
     successSurface: Color(0xFFE9F6EF),
     warning: Color(0xFFC98A2B),
@@ -80,6 +85,8 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     destructive: Color(0xFFD54941),
     destructiveSurface: Color(0xFFFBECEB),
     dialogBarrier: Color(0x52000000),
+    // 0 0 8px 0 rgba(0,0,0,.05)
+    cardShadow: [BoxShadow(color: Color(0x0D000000), blurRadius: 8)],
   );
 
   static const dark = AppThemeColors(
@@ -107,6 +114,8 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     destructive: Color(0xFFF07870),
     destructiveSurface: Color(0xFF432827),
     dialogBarrier: Color(0x99000000),
+    // 暗色模式阴影加深，保证在深色画布上仍有轻浮起感。
+    cardShadow: [BoxShadow(color: Color(0x59000000), blurRadius: 8)],
   );
 
   @override
@@ -135,6 +144,7 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     Color? destructive,
     Color? destructiveSurface,
     Color? dialogBarrier,
+    List<BoxShadow>? cardShadow,
   }) => AppThemeColors(
     ink: ink ?? this.ink,
     inkSecondary: inkSecondary ?? this.inkSecondary,
@@ -160,6 +170,7 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     destructive: destructive ?? this.destructive,
     destructiveSurface: destructiveSurface ?? this.destructiveSurface,
     dialogBarrier: dialogBarrier ?? this.dialogBarrier,
+    cardShadow: cardShadow ?? this.cardShadow,
   );
 
   @override
@@ -194,6 +205,8 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
         t,
       )!,
       dialogBarrier: Color.lerp(dialogBarrier, other.dialogBarrier, t)!,
+      // 阴影不参与插值，主题切换时直接取目标值。
+      cardShadow: t < 0.5 ? cardShadow : other.cardShadow,
     );
   }
 }

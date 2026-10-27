@@ -1,159 +1,742 @@
 import 'dart:async';
 
+import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/domain/models/schedule_condition.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
+import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/schedule_preferences.dart';
+import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
+import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
 import 'package:class_set/features/scheduling/scheduling_controller.dart';
+import 'package:class_set/features/scheduling/schedule_export.dart';
+import 'package:class_set/features/scheduling/scheduling_timetable.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forui/forui.dart';
 
-class SchedulingPage extends ConsumerWidget {
+class SchedulingPage extends ConsumerStatefulWidget {
   const SchedulingPage({required this.termId, super.key});
 
   final String termId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(schedulingControllerProvider(termId));
-    final controller = ref.read(schedulingControllerProvider(termId).notifier);
+  ConsumerState<SchedulingPage> createState() => _SchedulingPageState();
+}
+
+class _SchedulingPageState extends ConsumerState<SchedulingPage> {
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(schedulingControllerProvider(widget.termId));
+    final controller = ref.read(
+      schedulingControllerProvider(widget.termId).notifier,
+    );
     final snapshot = state.snapshot;
-    final busy =
-        state.status == SchedulingStatus.loading ||
-        state.status == SchedulingStatus.solving ||
-        state.status == SchedulingStatus.committing;
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        AppPageHeader(
-          title: '自动排课',
-          subtitle: '确认范围与规则后生成课表。已有排课在求解期间保持可用。',
-          responsiveActions: true,
-          actions: [
-            AppSecondaryButton(
-              onPressed: busy ? null : () => unawaited(controller.refresh()),
-              child: const Text('重新检查'),
+    if (snapshot == null) {
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          AppSectionPanel(
+            title: '排课与课表',
+            child: state.status == SchedulingStatus.loading
+                ? const FProgress()
+                : Text(state.error ?? '尚未加载学期排课资料。'),
+          ),
+        ],
+      );
+    }
+    final pending = state.pendingBaseline;
+    final current = state.currentSnapshot;
+    return CallbackShortcuts(
+      bindings: pending == null
+          ? {
+              const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): () =>
+                  unawaited(controller.undo()),
+              const SingleActivator(
+                LogicalKeyboardKey.keyZ,
+                control: true,
+              ): () =>
+                  unawaited(controller.undo()),
+              const SingleActivator(
+                LogicalKeyboardKey.keyZ,
+                meta: true,
+                shift: true,
+              ): () =>
+                  unawaited(controller.redo()),
+              const SingleActivator(
+                LogicalKeyboardKey.keyZ,
+                control: true,
+                shift: true,
+              ): () =>
+                  unawaited(controller.redo()),
+              const SingleActivator(
+                LogicalKeyboardKey.keyY,
+                control: true,
+              ): () =>
+                  unawaited(controller.redo()),
+            }
+          : const {},
+      child: Focus(
+        autofocus: true,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AbsorbPointer(
+              absorbing: pending != null,
+              child: SchedulingTimetable(
+                snapshot: snapshot,
+                state: state,
+                onStart: () => unawaited(_showStartDialog(state, controller)),
+                onRefresh: () => unawaited(controller.detect()),
+                onRules: () => unawaited(_showRulesDialog(controller)),
+                onReport: () => unawaited(_showReportDialog(state, snapshot)),
+                onDetectionReport: () => unawaited(_showDetectionDialog(state)),
+                onCancel: controller.cancel,
+                onDone: () => unawaited(controller.refresh()),
+                onExport: (items, title) =>
+                    unawaited(_showExportDialog(snapshot, items, title)),
+                onPreviewMove: controller.previewMove,
+                onMove: controller.move,
+                onUndo: () => unawaited(controller.undo()),
+                onRedo: () => unawaited(controller.redo()),
+                onSetLock: (lock, enabled) =>
+                    controller.setLock(lock, enabled: enabled),
+                onSetAllLocks: (enabled) =>
+                    controller.setAllClassLocks(enabled: enabled),
+              ),
             ),
-            if (state.status == SchedulingStatus.solving)
-              AppSecondaryButton(
-                onPressed: controller.cancel,
-                child: const Text('取消排课'),
-              )
-            else
-              AppPrimaryButton(
-                onPressed: state.canStart
-                    ? () => unawaited(
-                        controller.start(
-                          seed: DateTime.now().millisecondsSinceEpoch,
-                        ),
-                      )
-                    : null,
-                child: Text(
-                  state.status == SchedulingStatus.committing
-                      ? '正在保存…'
-                      : '开始排课',
-                ),
+            if (pending != null && current != null)
+              _ScheduleReconciliationOverlay(
+                baseline: pending,
+                current: current,
+                preview: state.reconciliationPreview,
+                busy: state.reconciling,
+                error: state.error,
+                onPreview: () => unawaited(controller.previewReconciliation()),
+                onApply: () => unawaited(controller.applyReconciliation()),
               ),
           ],
         ),
-        const SizedBox(height: 20),
-        if (state.error != null) ...[
-          AppInlineMessage(message: state.error!, icon: Icons.error_outline),
-          const SizedBox(height: 16),
-        ],
-        if (state.backupWarning != null) ...[
-          AppInlineMessage(
-            message: state.backupWarning!,
-            icon: Icons.warning_amber_outlined,
-          ),
-          const SizedBox(height: 16),
-        ],
-        if (snapshot == null)
-          AppSectionPanel(
-            title: '准备排课资料',
-            child: state.status == SchedulingStatus.loading
-                ? const LinearProgressIndicator()
-                : const Text('尚未加载学期数据。'),
-          )
-        else ...[
-          _ScopePanel(
-            snapshot: snapshot,
-            selected: state.selectedClassIds,
-            enabled: !busy,
-            onChanged: controller.selectClasses,
-          ),
-          const SizedBox(height: 16),
-          _RulePanel(
-            snapshot: snapshot,
-            enabled: !busy,
-            onSave: (conditions, preferences) => controller.saveConfiguration(
-              conditions: conditions,
-              preferences: preferences,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _LockPanel(
-            snapshot: snapshot,
-            enabled: !busy,
-            onSet: (lock, enabled) =>
-                controller.setLock(lock, enabled: enabled),
-          ),
-          const SizedBox(height: 16),
-          AppSectionPanel(
-            title: '启动前检查',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (state.checks.isEmpty) const Text('基础资料检查通过，可以开始排课。'),
-                for (final check in state.checks)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
+      ),
+    );
+  }
+
+  Future<void> _showStartDialog(
+    SchedulingState state,
+    SchedulingController controller,
+  ) async {
+    final snapshot = state.snapshot;
+    if (snapshot == null) return;
+    var selected = {...state.selectedClassIds};
+    var strength = snapshot.preferences.strength;
+    var fixedSeed = false;
+    var showClasses = false;
+    final seedController = TextEditingController(text: '1');
+    try {
+      final options = await showAppDialog<_StartOptions>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, update) {
+            final problem = const ProblemBuilder().build(
+              snapshot,
+              selectedClassIds: selected,
+            );
+            return AppDialog(
+              maxWidth: 680,
+              title: AppDialogTitle(
+                title: '自动排课',
+                onClose: () => Navigator.pop(dialogContext),
+              ),
+              titleGap: 16,
+              actionsGap: 24,
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '开始前核对排课资料与设置。未通过的项目需要先处理；'
+                    '容量不足的课程会进入暂放区。',
+                    style: TextStyle(
+                      color: context.appColors.inkSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  _DialogSection(
+                    title: '第一次排课检查清单',
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          check.ready
-                              ? Icons.info_outline
-                              : Icons.error_outline,
-                          size: 18,
-                          color: check.ready ? Colors.blueGrey : Colors.red,
+                        _checkRow(
+                          context,
+                          '班级与学段',
+                          '${snapshot.stages.length} 个学段 · '
+                              '${snapshot.grades.length} 个年级 · '
+                              '${snapshot.classes.length} 个班级',
+                          problem.checks
+                              .where((check) => check.code == 'classes')
+                              .toList(),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(check.message)),
+                        _checkRow(
+                          context,
+                          '作息设置',
+                          '${snapshot.routines.length} 个学段已配置作息',
+                          problem.checks
+                              .where((check) => check.code == 'routine')
+                              .toList(),
+                        ),
+                        _checkRow(
+                          context,
+                          '科目节数与容量',
+                          '${snapshot.requirements.length} 条节数需求',
+                          problem.checks
+                              .where((check) => check.code == 'capacity')
+                              .toList(),
+                        ),
+                        _checkRow(
+                          context,
+                          '教师任课',
+                          '${snapshot.assignments.length} 条任课分配',
+                          problem.checks
+                              .where((check) => check.code == 'assignment')
+                              .toList(),
+                        ),
+                        _checkRow(
+                          context,
+                          '跨学段节次时间',
+                          '按教师与场室使用范围检查',
+                          problem.checks
+                              .where((check) => check.code == 'clock')
+                              .toList(),
+                        ),
+                        _checkRow(
+                          context,
+                          '排课规则确认',
+                          '${snapshot.conditions.length} 条自定义条件生效中',
+                          problem.checks
+                              .where(
+                                (check) => const {
+                                  'combinedScope',
+                                  'combined',
+                                  'pairing',
+                                }.contains(check.code),
+                              )
+                              .toList(),
+                        ),
                       ],
                     ),
                   ),
-                if (state.status == SchedulingStatus.loading ||
-                    state.status == SchedulingStatus.committing)
-                  const LinearProgressIndicator(),
-                if (state.status == SchedulingStatus.solving) ...[
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: state.progress?.fraction.clamp(0, 1),
+                  const SizedBox(height: 24),
+                  Divider(height: 1, color: context.appColors.border),
+                  const SizedBox(height: 24),
+                  _DialogSection(
+                    title: '排课设置',
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final scope = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '排课范围',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 12),
+                            for (final stage in snapshot.stages)
+                              AppCheckbox(
+                                value:
+                                    _stageClassIds(
+                                      snapshot,
+                                      stage.id,
+                                    ).isNotEmpty &&
+                                    _stageClassIds(
+                                      snapshot,
+                                      stage.id,
+                                    ).every(selected.contains),
+                                onChanged: (checked) => update(() {
+                                  final ids = _stageClassIds(
+                                    snapshot,
+                                    stage.id,
+                                  );
+                                  checked
+                                      ? selected.addAll(ids)
+                                      : selected.removeAll(ids);
+                                }),
+                                label: Text(stage.name),
+                              ),
+                            AppGhostButton(
+                              onPressed: () =>
+                                  update(() => showClasses = !showClasses),
+                              child: Text(showClasses ? '收起逐班选择' : '逐班勾选'),
+                            ),
+                          ],
+                        );
+                        final strengthChoices = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '求解强度',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            for (final option in const [
+                              (ScheduleStrength.fast, '快速 · 适合小规模微调'),
+                              (ScheduleStrength.normal, '正常（推荐）· 速度与质量均衡'),
+                              (ScheduleStrength.high, '高精度 · 适合最终定稿前重排'),
+                            ])
+                              AppRadioOption<ScheduleStrength>(
+                                value: option.$1,
+                                groupValue: strength,
+                                label: option.$2,
+                                onChanged: (value) =>
+                                    update(() => strength = value),
+                              ),
+                          ],
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (constraints.maxWidth >= 520)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: scope),
+                                  const SizedBox(width: 32),
+                                  Expanded(child: strengthChoices),
+                                ],
+                              )
+                            else ...[
+                              scope,
+                              const SizedBox(height: 24),
+                              strengthChoices,
+                            ],
+                            if (showClasses) ...[
+                              const SizedBox(height: 16),
+                              _ScopePanel(
+                                snapshot: snapshot,
+                                selected: selected,
+                                enabled: true,
+                                onChanged: (next) =>
+                                    update(() => selected = next),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            FSwitch(
+                              value: fixedSeed,
+                              onChange: (value) =>
+                                  update(() => fixedSeed = value),
+                              label: const Text('固定随机种子'),
+                            ),
+                            if (fixedSeed)
+                              SizedBox(
+                                width: 180,
+                                child: AppTextFormField(
+                                  controller: seedController,
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (_) => update(() {}),
+                                  decoration: const InputDecoration(
+                                    labelText: '随机种子',
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
                   Text(
-                    state.progress == null
-                        ? '正在生成候选课表…'
-                        : '已检查 ${state.progress!.candidateChecks} 个候选；'
-                              '当前覆盖 ${state.progress!.bestCoverage} 个实际周课节',
+                    '开始后底部会显示排课任务条；取消不会保存半成品，'
+                    '已锁定课节会保留位置。',
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
-                if (state.status == SchedulingStatus.cancelled)
-                  const Text('已取消，本次没有保存候选课表。'),
+              ),
+              actions: [
+                AppSecondaryButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('取消'),
+                ),
+                AppPrimaryButton(
+                  onPressed:
+                      !problem.isReady ||
+                          selected.isEmpty ||
+                          (fixedSeed &&
+                              int.tryParse(seedController.text) == null)
+                      ? null
+                      : () => Navigator.pop(
+                          dialogContext,
+                          _StartOptions(
+                            classIds: {...selected},
+                            strength: strength,
+                            seed: fixedSeed
+                                ? int.parse(seedController.text)
+                                : DateTime.now().millisecondsSinceEpoch,
+                          ),
+                        ),
+                  child: const Text('开始自动排课'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if (!mounted || options == null) return;
+      controller.selectClasses(options.classIds);
+      if (options.strength != snapshot.preferences.strength) {
+        await controller.saveConfiguration(
+          conditions: snapshot.conditions,
+          preferences: SchedulePreferences(
+            strength: options.strength,
+            progressConsistency: snapshot.preferences.progressConsistency,
+            teacherDistribution: snapshot.preferences.teacherDistribution,
+            consecutiveMode: snapshot.preferences.consecutiveMode,
+            protectLunchBreak: snapshot.preferences.protectLunchBreak,
+            checkProgressConsistency:
+                snapshot.preferences.checkProgressConsistency,
+          ),
+        );
+      }
+      await controller.start(seed: options.seed);
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('无法开始排课：$error')));
+      }
+    } finally {
+      seedController.dispose();
+    }
+  }
+
+  Future<void> _showRulesDialog(SchedulingController controller) async {
+    await showAppDialog<void>(
+      context: context,
+      builder: (dialogContext) => Consumer(
+        builder: (context, ref, _) {
+          final snapshot = ref
+              .watch(schedulingControllerProvider(widget.termId))
+              .snapshot;
+          if (snapshot == null) return const SizedBox.shrink();
+          return AppDialog(
+            maxWidth: 720,
+            title: AppDialogTitle(
+              title: '排课规则与锁定',
+              onClose: () => Navigator.pop(dialogContext),
+            ),
+            content: Column(
+              children: [
+                _RulePanel(
+                  snapshot: snapshot,
+                  enabled: true,
+                  onSave: (conditions, preferences) =>
+                      controller.saveConfiguration(
+                        conditions: conditions,
+                        preferences: preferences,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                _LockPanel(
+                  snapshot: snapshot,
+                  enabled: true,
+                  onSet: (lock, enabled) =>
+                      controller.setLock(lock, enabled: enabled),
+                ),
+              ],
+            ),
+            actions: [
+              AppPrimaryButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('完成'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showReportDialog(
+    SchedulingState state,
+    SchedulingSnapshot snapshot,
+  ) async {
+    await showAppDialog<void>(
+      context: context,
+      builder: (dialogContext) => AppDialog(
+        maxWidth: 660,
+        title: AppDialogTitle(
+          title: '未排课程报告',
+          onClose: () => Navigator.pop(dialogContext),
+        ),
+        content: _ReportPanel(snapshot: snapshot, state: state),
+        actions: [
+          AppPrimaryButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('完成'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDetectionDialog(SchedulingState state) async {
+    final itemsById = {for (final item in state.items) item.id: item};
+    bool crossStageTeacherConflict(int index) {
+      final issue = state.detectionIssues[index];
+      if (issue.code != 'teacherOccupied' || issue.position == null) {
+        return false;
+      }
+      return issue.relatedIds.any(
+        (id) =>
+            itemsById[id]?.position?.stageId != null &&
+            itemsById[id]!.position!.stageId != issue.position!.stageId,
+      );
+    }
+
+    final crossStage = <String>[];
+    final other = <String>[];
+    for (var index = 0; index < state.detectionIssues.length; index++) {
+      final issue = state.detectionIssues[index];
+      final position = issue.position;
+      final place = position == null
+          ? ''
+          : '${_detectDayLabel(position.weekday)}第 ${position.lessonIndex} 节 · ';
+      (crossStageTeacherConflict(index) ? crossStage : other).add(
+        '$place${issue.message}',
+      );
+    }
+    final contentText = [
+      if (crossStage.isNotEmpty) ...['跨学段教师时钟冲突', ...crossStage, ''],
+      '其他检测结果',
+      if (other.isEmpty) '未发现其他硬约束冲突' else ...other,
+    ].join('\n');
+    await showAppDialog<void>(
+      context: context,
+      builder: (dialogContext) => AppDialog(
+        maxWidth: 680,
+        title: AppDialogTitle(
+          title: '课表检测结果',
+          onClose: () => Navigator.pop(dialogContext),
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 440),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('共发现 ${state.detectionIssues.length} 项硬约束问题'),
+                const SizedBox(height: 20),
+                if (crossStage.isNotEmpty) ...[
+                  Text(
+                    '跨学段教师时钟冲突 · ${crossStage.length} 项',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 12),
+                  for (final message in crossStage)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(message),
+                    ),
+                  const SizedBox(height: 16),
+                ],
+                Text(
+                  '其他检测结果 · ${other.length} 项',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 12),
+                if (other.isEmpty)
+                  const Text('未发现其他硬约束冲突')
+                else
+                  for (final message in other)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(message),
+                    ),
               ],
             ),
           ),
-          if (state.run != null) ...[
-            const SizedBox(height: 16),
-            _ReportPanel(snapshot: snapshot, state: state),
-          ],
+        ),
+        actions: [
+          AppSecondaryButton(
+            onPressed: () =>
+                unawaited(Clipboard.setData(ClipboardData(text: contentText))),
+            child: const Text('复制全部'),
+          ),
+          AppPrimaryButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('完成'),
+          ),
         ],
-      ],
+      ),
     );
   }
+
+  String _detectDayLabel(int weekday) => switch (weekday) {
+    1 => '周一',
+    2 => '周二',
+    3 => '周三',
+    4 => '周四',
+    5 => '周五',
+    6 => '周六',
+    _ => '周日',
+  };
+
+  Future<void> _showExportDialog(
+    SchedulingSnapshot snapshot,
+    List<ScheduleItem> items,
+    String title,
+  ) async {
+    final export = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AppDialog(
+        maxWidth: 480,
+        title: AppDialogTitle(
+          title: '导出/打印课表',
+          onClose: () => Navigator.pop(dialogContext),
+        ),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Text(
+              '导出当前视图的 ${items.length} 节已排课程为 Excel 文件。'
+              '保存后可在表格软件中打印。',
+            ),
+          ],
+        ),
+        actions: [
+          AppSecondaryButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          AppPrimaryButton(
+            onPressed: items.isEmpty
+                ? null
+                : () => Navigator.pop(dialogContext, true),
+            child: const Text('导出 Excel'),
+          ),
+        ],
+      ),
+    );
+    if (export != true || !mounted) return;
+    try {
+      final location = await getSaveLocation(
+        suggestedName: '课集课表.xlsx',
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
+        ],
+      );
+      if (location == null) return;
+      final bytes = buildScheduleWorkbook(snapshot, items);
+      await XFile.fromData(
+        Uint8List.fromList(bytes),
+        name: '课集课表.xlsx',
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ).saveTo(location.path);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('课表已导出')));
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('导出课表失败：$error')));
+      }
+    }
+  }
+}
+
+class _StartOptions {
+  const _StartOptions({
+    required this.classIds,
+    required this.strength,
+    required this.seed,
+  });
+
+  final Set<String> classIds;
+  final ScheduleStrength strength;
+  final int seed;
+}
+
+Set<String> _stageClassIds(SchedulingSnapshot snapshot, String stageId) {
+  final grades = snapshot.grades
+      .where((item) => item.stageId == stageId)
+      .map((item) => item.id)
+      .toSet();
+  return snapshot.classes
+      .where((item) => grades.contains(item.gradeId))
+      .map((item) => item.id)
+      .toSet();
+}
+
+class _DialogSection extends StatelessWidget {
+  const _DialogSection({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 18),
+      child,
+    ],
+  );
+}
+
+Widget _checkRow(
+  BuildContext context,
+  String title,
+  String summary,
+  List<SchedulePreflightCheck> issues,
+) {
+  final ready = issues.every((item) => item.ready);
+  final warning = ready && issues.isNotEmpty;
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          warning
+              ? Icons.warning_amber_outlined
+              : ready
+              ? Icons.check_circle_outline
+              : Icons.error_outline,
+          size: 16,
+          color: warning || !ready
+              ? context.appColors.warning
+              : context.appColors.success,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(
+                issues.isEmpty
+                    ? summary
+                    : issues.map((item) => item.message).join('；'),
+                style: TextStyle(
+                  color: context.appColors.inkSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ScopePanel extends StatelessWidget {
@@ -174,7 +757,7 @@ class _ScopePanel extends StatelessWidget {
     final allIds = snapshot.classes.map((item) => item.id).toSet();
     return AppSectionPanel(
       title: '排课范围 · ${selected.length}/${allIds.length} 个班级',
-      trailing: TextButton(
+      trailing: AppGhostButton(
         onPressed: enabled ? () => onChanged(allIds) : null,
         child: const Text('全校'),
       ),
@@ -184,85 +767,118 @@ class _ScopePanel extends StatelessWidget {
           const Text('未选班级的课表保持原位，并继续占用教师与场室。'),
           const SizedBox(height: 8),
           for (final stage in snapshot.stages)
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: Text(stage.name),
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: !enabled
-                        ? null
-                        : () => onChanged({
-                            ...selected,
-                            for (final grade in snapshot.grades.where(
-                              (item) => item.stageId == stage.id,
-                            ))
-                              ...snapshot.classes
-                                  .where((item) => item.gradeId == grade.id)
-                                  .map((item) => item.id),
-                          }),
-                    child: const Text('选全学段'),
-                  ),
-                ),
-                for (final grade in snapshot.grades.where(
-                  (item) => item.stageId == stage.id,
-                ))
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12, bottom: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: Text(grade.name)),
-                            TextButton(
-                              onPressed: !enabled
-                                  ? null
-                                  : () {
-                                      final ids = snapshot.classes
-                                          .where(
-                                            (item) => item.gradeId == grade.id,
-                                          )
-                                          .map((item) => item.id)
-                                          .toSet();
-                                      onChanged({...selected, ...ids});
-                                    },
-                              child: const Text('选全年级'),
-                            ),
-                          ],
-                        ),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            for (final schoolClass in snapshot.classes.where(
-                              (item) => item.gradeId == grade.id,
-                            ))
-                              FilterChip(
-                                label: Text(schoolClass.name),
-                                selected: selected.contains(schoolClass.id),
-                                onSelected: !enabled
-                                    ? null
-                                    : (value) {
-                                        final next = {...selected};
-                                        value
-                                            ? next.add(schoolClass.id)
-                                            : next.remove(schoolClass.id);
-                                        onChanged(next);
-                                      },
-                              ),
-                          ],
-                        ),
-                      ],
+            _CollapsibleStage(
+              title: stage.name,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: AppGhostButton(
+                      onPressed: !enabled
+                          ? null
+                          : () => onChanged({
+                              ...selected,
+                              for (final grade in snapshot.grades.where(
+                                (item) => item.stageId == stage.id,
+                              ))
+                                ...snapshot.classes
+                                    .where((item) => item.gradeId == grade.id)
+                                    .map((item) => item.id),
+                            }),
+                      child: const Text('选全学段'),
                     ),
                   ),
-              ],
+                  for (final grade in snapshot.grades.where(
+                    (item) => item.stageId == stage.id,
+                  ))
+                    Padding(
+                      padding: const EdgeInsets.only(left: 12, bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: Text(grade.name)),
+                              AppGhostButton(
+                                onPressed: !enabled
+                                    ? null
+                                    : () {
+                                        final ids = snapshot.classes
+                                            .where(
+                                              (item) =>
+                                                  item.gradeId == grade.id,
+                                            )
+                                            .map((item) => item.id)
+                                            .toSet();
+                                        onChanged({...selected, ...ids});
+                                      },
+                                child: const Text('选全年级'),
+                              ),
+                            ],
+                          ),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              for (final schoolClass in snapshot.classes.where(
+                                (item) => item.gradeId == grade.id,
+                              ))
+                                AppActionPill(
+                                  selected: selected.contains(schoolClass.id),
+                                  onPressed: !enabled
+                                      ? null
+                                      : () {
+                                          final next = {...selected};
+                                          if (!next.add(schoolClass.id)) {
+                                            next.remove(schoolClass.id);
+                                          }
+                                          onChanged(next);
+                                        },
+                                  child: Text(schoolClass.name),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
         ],
       ),
     );
   }
+}
+
+class _CollapsibleStage extends StatefulWidget {
+  const _CollapsibleStage({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  State<_CollapsibleStage> createState() => _CollapsibleStageState();
+}
+
+class _CollapsibleStageState extends State<_CollapsibleStage> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppGhostButton.icon(
+          onPressed: () => setState(() => _expanded = !_expanded),
+          icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+          label: Text(widget.title),
+        ),
+        if (_expanded) widget.child,
+      ],
+    ),
+  );
 }
 
 class _RulePanel extends StatelessWidget {
@@ -280,7 +896,7 @@ class _RulePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AppSectionPanel(
     title: '规则与偏好',
-    trailing: TextButton(
+    trailing: AppGhostButton(
       onPressed: enabled ? () => unawaited(_showPreferences(context)) : null,
       child: const Text('调整偏好'),
     ),
@@ -293,32 +909,40 @@ class _RulePanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         for (final condition in snapshot.conditions)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            title: Text(
-              condition.name?.isNotEmpty == true
-                  ? condition.name!
-                  : _conditionLabel(condition, snapshot),
-            ),
-            subtitle: Text(_conditionLabel(condition, snapshot)),
-            onTap: enabled
-                ? () => unawaited(_showConditionEditor(context, condition))
-                : null,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
               children: [
-                IconButton(
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        condition.name?.isNotEmpty == true
+                            ? condition.name!
+                            : _conditionLabel(condition, snapshot),
+                      ),
+                      Text(
+                        _conditionLabel(condition, snapshot),
+                        style: TextStyle(
+                          color: context.appColors.inkSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AppIconButton(
                   tooltip: '编辑条件',
-                  icon: const Icon(Icons.edit_outlined),
+                  icon: Icons.edit_outlined,
                   onPressed: enabled
                       ? () =>
                             unawaited(_showConditionEditor(context, condition))
                       : null,
                 ),
-                IconButton(
+                AppIconButton(
                   tooltip: '删除条件',
-                  icon: const Icon(Icons.delete_outline),
+                  icon: Icons.delete_outline,
                   onPressed: !enabled
                       ? null
                       : () => unawaited(
@@ -366,7 +990,7 @@ class _RulePanel extends StatelessWidget {
     var consecutive = snapshot.preferences.consecutiveMode;
     var lunch = snapshot.preferences.protectLunchBreak;
     var checkProgress = snapshot.preferences.checkProgressConsistency;
-    final value = await showDialog<SchedulePreferences>(
+    final value = await showAppDialog<SchedulePreferences>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, update) => AppDialog(
@@ -411,16 +1035,15 @@ class _RulePanel extends StatelessWidget {
                 },
                 (next) => update(() => consecutive = next),
               ),
-              CheckboxListTile(
-                title: const Text('保护午间休息'),
+              AppCheckbox(
+                label: const Text('保护午间休息'),
                 value: lunch,
-                onChanged: (value) => update(() => lunch = value ?? false),
+                onChanged: (value) => update(() => lunch = value),
               ),
-              CheckboxListTile(
-                title: const Text('检查教学进度一致性'),
+              AppCheckbox(
+                label: const Text('检查教学进度一致性'),
                 value: checkProgress,
-                onChanged: (value) =>
-                    update(() => checkProgress = value ?? false),
+                onChanged: (value) => update(() => checkProgress = value),
               ),
             ],
           ),
@@ -467,7 +1090,7 @@ class _RulePanel extends StatelessWidget {
     final exact = TextEditingController(text: original?.exact?.toString());
     final name = TextEditingController(text: original?.name);
     try {
-      final condition = await showDialog<ScheduleCondition>(
+      final condition = await showAppDialog<ScheduleCondition>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, update) {
@@ -482,14 +1105,18 @@ class _RulePanel extends StatelessWidget {
               _ => targetType == ScheduleConditionTarget.subject,
             };
             final targets = subjects
-                ? snapshot.subjects.map((item) => (item.id, item.name)).toList()
+                ? snapshot.subjects
+                      .map((item) => (item.id, '${item.name} · ${item.id}'))
+                      .toList()
                 : snapshot.teachers
-                      .map((item) => (item.id, item.displayName))
+                      .map(
+                        (item) => (item.id, '${item.displayName} · ${item.id}'),
+                      )
                       .toList();
             final periods = snapshot.routines
                 .expand((item) => item.periodTypes)
                 .fold<Map<String, String>>({}, (result, item) {
-                  result[item.id] = item.name;
+                  result[item.id] = '${item.name} · ${item.id}';
                   return result;
                 });
             return AppDialog(
@@ -521,82 +1148,58 @@ class _RulePanel extends StatelessWidget {
                         targetId = null;
                       }),
                     ),
-                  DropdownButtonFormField<String>(
+                  AppSelectField<String>(
                     key: ValueKey('target-$type-$targetType'),
-                    initialValue: targetId,
-                    decoration: InputDecoration(
-                      labelText: mutual ? '对象 A' : '对象',
-                    ),
-                    items: [
-                      for (final entry in targets)
-                        DropdownMenuItem(
-                          value: entry.$1,
-                          child: Text(entry.$2),
-                        ),
-                    ],
+                    value: targetId,
+                    label: mutual ? '对象 A' : '对象',
+                    items: {for (final entry in targets) entry.$2: entry.$1},
                     onChanged: (value) => update(() => targetId = value),
                   ),
                   if (mutual)
-                    DropdownButtonFormField<String>(
+                    AppSelectField<String>(
                       key: ValueKey('other-$type'),
-                      initialValue: otherId,
-                      decoration: const InputDecoration(labelText: '对象 B'),
-                      items: [
-                        for (final entry in targets)
-                          DropdownMenuItem(
-                            value: entry.$1,
-                            child: Text(entry.$2),
-                          ),
-                      ],
+                      value: otherId,
+                      label: '对象 B',
+                      items: {for (final entry in targets) entry.$2: entry.$1},
                       onChanged: (value) => update(() => otherId = value),
                     ),
                   if (type == ScheduleConditionType.periodLimit)
-                    DropdownButtonFormField<String>(
-                      initialValue: periodTypeId,
-                      decoration: const InputDecoration(labelText: '时段'),
-                      items: [
+                    AppSelectField<String>(
+                      value: periodTypeId,
+                      label: '时段',
+                      items: {
                         for (final entry in periods.entries)
-                          DropdownMenuItem(
-                            value: entry.key,
-                            child: Text(entry.value),
-                          ),
-                      ],
+                          entry.value: entry.key,
+                      },
                       onChanged: (value) => update(() => periodTypeId = value),
                     ),
                   if (!mutual)
-                    DropdownButtonFormField<int>(
-                      initialValue: weekday,
-                      decoration: InputDecoration(
-                        labelText: type == ScheduleConditionType.dailyLimit
-                            ? '适用星期'
-                            : '统计星期',
-                      ),
-                      items: [
-                        DropdownMenuItem(
-                          value: 0,
-                          child: Text(
-                            type == ScheduleConditionType.dailyLimit
+                    AppSelectField<int>(
+                      value: weekday,
+                      label: type == ScheduleConditionType.dailyLimit
+                          ? '适用星期'
+                          : '统计星期',
+                      items: {
+                        type == ScheduleConditionType.dailyLimit
                                 ? '每天分别计算'
-                                : '整周合计',
-                          ),
-                        ),
-                        for (var day = 1; day <= 7; day++)
-                          DropdownMenuItem(value: day, child: Text('星期$day')),
-                      ],
+                                : '整周合计':
+                            0,
+                        for (var day = 1; day <= 7; day++) '星期$day': day,
+                      },
                       onChanged: (value) => update(() => weekday = value ?? 0),
                     ),
                   if (!mutual) ...[
-                    TextField(
+                    AppTextFormField(
                       controller: minimum,
                       decoration: const InputDecoration(labelText: '最少节数'),
                       keyboardType: TextInputType.number,
                     ),
-                    TextField(
+                    AppTextFormField(
                       controller: maximum,
                       decoration: const InputDecoration(labelText: '最多节数'),
                       keyboardType: TextInputType.number,
                     ),
-                    TextField(
+                    AppTextFormField(
                       controller: exact,
                       decoration: const InputDecoration(
                         labelText: '恰好节数（填写后优先）',
@@ -604,7 +1207,7 @@ class _RulePanel extends StatelessWidget {
                       keyboardType: TextInputType.number,
                     ),
                   ],
-                  TextField(
+                  AppTextFormField(
                     controller: name,
                     decoration: const InputDecoration(labelText: '备注名称'),
                   ),
@@ -696,7 +1299,7 @@ class _LockPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AppSectionPanel(
     title: '锁定已有课表',
-    trailing: TextButton(
+    trailing: AppGhostButton(
       onPressed: enabled ? () => unawaited(_showAdd(context)) : null,
       child: const Text('添加锁定'),
     ),
@@ -707,11 +1310,11 @@ class _LockPanel extends StatelessWidget {
             runSpacing: 8,
             children: [
               for (final lock in snapshot.locks)
-                InputChip(
-                  label: Text(_lockName(snapshot, lock)),
-                  onDeleted: enabled
+                AppActionPill(
+                  onPressed: enabled
                       ? () => unawaited(_set(context, lock, false))
                       : null,
+                  child: Text('${_lockName(snapshot, lock)}  ×'),
                 ),
             ],
           ),
@@ -731,7 +1334,7 @@ class _LockPanel extends StatelessWidget {
   Future<void> _showAdd(BuildContext context) async {
     var scope = ScheduleLockScope.schoolClass;
     String? targetId;
-    final lock = await showDialog<ScheduleLock>(
+    final lock = await showAppDialog<ScheduleLock>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, update) => AppDialog(
@@ -749,25 +1352,19 @@ class _LockPanel extends StatelessWidget {
                   targetId = null;
                 }),
               ),
-              DropdownButtonFormField<String>(
+              AppSelectField<String>(
                 key: ValueKey(scope),
-                initialValue: targetId,
-                decoration: const InputDecoration(labelText: '选择对象'),
+                value: targetId,
+                label: '选择对象',
                 items: scope == ScheduleLockScope.schoolClass
-                    ? [
+                    ? {
                         for (final item in snapshot.classes)
-                          DropdownMenuItem(
-                            value: item.id,
-                            child: Text(item.name),
-                          ),
-                      ]
-                    : [
+                          '${item.name} · ${item.id}': item.id,
+                      }
+                    : {
                         for (final item in snapshot.teachers)
-                          DropdownMenuItem(
-                            value: item.id,
-                            child: Text(item.displayName),
-                          ),
-                      ],
+                          '${item.displayName} · ${item.id}': item.id,
+                      },
                 onChanged: (value) => update(() => targetId = value),
               ),
             ],
@@ -806,8 +1403,12 @@ class _ReportPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final report = state.run!.report;
-    final byItem = {for (final item in state.run!.items) item.id: item};
+    final report = state.run?.report;
+    final unplaced = state.items.where((item) => !item.isPlaced).toList();
+    final blockersById = {
+      for (final entry in report?.unplaced ?? const <ScheduleUnplacedCourse>[])
+        entry.itemId: entry.blockers,
+    };
     final classNames = {
       for (final item in snapshot.classes) item.id: item.name,
     };
@@ -815,48 +1416,49 @@ class _ReportPanel extends StatelessWidget {
       for (final item in snapshot.subjects) item.id: item.name,
     };
     return AppSectionPanel(
-      title: state.status == SchedulingStatus.completed ? '本次排课结果' : '上次排课结果',
+      title: '当前课表状态',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '已安排 ${report.placedItems}/${report.totalItems} 节 · '
-            '双周覆盖 ${report.coverage} 次 · '
-            '候选检查 ${report.candidateChecks} 次',
+            '已安排 ${state.items.length - unplaced.length}/${state.items.length} 节 · '
+            '暂放 ${unplaced.length} 节',
           ),
-          const SizedBox(height: 10),
-          for (final entry in report.preferenceScores.entries)
-            Text(
-              '${_scoreLabel(entry.key)}：'
-              '${entry.value.rate == null ? '不适用' : '${(entry.value.rate! * 100).toStringAsFixed(0)}%'}',
-            ),
-          if (report.unmetHardRequirements.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('未满足的硬性总量要求', style: Theme.of(context).textTheme.titleSmall),
-            for (final blocker in report.unmetHardRequirements)
-              Text('• ${blocker.message}'),
+          if (report != null) ...[
+            const SizedBox(height: 10),
+            Text('上次自动排课：候选检查 ${report.candidateChecks} 次'),
+            for (final entry in report.preferenceScores.entries)
+              Text(
+                '${_scoreLabel(entry.key)}：'
+                '${entry.value.rate == null ? '不适用' : '${(entry.value.rate! * 100).toStringAsFixed(0)}%'}',
+              ),
           ],
-          if (report.unplaced.isNotEmpty) ...[
+          if (report?.unmetHardRequirements.isNotEmpty == true) ...[
             const SizedBox(height: 12),
             Text(
-              '暂放课程（${report.unplaced.length}）',
+              '上次自动排课未满足的硬性总量要求',
               style: Theme.of(context).textTheme.titleSmall,
             ),
-            for (final course in report.unplaced)
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: Text(
-                  _itemLabel(byItem[course.itemId], classNames, subjectNames),
-                ),
-                subtitle: Text(
-                  course.blockers.isEmpty
-                      ? '候选预算耗尽或没有可用位置'
-                      : course.blockers.first.message,
-                ),
-                children: [
-                  for (final blocker in course.blockers)
-                    ListTile(dense: true, title: Text(blocker.message)),
-                ],
+            for (final blocker in report!.unmetHardRequirements)
+              Text('• ${blocker.message}'),
+          ],
+          if (unplaced.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              '暂放课程（${unplaced.length}）',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            for (final item in unplaced)
+              _CollapsibleReportItem(
+                title: _itemLabel(item, classNames, subjectNames),
+                summary: blockersById[item.id]?.firstOrNull == null
+                    ? '手工暂放或尚未安排'
+                    : '上次自动排课：${blockersById[item.id]!.first.message}',
+                blockers:
+                    blockersById[item.id]
+                        ?.map((blocker) => blocker.message)
+                        .toList() ??
+                    const [],
               ),
           ],
         ],
@@ -865,19 +1467,70 @@ class _ReportPanel extends StatelessWidget {
   }
 }
 
+class _CollapsibleReportItem extends StatefulWidget {
+  const _CollapsibleReportItem({
+    required this.title,
+    required this.summary,
+    required this.blockers,
+  });
+
+  final String title;
+  final String summary;
+  final List<String> blockers;
+
+  @override
+  State<_CollapsibleReportItem> createState() => _CollapsibleReportItemState();
+}
+
+class _CollapsibleReportItemState extends State<_CollapsibleReportItem> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppGhostButton.icon(
+          onPressed: () => setState(() => _expanded = !_expanded),
+          icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+          label: Text(widget.title),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 32),
+          child: Text(
+            widget.summary,
+            style: TextStyle(
+              color: context.appColors.inkSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        if (_expanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 32, top: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final blocker in widget.blockers) Text('• $blocker'),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 Widget _choice<T>(
   String label,
   T value,
   List<T> values,
   String Function(T) describe,
   ValueChanged<T> onChanged,
-) => DropdownButtonFormField<T>(
-  initialValue: value,
-  decoration: InputDecoration(labelText: label),
-  items: [
-    for (final item in values)
-      DropdownMenuItem(value: item, child: Text(describe(item))),
-  ],
+) => AppSelectField<T>(
+  value: value,
+  label: label,
+  items: {for (final item in values) describe(item): item},
   onChanged: (item) {
     if (item != null) onChanged(item);
   },
@@ -964,3 +1617,235 @@ String _scoreLabel(String key) => switch (key) {
   'balanced' => '课表均衡',
   _ => key,
 };
+
+class _ScheduleReconciliationOverlay extends StatelessWidget {
+  const _ScheduleReconciliationOverlay({
+    required this.baseline,
+    required this.current,
+    required this.preview,
+    required this.busy,
+    required this.error,
+    required this.onPreview,
+    required this.onApply,
+  });
+
+  final SchedulingSnapshot baseline;
+  final SchedulingSnapshot current;
+  final ScheduleReconciliationPreview? preview;
+  final bool busy;
+  final String? error;
+  final VoidCallback onPreview;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final changes =
+        preview?.changes ??
+        const ScheduleReconciler().describeChanges(baseline, current);
+    final groups = changes.map((change) => change.group).toSet();
+    return ColoredBox(
+      color: const Color(0xEAF4F6FA),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 760,
+              maxHeight: constraints.maxHeight > 64
+                  ? constraints.maxHeight - 48
+                  : constraints.maxHeight,
+            ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: context.appColors.surface,
+                border: Border.all(color: context.appColors.border),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .09),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.tune_outlined,
+                        size: 22,
+                        color: context.appColors.warning,
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          '课表待协调',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '设置已保存。当前显示的是变更前的课表，完成增量协调前暂不可编辑。'
+                    '协调会尽量保留原课位，并先展示调整预览。',
+                    style: TextStyle(
+                      color: context.appColors.inkSecondary,
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        if (error != null) ...[
+                          AppInlineMessage(
+                            message: error!,
+                            icon: Icons.error_outline,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        if (changes.isEmpty)
+                          const Text('排课约束已有变化，请生成协调预览查看受影响课程。'),
+                        for (final group in groups) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8, top: 8),
+                            child: Text(
+                              group,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          for (final change in changes.where(
+                            (item) => item.group == group,
+                          ))
+                            _changeRow(context, change),
+                        ],
+                        if (preview case final result?) ...[
+                          const SizedBox(height: 18),
+                          Divider(color: context.appColors.border),
+                          const SizedBox(height: 10),
+                          const Text(
+                            '调整预览',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '保留 ${result.keptCount} 节 · 调整 ${result.movedCount} 节 · '
+                            '暂放 ${result.unplacedCount} 节 · 新增 ${result.addedCount} 节 · '
+                            '减少 ${result.removedCount} 节',
+                            style: TextStyle(
+                              color: context.appColors.inkSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (result.locksToRelease.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                '确认后会解除受影响的 ${result.locksToRelease.length} 项锁定。',
+                                style: TextStyle(
+                                  color: context.appColors.warning,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          for (final check in result.checks.where(
+                            (check) => !check.ready,
+                          ))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                '待处理：${check.message}',
+                                style: TextStyle(
+                                  color: context.appColors.destructive,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          if (result.adjustments.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            for (final adjustment in result.adjustments)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 7),
+                                child: Text(
+                                  '${adjustment.label}：${adjustment.before} → ${adjustment.after}',
+                                  style: const TextStyle(fontSize: 12.5),
+                                ),
+                              ),
+                          ],
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (preview != null) ...[
+                        AppGhostButton(
+                          onPressed: busy ? null : onPreview,
+                          child: const Text('重新计算'),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      AppPrimaryButton(
+                        onPressed: busy
+                            ? null
+                            : preview == null
+                            ? onPreview
+                            : preview!.canApply
+                            ? onApply
+                            : null,
+                        child: Text(
+                          busy
+                              ? '处理中…'
+                              : preview == null
+                              ? '增量协调'
+                              : '确认应用调整',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _changeRow(BuildContext context, ScheduleSettingChange change) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(change.label, style: const TextStyle(fontSize: 12.5)),
+            const SizedBox(height: 3),
+            Text(
+              '${change.before}  →  ${change.after}',
+              style: TextStyle(
+                color: context.appColors.inkSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+}
