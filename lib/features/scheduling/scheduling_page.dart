@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/data/providers/school_repository_provider.dart';
+import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/schedule_condition.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
@@ -51,6 +53,11 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
     }
     final pending = state.pendingBaseline;
     final current = state.currentSnapshot;
+    final commonPeriods = <String, List<CommonPeriod>>{
+      for (final stage in snapshot.stages)
+        stage.id:
+            ref.watch(commonPeriodsProvider(stage.id)).valueOrNull ?? const [],
+    };
     return CallbackShortcuts(
       bindings: pending == null
           ? {
@@ -89,6 +96,7 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
               absorbing: pending != null,
               child: SchedulingTimetable(
                 snapshot: snapshot,
+                commonPeriods: commonPeriods,
                 state: state,
                 onStart: () => unawaited(_showStartDialog(state, controller)),
                 onRefresh: () => unawaited(controller.detect()),
@@ -1644,7 +1652,7 @@ class _ScheduleReconciliationOverlay extends StatelessWidget {
         const ScheduleReconciler().describeChanges(baseline, current);
     final groups = changes.map((change) => change.group).toSet();
     return ColoredBox(
-      color: const Color(0xEAF4F6FA),
+      color: context.appColors.canvas.withValues(alpha: .92),
       child: LayoutBuilder(
         builder: (context, constraints) => Center(
           child: ConstrainedBox(
@@ -1659,7 +1667,6 @@ class _ScheduleReconciliationOverlay extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: context.appColors.surface,
-                border: Border.all(color: context.appColors.border),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(

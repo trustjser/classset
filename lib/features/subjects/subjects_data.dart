@@ -101,25 +101,26 @@ String formatLessonInput(Iterable<ClassSubjectValues> values) {
 ClassSubjectValues valuesForClass({
   required String subjectId,
   required String classId,
+  String? gradeId,
   required List<SubjectRequirement> requirements,
 }) {
-  var weekly = 0;
-  var odd = 0;
-  var even = 0;
+  final defaults = <WeekMode, int>{};
+  final overrides = <WeekMode, int>{};
   for (final requirement in requirements) {
-    if (requirement.subjectId != subjectId || requirement.classId != classId) {
-      continue;
-    }
-    switch (requirement.weekMode) {
-      case WeekMode.weekly:
-        weekly = requirement.lessonCount;
-      case WeekMode.odd:
-        odd = requirement.lessonCount;
-      case WeekMode.even:
-        even = requirement.lessonCount;
+    if (requirement.subjectId != subjectId) continue;
+    if (gradeId != null &&
+        requirement.gradeId == gradeId &&
+        requirement.classId == null) {
+      defaults[requirement.weekMode] = requirement.lessonCount;
+    } else if (requirement.classId == classId) {
+      overrides[requirement.weekMode] = requirement.lessonCount;
     }
   }
-  return ClassSubjectValues(weekly: weekly, odd: odd, even: even);
+  return ClassSubjectValues(
+    weekly: overrides[WeekMode.weekly] ?? defaults[WeekMode.weekly] ?? 0,
+    odd: overrides[WeekMode.odd] ?? defaults[WeekMode.odd] ?? 0,
+    even: overrides[WeekMode.even] ?? defaults[WeekMode.even] ?? 0,
+  );
 }
 
 /// 某年级某科目的矩阵单元格状态：各班一致显示数值，否则「各班不同」。
@@ -132,12 +133,14 @@ SubjectCellState cellStateForGrade({
   final first = valuesForClass(
     subjectId: subjectId,
     classId: classes.first.id,
+    gradeId: classes.first.gradeId,
     requirements: requirements,
   );
   for (final classBrief in classes.skip(1)) {
     final values = valuesForClass(
       subjectId: subjectId,
       classId: classBrief.id,
+      gradeId: classBrief.gradeId,
       requirements: requirements,
     );
     if (values != first) return const SubjectCellState.varies();

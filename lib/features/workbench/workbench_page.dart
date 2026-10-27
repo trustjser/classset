@@ -172,7 +172,7 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
       final repository = ref.read(schoolRepositoryProvider);
       await seedDemoData(repository: repository, term: widget.term);
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
-      _showMessage('已生成演示数据：2 个学段，各 3 个年级、3 个班。');
+      _showMessage('已生成演示数据：小学 36 个班、初中 24 个班，并配置作息、科目和教师任课。');
     } on Object catch (error) {
       _showMessage('生成演示数据失败：$error');
     } finally {

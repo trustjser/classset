@@ -232,9 +232,9 @@ class _GroupList extends ConsumerWidget {
             : constraints.maxWidth;
         return DecoratedBox(
           key: const ValueKey('teacher-groups-table'),
-          position: DecorationPosition.foreground,
           decoration: BoxDecoration(
-            border: Border.all(color: context.appColors.border),
+            color: context.appColors.surface,
+            boxShadow: context.appColors.cardShadow,
             borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           ),
           child: ClipRRect(

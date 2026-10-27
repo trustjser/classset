@@ -158,9 +158,7 @@ void main() {
     expect(find.text('2 / 6 完成'), findsOneWidget);
     expect(find.byKey(const Key('preparation-progress')), findsOneWidget);
     // 进度条渲染校验：高 8px，蓝色填充约占 1/3。
-    final bar = tester.getSize(
-      find.byKey(const Key('preparation-progress')),
-    );
+    final bar = tester.getSize(find.byKey(const Key('preparation-progress')));
     expect(bar.height, 8);
     final blueFill = tester.getSize(
       find.descendant(
@@ -197,9 +195,7 @@ void main() {
     expect(find.text('第 1 教学周 · 单周'), findsOneWidget);
     final normalizedStart = DateTime(start.year, start.month, start.day);
     // 学期范围 = 第 1 教学周起始日 — 最后教学周结束日（共 teachingWeekCount 周）。
-    final end = normalizedStart.add(
-      Duration(days: 20 * 7 - 1),
-    );
+    final end = normalizedStart.add(Duration(days: 20 * 7 - 1));
     expect(
       find.text(
         '${normalizedStart.year}年${normalizedStart.month}月${normalizedStart.day}日'
@@ -230,14 +226,21 @@ void main() {
 
     expect(find.text('0 / 6 完成'), findsOneWidget);
     await tester.tap(find.text('演示数据'));
+    // 生成包含数百条任课分配，需要等待数据库异步写入完成。
+    for (var i = 0; i < 300; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump();
+      if (find.textContaining('已生成演示数据').evaluate().isNotEmpty) break;
+    }
+    expect(find.textContaining('已生成演示数据'), findsOneWidget);
     await tester.pumpAndSettle();
 
     expect(find.text('2 / 6 完成'), findsOneWidget);
     expect(find.byKey(const Key('preparation-progress')), findsOneWidget);
     // 进度条渲染校验：高 8px，蓝色填充约占 1/3。
-    final bar = tester.getSize(
-      find.byKey(const Key('preparation-progress')),
-    );
+    final bar = tester.getSize(find.byKey(const Key('preparation-progress')));
     expect(bar.height, 8);
     final blueFill = tester.getSize(
       find.descendant(

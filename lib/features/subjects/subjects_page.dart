@@ -400,6 +400,12 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     return valuesForClass(
       subjectId: subjectId,
       classId: classId,
+      gradeId:
+          (ref.read(classesForTermProvider(widget.termId)).valueOrNull ??
+                  const <ClassBrief>[])
+              .where((item) => item.id == classId)
+              .firstOrNull
+              ?.gradeId,
       requirements: requirements,
     );
   }
@@ -825,6 +831,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         classBrief.id: valuesForClass(
           subjectId: subject.id,
           classId: classBrief.id,
+          gradeId: classBrief.gradeId,
           requirements: requirements,
         ),
     };

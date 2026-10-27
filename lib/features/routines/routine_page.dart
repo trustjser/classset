@@ -20,9 +20,9 @@ const _weekdayNames = ['星期一', '星期二', '星期三', '星期四', '星�
 const _weekdayShort = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 const _builtInPeriodDefinitions = <(String, String, int, List<String>)>[
   ('早上', 'early', 0, ['早上', '早读']),
-  ('上午', '0', 4, ['上午']),
-  ('下午', '1', 4, ['下午']),
-  ('晚上', '2', 2, ['晚上']),
+  ('上午', '0', 4, ['上午', '上午时段']),
+  ('下午', '1', 4, ['下午', '下午时段']),
+  ('晚上', '2', 2, ['晚上', '晚自习']),
 ];
 const _timeSeparatorWidth = 16.0;
 const _timeRowTrailingWidth = 22.0;
@@ -225,6 +225,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   final Map<String, _DraftSnapshot> _routineBaselineByStage = {};
   final Map<String, _DraftSnapshot> _routineDraftByStage = {};
   final Map<String, bool> _routineNeedsNormalizationByStage = {};
+  final Map<String, List<RoutineOverride>> _routineOverridesByStage = {};
   bool _isSaving = false;
   Future<bool>? _saveInFlight;
   bool _isHistoryBusy = false;
@@ -623,6 +624,38 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       _teachingDays = {...routine.teachingWeekdays};
       _needsNormalization = _requiresFixedPeriods(routine);
       _periods = _fixedPeriodDrafts(routine);
+      final remainingOverrides = <RoutineOverride>[];
+      for (final override in routine.overrides) {
+        final period = _periods
+            .where((item) => item.id == override.periodTypeId)
+            .firstOrNull;
+        if (period == null ||
+            override.lessonCount > period.defaultLessonCount) {
+          remainingOverrides.add(override);
+          continue;
+        }
+        for (
+          var index = override.lessonCount + 1;
+          index <= period.defaultLessonCount;
+          index++
+        ) {
+          final id =
+              '${stageId}_no_class_${period.id}_${override.weekday}_$index';
+          final slot = FreeSlot(
+            id: id,
+            scope: FreeSlotScope.stage,
+            scopeId: stageId,
+            stageId: stageId,
+            periodTypeId: period.id,
+            weekday: override.weekday,
+            lessonIndex: index,
+            label: FreeSlotLabels.noClass,
+          );
+          _rememberFreeSlotBaseline(id, null);
+          _stageFreeSlot(id, slot);
+        }
+      }
+      _routineOverridesByStage[stageId] = remainingOverrides;
       for (final period in _periods) {
         _ensureTimes(period);
       }
@@ -698,7 +731,9 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
               ? _PeriodDraft(
                   id: '${routine.stageId}_period_$key',
                   name: name,
-                  defaultLessonCount: defaultCount,
+                  defaultLessonCount: routine.periodTypes.isEmpty
+                      ? defaultCount
+                      : 0,
                   sortOrder: index,
                   times: [],
                 )
@@ -995,9 +1030,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   }
 
   int _weeklyCapacity() {
-    var total =
-        _teachingDays.length *
-        _periods.fold<int>(0, (sum, period) => sum + period.defaultLessonCount);
+    var total = 0;
     // 减去当前范围可见的免任课格数。
     for (final weekday in _teachingDays) {
       for (final period in _periods) {
@@ -1006,7 +1039,8 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           lessonIndex <= period.defaultLessonCount;
           lessonIndex++
         ) {
-          if (_cellInfo(period, weekday, lessonIndex).marker != null) total--;
+          final info = _cellInfo(period, weekday, lessonIndex);
+          if (!info.invalid && info.marker == null) total++;
         }
       }
     }
@@ -1088,7 +1122,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           stageId: entry.key,
           teachingWeekdays: {...snapshot.teachingDays},
           periodTypes: periods,
-          overrides: const [],
+          overrides: _routineOverridesByStage[entry.key] ?? const [],
         ),
       );
     }
@@ -1177,8 +1211,15 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     if (!_teachingDays.contains(weekday)) {
       return const _CellInfo.invalid();
     }
-    if (lessonIndex > period.defaultLessonCount) {
-      return _CellInfo(invalid: true, marker: null);
+    final overrides = _routineOverridesByStage[widget.stage.id] ?? const [];
+    final matching = overrides.where(
+      (item) => item.periodTypeId == period.id && item.weekday == weekday,
+    );
+    final count = matching.isEmpty
+        ? period.defaultLessonCount
+        : matching.first.lessonCount;
+    if (lessonIndex > math.min(period.defaultLessonCount, count)) {
+      return const _CellInfo.invalid();
     }
     return _CellInfo(
       invalid: false,
@@ -2464,6 +2505,7 @@ class _MatrixCell extends StatelessWidget {
   final VoidCallback onAddCommonPeriod;
 
   static const _shortcuts = {
+    FreeSlotLabels.noClass: 'N',
     FreeSlotLabels.none: 'L',
     FreeSlotLabels.selfStudy: 'S',
     FreeSlotLabels.labor: 'V',
@@ -2473,7 +2515,9 @@ class _MatrixCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = info.marker != null
+    final background = info.marker?.label == FreeSlotLabels.noClass
+        ? context.appColors.tableHeader
+        : info.marker != null
         ? context.appColors.destructiveSurface
         : info.invalid
         ? context.appColors.tableHeader
@@ -2514,7 +2558,9 @@ class _MatrixCell extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: context.appColors.destructive,
+                    color: label == FreeSlotLabels.noClass
+                        ? context.appColors.inkSecondary
+                        : context.appColors.destructive,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -2549,7 +2595,7 @@ class _MatrixCell extends StatelessWidget {
             AppMenuTile(
               item: AppMenuItem(
                 label: '自定义名称…',
-                shortcut: 'N',
+                shortcut: 'C',
                 onPressed: () {
                   unawaited(controller.hide());
                   onCustomLabel();

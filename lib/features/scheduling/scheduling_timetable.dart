@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
@@ -20,18 +21,6 @@ enum _ScheduleView { schoolClass, teacher, all, room }
 enum _WeekView { merged, odd, even }
 
 abstract final class _SchedulePalette {
-  static const background = Color(0xFFF8F9FA);
-  static const surface = Colors.white;
-  static const surfaceSoft = Color(0xFFF6F8FB);
-  static const border = Color(0xFFE6E9F0);
-  static const borderStrong = Color(0xFFD8DDE7);
-  static const ink = Color(0xFF1F2329);
-  static const secondary = Color(0xFF646A73);
-  static const muted = Color(0xFF9CA1AB);
-  static const blue = Color(0xFF0052D9);
-  static const success = Color(0xFF1F8A5D);
-  static const warning = Color(0xFFB07415);
-
   static const lessonBackgrounds = [
     Color(0xFFEAF2FF),
     Color(0xFFE6F5EE),
@@ -57,14 +46,24 @@ abstract final class _SchedulePalette {
         lessonBackgrounds.length;
   }
 
-  static BoxDecoration panel() => BoxDecoration(
-    color: surface,
-    border: Border.all(color: border),
-    borderRadius: BorderRadius.circular(12),
-    boxShadow: const [
-      BoxShadow(color: Color(0x0D1F1E1A), blurRadius: 2, offset: Offset(0, 1)),
-    ],
+  static BoxDecoration panel(BuildContext context) => BoxDecoration(
+    color: context.appColors.surface,
+    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+    boxShadow: context.appColors.cardShadow,
   );
+
+  static Color lessonBackground(BuildContext context, int index) =>
+      Theme.of(context).brightness == Brightness.dark
+      ? Color.alphaBlend(
+          lessonForegrounds[index].withValues(alpha: .24),
+          context.appColors.surface,
+        )
+      : lessonBackgrounds[index];
+
+  static Color lessonForeground(BuildContext context, int index) =>
+      Theme.of(context).brightness == Brightness.dark
+      ? Color.lerp(lessonForegrounds[index], Colors.white, .48)!
+      : lessonForegrounds[index];
 }
 
 /// The timetable remains visible while the solver runs, matching the design's
@@ -72,6 +71,7 @@ abstract final class _SchedulePalette {
 class SchedulingTimetable extends StatefulWidget {
   const SchedulingTimetable({
     required this.snapshot,
+    this.commonPeriods = const {},
     required this.state,
     required this.onStart,
     required this.onRefresh,
@@ -91,6 +91,7 @@ class SchedulingTimetable extends StatefulWidget {
   });
 
   final SchedulingSnapshot snapshot;
+  final Map<String, List<CommonPeriod>> commonPeriods;
   final SchedulingState state;
   final VoidCallback onStart;
   final VoidCallback onRefresh;
@@ -263,7 +264,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
       onPointerUp: (_) => _dragPointer = null,
       onPointerCancel: (_) => _dragPointer = null,
       child: ColoredBox(
-        color: _SchedulePalette.background,
+        color: context.appColors.canvas,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -315,6 +316,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                                 builder: (context, constraints) {
                                   final grid = _TimetableGrid(
                                     snapshot: snapshot,
+                                    commonPeriods: widget.commonPeriods,
                                     items: visible,
                                     allItems: items,
                                     view: _view,
@@ -498,21 +500,14 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 ),
         ),
         const SizedBox(height: 13),
-        const Divider(height: 1, color: _SchedulePalette.border),
+        Divider(height: 1, color: context.appColors.border),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: _SchedulePalette.surface,
-            border: Border.all(color: _SchedulePalette.border),
+            color: context.appColors.surface,
             borderRadius: BorderRadius.circular(10),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D1F1E1A),
-                blurRadius: 2,
-                offset: Offset(0, 1),
-              ),
-            ],
+            boxShadow: context.appColors.cardShadow,
           ),
           child: Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -542,7 +537,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                   Container(
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECF0F6),
+                      color: context.appColors.tableHeader,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -690,7 +685,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
           height: 3,
           width: 48,
           decoration: BoxDecoration(
-            color: selected ? _SchedulePalette.blue : Colors.transparent,
+            color: selected ? context.appColors.blue : Colors.transparent,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -700,15 +695,15 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
 
   Widget _controlLabel(BuildContext context, String label) => Text(
     label,
-    style: const TextStyle(
-      color: _SchedulePalette.muted,
+    style: TextStyle(
+      color: context.appColors.muted,
       fontSize: 12,
       fontWeight: FontWeight.w500,
     ),
   );
 
   Widget _toolbarDivider() =>
-      Container(width: 1, height: 20, color: _SchedulePalette.border);
+      Container(width: 1, height: 20, color: context.appColors.border);
 
   Widget _weekSegment(_WeekView value, String label) {
     final selected = _week == value;
@@ -720,7 +715,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.transparent,
+          color: selected ? context.appColors.surface : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
           boxShadow: selected
               ? const [
@@ -735,7 +730,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? _SchedulePalette.ink : _SchedulePalette.secondary,
+            color: selected
+                ? context.appColors.ink
+                : context.appColors.inkSecondary,
             fontSize: 12.5,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
@@ -836,6 +833,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
 class _TimetableGrid extends StatelessWidget {
   const _TimetableGrid({
     required this.snapshot,
+    required this.commonPeriods,
     required this.items,
     required this.allItems,
     required this.view,
@@ -850,6 +848,7 @@ class _TimetableGrid extends StatelessWidget {
   });
 
   final SchedulingSnapshot snapshot;
+  final Map<String, List<CommonPeriod>> commonPeriods;
   final List<ScheduleItem> items;
   final List<ScheduleItem> allItems;
   final _ScheduleView view;
@@ -922,6 +921,17 @@ class _TimetableGrid extends StatelessWidget {
         final order = a.sortOrder.compareTo(b.sortOrder);
         return order != 0 ? order : a.lessonIndex.compareTo(b.lessonIndex);
       });
+    final firstRowByStage = <String, int>{};
+    final lastRowByStage = <String, int>{};
+    final anchorsByStage = <String, Set<String>>{};
+    for (var index = 0; index < orderedRows.length; index++) {
+      final row = orderedRows[index];
+      firstRowByStage.putIfAbsent(row.stageId, () => index);
+      lastRowByStage[row.stageId] = index;
+      anchorsByStage
+          .putIfAbsent(row.stageId, () => {})
+          .add('${row.periodTypeId}_${row.lessonIndex}');
+    }
     final stageNames = {
       for (final stage in snapshot.stages) stage.id: stage.name,
     };
@@ -942,7 +952,7 @@ class _TimetableGrid extends StatelessWidget {
       itemsByCell.putIfAbsent(key, () => []).add(item);
     }
     return Container(
-      decoration: _SchedulePalette.panel(),
+      decoration: _SchedulePalette.panel(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         child: Column(
@@ -951,10 +961,10 @@ class _TimetableGrid extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text(
+                Text(
                   '课表安排',
                   style: TextStyle(
-                    color: _SchedulePalette.ink,
+                    color: context.appColors.ink,
                     fontSize: 15.5,
                     fontWeight: FontWeight.w700,
                   ),
@@ -965,8 +975,8 @@ class _TimetableGrid extends StatelessWidget {
                     '${_viewLabel(view)} · ${_weekLabel(week)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _SchedulePalette.muted,
+                    style: TextStyle(
+                      color: context.appColors.muted,
                       fontSize: 12.5,
                     ),
                   ),
@@ -974,8 +984,8 @@ class _TimetableGrid extends StatelessWidget {
                 const Spacer(),
                 Text(
                   '${items.length} 节课',
-                  style: const TextStyle(
-                    color: _SchedulePalette.muted,
+                  style: TextStyle(
+                    color: context.appColors.muted,
                     fontSize: 12.5,
                   ),
                 ),
@@ -1017,15 +1027,34 @@ class _TimetableGrid extends StatelessWidget {
                           index++
                         ) {
                           final row = orderedRows[index];
-                          if (view == _ScheduleView.schoolClass &&
-                              index > 0 &&
-                              _isLunchTransition(orderedRows[index - 1], row)) {
-                            tableRows.add(_lunchRow(days.length));
+                          final stagePeriods =
+                              commonPeriods[row.stageId] ??
+                              const <CommonPeriod>[];
+                          final firstStageRow =
+                              firstRowByStage[row.stageId] == index;
+                          final lastStageRow =
+                              lastRowByStage[row.stageId] == index;
+                          if (firstStageRow) {
+                            for (final period in stagePeriods.where(
+                              (period) => period.insertAfterLessonId == null,
+                            )) {
+                              tableRows.add(
+                                _commonPeriodRow(
+                                  context,
+                                  period,
+                                  days.length,
+                                  routines.length > 1
+                                      ? stageNames[row.stageId]
+                                      : null,
+                                ),
+                              );
+                            }
                           }
                           tableRows.add(
                             TableRow(
                               children: [
                                 _periodCell(
+                                  context,
                                   row,
                                   stageName: routines.length > 1
                                       ? stageNames[row.stageId]
@@ -1046,6 +1075,42 @@ class _TimetableGrid extends StatelessWidget {
                               ],
                             ),
                           );
+                          final anchor =
+                              '${row.periodTypeId}_${row.lessonIndex}';
+                          for (final period in stagePeriods.where(
+                            (period) => period.insertAfterLessonId == anchor,
+                          )) {
+                            tableRows.add(
+                              _commonPeriodRow(
+                                context,
+                                period,
+                                days.length,
+                                routines.length > 1
+                                    ? stageNames[row.stageId]
+                                    : null,
+                              ),
+                            );
+                          }
+                          if (lastStageRow) {
+                            for (final period in stagePeriods.where(
+                              (period) =>
+                                  period.insertAfterLessonId != null &&
+                                  !anchorsByStage[row.stageId]!.contains(
+                                    period.insertAfterLessonId,
+                                  ),
+                            )) {
+                              tableRows.add(
+                                _commonPeriodRow(
+                                  context,
+                                  period,
+                                  days.length,
+                                  routines.length > 1
+                                      ? stageNames[row.stageId]
+                                      : null,
+                                ),
+                              );
+                            }
+                          }
                         }
                         return Table(
                           columnWidths: const {0: FixedColumnWidth(92)},
@@ -1078,14 +1143,20 @@ class _TimetableGrid extends StatelessWidget {
             style: TextStyle(
               height: 1.4,
               fontSize: header ? 12 : 11.5,
-              color: header ? _SchedulePalette.secondary : _SchedulePalette.ink,
+              color: header
+                  ? context.appColors.inkSecondary
+                  : context.appColors.ink,
               fontWeight: header ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
         ),
       );
 
-  Widget _periodCell(_GridRow row, {String? stageName}) => TableCell(
+  Widget _periodCell(
+    BuildContext context,
+    _GridRow row, {
+    String? stageName,
+  }) => TableCell(
     verticalAlignment: TableCellVerticalAlignment.fill,
     child: Padding(
       padding: const EdgeInsets.fromLTRB(2, 3, 8, 3),
@@ -1100,7 +1171,7 @@ class _TimetableGrid extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: _SchedulePalette.ink,
+              color: context.appColors.ink,
               fontSize: stageName == null ? 12 : 11,
               fontWeight: FontWeight.w600,
             ),
@@ -1110,44 +1181,43 @@ class _TimetableGrid extends StatelessWidget {
             '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _SchedulePalette.muted,
-              fontSize: 11.5,
-            ),
+            style: TextStyle(color: context.appColors.muted, fontSize: 11.5),
           ),
         ],
       ),
     ),
   );
 
-  bool _isLunchTransition(_GridRow before, _GridRow after) =>
-      before.stageId == after.stageId &&
-      (before.periodName.contains('上午') ||
-          before.periodName.contains('早上') ||
-          (before.startMinute != null && before.startMinute! < 12 * 60)) &&
-      (after.periodName.contains('下午') ||
-          (after.startMinute != null &&
-              after.startMinute! >= 12 * 60 &&
-              after.startMinute! < 18 * 60));
-
-  TableRow _lunchRow(int dayCount) => TableRow(
+  TableRow _commonPeriodRow(
+    BuildContext context,
+    CommonPeriod period,
+    int dayCount,
+    String? stageName,
+  ) => TableRow(
     decoration: BoxDecoration(
-      color: _SchedulePalette.surfaceSoft,
+      color: context.appColors.tableHeader,
       borderRadius: BorderRadius.circular(6),
     ),
     children: [
-      const SizedBox(height: 26),
+      SizedBox(
+        height: 26,
+        child: Center(
+          child: Text(
+            stageName ?? '',
+            style: TextStyle(color: context.appColors.muted, fontSize: 11),
+          ),
+        ),
+      ),
       for (var day = 0; day < dayCount; day++)
         SizedBox(
           height: 26,
           child: day == dayCount ~/ 2
-              ? const Center(
+              ? Center(
                   child: Text(
-                    '午 休',
+                    period.name,
                     style: TextStyle(
-                      color: _SchedulePalette.muted,
+                      color: context.appColors.muted,
                       fontSize: 11.5,
-                      letterSpacing: 2,
                     ),
                   ),
                 )
@@ -1167,7 +1237,7 @@ class _TimetableGrid extends StatelessWidget {
     String? draggedId,
   ) {
     Widget content() =>
-        _lessonCell(cellItems, classNames, subjectNames, teacherNames);
+        _lessonCell(context, cellItems, classNames, subjectNames, teacherNames);
     if (!editable) return content();
     return DragTarget<String>(
       onWillAcceptWithDetails: (details) {
@@ -1253,6 +1323,7 @@ class _TimetableGrid extends StatelessWidget {
   }
 
   Widget _lessonCell(
+    BuildContext context,
     List<ScheduleItem> cellItems,
     Map<String, String> classNames,
     Map<String, String> subjectNames,
@@ -1262,7 +1333,7 @@ class _TimetableGrid extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.all(3),
         child: CustomPaint(
-          painter: const _DashedOutline(),
+          painter: _DashedOutline(color: context.appColors.border),
           child: const SizedBox(height: 54),
         ),
       );
@@ -1286,7 +1357,7 @@ class _TimetableGrid extends StatelessWidget {
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: _SchedulePalette.lessonBackgrounds[colorIndex],
+          color: _SchedulePalette.lessonBackground(context, colorIndex),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -1324,7 +1395,7 @@ class _TimetableGrid extends StatelessWidget {
                             classNames[item.classId] ?? item.classId,
                           _ScheduleView.all => '',
                         },
-                        _SchedulePalette.lessonForegrounds[colorIndex],
+                        _SchedulePalette.lessonForeground(context, colorIndex),
                       )
                     else
                       _draggableItem(
@@ -1345,9 +1416,12 @@ class _TimetableGrid extends StatelessWidget {
                               classNames[item.classId] ?? item.classId,
                             _ScheduleView.all => '',
                           },
-                          _SchedulePalette.lessonForegrounds[colorIndex],
+                          _SchedulePalette.lessonForeground(
+                            context,
+                            colorIndex,
+                          ),
                         ),
-                        _SchedulePalette.lessonBackgrounds[colorIndex],
+                        _SchedulePalette.lessonBackground(context, colorIndex),
                       ),
                   ],
                 ],
@@ -1359,7 +1433,7 @@ class _TimetableGrid extends StatelessWidget {
       first,
       '${classNames[first.classId] ?? first.classId} · ${subjectNames[first.subjectId] ?? first.subjectId}',
       card,
-      _SchedulePalette.lessonBackgrounds[colorIndex],
+      _SchedulePalette.lessonBackground(context, colorIndex),
     );
   }
 
@@ -1456,13 +1530,13 @@ class _LessonDragHandleState extends State<_LessonDragHandle> {
   Widget build(BuildContext context) {
     final lesson = Container(
       decoration: BoxDecoration(
-        color: _hovered ? _SchedulePalette.blue.withValues(alpha: .08) : null,
+        color: _hovered ? context.appColors.blue.withValues(alpha: .08) : null,
         borderRadius: BorderRadius.circular(8),
       ),
       foregroundDecoration: _hovered
           ? BoxDecoration(
               border: Border.all(
-                color: _SchedulePalette.blue.withValues(alpha: .72),
+                color: context.appColors.blue.withValues(alpha: .72),
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -1550,8 +1624,8 @@ class _LessonDragHandleState extends State<_LessonDragHandle> {
                   widget.label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _SchedulePalette.ink,
+                  style: TextStyle(
+                    color: context.appColors.ink,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1625,8 +1699,8 @@ class _DropCellFeedbackState extends State<_DropCellFeedback> {
     _hintEntry = OverlayEntry(
       builder: (context) {
         final color = widget.allowed
-            ? _SchedulePalette.success
-            : _SchedulePalette.warning;
+            ? context.appColors.success
+            : context.appColors.warning;
         return Positioned(
           left: 0,
           top: 0,
@@ -1665,10 +1739,10 @@ class _DropCellFeedbackState extends State<_DropCellFeedback> {
   @override
   Widget build(BuildContext context) {
     final color = widget.allowed
-        ? _SchedulePalette.success
+        ? context.appColors.success
         : widget.active
-        ? _SchedulePalette.warning
-        : _SchedulePalette.borderStrong;
+        ? context.appColors.warning
+        : context.appColors.border;
     return CompositedTransformTarget(
       link: _layerLink,
       child: Stack(
@@ -1682,8 +1756,8 @@ class _DropCellFeedbackState extends State<_DropCellFeedback> {
                   margin: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     color: widget.allowed
-                        ? _SchedulePalette.success.withValues(alpha: .08)
-                        : _SchedulePalette.surfaceSoft.withValues(alpha: .88),
+                        ? context.appColors.success.withValues(alpha: .08)
+                        : context.appColors.tableHeader.withValues(alpha: .88),
                     border: Border.all(
                       color: color,
                       width: widget.active ? 1.8 : 1,
@@ -1699,7 +1773,7 @@ class _DropCellFeedbackState extends State<_DropCellFeedback> {
                             child: Icon(
                               Icons.block_outlined,
                               size: 15,
-                              color: _SchedulePalette.muted.withValues(
+                              color: context.appColors.muted.withValues(
                                 alpha: .85,
                               ),
                             ),
@@ -1735,7 +1809,7 @@ class _DropHintBubble extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 250),
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.appColors.surface,
             border: Border.all(color: color.withValues(alpha: .55)),
             borderRadius: BorderRadius.circular(8),
             boxShadow: const [
@@ -1760,8 +1834,8 @@ class _DropHintBubble extends StatelessWidget {
                   message,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _SchedulePalette.ink,
+                  style: TextStyle(
+                    color: context.appColors.ink,
                     fontSize: 12,
                     height: 1.35,
                   ),
@@ -1772,7 +1846,7 @@ class _DropHintBubble extends StatelessWidget {
         ),
         CustomPaint(
           size: const Size(12, 7),
-          painter: _BubbleTailPainter(color),
+          painter: _BubbleTailPainter(color, context.appColors.surface),
         ),
       ],
     ),
@@ -1780,9 +1854,10 @@ class _DropHintBubble extends StatelessWidget {
 }
 
 class _BubbleTailPainter extends CustomPainter {
-  const _BubbleTailPainter(this.color);
+  const _BubbleTailPainter(this.color, this.surface);
 
   final Color color;
+  final Color surface;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1791,7 +1866,7 @@ class _BubbleTailPainter extends CustomPainter {
       ..lineTo(size.width, 0)
       ..lineTo(size.width / 2, size.height)
       ..close();
-    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.drawPath(path, Paint()..color = surface);
     canvas.drawPath(
       path,
       Paint()
@@ -1803,7 +1878,7 @@ class _BubbleTailPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BubbleTailPainter oldDelegate) =>
-      color != oldDelegate.color;
+      color != oldDelegate.color || surface != oldDelegate.surface;
 }
 
 class _GridRow {
@@ -1826,7 +1901,7 @@ class _GridRow {
 }
 
 class _DashedOutline extends CustomPainter {
-  const _DashedOutline({this.color = _SchedulePalette.border});
+  const _DashedOutline({required this.color});
 
   final Color color;
 
@@ -1948,12 +2023,13 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
               return _LessonDragHandle(
                 item: item,
                 label: label,
-                feedbackColor:
-                    _SchedulePalette
-                        .lessonBackgrounds[_SchedulePalette.subjectColorIndex(
-                      item.subjectId,
-                      widget.subjectNames[item.subjectId],
-                    )],
+                feedbackColor: _SchedulePalette.lessonBackground(
+                  context,
+                  _SchedulePalette.subjectColorIndex(
+                    item.subjectId,
+                    widget.subjectNames[item.subjectId],
+                  ),
+                ),
                 draggedItemId: widget.draggedItemId,
                 onPreviewMove: widget.onPreviewMove,
                 onMove: widget.onMove,
@@ -2070,14 +2146,14 @@ class _RightRail extends StatelessWidget {
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _SchedulePalette.surfaceSoft,
-                  border: Border.all(color: _SchedulePalette.border),
+                  color: context.appColors.tableHeader,
+                  border: Border.all(color: context.appColors.border),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '${unplaced.length} 节',
-                  style: const TextStyle(
-                    color: _SchedulePalette.secondary,
+                  style: TextStyle(
+                    color: context.appColors.inkSecondary,
                     fontSize: 11.5,
                   ),
                 ),
@@ -2112,12 +2188,12 @@ class _RightRail extends StatelessWidget {
                       width: double.infinity,
                       constraints: const BoxConstraints(minHeight: 96),
                       decoration: BoxDecoration(
-                        color: _SchedulePalette.surfaceSoft,
+                        color: context.appColors.tableHeader,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const CustomPaint(
+                      child: CustomPaint(
                         painter: _DashedOutline(
-                          color: _SchedulePalette.borderStrong,
+                          color: context.appColors.border,
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -2125,13 +2201,13 @@ class _RightRail extends StatelessWidget {
                             Icon(
                               Icons.file_upload_outlined,
                               size: 22,
-                              color: _SchedulePalette.muted,
+                              color: context.appColors.muted,
                             ),
                             SizedBox(height: 6),
                             Text(
                               '拖拽课程卡片到此处暂存',
                               style: TextStyle(
-                                color: _SchedulePalette.muted,
+                                color: context.appColors.muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -2200,7 +2276,7 @@ class _RightRail extends StatelessWidget {
                                   width: 200,
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: _SchedulePalette.surface,
+                                    color: context.appColors.surface,
                                     borderRadius: BorderRadius.circular(10),
                                     boxShadow: [
                                       BoxShadow(
@@ -2249,7 +2325,7 @@ class _RightRail extends StatelessWidget {
                     Icon(
                       Icons.check_circle_outline,
                       size: 18,
-                      color: _SchedulePalette.success,
+                      color: context.appColors.success,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -2325,7 +2401,7 @@ class _RailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: _SchedulePalette.panel(),
+    decoration: _SchedulePalette.panel(context),
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -2336,8 +2412,8 @@ class _RailCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: _SchedulePalette.ink,
+                  style: TextStyle(
+                    color: context.appColors.ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),

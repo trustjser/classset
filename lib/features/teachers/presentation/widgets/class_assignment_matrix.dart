@@ -478,9 +478,9 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
 
         return DecoratedBox(
           key: const ValueKey('teacher-class-matrix-border'),
-          position: DecorationPosition.foreground,
           decoration: BoxDecoration(
-            border: Border.all(color: context.appColors.border),
+            color: context.appColors.surface,
+            boxShadow: context.appColors.cardShadow,
             borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           ),
           child: ClipRRect(

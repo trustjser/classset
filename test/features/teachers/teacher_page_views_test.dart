@@ -1756,7 +1756,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('班级矩阵只保留列头下方分隔线和外框', (tester) async {
+  testWidgets('班级矩阵保留列头分隔线并使用阴影', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1772,7 +1772,7 @@ void main() {
     final border = tester.widget<DecoratedBox>(
       find.byKey(const ValueKey('teacher-class-matrix-border')),
     );
-    expect(border.position, DecorationPosition.foreground);
+    expect(border.position, DecorationPosition.background);
     expect(
       find.byKey(const ValueKey('assignment-cell-divider-class-1-math')),
       findsNothing,
@@ -1910,6 +1910,11 @@ void main() {
     final matrixBorder = tester.widget<DecoratedBox>(
       find.byKey(const ValueKey('teacher-class-matrix-border')),
     );
+    expect((matrixBorder.decoration as BoxDecoration).border, isNull);
+    expect(
+      (matrixBorder.decoration as BoxDecoration).boxShadow,
+      AppThemeColors.light.cardShadow,
+    );
     expect(
       (matrixBorder.decoration as BoxDecoration).borderRadius,
       BorderRadius.circular(AppTheme.cardRadius),
@@ -1957,6 +1962,11 @@ void main() {
 
     final teacherTable = tester.widget<DecoratedBox>(
       find.byKey(const ValueKey('teacher-assignment-table')),
+    );
+    expect((teacherTable.decoration as BoxDecoration).border, isNull);
+    expect(
+      (teacherTable.decoration as BoxDecoration).boxShadow,
+      AppThemeColors.light.cardShadow,
     );
     expect(
       (teacherTable.decoration as BoxDecoration).borderRadius,

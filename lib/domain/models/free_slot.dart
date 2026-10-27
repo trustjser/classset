@@ -59,6 +59,7 @@ enum FreeSlotScope {
 
 /// 预置免任课类型；[FreeSlot.label] 可为自定义文字。
 abstract final class FreeSlotLabels {
+  static const String noClass = '不上课';
   static const String none = '无课';
   static const String selfStudy = '自习';
   static const String labor = '劳动';
@@ -66,6 +67,7 @@ abstract final class FreeSlotLabels {
   static const String partyLeague = '党团活动';
 
   static const List<String> presets = [
+    noClass,
     none,
     selfStudy,
     labor,
