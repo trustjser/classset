@@ -8,6 +8,8 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
 import 'package:class_set/domain/models/schedule_position.dart';
+import 'package:class_set/domain/models/school_structure.dart';
+import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/scheduling/manual_schedule_editor.dart';
@@ -19,6 +21,8 @@ import 'package:forui/forui.dart';
 enum _ScheduleView { schoolClass, teacher, all, room }
 
 enum _WeekView { merged, odd, even }
+
+enum _AllScheduleLayout { timetable, classes }
 
 abstract final class _SchedulePalette {
   static const lessonBackgrounds = [
@@ -87,6 +91,7 @@ class SchedulingTimetable extends StatefulWidget {
     required this.onRedo,
     required this.onSetLock,
     required this.onSetAllLocks,
+    this.onSetClassLocks,
     super.key,
   });
 
@@ -117,6 +122,8 @@ class SchedulingTimetable extends StatefulWidget {
   final VoidCallback onRedo;
   final Future<void> Function(ScheduleLock lock, bool enabled) onSetLock;
   final Future<void> Function(bool enabled) onSetAllLocks;
+  final Future<void> Function(Set<String> classIds, bool enabled)?
+  onSetClassLocks;
 
   @override
   State<SchedulingTimetable> createState() => _SchedulingTimetableState();
@@ -125,6 +132,9 @@ class SchedulingTimetable extends StatefulWidget {
 class _SchedulingTimetableState extends State<SchedulingTimetable> {
   _ScheduleView _view = _ScheduleView.schoolClass;
   _WeekView _week = _WeekView.merged;
+  _AllScheduleLayout _allLayout = _AllScheduleLayout.timetable;
+  String? _stageId;
+  int _weekday = DateTime.monday;
   String? _classId;
   String? _teacherId;
   String? _roomId;
@@ -227,6 +237,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
   @override
   Widget build(BuildContext context) {
     final snapshot = widget.snapshot;
+    final stageId = snapshot.stages.any((stage) => stage.id == _stageId)
+        ? _stageId
+        : null;
     final classIds = snapshot.classes.map((item) => item.id).toSet();
     final teacherIds = snapshot.teachers.map((item) => item.id).toSet();
     final roomIds = snapshot.rooms.map((item) => item.id).toSet();
@@ -242,6 +255,16 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
     final items = widget.state.items;
     final visible = items.where((item) {
       if (item.position == null || !_matchesWeek(item)) return false;
+      if (_view != _ScheduleView.schoolClass &&
+          stageId != null &&
+          snapshot.stageIdForClass(item.classId) != stageId) {
+        return false;
+      }
+      if (_view == _ScheduleView.all &&
+          _allLayout == _AllScheduleLayout.classes &&
+          item.position!.weekday != _weekday) {
+        return false;
+      }
       return switch (_view) {
         _ScheduleView.schoolClass => item.classId == classId,
         _ScheduleView.teacher => item.teacherId == teacherId,
@@ -254,8 +277,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         widget.state.status == SchedulingStatus.committing ||
         widget.state.status == SchedulingStatus.savingEdit;
     final editable =
-        widget.state.status == SchedulingStatus.ready ||
-        widget.state.status == SchedulingStatus.completed;
+        widget.state.pendingBaseline == null &&
+        (widget.state.status == SchedulingStatus.ready ||
+            widget.state.status == SchedulingStatus.completed);
 
     return Listener(
       onPointerMove: (event) {
@@ -320,6 +344,14 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                                     items: visible,
                                     allItems: items,
                                     view: _view,
+                                    stageId: _view == _ScheduleView.schoolClass
+                                        ? null
+                                        : stageId,
+                                    classOverview:
+                                        _view == _ScheduleView.all &&
+                                        _allLayout ==
+                                            _AllScheduleLayout.classes,
+                                    weekday: _weekday,
                                     week: _week,
                                     selectedClassId: classId,
                                     editable: editable,
@@ -331,6 +363,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                                   );
                                   final rail = _RightRail(
                                     snapshot: snapshot,
+                                    stageId: _view == _ScheduleView.schoolClass
+                                        ? null
+                                        : stageId,
                                     state: widget.state,
                                     week: _week,
                                     onRefresh: widget.onRefresh,
@@ -408,6 +443,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
     bool solving,
   ) {
     final snapshot = widget.snapshot;
+    final selectedStage = snapshot.stages
+        .where((stage) => stage.id == _stageId)
+        .firstOrNull;
     final lockedClasses = snapshot.locks
         .where((lock) => lock.scope == ScheduleLockScope.schoolClass)
         .map((lock) => lock.targetId)
@@ -416,12 +454,19 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         .where((lock) => lock.scope == ScheduleLockScope.teacher)
         .map((lock) => lock.targetId)
         .toSet();
+    final filteredClasses = snapshot.classes
+        .where(
+          (item) =>
+              selectedStage == null ||
+              snapshot.stageIdForClass(item.id) == selectedStage.id,
+        )
+        .toList();
     final scopeLocked = switch (_view) {
       _ScheduleView.schoolClass => lockedClasses.contains(classId),
       _ScheduleView.teacher => lockedTeachers.contains(teacherId),
       _ScheduleView.all =>
-        snapshot.classes.isNotEmpty &&
-            snapshot.classes.every((item) => lockedClasses.contains(item.id)),
+        filteredClasses.isNotEmpty &&
+            filteredClasses.every((item) => lockedClasses.contains(item.id)),
       _ScheduleView.room => false,
     };
     final selector = switch (_view) {
@@ -438,6 +483,8 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         value: classId,
         onChanged: (value) => setState(() => _classId = value),
         hint: '选择班级',
+        searchable: true,
+        searchHint: '搜索班级',
       ),
       _ScheduleView.teacher => AppSelectField<String>(
         key: const ValueKey('schedule-teacher-selector'),
@@ -447,6 +494,8 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         value: teacherId,
         onChanged: (value) => setState(() => _teacherId = value),
         hint: '选择教师',
+        searchable: true,
+        searchHint: '搜索教师',
       ),
       _ScheduleView.room => AppSelectField<String>(
         key: const ValueKey('schedule-room-selector'),
@@ -456,6 +505,8 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         value: roomId,
         onChanged: (value) => setState(() => _roomId = value),
         hint: '选择场室',
+        searchable: true,
+        searchHint: '搜索场室',
       ),
       _ScheduleView.all => const SizedBox.shrink(),
     };
@@ -473,7 +524,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
       ],
     );
     final startButton = AppPrimaryButton.icon(
-      onPressed: solving ? null : widget.onStart,
+      onPressed: solving || widget.state.pendingBaseline != null
+          ? null
+          : widget.onStart,
       icon: const Icon(Icons.auto_awesome_outlined, size: 16),
       label: const Text('自动排课'),
     );
@@ -514,6 +567,80 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
             spacing: 10,
             runSpacing: 8,
             children: [
+              if (_view != _ScheduleView.schoolClass) ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _controlLabel(context, '学段'),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 145,
+                      child: AppSelectField<String>(
+                        key: const ValueKey('schedule-stage-selector'),
+                        items: _uniqueSelectorItems([
+                          ('全部学段', ''),
+                          ...snapshot.stages.map(
+                            (stage) => (stage.name, stage.id),
+                          ),
+                        ]),
+                        value:
+                            snapshot.stages.any((stage) => stage.id == _stageId)
+                            ? _stageId
+                            : '',
+                        onChanged: (value) => setState(
+                          () => _stageId = value == '' ? null : value,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                _toolbarDivider(),
+              ],
+              if (_view == _ScheduleView.all) ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final entry in const [
+                      (_AllScheduleLayout.timetable, '按课节'),
+                      (_AllScheduleLayout.classes, '按班级'),
+                    ])
+                      TextButton(
+                        onPressed: () => setState(() => _allLayout = entry.$1),
+                        style: TextButton.styleFrom(
+                          foregroundColor: _allLayout == entry.$1
+                              ? context.appColors.blue
+                              : context.appColors.inkSecondary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          textStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: _allLayout == entry.$1
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                        child: Text(entry.$2),
+                      ),
+                  ],
+                ),
+                if (_allLayout == _AllScheduleLayout.classes)
+                  SizedBox(
+                    width: 108,
+                    child: AppSelectField<int>(
+                      key: const ValueKey('schedule-weekday-selector'),
+                      items: {
+                        for (var day = 1; day <= 7; day++) _dayLabel(day): day,
+                      },
+                      value: _weekday,
+                      onChanged: (value) {
+                        if (value != null) setState(() => _weekday = value);
+                      },
+                    ),
+                  ),
+                _toolbarDivider(),
+              ],
               if (_view != _ScheduleView.all)
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -560,14 +687,20 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 runSpacing: 4,
                 children: [
                   AppGhostButton.icon(
-                    onPressed: solving || widget.state.undoCount == 0
+                    onPressed:
+                        solving ||
+                            widget.state.pendingBaseline != null ||
+                            widget.state.undoCount == 0
                         ? null
                         : widget.onUndo,
                     icon: const Icon(Icons.undo, size: 16),
                     label: const Text('撤销'),
                   ),
                   AppGhostButton.icon(
-                    onPressed: solving || widget.state.redoCount == 0
+                    onPressed:
+                        solving ||
+                            widget.state.pendingBaseline != null ||
+                            widget.state.redoCount == 0
                         ? null
                         : widget.onRedo,
                     icon: const Icon(Icons.redo, size: 16),
@@ -582,11 +715,35 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 children: [
                   if (_view != _ScheduleView.room)
                     AppGhostButton.icon(
-                      onPressed: solving
+                      onPressed: solving || widget.state.pendingBaseline != null
                           ? null
                           : () {
                               if (_view == _ScheduleView.all) {
-                                unawaited(widget.onSetAllLocks(!scopeLocked));
+                                if (selectedStage == null) {
+                                  unawaited(widget.onSetAllLocks(!scopeLocked));
+                                } else {
+                                  final ids = filteredClasses
+                                      .map((item) => item.id)
+                                      .toSet();
+                                  final bulk = widget.onSetClassLocks;
+                                  if (bulk != null) {
+                                    unawaited(bulk(ids, !scopeLocked));
+                                  } else {
+                                    unawaited(() async {
+                                      for (final id in ids) {
+                                        await widget.onSetLock(
+                                          ScheduleLock(
+                                            termId: snapshot.term.id,
+                                            scope:
+                                                ScheduleLockScope.schoolClass,
+                                            targetId: id,
+                                          ),
+                                          !scopeLocked,
+                                        );
+                                      }
+                                    }());
+                                  }
+                                }
                                 return;
                               }
                               final id = _view == _ScheduleView.schoolClass
@@ -628,7 +785,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 runSpacing: 4,
                 children: [
                   AppGhostButton.icon(
-                    onPressed: solving ? null : widget.onRefresh,
+                    onPressed: solving || widget.state.pendingBaseline != null
+                        ? null
+                        : widget.onRefresh,
                     icon: const Icon(Icons.fact_check_outlined, size: 16),
                     label: const Text('检测'),
                   ),
@@ -645,11 +804,12 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 runSpacing: 4,
                 children: [
                   AppGhostButton.icon(
-                    onPressed: visible.isEmpty
+                    onPressed:
+                        visible.isEmpty || widget.state.pendingBaseline != null
                         ? null
                         : () => widget.onExport(
                             visible,
-                            '${_viewLabel(_view)} · ${_weekLabel(_week)}',
+                            '${_viewLabel(_view)}${_view != _ScheduleView.schoolClass && selectedStage != null ? ' · ${selectedStage.name}' : ''} · ${_weekLabel(_week)}${_view == _ScheduleView.all && _allLayout == _AllScheduleLayout.classes ? ' · ${_dayLabel(_weekday)}' : ''}',
                           ),
                     icon: const Icon(Icons.ios_share_outlined, size: 16),
                     label: const Text('导出/打印'),
@@ -837,6 +997,9 @@ class _TimetableGrid extends StatelessWidget {
     required this.items,
     required this.allItems,
     required this.view,
+    required this.stageId,
+    required this.classOverview,
+    required this.weekday,
     required this.week,
     required this.selectedClassId,
     required this.editable,
@@ -852,6 +1015,9 @@ class _TimetableGrid extends StatelessWidget {
   final List<ScheduleItem> items;
   final List<ScheduleItem> allItems;
   final _ScheduleView view;
+  final String? stageId;
+  final bool classOverview;
+  final int weekday;
   final _WeekView week;
   final String? selectedClassId;
   final bool editable;
@@ -873,12 +1039,26 @@ class _TimetableGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stageId = view == _ScheduleView.schoolClass && selectedClassId != null
+    final currentStageId =
+        view == _ScheduleView.schoolClass && selectedClassId != null
         ? snapshot.stageIdForClass(selectedClassId!)
-        : null;
-    final routines = snapshot.routines
-        .where((routine) => stageId == null || routine.stageId == stageId)
-        .toList();
+        : stageId;
+    final stageOrder = {
+      for (final stage in snapshot.stages) stage.id: stage.sortOrder,
+    };
+    final routines =
+        snapshot.routines
+            .where(
+              (routine) =>
+                  currentStageId == null || routine.stageId == currentStageId,
+            )
+            .toList()
+          ..sort(
+            (a, b) => (stageOrder[a.stageId] ?? 0).compareTo(
+              stageOrder[b.stageId] ?? 0,
+            ),
+          );
+    if (classOverview) return _classOverview(context, routines);
     final days =
         routines.expand((routine) => routine.teachingWeekdays).toSet().toList()
           ..sort();
@@ -1152,6 +1332,322 @@ class _TimetableGrid extends StatelessWidget {
         ),
       );
 
+  Widget _classOverview(BuildContext context, List<StageRoutine> routines) {
+    final classNames = {
+      for (final item in snapshot.classes) item.id: item.name,
+    };
+    final subjectNames = {
+      for (final item in snapshot.subjects) item.id: item.name,
+    };
+    final teacherNames = {
+      for (final item in snapshot.teachers) item.id: item.displayName,
+    };
+    final stageNames = {
+      for (final stage in snapshot.stages) stage.id: stage.name,
+    };
+    final cells = <String, List<ScheduleItem>>{};
+    for (final item in items) {
+      final position = item.position;
+      if (position == null) continue;
+      final key =
+          '${item.classId}:${position.periodTypeId}:${position.lessonIndex}';
+      cells.putIfAbsent(key, () => []).add(item);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final routine in routines) ...[
+          Builder(
+            builder: (context) {
+              final classes = snapshot.classes
+                  .where(
+                    (item) =>
+                        snapshot.stageIdForClass(item.id) == routine.stageId,
+                  )
+                  .toList();
+              final periods = [...routine.periodTypes]
+                ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+              final lessonLabels = <String, String>{};
+              var daytimeCount = 0;
+              for (final period in periods) {
+                for (
+                  var index = 1;
+                  index <= period.defaultLessonCount;
+                  index++
+                ) {
+                  final label = period.name.contains('早')
+                      ? '早$index'
+                      : period.name.contains('晚')
+                      ? '晚$index'
+                      : '第 ${++daytimeCount} 节';
+                  lessonLabels['${period.id}_$index'] = label;
+                }
+              }
+              final common =
+                  commonPeriods[routine.stageId] ?? const <CommonPeriod>[];
+              final columns = <({_GridRow? lesson, CommonPeriod? common})>[];
+              for (final item in common.where(
+                (item) => item.insertAfterLessonId == null,
+              )) {
+                columns.add((lesson: null, common: item));
+              }
+              if (routine.teachingWeekdays.contains(weekday)) {
+                for (final period in periods) {
+                  final count = routine.effectiveLessonCount(
+                    period.id,
+                    weekday,
+                  );
+                  for (var index = 1; index <= count; index++) {
+                    final time = period.lessonTimes
+                        .where((time) => time.lessonIndex == index)
+                        .firstOrNull;
+                    columns.add((
+                      lesson: _GridRow(
+                        routine.stageId,
+                        period.id,
+                        period.name,
+                        index,
+                        period.sortOrder,
+                        0,
+                        time?.startMinute,
+                      ),
+                      common: null,
+                    ));
+                    for (final item in common.where(
+                      (item) =>
+                          item.insertAfterLessonId == '${period.id}_$index',
+                    )) {
+                      columns.add((lesson: null, common: item));
+                    }
+                  }
+                }
+              }
+              final gradeOrder = {
+                for (final grade in snapshot.grades) grade.id: grade.sortOrder,
+              };
+              classes.sort((a, b) {
+                final grade = (gradeOrder[a.gradeId] ?? 0).compareTo(
+                  gradeOrder[b.gradeId] ?? 0,
+                );
+                return grade != 0 ? grade : a.sortOrder.compareTo(b.sortOrder);
+              });
+              return Container(
+                key: ValueKey('schedule-stage-class-${routine.stageId}'),
+                decoration: _SchedulePalette.panel(context),
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${stageNames[routine.stageId] ?? routine.stageId} · ${_dayLabel(weekday)}',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 12),
+                    if (columns.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('该学段当天没有课节'),
+                      )
+                    else
+                      LayoutBuilder(
+                        builder: (context, constraints) => SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: math.max(
+                              constraints.maxWidth,
+                              150 + columns.length * 130.0,
+                            ),
+                            child: ValueListenableBuilder<String?>(
+                              valueListenable: draggedItemId,
+                              builder: (context, draggedId, _) => Table(
+                                columnWidths: const {0: FixedColumnWidth(150)},
+                                defaultColumnWidth: const FlexColumnWidth(),
+                                defaultVerticalAlignment:
+                                    TableCellVerticalAlignment.middle,
+                                children: [
+                                  TableRow(
+                                    children: [
+                                      _tableCell(context, '班级', header: true),
+                                      for (final column in columns)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
+                                            horizontal: 4,
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                column.common?.name ??
+                                                    lessonLabels['${column.lesson!.periodTypeId}_${column.lesson!.lessonIndex}'] ??
+                                                    '第 ${column.lesson!.lessonIndex} 节',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: context
+                                                      .appColors
+                                                      .inkSecondary,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              if (column.lesson?.startMinute
+                                                  case final minute?)
+                                                Text(
+                                                  _minuteLabel(minute),
+                                                  style: TextStyle(
+                                                    color:
+                                                        context.appColors.muted,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              if (column.common?.startLabel
+                                                  case final start?)
+                                                Text(
+                                                  start,
+                                                  style: TextStyle(
+                                                    color:
+                                                        context.appColors.muted,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  for (final schoolClass in classes)
+                                    TableRow(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                            horizontal: 4,
+                                          ),
+                                          child: Text(
+                                            schoolClass.name,
+                                            style: TextStyle(
+                                              color: context.appColors.ink,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        for (final column in columns)
+                                          if (column.common
+                                              case final commonPeriod?)
+                                            Container(
+                                              height: 60,
+                                              alignment: Alignment.center,
+                                              color:
+                                                  context.appColors.tableHeader,
+                                              child: Text(
+                                                commonPeriod.name,
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: context
+                                                      .appColors
+                                                      .inkSecondary,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            )
+                                          else if ((cells['${schoolClass.id}:${column.lesson!.periodTypeId}:${column.lesson!.lessonIndex}'] ??
+                                                      const [])
+                                                  .isEmpty &&
+                                              _freeLabelForClass(
+                                                    snapshot,
+                                                    schoolClass,
+                                                    routine.stageId,
+                                                    weekday,
+                                                    column.lesson!,
+                                                  ) !=
+                                                  null)
+                                            Container(
+                                              height: 60,
+                                              alignment: Alignment.center,
+                                              child: Text(
+                                                _freeLabelForClass(
+                                                  snapshot,
+                                                  schoolClass,
+                                                  routine.stageId,
+                                                  weekday,
+                                                  column.lesson!,
+                                                )!,
+                                                style: TextStyle(
+                                                  color:
+                                                      context.appColors.muted,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            )
+                                          else
+                                            _dropCell(
+                                              context,
+                                              weekday,
+                                              column.lesson!,
+                                              cells['${schoolClass.id}:${column.lesson!.periodTypeId}:${column.lesson!.lessonIndex}'] ??
+                                                  const [],
+                                              classNames,
+                                              subjectNames,
+                                              teacherNames,
+                                              draggedId,
+                                              classOverviewCell: true,
+                                              targetClassId: schoolClass.id,
+                                            ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (classes.isEmpty)
+                      Text(
+                        '该学段暂无班级',
+                        style: TextStyle(color: context.appColors.muted),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (routines.isEmpty) const Text('尚未设置学段作息。'),
+      ],
+    );
+  }
+
+  String? _freeLabelForClass(
+    SchedulingSnapshot snapshot,
+    ClassGroup schoolClass,
+    String stageId,
+    int weekday,
+    _GridRow row,
+  ) {
+    FreeSlot? best;
+    var bestPriority = 0;
+    for (final slot in snapshot.freeSlots) {
+      if (slot.stageId != stageId ||
+          slot.weekday != weekday ||
+          slot.periodTypeId != row.periodTypeId ||
+          slot.lessonIndex != row.lessonIndex) {
+        continue;
+      }
+      final priority = switch (slot.scope) {
+        FreeSlotScope.school => slot.scopeId == snapshot.term.id ? 1 : 0,
+        FreeSlotScope.stage => slot.scopeId == stageId ? 2 : 0,
+        FreeSlotScope.grade => slot.scopeId == schoolClass.gradeId ? 3 : 0,
+        FreeSlotScope.schoolClass => slot.scopeId == schoolClass.id ? 4 : 0,
+      };
+      if (priority > bestPriority) {
+        best = slot;
+        bestPriority = priority;
+      }
+    }
+    return best?.label;
+  }
+
   Widget _periodCell(
     BuildContext context,
     _GridRow row, {
@@ -1234,13 +1730,29 @@ class _TimetableGrid extends StatelessWidget {
     Map<String, String> classNames,
     Map<String, String> subjectNames,
     Map<String, String> teacherNames,
-    String? draggedId,
-  ) {
-    Widget content() =>
-        _lessonCell(context, cellItems, classNames, subjectNames, teacherNames);
+    String? draggedId, {
+    bool classOverviewCell = false,
+    String? targetClassId,
+  }) {
+    Widget content() => _lessonCell(
+      context,
+      cellItems,
+      classNames,
+      subjectNames,
+      teacherNames,
+      classOverviewCell: classOverviewCell,
+    );
     if (!editable) return content();
     return DragTarget<String>(
       onWillAcceptWithDetails: (details) {
+        if (targetClassId != null &&
+            allItems
+                    .where((item) => item.id == details.data)
+                    .firstOrNull
+                    ?.classId !=
+                targetClassId) {
+          return false;
+        }
         final target = _targetFor(details.data, weekday, row);
         if (target == null) return false;
         final swapWithItemId = cellItems.length == 1
@@ -1250,6 +1762,14 @@ class _TimetableGrid extends StatelessWidget {
         return preview.allowed && preview.changedItemIds.isNotEmpty;
       },
       onAcceptWithDetails: (details) {
+        if (targetClassId != null &&
+            allItems
+                    .where((item) => item.id == details.data)
+                    .firstOrNull
+                    ?.classId !=
+                targetClassId) {
+          return;
+        }
         final target = _targetFor(details.data, weekday, row);
         final swapWithItemId = cellItems.length == 1
             ? cellItems.single.id
@@ -1263,7 +1783,15 @@ class _TimetableGrid extends StatelessWidget {
       builder: (context, candidates, rejected) {
         final itemId = [...candidates, ...rejected].firstOrNull;
         final sourceId = itemId ?? draggedId;
-        final target = sourceId == null
+        final differentClass =
+            targetClassId != null &&
+            sourceId != null &&
+            allItems
+                    .where((item) => item.id == sourceId)
+                    .firstOrNull
+                    ?.classId !=
+                targetClassId;
+        final target = sourceId == null || differentClass
             ? null
             : _targetFor(sourceId, weekday, row);
         final preview = sourceId == null || target == null
@@ -1327,8 +1855,9 @@ class _TimetableGrid extends StatelessWidget {
     List<ScheduleItem> cellItems,
     Map<String, String> classNames,
     Map<String, String> subjectNames,
-    Map<String, String> teacherNames,
-  ) {
+    Map<String, String> teacherNames, {
+    bool classOverviewCell = false,
+  }) {
     if (cellItems.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(3),
@@ -1346,8 +1875,9 @@ class _TimetableGrid extends StatelessWidget {
     final sameMeeting =
         first.meetingId != null &&
         cellItems.every((item) => item.meetingId == first.meetingId);
+    final displayView = classOverviewCell ? _ScheduleView.schoolClass : view;
     final wholeCellDrag =
-        view != _ScheduleView.all &&
+        displayView != _ScheduleView.all &&
         cellItems.length <= 3 &&
         (cellItems.length == 1 || sameMeeting);
     final card = Padding(
@@ -1363,7 +1893,7 @@ class _TimetableGrid extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: view == _ScheduleView.all || cellItems.length > 3
+          children: displayView == _ScheduleView.all || cellItems.length > 3
               ? [
                   _AllLessonsCell(
                     items: cellItems,
@@ -1381,12 +1911,12 @@ class _TimetableGrid extends StatelessWidget {
                     if (item != first) const SizedBox(height: 5),
                     if (wholeCellDrag)
                       _lessonSummary(
-                        '${_weekPrefix(item)}${switch (view) {
+                        '${_weekPrefix(item)}${switch (displayView) {
                           _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
                           _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
                           _ScheduleView.all => '',
                         }}',
-                        switch (view) {
+                        switch (displayView) {
                           _ScheduleView.schoolClass =>
                             teacherNames[item.teacherId] ?? item.teacherId,
                           _ScheduleView.teacher =>
@@ -1402,12 +1932,12 @@ class _TimetableGrid extends StatelessWidget {
                         item,
                         '${classNames[item.classId] ?? item.classId} · ${subjectNames[item.subjectId] ?? item.subjectId}',
                         _lessonSummary(
-                          '${_weekPrefix(item)}${switch (view) {
+                          '${_weekPrefix(item)}${switch (displayView) {
                             _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
                             _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
                             _ScheduleView.all => '',
                           }}',
-                          switch (view) {
+                          switch (displayView) {
                             _ScheduleView.schoolClass =>
                               teacherNames[item.teacherId] ?? item.teacherId,
                             _ScheduleView.teacher =>
@@ -2039,9 +2569,24 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
           ),
         ),
         if (widget.items.length > 3)
-          AppGhostButton(
+          TextButton(
             onPressed: () => setState(() => _expanded = !_expanded),
-            child: Text(_expanded ? '收起' : '查看全部 ${widget.items.length} 节'),
+            style: TextButton.styleFrom(
+              foregroundColor: context.appColors.blue,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              alignment: Alignment.centerLeft,
+              textStyle: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            child: Text(
+              _expanded ? '收起' : '查看全部 ${widget.items.length} 节',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
       ],
     );
@@ -2051,6 +2596,7 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
 class _RightRail extends StatelessWidget {
   const _RightRail({
     required this.snapshot,
+    required this.stageId,
     required this.state,
     required this.week,
     required this.onRefresh,
@@ -2065,6 +2611,7 @@ class _RightRail extends StatelessWidget {
   });
 
   final SchedulingSnapshot snapshot;
+  final String? stageId;
   final SchedulingState state;
   final _WeekView week;
   final VoidCallback onRefresh;
@@ -2093,6 +2640,8 @@ class _RightRail extends StatelessWidget {
         .where(
           (item) =>
               !item.isPlaced &&
+              (stageId == null ||
+                  snapshot.stageIdForClass(item.classId) == stageId) &&
               (week == _WeekView.merged ||
                   (week == _WeekView.odd && item.weekMode != WeekMode.even) ||
                   (week == _WeekView.even && item.weekMode != WeekMode.odd)),

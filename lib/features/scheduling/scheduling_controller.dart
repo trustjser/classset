@@ -273,6 +273,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
   }
 
   Future<void> setLock(ScheduleLock lock, {required bool enabled}) async {
+    if (state.pendingBaseline != null) return;
     try {
       await _repository.setScheduleLock(lock, enabled: enabled);
       await refresh();
@@ -284,14 +285,25 @@ class SchedulingController extends StateNotifier<SchedulingState> {
   Future<void> setAllClassLocks({required bool enabled}) async {
     final snapshot = state.snapshot;
     if (snapshot == null) return;
+    await setClassLocks(
+      snapshot.classes.map((item) => item.id).toSet(),
+      enabled: enabled,
+    );
+  }
+
+  Future<void> setClassLocks(
+    Set<String> classIds, {
+    required bool enabled,
+  }) async {
+    if (state.pendingBaseline != null) return;
     try {
       await _repository.setScheduleLocks(
         locks: [
-          for (final schoolClass in snapshot.classes)
+          for (final classId in classIds)
             ScheduleLock(
               termId: termId,
               scope: ScheduleLockScope.schoolClass,
-              targetId: schoolClass.id,
+              targetId: classId,
             ),
         ],
         enabled: enabled,
@@ -303,6 +315,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
   }
 
   Future<void> detect() async {
+    if (state.pendingBaseline != null) return;
     if (state.status != SchedulingStatus.ready &&
         state.status != SchedulingStatus.completed) {
       return;
@@ -338,6 +351,15 @@ class SchedulingController extends StateNotifier<SchedulingState> {
     SchedulePosition? target, [
     String? swapWithItemId,
   ]) {
+    if (state.pendingBaseline != null) {
+      return ManualMoveResult(
+        items: state.items,
+        blockers: const [
+          ScheduleBlocker(code: 'reconciliationPending', message: '请先完成课表协调。'),
+        ],
+        changedItemIds: const {},
+      );
+    }
     final snapshot = state.snapshot;
     if (snapshot == null) {
       throw StateError('排课资料尚未加载');
@@ -358,7 +380,8 @@ class SchedulingController extends StateNotifier<SchedulingState> {
     String? swapWithItemId,
   ]) async {
     final result = previewMove(itemId, target, swapWithItemId);
-    if (!result.allowed ||
+    if (state.pendingBaseline != null ||
+        !result.allowed ||
         result.changedItemIds.isEmpty ||
         (state.status != SchedulingStatus.ready &&
             state.status != SchedulingStatus.completed)) {
@@ -413,6 +436,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
   Future<void> redo() => _applyHistory(undo: false);
 
   Future<void> _applyHistory({required bool undo}) async {
+    if (state.pendingBaseline != null) return;
     if (state.status != SchedulingStatus.ready &&
         state.status != SchedulingStatus.completed) {
       return;
@@ -460,6 +484,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
   }
 
   Future<void> start({required int seed}) async {
+    if (state.pendingBaseline != null) return;
     if (state.status == SchedulingStatus.solving ||
         state.status == SchedulingStatus.committing ||
         state.status == SchedulingStatus.savingEdit) {

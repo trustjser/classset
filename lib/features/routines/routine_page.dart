@@ -220,6 +220,9 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   final Set<String> _collapsedPeriodGroups = {};
   final Map<String, FreeSlot?> _freeSlotBaseline = {};
   final Map<String, FreeSlot?> _freeSlotDraft = {};
+  // Legacy per-day overrides are represented as editable slots in the UI.
+  // They are an initial projection, not changes made by the user.
+  final Map<String, FreeSlot?> _initialOverrideSlots = {};
   final Map<String, CommonPeriod?> _commonPeriodBaseline = {};
   final Map<String, CommonPeriod?> _commonPeriodDraft = {};
   final Map<String, _DraftSnapshot> _routineBaselineByStage = {};
@@ -248,8 +251,12 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
 
   /// 当前页面是否存在尚未通过保存按钮确认的修改。
   bool get _hasUnsavedChanges {
-    if (_freeSlotDraft.isNotEmpty || _commonPeriodDraft.isNotEmpty) return true;
-    if (_routineNeedsNormalizationByStage.values.any((value) => value)) {
+    if (!_sameNullableMap(
+          _freeSlotDraft,
+          _initialOverrideSlots,
+          _sameFreeSlot,
+        ) ||
+        _commonPeriodDraft.isNotEmpty) {
       return true;
     }
     for (final entry in _routineDraftByStage.entries) {
@@ -653,6 +660,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           );
           _rememberFreeSlotBaseline(id, null);
           _stageFreeSlot(id, slot);
+          _initialOverrideSlots[id] = slot;
         }
       }
       _routineOverridesByStage[stageId] = remainingOverrides;
@@ -1168,6 +1176,10 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           _routineBaselineByStage[entry.key] = entry.value;
           _routineNeedsNormalizationByStage[entry.key] = false;
         }
+        _initialOverrideSlots.removeWhere(
+          (_, slot) =>
+              slot != null && routineSnapshots.containsKey(slot.stageId),
+        );
         _needsNormalization =
             _routineNeedsNormalizationByStage[_loadedStageId] ?? false;
         _isSaving = false;

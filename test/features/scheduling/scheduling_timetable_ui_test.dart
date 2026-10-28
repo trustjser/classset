@@ -1,0 +1,204 @@
+import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/public_room.dart';
+import 'package:class_set/domain/models/schedule_item.dart';
+import 'package:class_set/domain/models/schedule_position.dart';
+import 'package:class_set/domain/models/school_structure.dart';
+import 'package:class_set/domain/models/stage_routine.dart';
+import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/teacher.dart';
+import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
+import 'package:class_set/features/scheduling/scheduling_controller.dart';
+import 'package:class_set/features/scheduling/scheduling_timetable.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:forui/forui.dart' as f;
+
+void main() {
+  Future<void> mount(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1180, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final items = [
+      for (var i = 0; i < 26; i++)
+        ScheduleItem(
+          id: 'item$i',
+          termId: 't',
+          assignmentId: 'a$i',
+          classId: 'c$i',
+          teacherId: 'teacher1',
+          subjectId: 'subject',
+          weekMode: WeekMode.weekly,
+          position: const SchedulePosition(
+            stageId: 's',
+            weekday: 1,
+            periodTypeId: 'p',
+            lessonIndex: 1,
+          ),
+        ),
+    ];
+    final snapshot = SchedulingSnapshot(
+      term: AcademicTerm(
+        id: 't',
+        title: '学期',
+        academicYear: '2026',
+        semesterLabel: '秋',
+        firstTeachingWeekStart: null,
+        teachingWeekCount: 20,
+        createdAt: DateTime(2026),
+      ),
+      inputFingerprint: 'test',
+      stages: const [
+        SchoolStage(id: 's', termId: 't', name: '小学', sortOrder: 0),
+      ],
+      grades: const [
+        GradeGroup(id: 'g', stageId: 's', name: '一年级', sortOrder: 0),
+      ],
+      classes: [
+        for (var i = 0; i < 26; i++)
+          ClassGroup(
+            id: 'c$i',
+            gradeId: 'g',
+            name: '一年级 ${i + 1} 班',
+            sortOrder: i,
+          ),
+      ],
+      routines: const [
+        StageRoutine(
+          stageId: 's',
+          teachingWeekdays: {1, 2, 3, 4, 5},
+          periodTypes: [
+            LessonPeriodType(
+              id: 'p',
+              name: '上午',
+              defaultLessonCount: 1,
+              sortOrder: 0,
+              lessonTimes: [
+                LessonTime(
+                  lessonIndex: 1,
+                  label: '第1节',
+                  startMinute: 480,
+                  endMinute: 520,
+                ),
+              ],
+            ),
+          ],
+          overrides: [],
+        ),
+      ],
+      subjects: const [
+        Subject(id: 'subject', name: '数学', shortName: '数', sortOrder: 0),
+      ],
+      teachers: const [
+        Teacher(id: 'teacher1', name: '张老师', shortName: '张', sortOrder: 0),
+        Teacher(id: 'teacher2', name: '李老师', shortName: '李', sortOrder: 1),
+      ],
+      rooms: const [
+        PublicRoom(
+          id: 'room1',
+          name: '音乐教室',
+          roomCount: 1,
+          capacityPerRoom: 1,
+          sortOrder: 0,
+        ),
+        PublicRoom(
+          id: 'room2',
+          name: '科学实验室',
+          roomCount: 1,
+          capacityPerRoom: 1,
+          sortOrder: 1,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => f.FTheme(
+          data: AppTheme.foruiFor(false),
+          child: f.FToaster(child: child!),
+        ),
+        home: Scaffold(
+          body: SchedulingTimetable(
+            snapshot: snapshot,
+            state: SchedulingState(items: items),
+            onStart: () {},
+            onRefresh: () {},
+            onRules: () {},
+            onReport: () {},
+            onDetectionReport: () {},
+            onCancel: () {},
+            onDone: () {},
+            onExport: (_, _) {},
+            onPreviewMove: (_, _, _) => throw UnimplementedError(),
+            onMove: (_, _, _) async => throw UnimplementedError(),
+            onUndo: () {},
+            onRedo: () {},
+            onSetLock: (_, _) async {},
+            onSetAllLocks: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('总课表窄单元格可展开收起且不溢出', (tester) async {
+    await mount(tester);
+    await tester.tap(find.text('总课程表'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('查看全部 26 节'), findsOneWidget);
+    await tester.tap(find.text('查看全部 26 节'));
+    await tester.pumpAndSettle();
+    expect(find.text('收起'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('收起'));
+    await tester.pumpAndSettle();
+    expect(find.text('查看全部 26 节'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    tester.view.physicalSize = const Size(820, 850);
+    await tester.pumpAndSettle();
+    expect(find.text('查看全部 26 节'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('班级教师场室选择器支持搜索并选择', (tester) async {
+    await mount(tester);
+    Future<void> search(
+      String key,
+      String hint,
+      String query,
+      String option,
+      String expectedId,
+    ) async {
+      await tester.tap(find.byKey(ValueKey(key)));
+      await tester.pumpAndSettle();
+      expect(find.text(hint), findsOneWidget);
+      await tester.enterText(find.byType(EditableText).last, query);
+      await tester.pumpAndSettle();
+      expect(find.text(option), findsOneWidget);
+      await tester.tap(find.text(option));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<AppSelectField<String>>(find.byKey(ValueKey(key))).value,
+        expectedId,
+      );
+      expect(tester.takeException(), isNull);
+    }
+
+    await search(
+      'schedule-class-selector',
+      '搜索班级',
+      '26 班',
+      '小学 · 一年级 一年级 26 班',
+      'c25',
+    );
+    await tester.tap(find.text('教师课程表'));
+    await tester.pumpAndSettle();
+    await search('schedule-teacher-selector', '搜索教师', '李', '李老师', 'teacher2');
+    await tester.tap(find.text('场室课程表'));
+    await tester.pumpAndSettle();
+    await search('schedule-room-selector', '搜索场室', '科学', '科学实验室', 'room2');
+  });
+}

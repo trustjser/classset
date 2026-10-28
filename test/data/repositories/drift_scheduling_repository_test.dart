@@ -7,6 +7,7 @@ import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
+import 'package:class_set/domain/models/schedule_condition.dart';
 import 'package:class_set/domain/models/schedule_preferences.dart';
 import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/school_structure.dart';
@@ -353,6 +354,92 @@ void main() {
       conditions: const [],
       preferences: const SchedulePreferences(strength: ScheduleStrength.high),
     );
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
+    const condition = ScheduleCondition(
+      id: 'rule',
+      termId: 'term-flow',
+      type: ScheduleConditionType.dailyLimit,
+      targetType: ScheduleConditionTarget.subject,
+      targetId: 'subject-flow',
+      maximum: 1,
+    );
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [condition],
+      preferences: const SchedulePreferences(strength: ScheduleStrength.high),
+    );
+    expect(
+      await scheduling.loadPendingSchedulingBaseline('term-flow'),
+      isNotNull,
+    );
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [],
+      preferences: const SchedulePreferences(strength: ScheduleStrength.fast),
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [condition],
+      preferences: const SchedulePreferences(strength: ScheduleStrength.fast),
+    );
+    await school.saveGrade(
+      GradeGroup(
+        id: 'grade-flow',
+        stageId: stage.id,
+        name: '更名年级',
+        sortOrder: 0,
+      ),
+    );
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [],
+      preferences: const SchedulePreferences(strength: ScheduleStrength.fast),
+    );
+    expect(
+      await scheduling.loadPendingSchedulingBaseline('term-flow'),
+      isNotNull,
+    );
+    await school.saveGrade(
+      GradeGroup(
+        id: 'grade-flow',
+        stageId: stage.id,
+        name: '一年级',
+        sortOrder: 0,
+      ),
+    );
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [],
+      preferences: const SchedulePreferences(strength: ScheduleStrength.high),
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [],
+      preferences: const SchedulePreferences(
+        strength: ScheduleStrength.high,
+        protectLunchBreak: true,
+      ),
+    );
+    expect(
+      await scheduling.loadPendingSchedulingBaseline('term-flow'),
+      isNotNull,
+    );
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [],
+      preferences: const SchedulePreferences(strength: ScheduleStrength.high),
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
+    await scheduling.saveScheduleConfiguration(
+      termId: 'term-flow',
+      conditions: const [],
+      preferences: const SchedulePreferences(
+        strength: ScheduleStrength.high,
+        protectLunchBreak: true,
+      ),
+    );
     final ruleBaseline = (await scheduling.loadPendingSchedulingBaseline(
       'term-flow',
     ))!;
@@ -363,15 +450,7 @@ void main() {
     );
     expect(rulePreview.canApply, isTrue);
     expect(rulePreview.keptCount, 1);
-    expect(
-      rulePreview.changes.any(
-        (change) =>
-            change.label == '排课强度' &&
-            change.before == '标准' &&
-            change.after == '高强度',
-      ),
-      isTrue,
-    );
+    expect(rulePreview.changes.any((change) => change.label == '午间保护'), isTrue);
     await scheduling.commitScheduleReconciliation(
       termId: 'term-flow',
       expectedFingerprint: rulePreview.inputFingerprint,

@@ -191,6 +191,36 @@ class DriftSchedulingRepository {
     );
   }
 
+  // Only discard the baseline when every scheduling input and the timetable
+  // still match it. Solver preferences that do not impose hard rules may vary.
+  Future<void> _clearReconciliationIfUnchanged(String termId) async {
+    final baseline = await loadPendingSchedulingBaseline(termId);
+    if (baseline == null) return;
+    final current = await loadSchedulingSnapshot(termId);
+    String signature(domain.SchedulingSnapshot snapshot) {
+      final data = snapshot.toJson();
+      data.remove('inputFingerprint');
+      final preferences = snapshot.preferences;
+      data['preferences'] = {
+        'protectLunchBreak': preferences.protectLunchBreak,
+        'requireSeparate':
+            preferences.consecutiveMode ==
+            domain.ConsecutiveMode.requireSeparate,
+        'requireProgress':
+            preferences.checkProgressConsistency &&
+            preferences.progressConsistency ==
+                domain.ProgressConsistency.require,
+      };
+      return jsonEncode(data);
+    }
+
+    if (signature(baseline) == signature(current)) {
+      await (_database.delete(
+        _database.scheduleReconciliationBaselines,
+      )..where((row) => row.termId.equals(termId))).go();
+    }
+  }
+
   /// Called in the same transaction as a settings edit, before it can cascade
   /// away assignments, periods, or timetable items.
   Future<void> captureReconciliationBaselineIfNeeded(String termId) async {
@@ -488,9 +518,26 @@ class DriftSchedulingRepository {
             conditionSignature(conditions) &&
         jsonEncode(previousPreferences.toJson()) ==
             jsonEncode(preferences.toJson())) {
+      await _clearReconciliationIfUnchanged(termId);
       return;
     }
-    await captureReconciliationBaselineIfNeeded(termId);
+    bool requiresProgressConsistency(domain.SchedulePreferences value) =>
+        value.checkProgressConsistency &&
+        value.progressConsistency == domain.ProgressConsistency.require;
+    final hardRulesChanged =
+        conditionSignature(previousConditions) !=
+            conditionSignature(conditions) ||
+        previousPreferences.protectLunchBreak !=
+            preferences.protectLunchBreak ||
+        (previousPreferences.consecutiveMode ==
+                domain.ConsecutiveMode.requireSeparate) !=
+            (preferences.consecutiveMode ==
+                domain.ConsecutiveMode.requireSeparate) ||
+        requiresProgressConsistency(previousPreferences) !=
+            requiresProgressConsistency(preferences);
+    if (hardRulesChanged) {
+      await captureReconciliationBaselineIfNeeded(termId);
+    }
     await (_database.delete(
       _database.scheduleConditions,
     )..where((row) => row.termId.equals(termId))).go();
@@ -527,6 +574,7 @@ class DriftSchedulingRepository {
             detectProgressConsistency: preferences.checkProgressConsistency,
           ),
         );
+    await _clearReconciliationIfUnchanged(termId);
   });
 
   Future<void> setScheduleLock(
