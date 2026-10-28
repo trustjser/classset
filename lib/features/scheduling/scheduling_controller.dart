@@ -431,6 +431,75 @@ class SchedulingController extends StateNotifier<SchedulingState> {
     return result;
   }
 
+  /// 将暂放课程批量放入空位，以一次可撤销操作保存。
+  Future<int?> placeUnplaced(Set<String> itemIds) async {
+    final snapshot = state.snapshot;
+    if (snapshot == null ||
+        state.pendingBaseline != null ||
+        (state.status != SchedulingStatus.ready &&
+            state.status != SchedulingStatus.completed)) {
+      return null;
+    }
+    final originalItems = state.items;
+    final problem = state.problem;
+    state = state.copyWith(status: SchedulingStatus.savingEdit, error: null);
+    try {
+      final result = await Isolate.run(
+        () => const ManualScheduleEditor().placeUnplaced(
+          snapshot: snapshot,
+          items: originalItems,
+          itemIds: itemIds,
+          problem: problem,
+        ),
+      );
+      if (!mounted) return null;
+      if (result.changedItemIds.isEmpty) {
+        state = state.copyWith(status: SchedulingStatus.ready);
+        return 0;
+      }
+      final before = originalItems
+          .where((item) => result.changedItemIds.contains(item.id))
+          .toList();
+      final after = result.items
+          .where((item) => result.changedItemIds.contains(item.id))
+          .toList();
+      await _repository.commitManualScheduleEdit(
+        termId: termId,
+        before: originalItems,
+        after: result.items,
+        expectedFingerprint: snapshot.inputFingerprint,
+      );
+      if (!mounted) return null;
+      _undo.add(_ManualEdit(before, after));
+      if (_undo.length > 120) _undo.removeAt(0);
+      _redo.clear();
+      state = state.copyWith(
+        status: SchedulingStatus.ready,
+        items: result.items,
+        undoCount: _undo.length,
+        redoCount: 0,
+        detectionIssues: const [],
+        detectionRan: false,
+      );
+      await refresh(preserveHistory: true);
+      return result.changedItemIds.where(itemIds.contains).length;
+    } on Object catch (error) {
+      if (mounted) {
+        if (error.toString().contains('已改变')) {
+          state = state.copyWith(status: SchedulingStatus.ready);
+          await refresh();
+        }
+        if (mounted) {
+          state = state.copyWith(
+            status: SchedulingStatus.ready,
+            error: '一键放入失败：$error',
+          );
+        }
+      }
+      return null;
+    }
+  }
+
   Future<void> undo() => _applyHistory(undo: true);
 
   Future<void> redo() => _applyHistory(undo: false);

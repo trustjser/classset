@@ -17,7 +17,11 @@ import 'package:forui/forui.dart' as f;
 import 'package:material_ui/material_ui.dart' as material_ui;
 
 void main() {
-  Future<void> mount(WidgetTester tester) async {
+  Future<void> mount(
+    WidgetTester tester, {
+    bool withUnplaced = false,
+    Future<int?> Function(Set<String>)? onPlaceUnplaced,
+  }) async {
     tester.view.physicalSize = const Size(1180, 850);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -39,6 +43,7 @@ void main() {
           ),
         ),
     ];
+    if (withUnplaced) items[0] = items[0].at(null);
     final snapshot = SchedulingSnapshot(
       term: AcademicTerm(
         id: 't',
@@ -122,7 +127,10 @@ void main() {
         home: Scaffold(
           body: SchedulingTimetable(
             snapshot: snapshot,
-            state: SchedulingState(items: items),
+            state: SchedulingState(
+              items: items,
+              status: SchedulingStatus.ready,
+            ),
             onStart: () {},
             onRefresh: () {},
             onRules: () {},
@@ -133,6 +141,7 @@ void main() {
             onExport: (_, _) {},
             onPreviewMove: (_, _, _) => throw UnimplementedError(),
             onMove: (_, _, _) async => throw UnimplementedError(),
+            onPlaceUnplaced: onPlaceUnplaced,
             onUndo: () {},
             onRedo: () {},
             onSetLock: (_, _) async {},
@@ -143,6 +152,36 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('暂放区展示可拖动卡片、标题栏切换和一键放入反馈', (tester) async {
+    Set<String>? requested;
+    await mount(
+      tester,
+      withUnplaced: true,
+      onPlaceUnplaced: (ids) async {
+        requested = ids;
+        return 1;
+      },
+    );
+    final card = find.byKey(const ValueKey('unplaced-card-item0'));
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(of: card, matching: find.byIcon(Icons.drag_indicator)),
+      findsOneWidget,
+    );
+    expect(find.text('按科目聚合'), findsOneWidget);
+    await tester.tap(find.text('按科目聚合'));
+    await tester.pumpAndSettle();
+    expect(find.text('按班级排列'), findsOneWidget);
+    await tester.ensureVisible(find.text('一键放入'));
+    await tester.tap(find.text('一键放入'));
+    await tester.pumpAndSettle();
+    expect(requested, {'item0'});
+    expect(find.textContaining('已放入 1 节'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('总课表窄单元格可展开收起且不溢出', (tester) async {
     await mount(tester);

@@ -7,6 +7,7 @@ import 'package:class_set/domain/models/schedule_position.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
+import 'package:class_set/domain/models/teacher_preset.dart';
 import 'package:class_set/domain/scheduling/manual_schedule_editor.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
@@ -39,6 +40,138 @@ const _afternoon = SchedulePosition(
 
 void main() {
   const editor = ManualScheduleEditor();
+
+  test('一键放入只使用合法空位并保留现有课程', () {
+    final items = [
+      _item('placed', 'class-a', 'teacher-a', _first),
+      _item('waiting', 'class-a', 'teacher-b', _first).at(null),
+      _item('other', 'class-b', 'teacher-b', _second),
+    ];
+    final snapshot = _snapshot(items: items);
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, {'waiting'});
+    expect(result.items.first.position?.cellKey, _first.cellKey);
+    expect(result.items.last.position?.cellKey, _second.cellKey);
+    expect(result.items[1].position?.cellKey, _afternoon.cellKey);
+  });
+
+  test('回溯调整暂放课程的选择，可填满贪心算法遗漏的空位', () {
+    final items = [
+      _item('existing', 'class-b', 'teacher-z', _first),
+      _item('a', 'class-a', 'teacher-a', _first).at(null),
+      _item('b', 'class-a', 'teacher-b', _first).at(null),
+      _item('c', 'class-a', 'teacher-b', _first).at(null),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      teacherPresets: const [
+        TeacherPreset(
+          id: 'a-no-afternoon',
+          teacherId: 'teacher-a',
+          scope: TeacherPresetScope.school,
+          scopeId: 'term',
+          stageId: 'stage',
+          weekday: 1,
+          periodTypeId: 'afternoon',
+          lessonIndex: 1,
+          value: PresetValue.forbid,
+        ),
+        TeacherPreset(
+          id: 'b-no-second',
+          teacherId: 'teacher-b',
+          scope: TeacherPresetScope.school,
+          scopeId: 'term',
+          stageId: 'stage',
+          weekday: 1,
+          periodTypeId: 'morning',
+          lessonIndex: 2,
+          value: PresetValue.forbid,
+        ),
+      ],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'a', 'b', 'c'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, {'a', 'b', 'c'});
+    expect(result.items.first.position?.cellKey, _first.cellKey);
+    expect(result.items[1].position?.cellKey, _second.cellKey);
+  });
+
+  test('没有空位时保留暂放课且不影响其他课程', () {
+    final items = [
+      _item('a', 'class-a', 'teacher-a', _first),
+      _item('b', 'class-a', 'teacher-a', _second),
+      _item('c', 'class-a', 'teacher-a', _afternoon),
+      _item('waiting', 'class-a', 'teacher-b', _first).at(null),
+    ];
+    final snapshot = _snapshot(items: items);
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, isEmpty);
+    expect(result.items.last.isPlaced, isFalse);
+    expect(result.items.first.position?.cellKey, _first.cellKey);
+  });
+
+  test('锁定班级的暂放课不会自动放入', () {
+    final waiting = _item('waiting', 'class-a', 'teacher-a', _first).at(null);
+    final snapshot = _snapshot(
+      items: [waiting],
+      locks: const [
+        ScheduleLock(
+          termId: 'term',
+          scope: ScheduleLockScope.schoolClass,
+          targetId: 'class-a',
+        ),
+      ],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: [waiting],
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, isEmpty);
+  });
+
+  test('合班课组一起放入，不移动已排课程', () {
+    ScheduleItem meeting(String id, String classId) => ScheduleItem(
+      id: id,
+      termId: 'term',
+      assignmentId: 'assignment-$id',
+      classId: classId,
+      teacherId: 'teacher-a',
+      subjectId: 'subject',
+      weekMode: WeekMode.weekly,
+      meetingId: 'meeting',
+      combinedGroupId: 'combined',
+    );
+    final items = [meeting('a', 'class-a'), meeting('b', 'class-b')];
+    final snapshot = _snapshot(items: items);
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'a'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, {'a', 'b'});
+    expect(
+      result.items[0].position?.cellKey,
+      result.items[1].position?.cellKey,
+    );
+    expect(result.items.every((item) => item.isPlaced), isTrue);
+  });
 
   test('同班占用格可交换两节课', () {
     final items = [
@@ -236,6 +369,7 @@ SchedulingSnapshot _snapshot({
   List<ScheduleCondition> conditions = const [],
   List<ScheduleLock> locks = const [],
   List<SubjectLessonConstraint> lessonConstraints = const [],
+  List<TeacherPreset> teacherPresets = const [],
 }) => SchedulingSnapshot(
   term: AcademicTerm(
     id: 'term',
@@ -259,6 +393,7 @@ SchedulingSnapshot _snapshot({
   ],
   conditions: conditions,
   lessonConstraints: lessonConstraints,
+  teacherPresets: teacherPresets,
   locks: locks,
   existingItems: items,
 );

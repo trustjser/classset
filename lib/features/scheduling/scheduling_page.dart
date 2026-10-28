@@ -175,6 +175,7 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
                         unawaited(_showExportDialog(snapshot, items, title)),
                     onPreviewMove: controller.previewMove,
                     onMove: controller.move,
+                    onPlaceUnplaced: controller.placeUnplaced,
                     onUndo: () => unawaited(controller.undo()),
                     onRedo: () => unawaited(controller.redo()),
                     onSetLock: (lock, enabled) =>

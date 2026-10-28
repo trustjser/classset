@@ -50,6 +50,7 @@ class SchedulingTimetable extends StatefulWidget {
     required this.onExport,
     required this.onPreviewMove,
     required this.onMove,
+    this.onPlaceUnplaced,
     required this.onUndo,
     required this.onRedo,
     required this.onSetLock,
@@ -81,6 +82,7 @@ class SchedulingTimetable extends StatefulWidget {
     String? swapWithItemId,
   )
   onMove;
+  final Future<int?> Function(Set<String>)? onPlaceUnplaced;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
   final Future<void> Function(ScheduleLock lock, bool enabled) onSetLock;
@@ -343,6 +345,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                                     ),
                                     onPreviewMove: widget.onPreviewMove,
                                     onMove: widget.onMove,
+                                    onPlaceUnplaced: widget.onPlaceUnplaced,
                                   );
                                   if (constraints.maxWidth < 1100) {
                                     return Column(
@@ -1882,23 +1885,23 @@ class _TimetableGrid extends StatelessWidget {
                   for (final item in cellItems.take(3)) ...[
                     if (item != first) const SizedBox(height: 5),
                     if (wholeCellDrag)
-                        _lessonSummary(
-                          '${_weekPrefix(item)}${switch (displayView) {
-                            _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
-                            _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
-                            _ScheduleView.all => '',
-                          }}',
-                          switch (displayView) {
-                            _ScheduleView.schoolClass =>
-                              teacherNames[item.teacherId] ?? item.teacherId,
-                            _ScheduleView.teacher =>
-                              subjectNames[item.subjectId] ?? item.subjectId,
-                            _ScheduleView.room =>
-                              classNames[item.classId] ?? item.classId,
-                            _ScheduleView.all => '',
-                          },
-                          subjectForeground,
-                        )
+                      _lessonSummary(
+                        '${_weekPrefix(item)}${switch (displayView) {
+                          _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
+                          _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
+                          _ScheduleView.all => '',
+                        }}',
+                        switch (displayView) {
+                          _ScheduleView.schoolClass =>
+                            teacherNames[item.teacherId] ?? item.teacherId,
+                          _ScheduleView.teacher =>
+                            subjectNames[item.subjectId] ?? item.subjectId,
+                          _ScheduleView.room =>
+                            classNames[item.classId] ?? item.classId,
+                          _ScheduleView.all => '',
+                        },
+                        subjectForeground,
+                      )
                     else
                       _draggableItem(
                         item,
@@ -2574,6 +2577,7 @@ class _RightRail extends StatelessWidget {
     required this.onToggleGrouping,
     required this.onPreviewMove,
     required this.onMove,
+    required this.onPlaceUnplaced,
   });
 
   final SchedulingSnapshot snapshot;
@@ -2587,6 +2591,7 @@ class _RightRail extends StatelessWidget {
   final ValueNotifier<String?> draggedItemId;
   final bool groupBySubject;
   final VoidCallback onToggleGrouping;
+  final Future<int?> Function(Set<String>)? onPlaceUnplaced;
   final ManualMoveResult Function(
     String itemId,
     SchedulePosition? target,
@@ -2658,20 +2663,33 @@ class _RightRail extends StatelessWidget {
             final canDrop = preview?.allowed == true;
             return _RailCard(
               title: '暂放区',
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                decoration: BoxDecoration(
-                  color: context.appColors.tableHeader,
-                  border: Border.all(color: context.appColors.border),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '${unplaced.length} 节',
-                  style: TextStyle(
-                    color: context.appColors.inkSecondary,
-                    fontSize: 11.5,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${unplaced.length} 节',
+                    style: TextStyle(
+                      color: context.appColors.muted,
+                      fontSize: 11.5,
+                    ),
                   ),
-                ),
+                  if (unplaced.isNotEmpty) ...[
+                    const SizedBox(width: 4),
+                    TextButton(
+                      onPressed: onToggleGrouping,
+                      style: TextButton.styleFrom(
+                        foregroundColor: context.appColors.blue,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        groupBySubject ? '按班级排列' : '按科目聚合',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2731,13 +2749,8 @@ class _RightRail extends StatelessWidget {
                       ),
                     )
                   else ...[
-                    AppGhostButton(
-                      onPressed: onToggleGrouping,
-                      child: Text(groupBySubject ? '按班级排列' : '按科目聚合'),
-                    ),
-                    const SizedBox(height: 8),
                     SizedBox(
-                      height: math.min(unplaced.length * 72.0, 320.0),
+                      height: math.min(unplaced.length * 88.0, 320.0),
                       child: ListView.builder(
                         itemCount: unplaced.length,
                         itemBuilder: (context, index) {
@@ -2746,28 +2759,64 @@ class _RightRail extends StatelessWidget {
                               '${subjectNames[item.subjectId] ?? item.subjectId} · ${classNames[item.classId] ?? item.classId}';
                           final detail =
                               teacherNames[item.teacherId] ?? item.teacherId;
-                          final lesson = Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Column(
+                          final subjectColor = SubjectColors.of(
+                            context,
+                            item.subjectId,
+                          );
+                          final lesson = Container(
+                            key: ValueKey('unplaced-card-${item.id}'),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: SubjectColors.cellBackground(
+                                context,
+                                item.subjectId,
+                              ),
+                              border: Border.all(
+                                color: subjectColor.withValues(alpha: .32),
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '${_weekPrefix(item)}$title',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                Icon(
+                                  Icons.drag_indicator,
+                                  size: 17,
+                                  color: editable
+                                      ? subjectColor.withValues(alpha: .75)
+                                      : context.appColors.muted,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$detail · ${blockers[item.id]?.firstOrNull == null ? '手工暂放或尚未安排' : '上次自动排课：${blockers[item.id]!.first.message}'}',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: context.appColors.muted,
-                                    fontSize: 12,
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${_weekPrefix(item)}$title',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: subjectColor,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$detail · ${blockers[item.id]?.firstOrNull == null ? '手工暂放或尚未安排' : '上次自动排课：${blockers[item.id]!.first.message}'}',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: context.appColors.inkSecondary,
+                                          fontSize: 11.5,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -2816,9 +2865,74 @@ class _RightRail extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    AppGhostButton(
-                      onPressed: onReport,
-                      child: const Text('查看未排课程报告'),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (onPlaceUnplaced != null)
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: context.appColors.blue,
+                              backgroundColor: context.appColors.selectedBlue,
+                              disabledForegroundColor: context.appColors.muted,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              minimumSize: const Size(0, 30),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            onPressed: !editable
+                                ? null
+                                : () async {
+                                    final count = await onPlaceUnplaced!(
+                                      unplaced.map((item) => item.id).toSet(),
+                                    );
+                                    if (!context.mounted) return;
+                                    if (count == null) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                            const SnackBar(
+                                              content: Text('一键放入失败，请刷新课表后重试。'),
+                                            ),
+                                          );
+                                      return;
+                                    }
+                                    final remaining = unplaced.length - count;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          count == 0
+                                              ? '没有找到符合条件的空位置，课程仍在暂放区。'
+                                              : '已放入 $count 节，剩余 $remaining 节；已排课程位置保持不变。',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                            child: const Text('一键放入'),
+                          ),
+                        TextButton(
+                          onPressed: onReport,
+                          style: TextButton.styleFrom(
+                            foregroundColor: context.appColors.inkSecondary,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 30),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          child: const Text('查看未排课程报告'),
+                        ),
+                      ],
                     ),
                   ],
                 ],

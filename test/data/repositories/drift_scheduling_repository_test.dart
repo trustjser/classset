@@ -18,6 +18,7 @@ import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/scheduling/course_scheduler.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
+import 'package:class_set/features/scheduling/scheduling_controller.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -254,6 +255,35 @@ void main() {
       ),
       throwsStateError,
     );
+    final controller = SchedulingController(school, 'term-flow');
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    expect(await controller.placeUnplaced({unplaced.id}), 1);
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow'))
+          .existingItems
+          .single
+          .isPlaced,
+      isTrue,
+    );
+    await controller.undo();
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow'))
+          .existingItems
+          .single
+          .isPlaced,
+      isFalse,
+    );
+    await controller.redo();
+    expect(
+      (await scheduling.loadSchedulingSnapshot('term-flow'))
+          .existingItems
+          .single
+          .isPlaced,
+      isTrue,
+    );
+    await controller.undo();
+
     final beforeRestore = await scheduling.loadSchedulingSnapshot('term-flow');
     await scheduling.commitManualScheduleEdit(
       termId: 'term-flow',

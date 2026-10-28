@@ -78,6 +78,122 @@ class ManualScheduleEditor {
     return _uniqueBlockers(blockers);
   }
 
+  /// 尝试为指定暂放课组寻找空位置，始终保留已排课程。
+  ManualMoveResult placeUnplaced({
+    required SchedulingSnapshot snapshot,
+    required List<ScheduleItem> items,
+    required Set<String> itemIds,
+    SchedulingProblem? problem,
+  }) {
+    final schedulingProblem = problem ?? const ProblemBuilder().build(snapshot);
+    final pending = <String, ScheduleItem>{};
+    final groupSizes = <String, int>{};
+    for (final item in items.where(
+      (item) => itemIds.contains(item.id) && !item.isPlaced,
+    )) {
+      final group = _groupFor(items, item);
+      if (group.every((member) => !member.isPlaced)) {
+        final key = _groupKey(item);
+        pending.putIfAbsent(key, () => item);
+        groupSizes[key] = group.length;
+      }
+    }
+    const maxChecks = 20000;
+    const maxDepth = 512;
+    final clock = Stopwatch()..start();
+    const maxTime = Duration(seconds: 3);
+    var checks = 0;
+    var bestItems = items;
+    var bestChanged = <String>{};
+    final targetCount = groupSizes.values.fold<int>(
+      0,
+      (sum, count) => sum + count,
+    );
+    bool getBudgetAvailable() => checks < maxChecks && clock.elapsed < maxTime;
+
+    void search(
+      List<ScheduleItem> current,
+      Map<String, ScheduleItem> remaining,
+      Set<String> changed,
+      int depth,
+    ) {
+      if (changed.length > bestChanged.length) {
+        bestItems = current;
+        bestChanged = {...changed};
+      }
+      if (bestChanged.length == targetCount ||
+          remaining.isEmpty ||
+          depth >= maxDepth ||
+          !getBudgetAvailable()) {
+        return;
+      }
+      final possible =
+          changed.length +
+          remaining.keys.fold<int>(0, (sum, key) => sum + groupSizes[key]!);
+      if (possible <= bestChanged.length) return;
+
+      String? chosenKey;
+      List<ManualMoveResult> chosenMoves = [];
+      for (final entry in remaining.entries) {
+        final moves = <ManualMoveResult>[];
+        for (final position
+            in schedulingProblem.positionsByClass[entry.value.classId] ??
+                const <SchedulePosition>[]) {
+          if (!getBudgetAvailable()) break;
+          checks++;
+          final result = previewMove(
+            snapshot: snapshot,
+            items: current,
+            itemId: entry.value.id,
+            target: position,
+            problem: schedulingProblem,
+          );
+          if (result.allowed && result.changedItemIds.isNotEmpty) {
+            moves.add(result);
+          }
+        }
+        if (moves.isNotEmpty) {
+          chosenKey = entry.key;
+          chosenMoves = moves;
+          break;
+        }
+        if (!getBudgetAvailable()) break;
+      }
+      if (chosenKey == null) return;
+      final next = Map<String, ScheduleItem>.of(remaining)..remove(chosenKey);
+      for (final move in chosenMoves) {
+        final nextChanged = {...changed, ...move.changedItemIds};
+        if (nextChanged.length > bestChanged.length) {
+          bestItems = move.items;
+          bestChanged = nextChanged;
+        }
+        if (!getBudgetAvailable() || bestChanged.length == targetCount) break;
+        search(move.items, next, nextChanged, depth + 1);
+        if (!getBudgetAvailable() || bestChanged.length == targetCount) break;
+      }
+      // 留下该课组，继续搜索其余课程，以便保留覆盖最多的部分解。
+      if (getBudgetAvailable() && bestChanged.length < targetCount) {
+        search(current, next, changed, depth + 1);
+      }
+    }
+
+    final ordered = pending.entries.toList()
+      ..sort((a, b) {
+        final left =
+            schedulingProblem.positionsByClass[a.value.classId]?.length ?? 0;
+        final right =
+            schedulingProblem.positionsByClass[b.value.classId]?.length ?? 0;
+        final comparison = left.compareTo(right);
+        return comparison != 0 ? comparison : a.key.compareTo(b.key);
+      });
+    search(items, Map.fromEntries(ordered), <String>{}, 0);
+    return ManualMoveResult(
+      items: bestItems,
+      blockers: const [],
+      changedItemIds: bestChanged,
+    );
+  }
+
   /// 预览一个课组移到目标节次，或移入暂放区。
   ///
   /// 高频预览时应传入同一 [snapshot] 预先构建的 [problem]。
