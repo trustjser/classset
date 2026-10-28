@@ -31,7 +31,7 @@ class LocalDataCard extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('查看五步上手指南'),
+                Text('查看六步上手指南'),
                 Icon(Icons.chevron_right_rounded, size: 15),
               ],
             ),
@@ -42,54 +42,48 @@ class LocalDataCard extends StatelessWidget {
   );
 }
 
-/// 五步上手指南弹窗。
-Future<void> showGettingStartedGuide(BuildContext context) =>
-    showAppDialog<void>(
-      context: context,
-      builder: (context) => AppDialog(
-        title: const Text('五步上手指南'),
-        content: const SizedBox(
-          width: 420,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _GuideStep(
-                number: 1,
-                title: '学期与日历',
-                description: '设置第 1 教学周起始日与教学周数，按需添加停课 / 补课例外。',
-              ),
-              _GuideStep(
-                number: 2,
-                title: '班级与学段',
-                description: '搭好学段、年级与班级；支持按模板批量命名。',
-              ),
-              _GuideStep(
-                number: 3,
-                title: '作息设置',
-                description: '按学段设置上课日、各时段节数与节次时间。',
-              ),
-              _GuideStep(
-                number: 4,
-                title: '科目节数（即将推出）',
-                description: '填写每个年级每周各科课时，教师任课会自动解锁。',
-              ),
-              _GuideStep(
-                number: 5,
-                title: '开始排课（即将推出）',
-                description: '自动排课生成初稿，再在课表里拖拽微调。',
-              ),
-            ],
+/// 六步上手指南弹窗。
+Future<void> showGettingStartedGuide(
+  BuildContext context,
+) => showAppDialog<void>(
+  context: context,
+  builder: (context) => AppDialog(
+    title: const Text('六步上手指南'),
+    content: const SizedBox(
+      width: 420,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _GuideStep(
+            number: 1,
+            title: '学段与班级',
+            description: '先创建学期并设置教学日历，再搭好学段、年级与班级。',
           ),
-        ),
-        actions: [
-          AppPrimaryButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('知道了'),
+          _GuideStep(
+            number: 2,
+            title: '作息设置',
+            description: '按学段设置上课日、各时段节数与节次时间。',
           ),
+          _GuideStep(number: 3, title: '科目节数', description: '填写各年级每周各科所需的课时。'),
+          _GuideStep(
+            number: 4,
+            title: '教师任课',
+            description: '为各班科目分配教师，补齐所需节数。',
+          ),
+          _GuideStep(number: 5, title: '开始排课', description: '检查排课条件并生成课表。'),
+          _GuideStep(number: 6, title: '打开课表', description: '查看排课结果，并按需调整课表。'),
         ],
       ),
-    );
+    ),
+    actions: [
+      AppPrimaryButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('知道了'),
+      ),
+    ],
+  ),
+);
 
 class _GuideStep extends StatelessWidget {
   const _GuideStep({

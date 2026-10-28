@@ -609,6 +609,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     onCommonPeriodTimeChanged: (period, isStart, value) =>
         unawaited(_updateCommonPeriodTime(period, isStart, value)),
     onRenameCommonPeriod: _renameCommonPeriod,
+    onMoveCommonPeriod: _moveCommonPeriod,
     onDeleteCommonPeriod: _deleteCommonPeriod,
   );
 
@@ -1604,6 +1605,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         durationMinutes: period.durationMinutes,
         startMinute: isStart ? minutes : period.startMinute,
         endMinute: isStart ? period.endMinute : minutes,
+        sortOrder: period.sortOrder,
       );
       setState(() => _stageCommonPeriod(period.id, updated));
       _pushSnapshotUndo(
@@ -1618,23 +1620,62 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   }
 
   Future<void> _renameCommonPeriod(CommonPeriod period) async {
-    final name = await showDialog<String>(
+    final result = await showDialog<_CommonPeriodResult>(
       context: context,
       builder: (context) =>
-          _TextEntryDialog(title: '编辑公共时段名称', initialValue: period.name),
+          _InsertCommonPeriodDialog(periods: _periods, editing: period),
     );
-    if (name == null || name == period.name) return;
-
+    if (result == null) return;
     final before = _currentSnapshot();
-    try {
-      await _rememberCommonPeriodBaseline(period.id);
-      setState(() {
-        _stageCommonPeriod(period.id, period.copyWith(name: name));
-      });
-      _pushSnapshotUndo('重命名公共时段「${period.name}」', before, _currentSnapshot());
-    } on Object catch (error) {
-      if (mounted) await _showError('修改公共时段名称失败：$error');
+    await _rememberCommonPeriodBaseline(period.id);
+    if (!mounted) return;
+    setState(
+      () => _stageCommonPeriod(
+        period.id,
+        period.copyWith(
+          name: result.name,
+          durationMinutes: result.durationMinutes,
+        ),
+      ),
+    );
+    _pushSnapshotUndo('编辑公共时段「${period.name}」', before, _currentSnapshot());
+  }
+
+  Future<void> _moveCommonPeriod(
+    CommonPeriod period,
+    String? anchor, {
+    String? beforeId,
+  }) async {
+    if (_isSaving || _isHistoryBusy) return;
+    final all = _effectiveCommonPeriods(
+      ref.read(commonPeriodsProvider(widget.stage.id)).valueOrNull ?? const [],
+    );
+    final group = all
+        .where(
+          (item) => item.id != period.id && item.insertAfterLessonId == anchor,
+        )
+        .toList();
+    final index = beforeId == null
+        ? group.length
+        : group.indexWhere((item) => item.id == beforeId);
+    group.insert(
+      index < 0 ? group.length : index,
+      period.copyWith(
+        insertAfterLessonId: anchor,
+        clearInsertAfterLessonId: anchor == null,
+      ),
+    );
+    final before = _currentSnapshot();
+    for (final item in group) {
+      await _rememberCommonPeriodBaseline(item.id);
     }
+    if (!mounted) return;
+    setState(() {
+      for (var i = 0; i < group.length; i++) {
+        _stageCommonPeriod(group[i].id, group[i].copyWith(sortOrder: i));
+      }
+    });
+    _pushSnapshotUndo('移动公共时段「${period.name}」', before, _currentSnapshot());
   }
 
   List<CommonPeriod> _effectiveCommonPeriods(List<CommonPeriod> persisted) {
@@ -1647,19 +1688,24 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         periodsById[entry.key] = period;
       }
     }
-    return periodsById.values.toList(growable: false);
+    return periodsById.values.toList()..sort((a, b) {
+      final order = a.sortOrder.compareTo(b.sortOrder);
+      return order != 0 ? order : a.name.compareTo(b.name);
+    });
   }
 
   Future<void> _rememberCommonPeriodBaseline(String id) async {
     if (_commonPeriodBaseline.containsKey(id)) return;
-    final period =
-        (await ref
-                .read(schoolRepositoryProvider)
-                .watchCommonPeriods(widget.stage.id)
-                .first)
-            .where((item) => item.id == id)
-            .firstOrNull;
-    _commonPeriodBaseline[id] = period;
+    final cached = ref.read(commonPeriodsProvider(widget.stage.id)).valueOrNull;
+    final periods =
+        cached ??
+        await ref
+            .read(schoolRepositoryProvider)
+            .watchCommonPeriods(widget.stage.id)
+            .first;
+    _commonPeriodBaseline[id] = periods
+        .where((item) => item.id == id)
+        .firstOrNull;
   }
 
   void _stageCommonPeriod(String id, CommonPeriod? value) {
@@ -2960,6 +3006,7 @@ class _LessonTimePanel extends StatelessWidget {
     required this.onInsertCommonPeriod,
     required this.onCommonPeriodTimeChanged,
     required this.onRenameCommonPeriod,
+    required this.onMoveCommonPeriod,
     required this.onDeleteCommonPeriod,
   });
 
@@ -2975,12 +3022,29 @@ class _LessonTimePanel extends StatelessWidget {
   final Future<void> Function({String? afterLessonId}) onInsertCommonPeriod;
   final void Function(CommonPeriod, bool, String) onCommonPeriodTimeChanged;
   final Future<void> Function(CommonPeriod) onRenameCommonPeriod;
+  final Future<void> Function(CommonPeriod, String?, {String? beforeId})
+  onMoveCommonPeriod;
   final Future<void> Function(CommonPeriod) onDeleteCommonPeriod;
 
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[
       const _TimeColumnHeader(),
+      _CommonDropTarget(anchor: null, onMove: onMoveCommonPeriod),
+      for (final common in commonPeriods.where(
+        (item) => item.insertAfterLessonId == null,
+      ))
+        _CommonDropTarget(
+          anchor: null,
+          beforeId: common.id,
+          onMove: onMoveCommonPeriod,
+          child: _CommonPeriodRow(
+            period: common,
+            onChanged: onCommonPeriodTimeChanged,
+            onRename: onRenameCommonPeriod,
+            onDelete: onDeleteCommonPeriod,
+          ),
+        ),
       for (var index = 0; index < periods.length; index++) ...[
         if (collapsedGroups.contains(periods[index].id))
           _PeriodGroupHeaderCollapsed(
@@ -2996,39 +3060,35 @@ class _LessonTimePanel extends StatelessWidget {
             onCollapse: () => onToggleGroup(periods[index].id),
           ),
           for (final time in periods[index].times) ...[
-            _LessonTimeRow(
-              period: periods[index],
-              time: time,
-              timeInputs: timeInputs,
-              revision: revision,
-              onChanged: onTimeChanged,
+            _CommonDropTarget(
+              anchor: '${periods[index].id}_${time.lessonIndex}',
+              onMove: onMoveCommonPeriod,
+              child: _LessonTimeRow(
+                period: periods[index],
+                time: time,
+                timeInputs: timeInputs,
+                revision: revision,
+                onChanged: onTimeChanged,
+              ),
             ),
             for (final common in commonPeriods.where(
               (item) =>
                   item.insertAfterLessonId ==
                   '${periods[index].id}_${time.lessonIndex}',
             ))
-              _CommonPeriodRow(
-                period: common,
-                onChanged: onCommonPeriodTimeChanged,
-                onRename: onRenameCommonPeriod,
-                onDelete: onDeleteCommonPeriod,
+              _CommonDropTarget(
+                anchor: common.insertAfterLessonId,
+                beforeId: common.id,
+                onMove: onMoveCommonPeriod,
+                child: _CommonPeriodRow(
+                  period: common,
+                  onChanged: onCommonPeriodTimeChanged,
+                  onRename: onRenameCommonPeriod,
+                  onDelete: onDeleteCommonPeriod,
+                ),
               ),
           ],
         ],
-        for (final common in commonPeriods.where(
-          (item) =>
-              item.insertAfterLessonId == null &&
-              periods.isNotEmpty &&
-              periods.first.id == periods[index].id &&
-              index == 0,
-        ))
-          _CommonPeriodRow(
-            period: common,
-            onChanged: onCommonPeriodTimeChanged,
-            onRename: onRenameCommonPeriod,
-            onDelete: onDeleteCommonPeriod,
-          ),
       ],
     ];
     return AppSectionPanel(
@@ -3438,6 +3498,48 @@ class _TimeColumnHeader extends StatelessWidget {
   );
 }
 
+class _CommonDropTarget extends StatelessWidget {
+  const _CommonDropTarget({
+    required this.anchor,
+    required this.onMove,
+    this.beforeId,
+    this.child,
+  });
+  final String? anchor;
+  final String? beforeId;
+  final Widget? child;
+  final Future<void> Function(CommonPeriod, String?, {String? beforeId}) onMove;
+
+  @override
+  Widget build(BuildContext context) => DragTarget<CommonPeriod>(
+    key: ValueKey(
+      beforeId == null
+          ? 'common-drop-${anchor ?? 'first'}'
+          : 'common-drop-before-$beforeId',
+    ),
+    onWillAcceptWithDetails: (details) => details.data.id != beforeId,
+    onAcceptWithDetails: (details) =>
+        unawaited(onMove(details.data, anchor, beforeId: beforeId)),
+    builder: (context, candidates, rejected) => Container(
+      decoration: candidates.isEmpty
+          ? null
+          : BoxDecoration(
+              border: beforeId == null
+                  ? Border(
+                      bottom: BorderSide(
+                        color: context.appColors.blue,
+                        width: 3,
+                      ),
+                    )
+                  : Border(
+                      top: BorderSide(color: context.appColors.blue, width: 3),
+                    ),
+            ),
+      child: child ?? const SizedBox(height: 10),
+    ),
+  );
+}
+
 class _CommonPeriodRow extends StatelessWidget {
   const _CommonPeriodRow({
     required this.period,
@@ -3460,7 +3562,7 @@ class _CommonPeriodRow extends StatelessWidget {
         return Row(
           children: [
             Tooltip(
-              message: '点击编辑名称',
+              message: '点击编辑公共时段',
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -3474,14 +3576,38 @@ class _CommonPeriodRow extends StatelessWidget {
                       color: context.appColors.warningSurface,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      period.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.appColors.warning,
-                        fontSize: 11,
-                      ),
+                    child: Row(
+                      children: [
+                        Draggable<CommonPeriod>(
+                          key: ValueKey('common-drag-${period.id}'),
+                          data: period,
+                          feedback: Material(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(period.name),
+                            ),
+                          ),
+                          child: Tooltip(
+                            message: '拖动调整位置',
+                            child: Icon(
+                              Icons.drag_indicator,
+                              size: 16,
+                              color: context.appColors.muted,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            period.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.appColors.warning,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -3557,10 +3683,12 @@ class _InsertCommonPeriodDialog extends StatefulWidget {
   const _InsertCommonPeriodDialog({
     required this.periods,
     this.initialAfterLessonId,
+    this.editing,
   });
 
   final List<_PeriodDraft> periods;
   final String? initialAfterLessonId;
+  final CommonPeriod? editing;
 
   @override
   State<_InsertCommonPeriodDialog> createState() =>
@@ -3581,7 +3709,10 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
   @override
   void initState() {
     super.initState();
-    _afterLessonId = widget.initialAfterLessonId;
+    _nameController.text = widget.editing?.name ?? '';
+    _durationController.text = '${widget.editing?.durationMinutes ?? 10}';
+    _afterLessonId =
+        widget.editing?.insertAfterLessonId ?? widget.initialAfterLessonId;
     if (_afterLessonId == null && widget.periods.isNotEmpty) {
       final first = widget.periods.first;
       if (first.times.isNotEmpty) {
@@ -3599,7 +3730,7 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
 
   @override
   Widget build(BuildContext context) => AppDialog(
-    title: const Text('插入公共时段'),
+    title: Text(widget.editing == null ? '插入公共时段' : '编辑公共时段'),
     content: SizedBox(
       width: 300,
       child: Form(
@@ -3640,17 +3771,18 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
               ],
             ),
             const SizedBox(height: 12),
-            AppSelectField<String?>(
-              items: {
-                '第 1 节之前': _beforeFirstLessonId,
-                for (final period in widget.periods)
-                  for (final time in period.times)
-                    '${time.label} 之后': '${period.id}_${time.lessonIndex}',
-              },
-              value: _afterLessonId,
-              label: '位置',
-              onChanged: (value) => setState(() => _afterLessonId = value),
-            ),
+            if (widget.editing == null)
+              AppSelectField<String?>(
+                items: {
+                  '第 1 节之前': _beforeFirstLessonId,
+                  for (final period in widget.periods)
+                    for (final time in period.times)
+                      '${time.label} 之后': '${period.id}_${time.lessonIndex}',
+                },
+                value: _afterLessonId,
+                label: '位置',
+                onChanged: (value) => setState(() => _afterLessonId = value),
+              ),
             const SizedBox(height: 12),
             Text(
               '公共时段不排正课；插入后该学段所有上课日的课表与打印布局同步显示。',
@@ -3679,7 +3811,7 @@ class _InsertCommonPeriodDialogState extends State<_InsertCommonPeriodDialog> {
             ),
           );
         },
-        child: const Text('插入'),
+        child: Text(widget.editing == null ? '插入' : '保存'),
       ),
     ],
   );
@@ -3872,6 +4004,7 @@ bool _sameCommonPeriod(CommonPeriod? left, CommonPeriod? right) =>
         left.name == right.name &&
         left.insertAfterLessonId == right.insertAfterLessonId &&
         left.durationMinutes == right.durationMinutes &&
+        left.sortOrder == right.sortOrder &&
         left.startMinute == right.startMinute &&
         left.endMinute == right.endMinute;
 

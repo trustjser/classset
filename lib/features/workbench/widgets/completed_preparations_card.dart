@@ -14,6 +14,11 @@ class CompletedPreparationsCard extends StatelessWidget {
     final doneSteps = <PreparationStep>[
       if (summary.stagesDone) PreparationStep.stagesAndClasses,
       if (summary.routineDone) PreparationStep.routine,
+      if (completedPreparationCount(summary) > 2)
+        PreparationStep.subjectLessons,
+      if (completedPreparationCount(summary) > 3)
+        PreparationStep.teacherAssignments,
+      if (completedPreparationCount(summary) > 4) PreparationStep.autoSchedule,
     ];
     return AppSurface(
       child: Padding(

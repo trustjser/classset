@@ -453,6 +453,7 @@ class DriftSchoolRepository implements SchoolRepository {
                       : lessonIds[period.insertAfterLessonId],
                 ),
                 durationMinutes: Value(period.durationMinutes),
+                sortOrder: Value(period.sortOrder),
                 startMinute: Value(period.startMinute),
                 endMinute: Value(period.endMinute),
               ),
@@ -1401,6 +1402,7 @@ class DriftSchoolRepository implements SchoolRepository {
             ..where((period) => period.stageId.equals(stageId))
             ..orderBy([
               (period) => OrderingTerm.asc(period.insertAfterLessonId),
+              (period) => OrderingTerm.asc(period.sortOrder),
               (period) => OrderingTerm.asc(period.name),
             ]))
           .watch()
@@ -1418,6 +1420,7 @@ class DriftSchoolRepository implements SchoolRepository {
           name: period.name.trim(),
           insertAfterLessonId: Value(period.insertAfterLessonId),
           durationMinutes: Value(period.durationMinutes),
+          sortOrder: Value(period.sortOrder),
           startMinute: Value(period.startMinute),
           endMinute: Value(period.endMinute),
         ),
@@ -1661,6 +1664,7 @@ class DriftSchoolRepository implements SchoolRepository {
         name: row.name,
         insertAfterLessonId: row.insertAfterLessonId,
         durationMinutes: row.durationMinutes,
+        sortOrder: row.sortOrder,
         startMinute: row.startMinute,
         endMinute: row.endMinute,
       );

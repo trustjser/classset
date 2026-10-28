@@ -11,6 +11,7 @@ class CommonPeriod {
     required this.durationMinutes,
     required this.startMinute,
     required this.endMinute,
+    this.sortOrder = 0,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class CommonPeriod {
   final int durationMinutes;
   final int? startMinute;
   final int? endMinute;
+  final int sortOrder;
 
   String? get startLabel =>
       startMinute == null ? null : _formatMinutes(startMinute!);
@@ -35,14 +37,19 @@ class CommonPeriod {
     int? durationMinutes,
     int? startMinute,
     int? endMinute,
+    int? sortOrder,
+    bool clearInsertAfterLessonId = false,
   }) => CommonPeriod(
     id: id,
     stageId: stageId,
     name: name ?? this.name,
-    insertAfterLessonId: insertAfterLessonId ?? this.insertAfterLessonId,
+    insertAfterLessonId: clearInsertAfterLessonId
+        ? null
+        : insertAfterLessonId ?? this.insertAfterLessonId,
     durationMinutes: durationMinutes ?? this.durationMinutes,
     startMinute: startMinute ?? this.startMinute,
     endMinute: endMinute ?? this.endMinute,
+    sortOrder: sortOrder ?? this.sortOrder,
   );
 }
 

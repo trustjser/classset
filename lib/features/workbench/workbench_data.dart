@@ -38,18 +38,27 @@ class WorkbenchSummary {
     required this.stageCount,
     required this.gradeCount,
     required this.stagesWithRoutine,
+    this.subjectLessonsReady = false,
+    this.teacherAssignmentsReady = false,
+    this.hasSchedule = false,
   });
 
   const WorkbenchSummary.empty()
     : stageCount = 0,
       gradeCount = 0,
-      stagesWithRoutine = 0;
+      stagesWithRoutine = 0,
+      subjectLessonsReady = false,
+      teacherAssignmentsReady = false,
+      hasSchedule = false;
 
   final int stageCount;
   final int gradeCount;
 
   /// 已配置作息（有上课日且至少一个时段）的学段数。
   final int stagesWithRoutine;
+  final bool subjectLessonsReady;
+  final bool teacherAssignmentsReady;
+  final bool hasSchedule;
 
   /// 步骤 1「学段与班级」：已建学段且旗下有年级。
   bool get stagesDone => stageCount > 0 && gradeCount > 0;
@@ -60,41 +69,125 @@ class WorkbenchSummary {
       stagesDone && stageCount > 0 && stagesWithRoutine >= stageCount;
 }
 
-/// 监听某学期下的准备进度；学段 / 年级 / 作息变化都会实时刷新。
-///
-/// 注意：不可在流的异步回调里再订阅其他 drift 流（嵌套订阅在假异步测试
-/// 环境中不会完成）；这里改为消费单条联合查询流 `watchStageStructureStats`。
+/// 汇总当前学期数据，任一来源变化时重新计算进度。
+final _scheduleProvider = StreamProvider.family<ScheduleViewData, String>(
+  (ref, termId) => ref.watch(schoolRepositoryProvider).watchSchedule(termId),
+);
+
 final workbenchSummaryProvider =
-    StreamProvider.family<WorkbenchSummary, String>((ref, termId) {
-      return ref
-          .watch(schoolRepositoryProvider)
-          .watchStageStructureStats(termId)
-          .map((stats) {
-            var gradeCount = 0;
-            var stagesWithRoutine = 0;
-            for (final stat in stats) {
-              gradeCount += stat.gradeCount;
-              if (stat.hasRoutine) stagesWithRoutine++;
+    Provider.family<AsyncValue<WorkbenchSummary>, String>((ref, termId) {
+      final stats = ref.watch(_structureProvider(termId));
+      final grades = ref.watch(gradesForTermProvider(termId));
+      final classes = ref.watch(classesForTermProvider(termId));
+      final subjects = ref.watch(subjectsForTermProvider(termId));
+      final requirements = ref.watch(allRequirementsProvider);
+      final assignments = ref.watch(teacherAssignmentsProvider(termId));
+      final schedule = ref.watch(_scheduleProvider(termId));
+      final values = [
+        stats,
+        grades,
+        classes,
+        subjects,
+        requirements,
+        assignments,
+        schedule,
+      ];
+      for (final value in values) {
+        if (value.hasError) return AsyncError(value.error!, value.stackTrace!);
+        if (!value.hasValue) return const AsyncLoading();
+      }
+      final gradeList = grades.requireValue;
+      final subjectIds = subjects.requireValue.map((item) => item.id).toSet();
+      final gradeIds = gradeList.map((item) => item.id).toSet();
+      final validRequirements = requirements.requireValue
+          .where(
+            (item) =>
+                gradeIds.contains(item.gradeId) &&
+                subjectIds.contains(item.subjectId),
+          )
+          .toList();
+      final lessonsReady =
+          gradeList.isNotEmpty &&
+          gradeList.every(
+            (grade) => validRequirements.any(
+              (item) => item.gradeId == grade.id && item.lessonCount > 0,
+            ),
+          );
+      final totals = <(String, String, WeekMode), int>{};
+      for (final assignment in assignments.requireValue) {
+        final key = (
+          assignment.classId,
+          assignment.subjectId,
+          assignment.weekMode,
+        );
+        totals[key] = (totals[key] ?? 0) + assignment.lessonCount;
+      }
+      var demandCount = 0;
+      var covered = true;
+      for (final schoolClass in classes.requireValue) {
+        final previousDemandCount = demandCount;
+        for (final subjectId in subjectIds) {
+          final scoped = validRequirements
+              .where(
+                (item) =>
+                    item.classId == schoolClass.id &&
+                    item.subjectId == subjectId,
+              )
+              .toList();
+          final effective = scoped.isNotEmpty
+              ? scoped
+              : validRequirements.where(
+                  (item) =>
+                      item.gradeId == schoolClass.gradeId &&
+                      item.classId == null &&
+                      item.subjectId == subjectId,
+                );
+          for (final demand in effective.where(
+            (item) => item.lessonCount > 0,
+          )) {
+            demandCount++;
+            if ((totals[(schoolClass.id, subjectId, demand.weekMode)] ?? 0) <
+                demand.lessonCount) {
+              covered = false;
             }
-            return WorkbenchSummary(
-              stageCount: stats.length,
-              gradeCount: gradeCount,
-              stagesWithRoutine: stagesWithRoutine,
-            );
-          });
+          }
+        }
+        if (demandCount == previousDemandCount) covered = false;
+      }
+      final structure = stats.requireValue;
+      return AsyncData(
+        WorkbenchSummary(
+          stageCount: structure.length,
+          gradeCount: gradeList.length,
+          stagesWithRoutine: structure.where((item) => item.hasRoutine).length,
+          subjectLessonsReady: lessonsReady,
+          teacherAssignmentsReady: demandCount > 0 && covered,
+          hasSchedule:
+              schedule.requireValue.latestRun != null ||
+              schedule.requireValue.items.isNotEmpty,
+        ),
+      );
     });
 
-/// 当前应进行的步骤。步骤 3 及以后为后续版本，最多推进到「科目节数」。
-PreparationStep currentPreparationStep(WorkbenchSummary summary) =>
-    summary.stagesDone
-    ? (summary.routineDone
-          ? PreparationStep.subjectLessons
-          : PreparationStep.routine)
-    : PreparationStep.stagesAndClasses;
+final _structureProvider =
+    StreamProvider.family<List<StageStructureStat>, String>(
+      (ref, termId) =>
+          ref.watch(schoolRepositoryProvider).watchStageStructureStats(termId),
+    );
 
-/// 已完成的步骤数（步骤 3 起为后续版本，暂不计入）。
+PreparationStep currentPreparationStep(WorkbenchSummary summary) {
+  if (!summary.stagesDone) return PreparationStep.stagesAndClasses;
+  if (!summary.routineDone) return PreparationStep.routine;
+  if (!summary.subjectLessonsReady) return PreparationStep.subjectLessons;
+  if (!summary.teacherAssignmentsReady) {
+    return PreparationStep.teacherAssignments;
+  }
+  if (!summary.hasSchedule) return PreparationStep.autoSchedule;
+  return PreparationStep.timetable;
+}
+
 int completedPreparationCount(WorkbenchSummary summary) =>
-    (summary.stagesDone ? 1 : 0) + (summary.routineDone ? 1 : 0);
+    currentPreparationStep(summary).index;
 
 /// 「接下来」卡片按当前步骤展示的文案。
 class StepCopy {
@@ -131,11 +224,23 @@ StepCopy stepCopyFor(PreparationStep step, WorkbenchSummary summary) =>
         actionLabel: '去填写科目节数',
         meta: '已准备 ${summary.gradeCount} 个年级',
       ),
-      _ => const StepCopy(
-        title: '准备工作已全部完成',
-        description: '基础资料已就绪，后续版本将在这里继续引导排课。',
+      PreparationStep.teacherAssignments => const StepCopy(
+        title: '分配教师任课',
+        description: '为各班科目分配教师，补齐每周所需节数。',
+        actionLabel: '去分配教师任课',
+        meta: '请检查各班任课是否分配完整',
+      ),
+      PreparationStep.autoSchedule => const StepCopy(
+        title: '开始排课',
+        description: '基础资料已就绪，可以开始生成课表。',
+        actionLabel: '去排课',
+        meta: '可在排课页面检查条件并生成课表',
+      ),
+      PreparationStep.timetable => const StepCopy(
+        title: '打开课表',
+        description: '已生成排课结果，可以查看和调整课表。',
         actionLabel: '打开课表',
-        meta: '',
+        meta: '排课结果已保存',
       ),
     };
 

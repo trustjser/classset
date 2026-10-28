@@ -1,11 +1,15 @@
 import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
+import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/teacher.dart';
+import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/features/workbench/workbench_page.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -184,6 +188,114 @@ void main() {
     expect(container.read(selectedSectionProvider), AppSection.subjects);
   });
 
+  testWidgets('填写节数和任课后实时推进，任课不足或删除时回退', (tester) async {
+    await saveTerm();
+    await repository.saveStage(
+      const SchoolStage(id: 's1', termId: 't1', name: '小学部', sortOrder: 0),
+    );
+    await repository.saveGrade(
+      const GradeGroup(id: 'g1', stageId: 's1', name: '一年级', sortOrder: 0),
+    );
+    await repository.saveClass(
+      const ClassGroup(id: 'c1', gradeId: 'g1', name: '一班', sortOrder: 0),
+    );
+    await seedRoutine();
+    await repository.saveSubjects([
+      const Subject(
+        id: 'sub1',
+        termId: 't1',
+        name: '语文',
+        shortName: '语',
+        sortOrder: 0,
+      ),
+    ]);
+    container.read(activeTermIdProvider.notifier).state = 't1';
+    await pumpPage(tester);
+    expect(find.text('2 / 6 完成'), findsOneWidget);
+
+    await repository.replaceGradeRequirements(
+      gradeId: 'g1',
+      requirements: [
+        const SubjectRequirement(
+          id: 'r1',
+          subjectId: 'sub1',
+          gradeId: 'g1',
+          weekMode: WeekMode.weekly,
+          lessonCount: 2,
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('3 / 6 完成'), findsOneWidget);
+    expect(find.text('分配教师任课'), findsOneWidget);
+    await tester.tap(find.text('去分配教师任课'));
+    await tester.pumpAndSettle();
+    expect(container.read(selectedSectionProvider), AppSection.teachers);
+
+    await repository.saveTeachers([
+      const Teacher(
+        id: 'teacher1',
+        name: '老师',
+        shortName: '师',
+        sortOrder: 0,
+        subjectIds: {'sub1'},
+      ),
+    ]);
+    Future<void> assign(int count) => repository.replaceTeacherAssignments(
+      termId: 't1',
+      classId: 'c1',
+      subjectId: 'sub1',
+      assignments: [
+        TeacherAssignment(
+          id: 'a1',
+          termId: 't1',
+          teacherId: 'teacher1',
+          classId: 'c1',
+          subjectId: 'sub1',
+          weekMode: WeekMode.weekly,
+          lessonCount: count,
+        ),
+      ],
+    );
+    await assign(1);
+    await tester.pumpAndSettle();
+    expect(find.text('3 / 6 完成'), findsOneWidget);
+    await assign(2);
+    await tester.pumpAndSettle();
+    expect(find.text('4 / 6 完成'), findsOneWidget);
+    await tester.tap(find.text('去排课'));
+    await tester.pumpAndSettle();
+    expect(container.read(selectedSectionProvider), AppSection.scheduling);
+    await repository.replaceTeacherAssignments(
+      termId: 't1',
+      classId: 'c1',
+      subjectId: 'sub1',
+      assignments: [],
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('3 / 6 完成'), findsOneWidget);
+  });
+
+  testWidgets('上手指南与工作台六个步骤一致', (tester) async {
+    await saveTerm();
+    container.read(activeTermIdProvider.notifier).state = 't1';
+    await pumpPage(tester);
+    expect(find.text('查看六步上手指南'), findsOneWidget);
+    await tester.ensureVisible(find.text('查看六步上手指南'));
+    await tester.tap(find.text('查看六步上手指南'));
+    await tester.pumpAndSettle();
+    expect(find.text('六步上手指南'), findsOneWidget);
+    final dialog = find.byType(AppDialog);
+    for (final title in ['学段与班级', '作息设置', '科目节数', '教师任课', '开始排课', '打开课表']) {
+      expect(
+        find.descendant(of: dialog, matching: find.text(title)),
+        findsOneWidget,
+      );
+    }
+    expect(find.textContaining('即将推出'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('当前学期卡展示教学周与单双周', (tester) async {
     final start = DateTime.now().subtract(const Duration(days: 3));
     await saveTerm(firstTeachingWeekStart: start);
@@ -237,7 +349,7 @@ void main() {
     expect(find.textContaining('已生成演示数据'), findsOneWidget);
     await tester.pumpAndSettle();
 
-    expect(find.text('2 / 6 完成'), findsOneWidget);
+    expect(find.text('4 / 6 完成'), findsOneWidget);
     expect(find.byKey(const Key('preparation-progress')), findsOneWidget);
     // 进度条渲染校验：高 8px，蓝色填充约占 1/3。
     final bar = tester.getSize(find.byKey(const Key('preparation-progress')));
@@ -250,11 +362,11 @@ void main() {
         ),
       ),
     );
-    expect(blueFill.width, closeTo(bar.width * 33 / 100, 1));
+    expect(blueFill.width, closeTo(bar.width * 67 / 100, 1));
     // 高度必须撑满：ColoredBox 无子节点时若 Row 不给交叉轴紧约束会得到零高度，
     // 零面积 drawRect 不产生任何可见像素（曾出现「占位不绘制」问题）。
     expect(blueFill.height, 8);
-    expect(find.text('填写各年级的科目节数'), findsOneWidget);
+    expect(find.text('开始排课'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }

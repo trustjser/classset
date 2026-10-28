@@ -59,9 +59,12 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
       PreparationStep.stagesAndClasses => () => _navigate(AppSection.classes),
       PreparationStep.routine => () => _navigate(AppSection.routines),
       PreparationStep.subjectLessons => () => _navigate(AppSection.subjects),
-      _ => null,
+      PreparationStep.teacherAssignments => () => _navigate(
+        AppSection.teachers,
+      ),
+      PreparationStep.autoSchedule ||
+      PreparationStep.timetable => () => _navigate(AppSection.scheduling),
     };
-    final comingSoonHint = onAction == null ? '「${step.title}」将在后续版本提供' : null;
     final pagePadding = AppTheme.pagePaddingForWidth(
       MediaQuery.sizeOf(context).width,
     );
@@ -90,7 +93,6 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
                 step: step,
                 copy: copy,
                 onAction: onAction,
-                comingSoonHint: comingSoonHint,
               );
               final termCard = CurrentTermCard(
                 term: widget.term,

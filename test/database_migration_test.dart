@@ -3,6 +3,28 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('v15 公共时段升级保留数据并添加排序', () async {
+    final database = AppDatabase(
+      NativeDatabase.memory(
+        setup: (connection) {
+          connection.execute(
+            'CREATE TABLE common_periods (id TEXT NOT NULL PRIMARY KEY, stage_id TEXT NOT NULL, name TEXT NOT NULL, insert_after_lesson_id TEXT, duration_minutes INTEGER NOT NULL DEFAULT 10, start_minute INTEGER, end_minute INTEGER)',
+          );
+          connection.execute(
+            "INSERT INTO common_periods (id, stage_id, name, duration_minutes) VALUES ('a', 's', '课间', 15)",
+          );
+          connection.execute('PRAGMA user_version = 15');
+        },
+      ),
+    );
+    addTearDown(database.close);
+    final rows = await database
+        .customSelect('SELECT duration_minutes, sort_order FROM common_periods')
+        .get();
+    expect(rows.single.read<int>('duration_minutes'), 15);
+    expect(rows.single.read<int>('sort_order'), 0);
+  });
+
   test('v2 数据库升级后已有学期默认为单双周交替', () async {
     final database = AppDatabase(
       NativeDatabase.memory(

@@ -4300,6 +4300,18 @@ class $CommonPeriodsTable extends CommonPeriods
     requiredDuringInsert: false,
     defaultValue: const Constant(10),
   );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _startMinuteMeta = const VerificationMeta(
     'startMinute',
   );
@@ -4329,6 +4341,7 @@ class $CommonPeriodsTable extends CommonPeriods
     name,
     insertAfterLessonId,
     durationMinutes,
+    sortOrder,
     startMinute,
     endMinute,
   ];
@@ -4383,6 +4396,12 @@ class $CommonPeriodsTable extends CommonPeriods
         ),
       );
     }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
     if (data.containsKey('start_minute')) {
       context.handle(
         _startMinuteMeta,
@@ -4427,6 +4446,10 @@ class $CommonPeriodsTable extends CommonPeriods
         DriftSqlType.int,
         data['${effectivePrefix}duration_minutes'],
       )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
       startMinute: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}start_minute'],
@@ -4452,6 +4475,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
   /// 挂在 lesson_times.id 之后；null = 第 1 节之前。
   final String? insertAfterLessonId;
   final int durationMinutes;
+  final int sortOrder;
   final int? startMinute;
   final int? endMinute;
   const CommonPeriod({
@@ -4460,6 +4484,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
     required this.name,
     this.insertAfterLessonId,
     required this.durationMinutes,
+    required this.sortOrder,
     this.startMinute,
     this.endMinute,
   });
@@ -4473,6 +4498,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
       map['insert_after_lesson_id'] = Variable<String>(insertAfterLessonId);
     }
     map['duration_minutes'] = Variable<int>(durationMinutes);
+    map['sort_order'] = Variable<int>(sortOrder);
     if (!nullToAbsent || startMinute != null) {
       map['start_minute'] = Variable<int>(startMinute);
     }
@@ -4491,6 +4517,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
           ? const Value.absent()
           : Value(insertAfterLessonId),
       durationMinutes: Value(durationMinutes),
+      sortOrder: Value(sortOrder),
       startMinute: startMinute == null && nullToAbsent
           ? const Value.absent()
           : Value(startMinute),
@@ -4513,6 +4540,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
         json['insertAfterLessonId'],
       ),
       durationMinutes: serializer.fromJson<int>(json['durationMinutes']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
       startMinute: serializer.fromJson<int?>(json['startMinute']),
       endMinute: serializer.fromJson<int?>(json['endMinute']),
     );
@@ -4526,6 +4554,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
       'name': serializer.toJson<String>(name),
       'insertAfterLessonId': serializer.toJson<String?>(insertAfterLessonId),
       'durationMinutes': serializer.toJson<int>(durationMinutes),
+      'sortOrder': serializer.toJson<int>(sortOrder),
       'startMinute': serializer.toJson<int?>(startMinute),
       'endMinute': serializer.toJson<int?>(endMinute),
     };
@@ -4537,6 +4566,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
     String? name,
     Value<String?> insertAfterLessonId = const Value.absent(),
     int? durationMinutes,
+    int? sortOrder,
     Value<int?> startMinute = const Value.absent(),
     Value<int?> endMinute = const Value.absent(),
   }) => CommonPeriod(
@@ -4547,6 +4577,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
         ? insertAfterLessonId.value
         : this.insertAfterLessonId,
     durationMinutes: durationMinutes ?? this.durationMinutes,
+    sortOrder: sortOrder ?? this.sortOrder,
     startMinute: startMinute.present ? startMinute.value : this.startMinute,
     endMinute: endMinute.present ? endMinute.value : this.endMinute,
   );
@@ -4561,6 +4592,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
       durationMinutes: data.durationMinutes.present
           ? data.durationMinutes.value
           : this.durationMinutes,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       startMinute: data.startMinute.present
           ? data.startMinute.value
           : this.startMinute,
@@ -4576,6 +4608,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
           ..write('name: $name, ')
           ..write('insertAfterLessonId: $insertAfterLessonId, ')
           ..write('durationMinutes: $durationMinutes, ')
+          ..write('sortOrder: $sortOrder, ')
           ..write('startMinute: $startMinute, ')
           ..write('endMinute: $endMinute')
           ..write(')'))
@@ -4589,6 +4622,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
     name,
     insertAfterLessonId,
     durationMinutes,
+    sortOrder,
     startMinute,
     endMinute,
   );
@@ -4601,6 +4635,7 @@ class CommonPeriod extends DataClass implements Insertable<CommonPeriod> {
           other.name == this.name &&
           other.insertAfterLessonId == this.insertAfterLessonId &&
           other.durationMinutes == this.durationMinutes &&
+          other.sortOrder == this.sortOrder &&
           other.startMinute == this.startMinute &&
           other.endMinute == this.endMinute);
 }
@@ -4611,6 +4646,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
   final Value<String> name;
   final Value<String?> insertAfterLessonId;
   final Value<int> durationMinutes;
+  final Value<int> sortOrder;
   final Value<int?> startMinute;
   final Value<int?> endMinute;
   final Value<int> rowid;
@@ -4620,6 +4656,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
     this.name = const Value.absent(),
     this.insertAfterLessonId = const Value.absent(),
     this.durationMinutes = const Value.absent(),
+    this.sortOrder = const Value.absent(),
     this.startMinute = const Value.absent(),
     this.endMinute = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4630,6 +4667,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
     required String name,
     this.insertAfterLessonId = const Value.absent(),
     this.durationMinutes = const Value.absent(),
+    this.sortOrder = const Value.absent(),
     this.startMinute = const Value.absent(),
     this.endMinute = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4642,6 +4680,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
     Expression<String>? name,
     Expression<String>? insertAfterLessonId,
     Expression<int>? durationMinutes,
+    Expression<int>? sortOrder,
     Expression<int>? startMinute,
     Expression<int>? endMinute,
     Expression<int>? rowid,
@@ -4653,6 +4692,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
       if (insertAfterLessonId != null)
         'insert_after_lesson_id': insertAfterLessonId,
       if (durationMinutes != null) 'duration_minutes': durationMinutes,
+      if (sortOrder != null) 'sort_order': sortOrder,
       if (startMinute != null) 'start_minute': startMinute,
       if (endMinute != null) 'end_minute': endMinute,
       if (rowid != null) 'rowid': rowid,
@@ -4665,6 +4705,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
     Value<String>? name,
     Value<String?>? insertAfterLessonId,
     Value<int>? durationMinutes,
+    Value<int>? sortOrder,
     Value<int?>? startMinute,
     Value<int?>? endMinute,
     Value<int>? rowid,
@@ -4675,6 +4716,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
       name: name ?? this.name,
       insertAfterLessonId: insertAfterLessonId ?? this.insertAfterLessonId,
       durationMinutes: durationMinutes ?? this.durationMinutes,
+      sortOrder: sortOrder ?? this.sortOrder,
       startMinute: startMinute ?? this.startMinute,
       endMinute: endMinute ?? this.endMinute,
       rowid: rowid ?? this.rowid,
@@ -4701,6 +4743,9 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
     if (durationMinutes.present) {
       map['duration_minutes'] = Variable<int>(durationMinutes.value);
     }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
     if (startMinute.present) {
       map['start_minute'] = Variable<int>(startMinute.value);
     }
@@ -4721,6 +4766,7 @@ class CommonPeriodsCompanion extends UpdateCompanion<CommonPeriod> {
           ..write('name: $name, ')
           ..write('insertAfterLessonId: $insertAfterLessonId, ')
           ..write('durationMinutes: $durationMinutes, ')
+          ..write('sortOrder: $sortOrder, ')
           ..write('startMinute: $startMinute, ')
           ..write('endMinute: $endMinute, ')
           ..write('rowid: $rowid')
@@ -23192,6 +23238,7 @@ typedef $$CommonPeriodsTableCreateCompanionBuilder =
       required String name,
       Value<String?> insertAfterLessonId,
       Value<int> durationMinutes,
+      Value<int> sortOrder,
       Value<int?> startMinute,
       Value<int?> endMinute,
       Value<int> rowid,
@@ -23203,6 +23250,7 @@ typedef $$CommonPeriodsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String?> insertAfterLessonId,
       Value<int> durationMinutes,
+      Value<int> sortOrder,
       Value<int?> startMinute,
       Value<int?> endMinute,
       Value<int> rowid,
@@ -23260,6 +23308,11 @@ class $$CommonPeriodsTableFilterComposer
 
   ColumnFilters<int> get durationMinutes => $composableBuilder(
     column: $table.durationMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23326,6 +23379,11 @@ class $$CommonPeriodsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get startMinute => $composableBuilder(
     column: $table.startMinute,
     builder: (column) => ColumnOrderings(column),
@@ -23384,6 +23442,9 @@ class $$CommonPeriodsTableAnnotationComposer
     column: $table.durationMinutes,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
   GeneratedColumn<int> get startMinute => $composableBuilder(
     column: $table.startMinute,
@@ -23450,6 +23511,7 @@ class $$CommonPeriodsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String?> insertAfterLessonId = const Value.absent(),
                 Value<int> durationMinutes = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
                 Value<int?> startMinute = const Value.absent(),
                 Value<int?> endMinute = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -23459,6 +23521,7 @@ class $$CommonPeriodsTableTableManager
                 name: name,
                 insertAfterLessonId: insertAfterLessonId,
                 durationMinutes: durationMinutes,
+                sortOrder: sortOrder,
                 startMinute: startMinute,
                 endMinute: endMinute,
                 rowid: rowid,
@@ -23470,6 +23533,7 @@ class $$CommonPeriodsTableTableManager
                 required String name,
                 Value<String?> insertAfterLessonId = const Value.absent(),
                 Value<int> durationMinutes = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
                 Value<int?> startMinute = const Value.absent(),
                 Value<int?> endMinute = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -23479,6 +23543,7 @@ class $$CommonPeriodsTableTableManager
                 name: name,
                 insertAfterLessonId: insertAfterLessonId,
                 durationMinutes: durationMinutes,
+                sortOrder: sortOrder,
                 startMinute: startMinute,
                 endMinute: endMinute,
                 rowid: rowid,

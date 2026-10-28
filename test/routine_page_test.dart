@@ -4,6 +4,7 @@ import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/features/routines/routine_page.dart';
@@ -691,6 +692,98 @@ void main() {
       () => repository.watchCommonPeriods('jr').first,
     ))!;
     expect(periods.single.name, '眼保健操');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('编辑公共时段分钟数并拖到新节次，保存后保留', (tester) async {
+    await repository.saveCommonPeriod(
+      const CommonPeriod(
+        id: 'cp',
+        stageId: 'jr',
+        name: '眼保健操',
+        insertAfterLessonId: 'jr_am_1',
+        durationMinutes: 10,
+        startMinute: null,
+        endMinute: null,
+      ),
+    );
+    await pumpPage(tester, size: const Size(1800, 1300));
+    await selectJuniorStage(tester);
+    await tester.tap(find.text('眼保健操'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(f.FDialog);
+    await tester.enterText(
+      find.descendant(of: dialog, matching: find.byType(EditableText)).last,
+      '15',
+    );
+    await tester.tap(find.descendant(of: dialog, matching: find.text('保存')));
+    await tester.pumpAndSettle();
+    expect(find.text('眼保健操 · 15 分钟'), findsOneWidget);
+    final handle = find.byKey(const ValueKey('common-drag-cp'));
+    final target = find.byKey(const ValueKey('common-drop-jr_am_3'));
+    final gesture = await tester.startGesture(tester.getCenter(handle));
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.moveTo(tester.getCenter(target));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final saved = (await tester.runAsync(
+      () => repository.watchCommonPeriods('jr').first,
+    ))!.single;
+    expect(saved.durationMinutes, 15);
+    expect(saved.insertAfterLessonId, 'jr_am_3');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('同一课节后的公共时段可排序并可移到第一节之前', (tester) async {
+    for (final (id, name) in [('a', '活动甲'), ('b', '活动乙')]) {
+      await repository.saveCommonPeriod(
+        CommonPeriod(
+          id: id,
+          stageId: 'jr',
+          name: name,
+          insertAfterLessonId: 'jr_am_1',
+          durationMinutes: 10,
+          startMinute: null,
+          endMinute: null,
+        ),
+      );
+    }
+    await pumpPage(tester, size: const Size(1800, 1300));
+    await selectJuniorStage(tester);
+    final source = find.byKey(const ValueKey('common-drag-b'));
+    final destination = find.byKey(const ValueKey('common-drop-before-a'));
+    final gesture = await tester.startGesture(tester.getCenter(source));
+    await gesture.moveTo(tester.getCenter(destination));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    var saved = (await tester.runAsync(
+      () => repository.watchCommonPeriods('jr').first,
+    ))!;
+    expect(saved.map((item) => item.id).toList(), ['b', 'a']);
+    final move = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('common-drag-a'))),
+    );
+    await move.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('common-drop-first'))),
+    );
+    await tester.pump();
+    await move.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    saved = (await tester.runAsync(
+      () => repository.watchCommonPeriods('jr').first,
+    ))!;
+    expect(
+      saved.firstWhere((item) => item.id == 'a').insertAfterLessonId,
+      isNull,
+    );
     expect(tester.takeException(), isNull);
   });
 

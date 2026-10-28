@@ -277,6 +277,7 @@ class CommonPeriods extends Table {
   /// 挂在 lesson_times.id 之后；null = 第 1 节之前。
   TextColumn get insertAfterLessonId => text().nullable()();
   IntColumn get durationMinutes => integer().withDefault(const Constant(10))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   IntColumn get startMinute => integer().nullable()();
   IntColumn get endMinute => integer().nullable()();
 
@@ -681,12 +682,22 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async => migrator.createAll(),
     onUpgrade: (migrator, from, to) async {
+      if (from >= 2 && from < 16) {
+        final hasCommonPeriods = (await customSelect(
+          "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'common_periods'",
+        ).get()).isNotEmpty;
+        if (hasCommonPeriods) {
+          await migrator.addColumn(commonPeriods, commonPeriods.sortOrder);
+        } else {
+          await migrator.createTable(commonPeriods);
+        }
+      }
       if (from < 12) {
         await migrator.createTable(appSettings);
       }
