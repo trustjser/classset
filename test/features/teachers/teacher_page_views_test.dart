@@ -1525,9 +1525,10 @@ void main() {
       of: subjectInfo,
       matching: find.text('体育与健康'),
     );
+    // 科目名前有色标圆点（8px 圆点 + 7px 间距），整体相对表头右移 15px。
     expect(
       tester.getTopLeft(subjectName).dx,
-      closeTo(tester.getTopLeft(subjectHeader).dx, 0.5),
+      closeTo(tester.getTopLeft(subjectHeader).dx + 15, 0.5),
     );
     expect(
       tester

@@ -586,6 +586,7 @@ class _TeacherAssignmentDraggableChip extends StatelessWidget {
     Widget chip({VoidCallback? onTap}) => _AssignmentChip(
       label: label,
       tooltip: fullLabel,
+      subjectId: assignment.subjectId,
       onPressed: onTap,
       isSplit: otherTeachers.isNotEmpty,
     );
@@ -631,11 +632,13 @@ class _AssignmentChip extends StatelessWidget {
     required this.label,
     required this.tooltip,
     required this.onPressed,
+    required this.subjectId,
     this.isSplit = false,
   });
 
   final String label;
   final String tooltip;
+  final String subjectId;
   final VoidCallback? onPressed;
   final bool isSplit;
 
@@ -653,6 +656,8 @@ class _AssignmentChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Row(
             children: [
+              SubjectDot(subjectId: subjectId),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   label,

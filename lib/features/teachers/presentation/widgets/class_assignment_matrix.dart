@@ -167,6 +167,8 @@ class _ClassMatrixState extends ConsumerState<_ClassMatrix> {
               child: Row(
                 key: ValueKey('subject-info-${subject.id}'),
                 children: [
+                  SubjectDot(subjectId: subject.id),
+                  const SizedBox(width: 7),
                   Flexible(
                     child: Text(
                       subject.name,

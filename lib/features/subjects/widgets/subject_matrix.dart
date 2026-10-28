@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/subject.dart';
@@ -572,6 +573,8 @@ class _SubjectNameCellState extends State<_SubjectNameCell> {
         ),
         child: Row(
           children: [
+            SubjectDot(subjectId: widget.subject.id),
+            const SizedBox(width: 7),
             Expanded(
               child: Text(
                 widget.subject.name,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/free_slot.dart';
@@ -25,49 +26,11 @@ enum _WeekView { merged, odd, even }
 enum _AllScheduleLayout { timetable, classes }
 
 abstract final class _SchedulePalette {
-  static const lessonBackgrounds = [
-    Color(0xFFEAF2FF),
-    Color(0xFFE6F5EE),
-    Color(0xFFFFF3E0),
-    Color(0xFFF1EDFF),
-    Color(0xFFFDEBEE),
-  ];
-  static const lessonForegrounds = [
-    Color(0xFF2E6BC6),
-    Color(0xFF1F8A5D),
-    Color(0xFFB07415),
-    Color(0xFF6D4FD0),
-    Color(0xFFC2506A),
-  ];
-
-  static int subjectColorIndex(String subjectId, String? subjectName) {
-    if (subjectName?.contains('语文') == true) return 0;
-    if (subjectName?.contains('数学') == true) return 1;
-    if (subjectName?.contains('英语') == true) return 2;
-    if (subjectName?.contains('科学') == true) return 3;
-    if (subjectName?.contains('体育') == true) return 4;
-    return subjectId.codeUnits.fold<int>(0, (sum, code) => sum + code) %
-        lessonBackgrounds.length;
-  }
-
   static BoxDecoration panel(BuildContext context) => BoxDecoration(
     color: context.appColors.surface,
     borderRadius: BorderRadius.circular(AppTheme.cardRadius),
     boxShadow: context.appColors.cardShadow,
   );
-
-  static Color lessonBackground(BuildContext context, int index) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? Color.alphaBlend(
-          lessonForegrounds[index].withValues(alpha: .24),
-          context.appColors.surface,
-        )
-      : lessonBackgrounds[index];
-
-  static Color lessonForeground(BuildContext context, int index) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? Color.lerp(lessonForegrounds[index], Colors.white, .48)!
-      : lessonForegrounds[index];
 }
 
 /// The timetable remains visible while the solver runs, matching the design's
@@ -1876,9 +1839,10 @@ class _TimetableGrid extends StatelessWidget {
       );
     }
     final first = cellItems.first;
-    final colorIndex = _SchedulePalette.subjectColorIndex(
+    final subjectForeground = SubjectColors.of(context, first.subjectId);
+    final subjectBackground = SubjectColors.cellBackground(
+      context,
       first.subjectId,
-      subjectNames[first.subjectId],
     );
     final sameMeeting =
         first.meetingId != null &&
@@ -1895,7 +1859,7 @@ class _TimetableGrid extends StatelessWidget {
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: _SchedulePalette.lessonBackground(context, colorIndex),
+          color: subjectBackground,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -1918,23 +1882,23 @@ class _TimetableGrid extends StatelessWidget {
                   for (final item in cellItems.take(3)) ...[
                     if (item != first) const SizedBox(height: 5),
                     if (wholeCellDrag)
-                      _lessonSummary(
-                        '${_weekPrefix(item)}${switch (displayView) {
-                          _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
-                          _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
-                          _ScheduleView.all => '',
-                        }}',
-                        switch (displayView) {
-                          _ScheduleView.schoolClass =>
-                            teacherNames[item.teacherId] ?? item.teacherId,
-                          _ScheduleView.teacher =>
-                            subjectNames[item.subjectId] ?? item.subjectId,
-                          _ScheduleView.room =>
-                            classNames[item.classId] ?? item.classId,
-                          _ScheduleView.all => '',
-                        },
-                        _SchedulePalette.lessonForeground(context, colorIndex),
-                      )
+                        _lessonSummary(
+                          '${_weekPrefix(item)}${switch (displayView) {
+                            _ScheduleView.schoolClass || _ScheduleView.room => subjectNames[item.subjectId] ?? item.subjectId,
+                            _ScheduleView.teacher => classNames[item.classId] ?? item.classId,
+                            _ScheduleView.all => '',
+                          }}',
+                          switch (displayView) {
+                            _ScheduleView.schoolClass =>
+                              teacherNames[item.teacherId] ?? item.teacherId,
+                            _ScheduleView.teacher =>
+                              subjectNames[item.subjectId] ?? item.subjectId,
+                            _ScheduleView.room =>
+                              classNames[item.classId] ?? item.classId,
+                            _ScheduleView.all => '',
+                          },
+                          subjectForeground,
+                        )
                     else
                       _draggableItem(
                         item,
@@ -1954,12 +1918,9 @@ class _TimetableGrid extends StatelessWidget {
                               classNames[item.classId] ?? item.classId,
                             _ScheduleView.all => '',
                           },
-                          _SchedulePalette.lessonForeground(
-                            context,
-                            colorIndex,
-                          ),
+                          subjectForeground,
                         ),
-                        _SchedulePalette.lessonBackground(context, colorIndex),
+                        subjectBackground,
                       ),
                   ],
                 ],
@@ -1971,7 +1932,7 @@ class _TimetableGrid extends StatelessWidget {
       first,
       '${classNames[first.classId] ?? first.classId} · ${subjectNames[first.subjectId] ?? first.subjectId}',
       card,
-      _SchedulePalette.lessonBackground(context, colorIndex),
+      subjectBackground,
     );
   }
 
@@ -2561,12 +2522,9 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
               return _LessonDragHandle(
                 item: item,
                 label: label,
-                feedbackColor: _SchedulePalette.lessonBackground(
+                feedbackColor: SubjectColors.cellBackground(
                   context,
-                  _SchedulePalette.subjectColorIndex(
-                    item.subjectId,
-                    widget.subjectNames[item.subjectId],
-                  ),
+                  item.subjectId,
                 ),
                 draggedItemId: widget.draggedItemId,
                 onPreviewMove: widget.onPreviewMove,
