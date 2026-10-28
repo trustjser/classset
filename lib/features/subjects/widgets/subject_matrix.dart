@@ -17,7 +17,7 @@ import 'package:flutter/services.dart'
         LogicalKeyboardKey;
 import 'package:forui/forui.dart' as f;
 
-/// 科目节数矩阵：行 = 科目，列 = 年级，末列 = 科目预设。
+/// 科目节数矩阵：行 = 科目，列 = 年级，末列 = 科目高级设置。
 ///
 /// 视觉遵循 design/DESIGN.md：不用灰底色带与连续边框表格，
 /// 以留白、细线和 hover 浅底组织层级。
@@ -29,6 +29,7 @@ class SubjectMatrix extends StatefulWidget {
     required this.valuesFor,
     required this.summaries,
     required this.presetSummaries,
+    this.advancedSummaries = const {},
     required this.onCellTap,
     required this.onEditSubject,
     required this.onDeleteSubject,
@@ -57,6 +58,7 @@ class SubjectMatrix extends StatefulWidget {
 
   /// 科目 ID → 预设摘要与完整提示内容（null = 无预设）。
   final Map<String, SubjectPresetSummary?> presetSummaries;
+  final Map<String, SubjectAdvancedDetails> advancedSummaries;
 
   final void Function(Subject subject, GradeGroup grade) onCellTap;
   final ValueChanged<Subject> onEditSubject;
@@ -95,7 +97,7 @@ class SubjectMatrix extends StatefulWidget {
 
   static const double _nameColumnWidth = 104;
   static const double _gradeColumnWidth = 112;
-  static const double _presetColumnWidth = 104;
+  static const double _presetColumnWidth = 210;
 
   @override
   State<SubjectMatrix> createState() => _SubjectMatrixState();
@@ -373,6 +375,8 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
                     valuesFor: widget.valuesFor,
                     presetSummary:
                         widget.presetSummaries[widget.subjects[index].id],
+                    advancedDetails:
+                        widget.advancedSummaries[widget.subjects[index].id],
                     onCellTap: widget.onCellTap,
                     onEditSubject: widget.onEditSubject,
                     onDeleteSubject: widget.onDeleteSubject,
@@ -394,6 +398,7 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
                       classesByGrade: widget.classesByGrade,
                       valuesFor: widget.valuesFor,
                       presetSummary: widget.presetSummaries[subject.id],
+                      advancedDetails: widget.advancedSummaries[subject.id],
                       onCellTap: widget.onCellTap,
                       onEditSubject: widget.onEditSubject,
                       onDeleteSubject: widget.onDeleteSubject,
@@ -609,6 +614,7 @@ class _SubjectRow extends StatelessWidget {
     required this.classesByGrade,
     required this.valuesFor,
     required this.presetSummary,
+    required this.advancedDetails,
     required this.onCellTap,
     required this.onEditSubject,
     required this.onDeleteSubject,
@@ -625,6 +631,7 @@ class _SubjectRow extends StatelessWidget {
 
   /// 预设摘要与完整提示内容（null = 无预设）。
   final SubjectPresetSummary? presetSummary;
+  final SubjectAdvancedDetails? advancedDetails;
   final void Function(Subject subject, GradeGroup grade) onCellTap;
   final ValueChanged<Subject> onEditSubject;
   final ValueChanged<Subject> onDeleteSubject;
@@ -663,10 +670,10 @@ class _SubjectRow extends StatelessWidget {
         // 科目预设列固定在右侧，不随横向滚动。
         SizedBox(
           width: SubjectMatrix._presetColumnWidth,
-          height: 40,
           child: _PresetCell(
             key: ValueKey('preset-summary-${subject.id}'),
             summary: presetSummary,
+            details: advancedDetails,
             onTap: visibleGrades.isEmpty
                 ? null
                 : () => onPresetTap(subject, visibleGrades.first),
@@ -677,63 +684,69 @@ class _SubjectRow extends StatelessWidget {
   );
 }
 
-/// 「科目预设」列：展示预设摘要，点击进入编辑。
+/// 高级设置列：展示预设、课节限制与场室摘要，点击进入编辑。
 class _PresetCell extends StatelessWidget {
-  const _PresetCell({required this.summary, required this.onTap, super.key});
-
+  const _PresetCell({
+    required this.summary,
+    required this.details,
+    required this.onTap,
+    super.key,
+  });
   final SubjectPresetSummary? summary;
+  final SubjectAdvancedDetails? details;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final canEdit = onTap != null;
-    final summaryText = summary?.text;
-    final Widget content = summaryText == null
-        ? Text(
-            '—',
-            style: TextStyle(color: context.appColors.muted, fontSize: 10.5),
-          )
-        : Row(
-            children: [
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.appColors.selectedBlue,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    summaryText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: context.appColors.blue,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+    final hasDetails =
+        summary != null ||
+        details?.constraints != null ||
+        details?.rooms != null;
+    final tooltip = [
+      if (summary != null) '科目预设\n${summary!.tooltip}',
+      if (details?.tooltip.isNotEmpty == true) details!.tooltip,
+      if (canEdit) '点击编辑科目高级设置',
+    ].join('\n');
+    Widget line(String label, String value, {bool accent = false}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 34,
+            child: Text(
+              label,
+              style: TextStyle(color: context.appColors.muted, fontSize: 10.5),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: accent
+                    ? context.appColors.blue
+                    : context.appColors.inkSecondary,
+                fontSize: 10.5,
+                fontWeight: accent ? FontWeight.w600 : FontWeight.w400,
               ),
-            ],
-          );
+            ),
+          ),
+        ],
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.only(left: 14, right: 8),
       child: Tooltip(
-        message: canEdit
-            ? summary == null
-                  ? '点击设置科目高级设置'
-                  : '${summary!.tooltip}\n点击编辑科目高级设置'
-            : summary?.tooltip ?? '',
+        message: hasDetails ? tooltip : (canEdit ? '点击设置科目高级设置' : ''),
         child: MouseRegion(
           cursor: canEdit ? SystemMouseCursors.click : SystemMouseCursors.basic,
           child: Semantics(
             button: canEdit,
-            label: summaryText == null
-                ? (canEdit ? '设置科目高级设置' : '无科目高级设置')
-                : '科目高级设置：$summaryText',
+            label: hasDetails
+                ? '科目高级设置：$tooltip'
+                : (canEdit ? '设置科目高级设置' : '无科目高级设置'),
             hint: canEdit ? '点击编辑科目高级设置' : null,
             child: Material(
               color: Colors.transparent,
@@ -742,9 +755,31 @@ class _PresetCell extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
                 hoverColor: context.appColors.selectedBlue,
                 focusColor: context.appColors.selectedBlue,
-                child: SizedBox(
-                  height: 40,
-                  child: Align(alignment: Alignment.centerLeft, child: content),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 40),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: hasDetails
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (summary != null)
+                                line('预设', summary!.text, accent: true),
+                              if (details?.constraints case final value?)
+                                line('限制', value),
+                              if (details?.rooms case final value?)
+                                line('场室', value),
+                            ],
+                          )
+                        : Text(
+                            '—',
+                            style: TextStyle(
+                              color: context.appColors.muted,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                  ),
                 ),
               ),
             ),

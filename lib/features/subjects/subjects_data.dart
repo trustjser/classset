@@ -446,6 +446,13 @@ bool _scopeMatches(
 /// 矩阵「科目预设」列的显示文本与完整提示。
 typedef SubjectPresetSummary = ({String text, String tooltip});
 
+/// 课节限制与场室设置的可见摘要和范围详情。
+typedef SubjectAdvancedDetails = ({
+  String? constraints,
+  String? rooms,
+  String tooltip,
+});
+
 /// 矩阵「科目预设」列摘要：如「5 固定 · 3 不排」；无预设返回 null。
 String? presetSummaryText(Map<String, PresetValue> effective) {
   if (effective.isEmpty) return null;

@@ -6,6 +6,9 @@ import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/free_slot.dart';
+import 'package:class_set/domain/models/public_room.dart';
+import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/subject_parallel_limit.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
@@ -812,6 +815,129 @@ void main() {
     expect(
       tester.widget<Tooltip>(tooltip).message,
       contains('一（1）班 单周：需求 30 节，课位 20，超出 10 节'),
+    );
+  });
+
+  testWidgets('高级设置列显示预设、课节限制及场室设置并实时更新', (tester) async {
+    await seedData();
+    await repository.savePublicRooms([
+      const PublicRoom(
+        id: 'room',
+        name: '音乐教室',
+        roomCount: 1,
+        capacityPerRoom: 2,
+        sortOrder: 0,
+      ),
+    ]);
+    await repository.replaceSubjectPresets(
+      subjectId: 's_chinese',
+      termId: 't1',
+      scope: FreeSlotScope.stage,
+      scopeId: 'jr',
+      stageId: 'jr',
+      presets: [
+        const SubjectPreset(
+          id: 'preset',
+          subjectId: 's_chinese',
+          scope: FreeSlotScope.stage,
+          scopeId: 'jr',
+          stageId: 'jr',
+          weekday: 1,
+          periodTypeId: 'p_am',
+          lessonIndex: 1,
+          value: PresetValue.must,
+        ),
+      ],
+    );
+    await repository.replaceSubjectLessonConstraints(
+      subjectId: 's_chinese',
+      scope: FreeSlotScope.stage,
+      scopeId: 'jr',
+      stageId: 'jr',
+      constraints: [
+        const SubjectLessonConstraint(
+          id: '',
+          subjectId: 's_chinese',
+          scope: FreeSlotScope.stage,
+          scopeId: 'jr',
+          stageId: 'jr',
+          weekday: null,
+          maximumDailyLessons: 2,
+        ),
+      ],
+    );
+    await repository.replaceSubjectRoomSettings(
+      termId: 't1',
+      subjectId: 's_chinese',
+      assignments: [
+        const SubjectRoomAssignment(
+          id: '',
+          termId: 't1',
+          subjectId: 's_chinese',
+          stageId: 'jr',
+          scope: FreeSlotScope.stage,
+          scopeId: 'jr',
+          roomId: 'room',
+        ),
+      ],
+      limits: [
+        const SubjectParallelLimit(
+          id: '',
+          termId: 't1',
+          subjectId: 's_chinese',
+          stageId: 'jr',
+          scope: FreeSlotScope.stage,
+          scopeId: 'jr',
+          maxParallelLessons: 2,
+        ),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    final summary = find.byKey(const ValueKey('preset-summary-s_chinese'));
+    expect(
+      find.descendant(of: summary, matching: find.text('1 固定')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: summary, matching: find.textContaining('每天最多 2 节')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: summary, matching: find.textContaining('音乐教室')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: summary, matching: find.textContaining('并行上限 2')),
+      findsOneWidget,
+    );
+    final tooltip = tester.widget<Tooltip>(
+      find.descendant(of: summary, matching: find.byType(Tooltip)),
+    );
+    expect(tooltip.message, contains('初中部 · 学段：每天最多 2 节'));
+    expect(tooltip.message, contains('初中部 · 学段：音乐教室'));
+    await repository.replaceSubjectRoomSettings(
+      termId: 't1',
+      subjectId: 's_chinese',
+      assignments: [],
+      limits: [],
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: summary, matching: find.textContaining('音乐教室')),
+      findsNothing,
+    );
+    await repository.replaceSubjectLessonConstraints(
+      subjectId: 's_chinese',
+      scope: FreeSlotScope.stage,
+      scopeId: 'jr',
+      stageId: 'jr',
+      constraints: [],
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: summary, matching: find.textContaining('每天最多 2 节')),
+      findsNothing,
     );
   });
 

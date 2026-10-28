@@ -163,8 +163,17 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         (entry) => entry.value.expand((edit) => edit.constraints),
       ),
     ];
-    ref.watch(subjectRoomAssignmentsProvider(term.id));
-    ref.watch(subjectParallelLimitsProvider(term.id));
+    final roomAssignments = [
+      ...ref.watch(subjectRoomAssignmentsProvider(term.id)).valueOrNull ??
+          const <SubjectRoomAssignment>[],
+      ..._newSubjectRoomDrafts.values.expand((draft) => draft.assignments),
+    ];
+    final parallelLimits = [
+      ...ref.watch(subjectParallelLimitsProvider(term.id)).valueOrNull ??
+          const <SubjectParallelLimit>[],
+      ..._newSubjectRoomDrafts.values.expand((draft) => draft.limits),
+    ];
+    final rooms = ref.watch(publicRoomsProvider).valueOrNull ?? const [];
     final routines =
         ref.watch(routinesForTermProvider(term.id)).valueOrNull ??
         const <String, StageRoutine>{};
@@ -333,6 +342,17 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                     allGrades: allGrades,
                     contextGrade: contextGrade,
                     classBriefs: classBriefs,
+                  ),
+                  advancedSummaries: _advancedSummaries(
+                    subjects: subjects,
+                    constraints: lessonConstraints,
+                    assignments: roomAssignments,
+                    limits: parallelLimits,
+                    roomNames: {for (final room in rooms) room.id: room.name},
+                    stages: stages,
+                    grades: allGrades,
+                    classes: classBriefs,
+                    termId: term.id,
                   ),
                   onCellTap: (subject, grade) {
                     // 普通课时格的选择不改变预设摘要上下文，避免编辑节数
@@ -765,6 +785,114 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
               '${detail.label}：${detail.summary}',
           ];
           return (text: displayText, tooltip: tooltipLines.toSet().join('\n'));
+        }(),
+    };
+  }
+
+  Map<String, SubjectAdvancedDetails> _advancedSummaries({
+    required List<Subject> subjects,
+    required List<SubjectLessonConstraint> constraints,
+    required List<SubjectRoomAssignment> assignments,
+    required List<SubjectParallelLimit> limits,
+    required Map<String, String> roomNames,
+    required List<SchoolStage> stages,
+    required List<GradeGroup> grades,
+    required List<ClassBrief> classes,
+    required String termId,
+  }) {
+    final stageNames = {for (final stage in stages) stage.id: stage.name};
+    String scopeLabel(FreeSlotScope scope, String id, String stageId) {
+      final stage = stageNames[stageId] ?? stageId;
+      return switch (scope) {
+        FreeSlotScope.school => '$stage · 全校',
+        FreeSlotScope.stage => '$stage · 学段',
+        FreeSlotScope.grade =>
+          '$stage · ${grades.where((g) => g.id == id).firstOrNull?.name ?? id}',
+        FreeSlotScope.schoolClass =>
+          '$stage · ${classes.where((c) => c.id == id).firstOrNull?.name ?? id}',
+      };
+    }
+
+    String compact(List<String> values) {
+      final unique = values.toSet().toList();
+      return unique.length <= 1
+          ? unique.firstOrNull ?? ''
+          : '${unique.first} 等 ${unique.length} 项';
+    }
+
+    return {
+      for (final subject in subjects)
+        subject.id: () {
+          final restrictionLines = <String>[];
+          final restrictionDetails = <String>[];
+          for (final row in constraints.where(
+            (row) =>
+                row.subjectId == subject.id &&
+                stageNames.containsKey(row.stageId),
+          )) {
+            final day = row.weekday == null
+                ? '每天'
+                : '周${['一', '二', '三', '四', '五', '六', '日'][row.weekday! - 1]}';
+            final parts = <String>[
+              if (row.minimumDailyLessons != null)
+                '$day最少 ${row.minimumDailyLessons} 节',
+              if (row.maximumDailyLessons != null)
+                '$day最多 ${row.maximumDailyLessons} 节',
+              if (row.minimumDailyConsecutivePairs != null)
+                '$day最少连堂 ${row.minimumDailyConsecutivePairs} 次',
+              if (row.maximumDailyConsecutivePairs != null)
+                '$day最多连堂 ${row.maximumDailyConsecutivePairs} 次',
+              if (row.minimumWeeklyConsecutivePairs != null)
+                '每周最少连堂 ${row.minimumWeeklyConsecutivePairs} 次',
+              if (row.maximumWeeklyConsecutivePairs != null)
+                '每周最多连堂 ${row.maximumWeeklyConsecutivePairs} 次',
+            ];
+            if (parts.isNotEmpty) {
+              restrictionLines.addAll(parts);
+              restrictionDetails.add(
+                '${scopeLabel(row.scope, row.scopeId, row.stageId)}：${parts.join(' · ')}',
+              );
+            }
+          }
+          final roomLines = <String>[];
+          final roomDetails = <String>[];
+          for (final row in assignments.where(
+            (row) =>
+                row.subjectId == subject.id &&
+                row.termId == termId &&
+                stageNames.containsKey(row.stageId),
+          )) {
+            final name = row.roomId == null
+                ? '不使用场室'
+                : roomNames[row.roomId] ?? '未知场室';
+            roomLines.add(name);
+            roomDetails.add(
+              '${scopeLabel(row.scope, row.scopeId, row.stageId)}：$name',
+            );
+          }
+          for (final row in limits.where(
+            (row) =>
+                row.subjectId == subject.id &&
+                row.termId == termId &&
+                stageNames.containsKey(row.stageId),
+          )) {
+            final value = '并行上限 ${row.maxParallelLessons}';
+            roomLines.add(value);
+            roomDetails.add(
+              '${scopeLabel(row.scope, row.scopeId, row.stageId)}：$value',
+            );
+          }
+          return (
+            constraints: restrictionLines.isEmpty
+                ? null
+                : compact(restrictionLines),
+            rooms: roomLines.isEmpty ? null : roomLines.toSet().join(' · '),
+            tooltip: [
+              if (restrictionDetails.isNotEmpty)
+                '课节限制\n${restrictionDetails.join('\n')}',
+              if (roomDetails.isNotEmpty) '科目场室\n${roomDetails.join('\n')}',
+            ].join('\n'),
+          );
         }(),
     };
   }
