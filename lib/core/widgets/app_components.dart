@@ -1402,6 +1402,7 @@ class AppSelectField<T> extends StatelessWidget {
     this.contentGroupId,
     this.searchable = false,
     this.searchHint = '搜索选项',
+    this.compact = false,
     super.key,
   });
 
@@ -1416,35 +1417,90 @@ class AppSelectField<T> extends StatelessWidget {
   final bool searchable;
   final String searchHint;
 
+  /// Compact, softly filled treatment for toolbar filters.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final control = FSelectControl.lifted(value: value, onChange: onChanged);
     final fieldLabel = label == null ? null : Text(label!);
+    final selectStyle = compact
+        ? FSelectStyleDelta.delta(
+            fieldStyles: FVariantsDelta.delta([
+              FVariantOperation.match(
+                {FTextFieldSizeVariant.sm},
+                FTextFieldStyleDelta.delta(
+                  constraints: const BoxConstraints(minHeight: 32),
+                  contentPadding: .value(
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  ),
+                  color: FVariantsValueDelta.delta([
+                    FVariantValueDeltaOperation.all(
+                      context.appColors.tableHeader,
+                    ),
+                  ]),
+                  border: FVariantsValueDelta.delta([
+                    FVariantValueDeltaOperation.base(
+                      const forui_material.OutlineInputBorder(
+                        borderSide: BorderSide.none,
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ]),
+          )
+        : const FSelectStyleDelta.context();
+    // The input decorator reserves four pixels below its painted container.
+    // Offset the compact field so its visible fill aligns with toolbar labels.
+    Widget alignCompactField(Widget child) => compact
+        ? Transform.translate(offset: const Offset(0, 2), child: child)
+        : child;
     if (!searchable) {
-      return FSelect<T>(
+      return alignCompactField(
+        FSelect<T>(
+          size: compact ? FTextFieldSizeVariant.sm : FTextFieldSizeVariant.md,
+          style: selectStyle,
+          textAlignVertical: compact ? TextAlignVertical.center : null,
+          items: items,
+          control: control,
+          enabled: enabled,
+          label: fieldLabel,
+          hint: hint,
+          contentGroupId: contentGroupId,
+        ),
+      );
+    }
+
+    return alignCompactField(
+      FSelect<T>.search(
+        size: compact ? FTextFieldSizeVariant.sm : FTextFieldSizeVariant.md,
+        style: selectStyle,
+        textAlignVertical: compact ? TextAlignVertical.center : null,
+        contentConstraints: compact
+            ? const FPortalConstraints(
+                minWidth: 260,
+                maxWidth: 320,
+                maxHeight: 300,
+              )
+            : const FAutoWidthPortalConstraints(maxHeight: 300),
         items: items,
+        filter: (query) {
+          final normalizedQuery = query.trim().toLowerCase();
+          return items.entries
+              .where(
+                (entry) => entry.key.toLowerCase().contains(normalizedQuery),
+              )
+              .map((entry) => entry.value);
+        },
+        searchFieldProperties: FSelectSearchFieldProperties(hint: searchHint),
         control: control,
         enabled: enabled,
         label: fieldLabel,
         hint: hint,
         contentGroupId: contentGroupId,
-      );
-    }
-
-    return FSelect<T>.search(
-      items: items,
-      filter: (query) {
-        final normalizedQuery = query.trim().toLowerCase();
-        return items.entries
-            .where((entry) => entry.key.toLowerCase().contains(normalizedQuery))
-            .map((entry) => entry.value);
-      },
-      searchFieldProperties: FSelectSearchFieldProperties(hint: searchHint),
-      control: control,
-      enabled: enabled,
-      label: fieldLabel,
-      hint: hint,
-      contentGroupId: contentGroupId,
+      ),
     );
   }
 }

@@ -472,6 +472,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
     final selector = switch (_view) {
       _ScheduleView.schoolClass => AppSelectField<String>(
         key: const ValueKey('schedule-class-selector'),
+        compact: true,
         items: _uniqueSelectorItems(
           snapshot.classes.map(
             (item) => (
@@ -488,6 +489,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
       ),
       _ScheduleView.teacher => AppSelectField<String>(
         key: const ValueKey('schedule-teacher-selector'),
+        compact: true,
         items: _uniqueSelectorItems(
           snapshot.teachers.map((item) => (item.displayName, item.id)),
         ),
@@ -499,6 +501,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
       ),
       _ScheduleView.room => AppSelectField<String>(
         key: const ValueKey('schedule-room-selector'),
+        compact: true,
         items: _uniqueSelectorItems(
           snapshot.rooms.map((item) => (item.name, item.id)),
         ),
@@ -574,9 +577,10 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                     _controlLabel(context, '学段'),
                     const SizedBox(width: 8),
                     SizedBox(
-                      width: 145,
+                      width: 112,
                       child: AppSelectField<String>(
                         key: const ValueKey('schedule-stage-selector'),
+                        compact: true,
                         items: _uniqueSelectorItems([
                           ('全部学段', ''),
                           ...snapshot.stages.map(
@@ -627,9 +631,10 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 ),
                 if (_allLayout == _AllScheduleLayout.classes)
                   SizedBox(
-                    width: 108,
+                    width: 96,
                     child: AppSelectField<int>(
                       key: const ValueKey('schedule-weekday-selector'),
+                      compact: true,
                       items: {
                         for (var day = 1; day <= 7; day++) _dayLabel(day): day,
                       },
@@ -652,7 +657,10 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                       _ScheduleView.all => '',
                     }),
                     const SizedBox(width: 8),
-                    SizedBox(width: 230, child: selector),
+                    SizedBox(
+                      width: _view == _ScheduleView.schoolClass ? 210 : 175,
+                      child: selector,
+                    ),
                   ],
                 ),
               if (_view != _ScheduleView.all) _toolbarDivider(),

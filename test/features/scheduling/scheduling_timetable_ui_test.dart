@@ -14,6 +14,7 @@ import 'package:class_set/features/scheduling/scheduling_timetable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart' as f;
+import 'package:material_ui/material_ui.dart' as material_ui;
 
 void main() {
   Future<void> mount(WidgetTester tester) async {
@@ -196,6 +197,94 @@ void main() {
     );
     await tester.tap(find.text('教师课程表'));
     await tester.pumpAndSettle();
+    final paintedBackground = find.descendant(
+      of: find.descendant(
+        of: find.byKey(const ValueKey('schedule-stage-selector')),
+        matching: find.byType(material_ui.InputDecorator),
+      ),
+      matching: find.byType(CustomPaint),
+    );
+    expect(paintedBackground, findsOneWidget);
+    expect(
+      (tester.getCenter(find.text('学段')) - tester.getCenter(paintedBackground))
+          .dy
+          .abs(),
+      lessThanOrEqualTo(.5),
+    );
+    final teacherBackground = find.descendant(
+      of: find.descendant(
+        of: find.byKey(const ValueKey('schedule-teacher-selector')),
+        matching: find.byType(material_ui.InputDecorator),
+      ),
+      matching: find.byType(CustomPaint),
+    );
+    expect(teacherBackground, findsOneWidget);
+    expect(
+      (tester.getCenter(find.text('教师')) - tester.getCenter(teacherBackground))
+          .dy
+          .abs(),
+      lessThanOrEqualTo(.5),
+    );
+    for (final key in [
+      'schedule-stage-selector',
+      'schedule-teacher-selector',
+    ]) {
+      final filter = find.byKey(ValueKey(key));
+      final select = tester.widget<f.FSelect<String>>(
+        find.descendant(
+          of: filter,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is f.FSelect<String>,
+          ),
+        ),
+      );
+      final context = tester.element(filter);
+      final style = select
+          .style(f.FTheme.of(context).selectStyle)
+          .fieldStyles
+          .resolve({f.FTextFieldSizeVariant.sm});
+      expect(style.border.base, isA<material_ui.OutlineInputBorder>());
+      expect(
+        (style.border.base as material_ui.OutlineInputBorder).borderRadius,
+        BorderRadius.circular(8),
+      );
+    }
+    expect(
+      (tester.getCenter(find.text('学段')) -
+              tester.getCenter(
+                find.byKey(const ValueKey('schedule-stage-selector')),
+              ))
+          .dy
+          .abs(),
+      lessThanOrEqualTo(1),
+    );
+    expect(
+      (tester.getCenter(find.text('教师')) -
+              tester.getCenter(
+                find.byKey(const ValueKey('schedule-teacher-selector')),
+              ))
+          .dy
+          .abs(),
+      lessThanOrEqualTo(1),
+    );
+    expect(
+      (tester.getCenter(find.text('学段')) - tester.getCenter(find.text('全部学段')))
+          .dy
+          .abs(),
+      lessThanOrEqualTo(2),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('schedule-stage-selector')))
+          .height,
+      lessThanOrEqualTo(34),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('schedule-teacher-selector')))
+          .height,
+      lessThanOrEqualTo(34),
+    );
     await search('schedule-teacher-selector', '搜索教师', '李', '李老师', 'teacher2');
     await tester.tap(find.text('场室课程表'));
     await tester.pumpAndSettle();
