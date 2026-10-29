@@ -155,6 +155,7 @@ void main() {
         semesterLabel: '秋季学期',
         firstTeachingWeekStart: DateTime(2026, 9, 1),
         teachingWeekCount: 20,
+        cycleMode: AcademicTermCycle.everyWeek,
         createdAt: DateTime(2026, 8, 1),
       ),
     );
@@ -552,6 +553,51 @@ void main() {
     final expanded = await scheduling.loadSchedulingSnapshot('term-flow');
     expect(expanded.existingItems, hasLength(2));
     expect(expanded.assignments.single.lessonCount, 2);
+
+    await school.saveTerm(
+      expanded.term.copyWith(cycleMode: AcademicTermCycle.alternating),
+    );
+    await school.replaceGradeRequirements(
+      gradeId: 'grade-flow',
+      requirements: const [
+        SubjectRequirement(
+          id: 'per-class',
+          subjectId: 'subject-flow',
+          gradeId: 'grade-flow',
+          classId: 'class-flow',
+          weekMode: WeekMode.weekly,
+          lessonCount: 2,
+        ),
+      ],
+    );
+    final cycleBaseline = (await scheduling.loadPendingSchedulingBaseline(
+      'term-flow',
+    ))!;
+    final cycleCurrent = await scheduling.loadSchedulingSnapshot('term-flow');
+    final cyclePreview = const ScheduleReconciler().preview(
+      cycleBaseline,
+      cycleCurrent,
+    );
+    expect(
+      cyclePreview.changes.where((change) => change.group == '科目节数'),
+      isEmpty,
+    );
+    expect(cyclePreview.canApply, isTrue);
+    expect(cyclePreview.keptCount, 2);
+    expect(
+      cycleCurrent.existingItems.map((item) => item.position?.cellKey).toSet(),
+      expanded.existingItems.map((item) => item.position?.cellKey).toSet(),
+    );
+    await scheduling.commitScheduleReconciliation(
+      termId: 'term-flow',
+      expectedFingerprint: cyclePreview.inputFingerprint,
+    );
+    final afterCycle = await scheduling.loadSchedulingSnapshot('term-flow');
+    expect(
+      afterCycle.existingItems.map((item) => item.position?.cellKey).toSet(),
+      expanded.existingItems.map((item) => item.position?.cellKey).toSet(),
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('term-flow'), isNull);
 
     final position = expanded.existingItems.first.position!;
     await school.saveFreeSlot(

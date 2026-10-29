@@ -1531,9 +1531,30 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         );
       }
       for (final grade in grades) {
-        final rows = effective
-            .where((requirement) => requirement.gradeId == grade.id)
-            .toList();
+        final editedSubjectIds = {
+          for (final subject in subjects)
+            if (classBriefs.any(
+              (schoolClass) =>
+                  schoolClass.gradeId == grade.id &&
+                  WeekMode.values.any(
+                    (mode) => _draft.containsKey(
+                      _scopeKey(subject.id, schoolClass.id, mode),
+                    ),
+                  ),
+            ))
+              subject.id,
+        };
+        final rows = [
+          for (final row in requirements)
+            if (row.gradeId == grade.id &&
+                !editedSubjectIds.contains(row.subjectId) &&
+                !_deletedSubjectIds.contains(row.subjectId))
+              row,
+          for (final row in effective)
+            if (row.gradeId == grade.id &&
+                editedSubjectIds.contains(row.subjectId))
+              row,
+        ];
         await repository.replaceGradeRequirements(
           gradeId: grade.id,
           requirements: rows,

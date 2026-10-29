@@ -14,12 +14,25 @@ import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
 import 'package:class_set/features/scheduling/scheduling_controller.dart';
 import 'package:class_set/features/scheduling/schedule_export.dart';
+import 'package:class_set/features/scheduling/timetable_export_dialog.dart';
 import 'package:class_set/features/scheduling/scheduling_timetable.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
+
+/// 保存位置选择器作为依赖注入，便于不同平台和测试复用。
+final timetableExportSaveLocationProvider =
+    Provider<Future<FileSaveLocation?> Function(String)>(
+      (ref) =>
+          (name) => getSaveLocation(
+            suggestedName: name,
+            acceptedTypeGroups: [
+              const XTypeGroup(label: 'ZIP 压缩包', extensions: ['zip']),
+            ],
+          ),
+    );
 
 class SchedulingPage extends ConsumerStatefulWidget {
   const SchedulingPage({required this.termId, super.key});
@@ -32,6 +45,7 @@ class SchedulingPage extends ConsumerStatefulWidget {
 
 class _SchedulingPageState extends ConsumerState<SchedulingPage> {
   bool _showReconciliation = false;
+  bool _exporting = false;
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(schedulingControllerProvider(widget.termId));
@@ -172,7 +186,7 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
                     onCancel: controller.cancel,
                     onDone: () => unawaited(controller.refresh()),
                     onExport: (items, title) =>
-                        unawaited(_showExportDialog(snapshot, items, title)),
+                        unawaited(_showExportDialog(snapshot, state.items)),
                     onPreviewMove: controller.previewMove,
                     onMove: controller.move,
                     onPlaceUnplaced: controller.placeUnplaced,
@@ -209,6 +223,7 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
                 },
                 onClose: () => setState(() => _showReconciliation = false),
               ),
+            if (_exporting) const TimetableExportLoading(),
           ],
         ),
       ),
@@ -784,66 +799,55 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
   Future<void> _showExportDialog(
     SchedulingSnapshot snapshot,
     List<ScheduleItem> items,
-    String title,
   ) async {
-    final export = await showAppDialog<bool>(
+    if (_exporting) return;
+    final options = await showAppDialog<TimetableExportOptions>(
       context: context,
-      builder: (dialogContext) => AppDialog(
-        maxWidth: 480,
-        title: AppDialogTitle(
-          title: '导出/打印课表',
-          onClose: () => Navigator.pop(dialogContext),
-        ),
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Text(
-              '导出当前视图的 ${items.length} 节已排课程为 Excel 文件。'
-              '保存后可在表格软件中打印。',
-            ),
-          ],
-        ),
-        actions: [
-          AppSecondaryButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          AppPrimaryButton(
-            onPressed: items.isEmpty
-                ? null
-                : () => Navigator.pop(dialogContext, true),
-            child: const Text('导出 Excel'),
-          ),
-        ],
-      ),
+      builder: (context) => const TimetableExportDialog(),
     );
-    if (export != true || !mounted) return;
+    if (options == null || !mounted || _exporting) return;
+    setState(() => _exporting = true);
     try {
-      final location = await getSaveLocation(
-        suggestedName: '课集课表.xlsx',
-        acceptedTypeGroups: [
-          const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
-        ],
+      final repository = ref.read(schoolRepositoryProvider);
+      final storedName = (await repository.watchSchoolName().first).trim();
+      final schoolName = storedName.isEmpty ? '未命名学校' : storedName;
+      if (!mounted) return;
+      final name = timetableZipFileName(schoolName, snapshot.term);
+      final location = await ref.read(timetableExportSaveLocationProvider)(
+        name,
       );
-      if (location == null) return;
-      final bytes = buildScheduleWorkbook(snapshot, items);
+      if (location == null || !mounted) return;
+      final results = await Future.wait([
+        for (final stage in snapshot.stages)
+          repository.watchCommonPeriods(stage.id).first,
+      ]);
+      final commonPeriods = {
+        for (var i = 0; i < snapshot.stages.length; i++)
+          snapshot.stages[i].id: results[i],
+      };
+      final bytes = await buildTimetableZipAsync(
+        snapshot,
+        items,
+        schoolName: schoolName,
+        commonPeriods: commonPeriods,
+        options: options,
+      );
       await XFile.fromData(
         Uint8List.fromList(bytes),
-        name: '课集课表.xlsx',
-        mimeType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        name: name,
+        mimeType: 'application/zip',
       ).saveTo(location.path);
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('课表已导出')));
+            .showSnackBar(const SnackBar(content: Text('课表压缩包已导出')));
       }
     } on Object catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('导出课表失败：$error')));
       }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
   }
 }

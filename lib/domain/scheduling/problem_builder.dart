@@ -110,23 +110,23 @@ class ProblemBuilder {
       }
     }
 
-    final effectiveDemand = <String, int>{};
+    final effectiveDemand = <(String, String, WeekMode), int>{};
     for (final schoolClass in snapshot.classes) {
       final rows = snapshot.requirements.where(
         (row) => row.gradeId == schoolClass.gradeId,
       );
-      final bySubjectWeek = <String, SubjectRequirement>{};
+      final bySubjectWeek = <(String, WeekMode), SubjectRequirement>{};
       for (final row in rows.where((row) => row.classId == null)) {
-        bySubjectWeek['${row.subjectId}:${row.weekMode.name}'] = row;
+        bySubjectWeek[(row.subjectId, row.weekMode)] = row;
       }
       for (final row in rows.where((row) => row.classId == schoolClass.id)) {
-        bySubjectWeek['${row.subjectId}:${row.weekMode.name}'] = row;
+        bySubjectWeek[(row.subjectId, row.weekMode)] = row;
       }
       var oddDemand = 0;
       var evenDemand = 0;
       for (final row in bySubjectWeek.values) {
         if (row.lessonCount <= 0) continue;
-        final key = '${schoolClass.id}:${row.subjectId}:${row.weekMode.name}';
+        final key = (schoolClass.id, row.subjectId, row.weekMode);
         effectiveDemand[key] = row.lessonCount;
         if (row.weekMode != WeekMode.even) oddDemand += row.lessonCount;
         if (row.weekMode != WeekMode.odd) evenDemand += row.lessonCount;
@@ -148,13 +148,29 @@ class ProblemBuilder {
       }
     }
 
-    final assignedCount = <String, int>{};
+    final assignedCount = <(String, String, WeekMode), int>{};
+    String demandLabel((String, String, WeekMode) key) {
+      final schoolClass = snapshot.classes
+          .where((item) => item.id == key.$1)
+          .firstOrNull;
+      final grade = snapshot.grades
+          .where((item) => item.id == schoolClass?.gradeId)
+          .firstOrNull;
+      final stage = snapshot.stages
+          .where((item) => item.id == grade?.stageId)
+          .firstOrNull;
+      final subject = snapshot.subjects
+          .where((item) => item.id == key.$2)
+          .firstOrNull;
+      return '${[stage?.name, grade?.name, schoolClass?.name ?? key.$1].whereType<String>().join(' · ')} · ${subject?.name ?? key.$2}（${key.$3.label}）';
+    }
+
     final teacherIds = snapshot.teachers.map((item) => item.id).toSet();
     final subjectIds = snapshot.subjects.map((item) => item.id).toSet();
     for (final assignment in snapshot.assignments) {
       if (assignment.termId != snapshot.term.id) continue;
       assignedCount.update(
-        assignment.demandKey,
+        (assignment.classId, assignment.subjectId, assignment.weekMode),
         (count) => count + assignment.lessonCount,
         ifAbsent: () => assignment.lessonCount,
       );
@@ -167,21 +183,24 @@ class ProblemBuilder {
       }
     }
     for (final entry in effectiveDemand.entries) {
-      final classId = entry.key.split(':').first;
+      final classId = entry.key.$1;
       if (selected.contains(classId) &&
           assignedCount[entry.key] != entry.value) {
         issue(
           'assignment',
-          '班级 $classId 的任课节数与需求不符：${assignedCount[entry.key] ?? 0}/${entry.value}',
+          '${demandLabel(entry.key)}的任课节数与需求不符：${assignedCount[entry.key] ?? 0}/${entry.value}。请前往教师任课调整分配',
         );
       }
     }
     for (final entry in assignedCount.entries) {
-      final classId = entry.key.split(':').first;
+      final classId = entry.key.$1;
       if (selected.contains(classId) &&
           !effectiveDemand.containsKey(entry.key) &&
           entry.value != 0) {
-        issue('assignment', '班级 $classId 存在无对应节数需求的任课 ${entry.key}');
+        issue(
+          'assignment',
+          '${demandLabel(entry.key)}存在无对应节数需求的任课，请前往教师任课调整分配',
+        );
       }
     }
 

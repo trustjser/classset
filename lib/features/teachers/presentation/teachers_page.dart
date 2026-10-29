@@ -12,6 +12,7 @@ import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/models/teacher_group.dart';
 import 'package:class_set/domain/models/teacher_preset.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/features/teachers/io/teacher_workbook.dart';

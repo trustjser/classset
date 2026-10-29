@@ -491,44 +491,63 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
     int weekday,
     String periodTypeId,
     int lessonIndex,
-  ) {
-    FreeSlot? best;
-    var bestPriority = -1;
-    for (final slot in widget.freeSlots) {
-      if (slot.stageId != draftKey.stageId ||
-          slot.weekday != weekday ||
-          slot.periodTypeId != periodTypeId ||
-          slot.lessonIndex != lessonIndex) {
-        continue;
-      }
-      final priority = _freeSlotScopePriority(slot, draftKey);
-      if (priority > bestPriority) {
-        best = slot;
-        bestPriority = priority;
-      }
-    }
-    return bestPriority < 0 ? null : best;
-  }
+  ) => _resolveSlots(draftKey, weekday, periodTypeId, lessonIndex).full;
 
-  int _freeSlotScopePriority(FreeSlot slot, _PresetDraftKey draftKey) {
-    if (slot.scope == draftKey.scope && slot.scopeId == draftKey.scopeId) {
-      return 4;
-    }
-    if (draftKey.scope == FreeSlotScope.school) return -1;
-    if (slot.scope == FreeSlotScope.school && slot.scopeId == widget.termId) {
-      return 1;
-    }
-    if (slot.scope == FreeSlotScope.stage && slot.scopeId == draftKey.stageId) {
-      return 2;
-    }
-    if (draftKey.scope == FreeSlotScope.schoolClass &&
-        slot.scope == FreeSlotScope.grade) {
-      final classBrief = widget.classes
-          .where((item) => item.id == draftKey.scopeId)
-          .firstOrNull;
-      if (classBrief?.gradeId == slot.scopeId) return 3;
-    }
-    return -1;
+  /// 仅作用于当前范围内部分班级的免任课标记（展示用，不锁定）。
+  FreeSlot? _partialFreeSlot(
+    _PresetDraftKey draftKey,
+    int weekday,
+    String periodTypeId,
+    int lessonIndex,
+  ) => _resolveSlots(draftKey, weekday, periodTypeId, lessonIndex).partial;
+
+  FreeSlotViewResolution _resolveSlots(
+    _PresetDraftKey draftKey,
+    int weekday,
+    String periodTypeId,
+    int lessonIndex,
+  ) {
+    final classGradeId = draftKey.scope == FreeSlotScope.schoolClass
+        ? widget.classes
+              .where((item) => item.id == draftKey.scopeId)
+              .firstOrNull
+              ?.gradeId
+        : null;
+    // 更细范围的标记在上级视图中「部分生效」的判定集合。
+    final (applicableGradeIds, applicableClassIds) = switch (draftKey.scope) {
+      FreeSlotScope.school ||
+      FreeSlotScope.stage => (
+        {
+          for (final grade in widget.grades)
+            if (grade.stageId == draftKey.stageId) grade.id,
+        },
+        {
+          for (final item in widget.classes)
+            if (item.stageId == draftKey.stageId) item.id,
+        },
+      ),
+      FreeSlotScope.grade => (
+        const <String>{},
+        {
+          for (final item in widget.classes)
+            if (item.gradeId == draftKey.scopeId) item.id,
+        },
+      ),
+      FreeSlotScope.schoolClass => (const <String>{}, const <String>{}),
+    };
+    return resolveFreeSlotsForView(
+      widget.freeSlots,
+      viewScope: draftKey.scope,
+      viewScopeId: draftKey.scopeId,
+      termId: widget.termId,
+      stageId: draftKey.stageId,
+      weekday: weekday,
+      periodTypeId: periodTypeId,
+      lessonIndex: lessonIndex,
+      classGradeId: classGradeId,
+      applicableGradeIds: applicableGradeIds,
+      applicableClassIds: applicableClassIds,
+    );
   }
 
   Future<void> _save() async {
@@ -1543,7 +1562,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
           children: [
             _buildEditorNote(
               'subject-settings-presets-description',
-              '预设不区分单双周；空白格为自动。节次和上课日按当前范围学段的作息显示。保存会提交本次修改的范围。',
+              '预设不区分单双周；空白格为自动。节次和上课日按当前范围学段的作息显示。红底为免任课格，不可编辑；黄字为部分班级免任课，仍可设置预设。保存会提交本次修改的范围。',
             ),
             const SizedBox(height: 8),
             if (routine == null)
@@ -1617,6 +1636,13 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
                             grid: _grid,
                             resolveExemption: (weekday, lessonIndex) =>
                                 _effectiveFreeSlot(
+                                  _currentDraftKey,
+                                  weekday,
+                                  period.id,
+                                  lessonIndex,
+                                ),
+                            resolvePartialExemption: (weekday, lessonIndex) =>
+                                _partialFreeSlot(
                                   _currentDraftKey,
                                   weekday,
                                   period.id,
@@ -2874,6 +2900,7 @@ class _LessonRow extends StatelessWidget {
     required this.periodTypeId,
     required this.grid,
     required this.resolveExemption,
+    required this.resolvePartialExemption,
     required this.onCycle,
     required this.onSet,
     required this.onClear,
@@ -2889,6 +2916,8 @@ class _LessonRow extends StatelessWidget {
   final String periodTypeId;
   final Map<String, PresetValue> grid;
   final FreeSlot? Function(int weekday, int lessonIndex) resolveExemption;
+  final FreeSlot? Function(int weekday, int lessonIndex)
+  resolvePartialExemption;
   final void Function(int weekday, String periodTypeId, int lessonIndex)
   onCycle;
   final void Function(
@@ -2929,16 +2958,14 @@ class _LessonRow extends StatelessWidget {
       ),
       for (final weekday in weekdays)
         if (lessonIndex > (lessonCounts[weekday] ?? 0))
-          Container(
+          // 当天该时段没有课节的空白格：仍可能存在免任课标记
+          // （如周日 / 周五晚），同样展示出来。
+          _FreeSlotMarkCell(
             width: dayWidth,
             height: 44,
-            decoration: BoxDecoration(
-              color: visual.cellTint,
-              border: Border(
-                right: BorderSide(color: context.appColors.tableDivider),
-                bottom: BorderSide(color: context.appColors.tableDivider),
-              ),
-            ),
+            tint: visual.cellTint,
+            full: resolveExemption(weekday, lessonIndex),
+            partial: resolvePartialExemption(weekday, lessonIndex),
           )
         else
           _PresetCell(
@@ -2946,6 +2973,8 @@ class _LessonRow extends StatelessWidget {
             width: dayWidth,
             tint: visual.cellTint,
             exemptLabel: resolveExemption(weekday, lessonIndex)?.label,
+            partialExemptLabel:
+                resolvePartialExemption(weekday, lessonIndex)?.label,
             value:
                 grid[presetCellKey(weekday, periodTypeId, lessonIndex)] ??
                 PresetValue.auto,
@@ -2957,6 +2986,65 @@ class _LessonRow extends StatelessWidget {
   );
 }
 
+/// 免任课标记格（不可编辑）：整体生效红底灰字，部分生效时段底色黄字，
+/// 无标记时为空白格。
+class _FreeSlotMarkCell extends StatelessWidget {
+  const _FreeSlotMarkCell({
+    required this.width,
+    required this.height,
+    required this.tint,
+    this.full,
+    this.partial,
+  });
+
+  final double width;
+  final double height;
+  final Color tint;
+  final FreeSlot? full;
+  final FreeSlot? partial;
+
+  @override
+  Widget build(BuildContext context) {
+    final slot = full ?? partial;
+    final background = full != null
+        ? context.appColors.destructiveSurface
+        : tint;
+    final foreground = full != null
+        ? context.appColors.muted
+        : context.appColors.warning;
+    final tooltip = full != null
+        ? '免任课：${full!.label}'
+        : partial != null
+        ? '部分班级免任课：${partial!.label}'
+        : null;
+    final cell = Container(
+      width: width,
+      height: height,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: background,
+        border: Border(
+          right: BorderSide(color: context.appColors.tableDivider),
+          bottom: BorderSide(color: context.appColors.tableDivider),
+        ),
+      ),
+      child: slot == null
+          ? null
+          : Text(
+              slot.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+    );
+    return tooltip == null ? cell : Tooltip(message: tooltip, child: cell);
+  }
+}
+
 class _PresetCell extends StatelessWidget {
   const _PresetCell({
     required this.value,
@@ -2966,6 +3054,7 @@ class _PresetCell extends StatelessWidget {
     required this.width,
     required this.tint,
     this.exemptLabel,
+    this.partialExemptLabel,
     super.key,
   });
 
@@ -2976,6 +3065,9 @@ class _PresetCell extends StatelessWidget {
   final ValueChanged<PresetValue> onSet;
   final VoidCallback onClear;
   final String? exemptLabel;
+
+  /// 部分班级免任课：仅展示标记，格子仍可编辑。
+  final String? partialExemptLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -3000,6 +3092,35 @@ class _PresetCell extends StatelessWidget {
               color: context.appColors.muted,
               fontSize: 10.5,
               fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }
+    if (partialExemptLabel != null && value == PresetValue.auto) {
+      return Tooltip(
+        message: '部分班级免任课：$partialExemptLabel',
+        child: InkWell(
+          onTap: onCycle,
+          child: Container(
+            width: width,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tint,
+              border: Border(
+                right: BorderSide(color: context.appColors.tableDivider),
+                bottom: BorderSide(color: context.appColors.tableDivider),
+              ),
+            ),
+            child: Text(
+              partialExemptLabel!,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: context.appColors.warning,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),

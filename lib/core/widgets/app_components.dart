@@ -1299,7 +1299,9 @@ class AppDateField extends StatelessWidget {
             start: firstDate,
             today: boundedToday,
             end: lastDate,
-            initial: value ?? firstDate,
+            // 未选值时日历默认停在「今天」（夹在可选范围内），
+            // 而不是跳到范围下限（10 年前）。
+            initial: value ?? boundedToday,
           ),
           headerBuilder: _appDateFieldCalendarHeader,
         ),

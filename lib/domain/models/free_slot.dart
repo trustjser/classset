@@ -75,3 +75,99 @@ abstract final class FreeSlotLabels {
     partyLeague,
   ];
 }
+
+/// 免任课标记在某范围视图下的生效方式。
+enum FreeSlotViewEffect {
+  /// 与当前视图无关。
+  none,
+
+  /// 对当前范围整体生效（预排格应锁定并展示标记）。
+  full,
+
+  /// 仅对当前范围内部分班级生效（仅展示标记，不锁定）。
+  partial,
+}
+
+/// 「范围视图 × 单元格」的免任课解析结果。
+class FreeSlotViewResolution {
+  const FreeSlotViewResolution({this.full, this.partial});
+
+  /// 对当前范围整体生效的最具体标记（null = 无）。
+  final FreeSlot? full;
+
+  /// 仅作用于范围内部分班级的最具体标记（null = 无）。
+  final FreeSlot? partial;
+}
+
+/// 解析某一格上的免任课标记对当前编辑范围的生效方式。
+///
+/// - [viewScope] / [viewScopeId]：当前编辑范围（与 FreeSlotScope 对应）。
+/// - [termId]：全校范围行的 scopeId。
+/// - [classGradeId]：仅班级视图需要，该班级所属年级。
+/// - [applicableGradeIds] / [applicableClassIds]：当前范围内包含的
+///   年级 / 班级，用于判断更细范围的标记是否「部分生效」。
+FreeSlotViewResolution resolveFreeSlotsForView(
+  List<FreeSlot> slots, {
+  required FreeSlotScope viewScope,
+  required String viewScopeId,
+  required String termId,
+  required String stageId,
+  required int weekday,
+  required String periodTypeId,
+  required int lessonIndex,
+  String? classGradeId,
+  Set<String> applicableGradeIds = const {},
+  Set<String> applicableClassIds = const {},
+}) {
+  FreeSlot? full;
+  var fullRank = -1;
+  FreeSlot? partial;
+  var partialRank = -1;
+  for (final slot in slots) {
+    if (slot.stageId != stageId ||
+        slot.weekday != weekday ||
+        slot.periodTypeId != periodTypeId ||
+        slot.lessonIndex != lessonIndex) {
+      continue;
+    }
+    final appliesToView = switch (slot.scope) {
+      FreeSlotScope.school => slot.scopeId == termId,
+      FreeSlotScope.stage => slot.scopeId == stageId,
+      FreeSlotScope.grade => switch (viewScope) {
+        FreeSlotScope.grade => slot.scopeId == viewScopeId,
+        FreeSlotScope.schoolClass => slot.scopeId == classGradeId,
+        FreeSlotScope.school || FreeSlotScope.stage => false,
+      },
+      FreeSlotScope.schoolClass =>
+        viewScope == FreeSlotScope.schoolClass && slot.scopeId == viewScopeId,
+    };
+    if (appliesToView) {
+      // 越具体的范围优先展示。
+      final rank = switch (slot.scope) {
+        FreeSlotScope.schoolClass => 4,
+        FreeSlotScope.grade => 3,
+        FreeSlotScope.stage => 2,
+        FreeSlotScope.school => 1,
+      };
+      if (rank > fullRank) {
+        full = slot;
+        fullRank = rank;
+      }
+      continue;
+    }
+    final partialHit = switch (slot.scope) {
+      FreeSlotScope.grade => applicableGradeIds.contains(slot.scopeId),
+      FreeSlotScope.schoolClass => applicableClassIds.contains(slot.scopeId),
+      // 全校 / 学段级标记要么整体生效，要么与视图无关，不存在部分生效。
+      FreeSlotScope.school || FreeSlotScope.stage => false,
+    };
+    if (partialHit) {
+      final rank = slot.scope == FreeSlotScope.schoolClass ? 2 : 1;
+      if (rank > partialRank) {
+        partial = slot;
+        partialRank = rank;
+      }
+    }
+  }
+  return FreeSlotViewResolution(full: full, partial: partial);
+}

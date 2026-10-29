@@ -136,6 +136,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('未选值时日历默认打开到今天所在月份而非范围下限', (tester) async {
+    final now = DateTime.now();
+    await tester.pumpWidget(
+      _wrap(
+        Center(
+          child: SizedBox(
+            width: 220,
+            child: AppDateField(
+              value: null,
+              firstDate: DateTime(now.year - 10),
+              lastDate: DateTime(now.year + 10),
+              hint: '选择日期',
+              format: (date) => '${date.month}/${date.day}',
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byWidgetPredicate((widget) => widget is FDateField));
+    await tester.pumpAndSettle();
+
+    // 日历头部显示打开的月份；空值时应停留在今天所在月份。
+    expect(
+      find.text('${now.year}年${now.month}月'),
+      findsOneWidget,
+      reason: '未选值时日历应默认打开到今天所在月份',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('今天超出可选范围时日历打开到被夹取的边界月份', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        Center(
+          child: SizedBox(
+            width: 220,
+            child: AppDateField(
+              value: null,
+              firstDate: DateTime(2026, 9, 1),
+              lastDate: DateTime(2026, 9, 7),
+              hint: '选择日期',
+              format: (date) => '${date.month}/${date.day}',
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byWidgetPredicate((widget) => widget is FDateField));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026年9月'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('帮助图标颜色比字段标签更浅', (tester) async {
     await tester.pumpWidget(_wrap(const AppHelpTooltip(message: '帮助')));
 

@@ -7,6 +7,13 @@ extension _TeacherPresetActions on _TeachersPageState {
     final classes = await ref.read(
       classesForTermProvider(widget.termId).future,
     );
+    // 免任课标记仅用于矩阵展示，加载失败时降级为空，不阻塞预排页打开。
+    var freeSlots = const <FreeSlot>[];
+    try {
+      freeSlots = await ref.read(
+        freeSlotsForTermProvider(widget.termId).future,
+      );
+    } catch (_) {}
     final routines = <String, StageRoutine>{};
     for (final stage in stages) {
       try {
@@ -53,6 +60,11 @@ extension _TeacherPresetActions on _TeachersPageState {
                 '${TeacherPresetScope.grade.storageValue}:${item.gradeId}',
           ),
     ];
-    return _PresetConfiguration(routines: routines, scopes: scopes);
+    return _PresetConfiguration(
+      routines: routines,
+      scopes: scopes,
+      classes: classes,
+      freeSlots: freeSlots,
+    );
   }
 }

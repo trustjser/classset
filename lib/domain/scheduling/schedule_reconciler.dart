@@ -529,24 +529,63 @@ class ScheduleReconciler {
         describe(next),
       );
     }
-    String requirementKey(SubjectRequirement row) =>
-        '${row.gradeId}:${row.classId ?? ''}:${row.subjectId}:${row.weekMode.storageValue}';
     final oldRequirements = {
-      for (final row in before.requirements) requirementKey(row): row,
+      for (final row in before.requirements)
+        (row.gradeId, row.classId, row.subjectId, row.weekMode):
+            row.lessonCount,
     };
     final newRequirements = {
-      for (final row in after.requirements) requirementKey(row): row,
+      for (final row in after.requirements)
+        (row.gradeId, row.classId, row.subjectId, row.weekMode):
+            row.lessonCount,
     };
-    for (final key in {...oldRequirements.keys, ...newRequirements.keys}) {
-      final old = oldRequirements[key];
-      final next = newRequirements[key];
-      final row = next ?? old!;
-      add(
-        '科目节数',
-        '${classNames[row.classId] ?? gradeNames[row.gradeId] ?? row.gradeId} · ${subjectNames[row.subjectId] ?? row.subjectId} · ${row.weekMode.label}',
-        old == null ? '无' : '${old.lessonCount} 节',
-        next == null ? '无' : '${next.lessonCount} 节',
+    final groups = {
+      for (final row in [...before.requirements, ...after.requirements])
+        (row.gradeId, row.subjectId, row.weekMode),
+    };
+    String countLabel(int count) => count == 0 ? '无' : '$count 节';
+    for (final group in groups) {
+      final (gradeId, subjectId, mode) = group;
+      final classIds = {
+        for (final row in [...before.classes, ...after.classes])
+          if (row.gradeId == gradeId) row.id,
+        for (final row in [...before.requirements, ...after.requirements])
+          if (row.gradeId == gradeId && row.classId != null) row.classId!,
+      };
+      int count(
+        Map<(String, String?, String, WeekMode), int> rows,
+        String? classId,
+      ) =>
+          rows[(gradeId, classId, subjectId, mode)] ??
+          rows[(gradeId, null, subjectId, mode)] ??
+          0;
+      final ids = classIds.isEmpty ? <String?>[null] : classIds.toList();
+      final differences = [
+        for (final id in ids)
+          (id, count(oldRequirements, id), count(newRequirements, id)),
+      ];
+      final first = differences.first;
+      final sameForGrade = differences.every(
+        (row) => row.$2 == first.$2 && row.$3 == first.$3,
       );
+      final label = '${subjectNames[subjectId] ?? subjectId} · ${mode.label}';
+      if (sameForGrade) {
+        add(
+          '科目节数',
+          '${gradeNames[gradeId] ?? gradeId} · $label',
+          countLabel(first.$2),
+          countLabel(first.$3),
+        );
+      } else {
+        for (final row in differences) {
+          add(
+            '科目节数',
+            '${classNames[row.$1] ?? gradeNames[gradeId] ?? gradeId} · $label',
+            countLabel(row.$2),
+            countLabel(row.$3),
+          );
+        }
+      }
     }
     final oldFreeSlots = {for (final row in before.freeSlots) row.id: row};
     final newFreeSlots = {for (final row in after.freeSlots) row.id: row};

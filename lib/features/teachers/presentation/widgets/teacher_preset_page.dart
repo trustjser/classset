@@ -30,10 +30,21 @@ class _PresetScopeOption {
 }
 
 class _PresetConfiguration {
-  const _PresetConfiguration({required this.routines, required this.scopes});
+  const _PresetConfiguration({
+    required this.routines,
+    required this.scopes,
+    required this.classes,
+    required this.freeSlots,
+  });
 
   final Map<String, StageRoutine> routines;
   final List<_PresetScopeOption> scopes;
+
+  /// 当前学期全部班级，用于判定免任课标记的部分生效范围。
+  final List<ClassBrief> classes;
+
+  /// 当前学期免任课标记，用于在预排矩阵中标记不可排的位置。
+  final List<FreeSlot> freeSlots;
 }
 
 List<TeacherPresetScopeNode> _teacherPresetScopeTree(
@@ -67,7 +78,7 @@ class _PresetMatrixHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    '预排不区分单双周；空白格为自动。节次和上课日按所选范围的作息显示。',
+    '预排不区分单双周；空白格为自动。节次和上课日按所选范围的作息显示。红底为免任课格，不可编辑；黄字为部分班级免任课。',
     style: TextStyle(color: context.appColors.muted, fontSize: 12, height: 1.5),
   );
 }
@@ -682,6 +693,77 @@ class _TeacherPresetWorkspaceState
     );
   }
 
+  /// 免任课标记在当前范围视图下的解析结果（整体生效 / 部分生效）。
+  Map<TeacherPresetMatrixCell, FreeSlotViewResolution> _exemptionsFor(
+    _PresetScopeOption scope,
+    String stageId,
+    StageRoutine routine,
+  ) {
+    final viewScope = switch (scope.scope) {
+      TeacherPresetScope.school => FreeSlotScope.school,
+      TeacherPresetScope.stage => FreeSlotScope.stage,
+      TeacherPresetScope.grade => FreeSlotScope.grade,
+      TeacherPresetScope.schoolClass => FreeSlotScope.schoolClass,
+    };
+    final classGradeId = scope.scope == TeacherPresetScope.schoolClass
+        ? widget.configuration.classes
+              .where((item) => item.id == scope.scopeId)
+              .firstOrNull
+              ?.gradeId
+        : null;
+    final (applicableGradeIds, applicableClassIds) = switch (scope.scope) {
+      TeacherPresetScope.school ||
+      TeacherPresetScope.stage => (
+        {
+          for (final item in widget.configuration.classes)
+            if (item.stageId == stageId) item.gradeId,
+        },
+        {
+          for (final item in widget.configuration.classes)
+            if (item.stageId == stageId) item.id,
+        },
+      ),
+      TeacherPresetScope.grade => (
+        const <String>{},
+        {
+          for (final item in widget.configuration.classes)
+            if (item.gradeId == scope.scopeId) item.id,
+        },
+      ),
+      TeacherPresetScope.schoolClass => (const <String>{}, const <String>{}),
+    };
+    final weekdays = routine.teachingWeekdays.toList()..sort();
+    final exemptions = <TeacherPresetMatrixCell, FreeSlotViewResolution>{};
+    for (final period in routine.periodTypes) {
+      for (final weekday in weekdays) {
+        final lessonCount = routine.effectiveLessonCount(period.id, weekday);
+        for (var lesson = 1; lesson <= lessonCount; lesson++) {
+          final resolution = resolveFreeSlotsForView(
+            widget.configuration.freeSlots,
+            viewScope: viewScope,
+            viewScopeId: scope.scopeId,
+            termId: widget.termId,
+            stageId: stageId,
+            weekday: weekday,
+            periodTypeId: period.id,
+            lessonIndex: lesson,
+            classGradeId: classGradeId,
+            applicableGradeIds: applicableGradeIds,
+            applicableClassIds: applicableClassIds,
+          );
+          if (resolution.full != null || resolution.partial != null) {
+            exemptions[(
+              weekday: weekday,
+              periodTypeId: period.id,
+              lessonIndex: lesson,
+            )] = resolution;
+          }
+        }
+      }
+    }
+    return exemptions;
+  }
+
   Widget _matrixPanel({
     required _PresetScopeOption? scope,
     required String? ownerLabel,
@@ -727,6 +809,7 @@ class _TeacherPresetWorkspaceState
                 Expanded(
                   child: TeacherPresetMatrix(
                     routine: routine,
+                    exemptions: _exemptionsFor(scope, stageId!, routine),
                     values: {
                       for (final entry in _values.entries)
                         if (entry.key.scope == scope.scope &&
@@ -742,7 +825,7 @@ class _TeacherPresetWorkspaceState
                       final key = (
                         scope: scope.scope,
                         scopeId: scope.scopeId,
-                        stageId: stageId!,
+                        stageId: stageId,
                         weekday: cell.weekday,
                         periodTypeId: cell.periodTypeId,
                         lessonIndex: cell.lessonIndex,

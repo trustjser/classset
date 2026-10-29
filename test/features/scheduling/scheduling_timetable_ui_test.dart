@@ -21,6 +21,7 @@ void main() {
     WidgetTester tester, {
     bool withUnplaced = false,
     Future<int?> Function(Set<String>)? onPlaceUnplaced,
+    void Function(List<ScheduleItem>, String)? onExport,
   }) async {
     tester.view.physicalSize = const Size(1180, 850);
     tester.view.devicePixelRatio = 1;
@@ -138,7 +139,7 @@ void main() {
             onDetectionReport: () {},
             onCancel: () {},
             onDone: () {},
-            onExport: (_, _) {},
+            onExport: onExport ?? (_, _) {},
             onPreviewMove: (_, _, _) => throw UnimplementedError(),
             onMove: (_, _, _) async => throw UnimplementedError(),
             onPlaceUnplaced: onPlaceUnplaced,
@@ -181,6 +182,14 @@ void main() {
     expect(requested, {'item0'});
     expect(find.textContaining('已放入 1 节'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('导出入口传入全部课程而非当前班级筛选', (tester) async {
+    List<ScheduleItem>? requested;
+    await mount(tester, onExport: (items, title) => requested = items);
+    await tester.tap(find.text('导出/打印'));
+    await tester.pumpAndSettle();
+    expect(requested, hasLength(26));
   });
 
   testWidgets('总课表窄单元格可展开收起且不溢出', (tester) async {

@@ -779,10 +779,11 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 children: [
                   AppGhostButton.icon(
                     onPressed:
-                        visible.isEmpty || widget.state.pendingBaseline != null
+                        !widget.state.items.any((item) => item.isPlaced) ||
+                            widget.state.pendingBaseline != null
                         ? null
                         : () => widget.onExport(
-                            visible,
+                            widget.state.items,
                             '${_viewLabel(_view)}${_view != _ScheduleView.schoolClass && selectedStage != null ? ' · ${selectedStage.name}' : ''} · ${_weekLabel(_week)}${_view == _ScheduleView.all && _allLayout == _AllScheduleLayout.classes ? ' · ${_dayLabel(_weekday)}' : ''}',
                           ),
                     icon: const Icon(Icons.ios_share_outlined, size: 16),

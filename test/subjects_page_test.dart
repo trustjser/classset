@@ -191,6 +191,46 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('修改单个科目后保留其他科目的年级需求记录', (tester) async {
+    await seedData();
+    await repository.replaceGradeRequirements(
+      gradeId: 'g1',
+      requirements: const [
+        SubjectRequirement(
+          id: 'math-grade',
+          subjectId: 's_math',
+          gradeId: 'g1',
+          weekMode: WeekMode.weekly,
+          lessonCount: 5,
+        ),
+        SubjectRequirement(
+          id: 'chinese-grade',
+          subjectId: 's_chinese',
+          gradeId: 'g1',
+          weekMode: WeekMode.weekly,
+          lessonCount: 4,
+        ),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await editCellInline(
+      tester,
+      const ValueKey('subject-cell-s_chinese-g1'),
+      '2',
+    );
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final rows = (await tester.runAsync(
+      () => repository.watchRequirementsForGrade('g1').first,
+    ))!;
+    final math = rows.where((row) => row.subjectId == 's_math').toList();
+    expect(math, hasLength(1));
+    expect(math.single.id, 'math-grade');
+    expect(math.single.classId, isNull);
+    expect(math.single.lessonCount, 5);
+  });
+
   testWidgets('单击选中单元格，双击内联编辑整年级生效并落库', (tester) async {
     await seedData();
     await pumpPage(tester);

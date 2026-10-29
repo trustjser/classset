@@ -57,6 +57,7 @@ class TeacherPresetMatrix extends StatelessWidget {
     required this.routine,
     required this.values,
     required this.onChanged,
+    this.exemptions = const {},
     super.key,
   });
 
@@ -64,6 +65,10 @@ class TeacherPresetMatrix extends StatelessWidget {
   final Map<TeacherPresetMatrixCell, PresetValue> values;
   final void Function(TeacherPresetMatrixCell cell, PresetValue? value)
   onChanged;
+
+  /// 免任课标记解析结果：整体生效的格子锁定展示，部分生效的
+  /// 格子以警示色标记但仍可设置预排。
+  final Map<TeacherPresetMatrixCell, FreeSlotViewResolution> exemptions;
 
   @override
   Widget build(BuildContext context) {
@@ -146,48 +151,152 @@ class TeacherPresetMatrix extends StatelessWidget {
           foreground: visual.color,
         ),
         for (final weekday in weekdays)
-          SizedBox(
-            width: dayWidth,
-            height: 44,
-            child:
-                row.lessonIndex <=
-                    routine.effectiveLessonCount(row.period.id, weekday)
-                ? TeacherPresetValueMenu(
-                    key: ValueKey(
-                      'preset-cell-$weekday-${row.period.id}-${row.lessonIndex}',
-                    ),
-                    contextLabel: '${row.label} · ${_weekdayLabel(weekday)}',
-                    current:
-                        values[(
-                          weekday: weekday,
-                          periodTypeId: row.period.id,
-                          lessonIndex: row.lessonIndex,
-                        )],
-                    onChanged: (value) => onChanged((
-                      weekday: weekday,
-                      periodTypeId: row.period.id,
-                      lessonIndex: row.lessonIndex,
-                    ), value),
-                    child: _presetCellContent(
-                      context,
-                      values[(
-                        weekday: weekday,
-                        periodTypeId: row.period.id,
-                        lessonIndex: row.lessonIndex,
-                      )],
-                      visual,
-                    ),
-                  )
-                : _tableCell(
-                    context,
-                    '',
-                    dayWidth,
-                    background: visual.cellTint,
-                  ),
-          ),
+          _lessonCell(context, row, weekday, dayWidth, visual),
       ],
     );
   }
+
+  Widget _lessonCell(
+    BuildContext context,
+    _TeacherPresetMatrixRow row,
+    int weekday,
+    double dayWidth,
+    PeriodVisual visual,
+  ) {
+    final cell = (
+      weekday: weekday,
+      periodTypeId: row.period.id,
+      lessonIndex: row.lessonIndex,
+    );
+    final exemption = exemptions[cell];
+    final fullExemption = exemption?.full;
+    final partialExemption = exemption?.partial;
+    final hasLesson =
+        row.lessonIndex <=
+        routine.effectiveLessonCount(row.period.id, weekday);
+    Widget child;
+    if (fullExemption != null) {
+      // 免任课整体生效：无论当天是否有课节都锁定展示，
+      // 覆盖「当天无课节」的空白格（如周日 / 周五晚）。
+      child = Tooltip(
+        message: '免任课：${fullExemption.label}',
+        child: Container(
+          width: dayWidth,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: context.appColors.destructiveSurface,
+            border: Border(
+              right: BorderSide(color: context.appColors.tableDivider),
+              bottom: BorderSide(color: context.appColors.tableDivider),
+            ),
+          ),
+          child: Text(
+            fullExemption.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: context.appColors.muted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    } else if (!hasLesson) {
+      child = _blankCell(
+        context,
+        dayWidth,
+        visual,
+        partialLabel: partialExemption?.label,
+      );
+    } else {
+      final current = values[cell];
+      final showPartialMark =
+          partialExemption != null &&
+          (current == null || current == PresetValue.auto);
+      child = TeacherPresetValueMenu(
+        key: ValueKey(
+          'preset-cell-$weekday-${row.period.id}-${row.lessonIndex}',
+        ),
+        contextLabel: '${row.label} · ${_weekdayLabel(weekday)}',
+        current: current,
+        onChanged: (value) => onChanged(cell, value),
+        child: showPartialMark
+            ? _partialExemptContent(context, partialExemption.label, visual)
+            : _presetCellContent(context, current, visual),
+      );
+      if (partialExemption != null) {
+        child = Tooltip(
+          message: '部分班级免任课：${partialExemption.label}',
+          child: child,
+        );
+      }
+    }
+    return SizedBox(width: dayWidth, height: 44, child: child);
+  }
+
+  /// 当天该时段没有课节的空白格；带 [partialLabel] 时展示部分免任课标记。
+  Widget _blankCell(
+    BuildContext context,
+    double dayWidth,
+    PeriodVisual visual, {
+    String? partialLabel,
+  }) {
+    final cell = Container(
+      width: dayWidth,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: visual.cellTint,
+        border: Border(
+          right: BorderSide(color: context.appColors.tableDivider),
+          bottom: BorderSide(color: context.appColors.tableDivider),
+        ),
+      ),
+      child: partialLabel == null
+          ? null
+          : Text(
+              partialLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: context.appColors.warning,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+    );
+    return partialLabel == null
+        ? cell
+        : Tooltip(message: '部分班级免任课：$partialLabel', child: cell);
+  }
+
+  /// 部分班级免任课内容：警示色文字叠加时段底色，格子仍可编辑。
+  Widget _partialExemptContent(
+    BuildContext context,
+    String label,
+    PeriodVisual visual,
+  ) => Container(
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: visual.cellTint,
+      border: Border(
+        right: BorderSide(color: context.appColors.tableDivider),
+        bottom: BorderSide(color: context.appColors.tableDivider),
+      ),
+    ),
+    child: Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: context.appColors.warning,
+        fontSize: 10.5,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  );
 
   Widget _tableCell(
     BuildContext context,
