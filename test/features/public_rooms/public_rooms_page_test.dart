@@ -11,7 +11,6 @@ import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
 import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:drift/native.dart';
-import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,19 +20,12 @@ void main() {
   late db.AppDatabase database;
   late DriftSchoolRepository repository;
   late ProviderContainer container;
-  List<int>? pickedBytes;
 
   setUp(() async {
     database = db.AppDatabase(NativeDatabase.memory());
     repository = DriftSchoolRepository(database);
-    pickedBytes = null;
     container = ProviderContainer(
-      overrides: [
-        schoolRepositoryProvider.overrideWithValue(repository),
-        publicRoomWorkbookPickerProvider.overrideWithValue(
-          () async => pickedBytes,
-        ),
-      ],
+      overrides: [schoolRepositoryProvider.overrideWithValue(repository)],
     );
     container.read(activeTermIdProvider.notifier).state = 'a';
     for (final term in ['a', 'b']) {
@@ -268,54 +260,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('room-name')), findsWidgets);
       expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets(
-    'invalid Excel import leaves catalog unchanged; valid import appends',
-    (tester) async {
-      List<int> bytes(bool valid) {
-        final excel = Excel.createExcel();
-        final sheet = excel[excel.getDefaultSheet()!];
-        sheet.appendRow([
-          TextCellValue('场室'),
-          TextCellValue('个数'),
-          TextCellValue('容量（班）'),
-        ]);
-        sheet.appendRow([
-          TextCellValue('实验室'),
-          const IntCellValue(2),
-          const IntCellValue(1),
-        ]);
-        if (!valid) {
-          sheet.appendRow([
-            TextCellValue('音乐室'),
-            const IntCellValue(0),
-            const IntCellValue(1),
-          ]);
-        }
-        return excel.encode()!;
-      }
-
-      pickedBytes = bytes(false);
-      await pump(tester);
-      await tester.tap(find.text('导入 Excel'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('第 3 行'), findsWidgets);
-      expect(
-        await tester.runAsync(() => repository.watchPublicRooms().first),
-        hasLength(1),
-      );
-      pickedBytes = bytes(true);
-      await tester.tap(find.text('关闭'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('导入 Excel'));
-      await tester.pumpAndSettle();
-      expect(find.text('实验室'), findsOneWidget);
-      expect(
-        await tester.runAsync(() => repository.watchPublicRooms().first),
-        hasLength(2),
-      );
     },
   );
 

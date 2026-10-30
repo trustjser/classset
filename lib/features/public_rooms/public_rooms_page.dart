@@ -5,29 +5,9 @@ import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/public_room.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
-import 'package:class_set/features/public_rooms/public_room_import.dart';
 import 'package:class_set/features/public_rooms/public_rooms_data.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-final publicRoomWorkbookPickerProvider =
-    Provider<Future<List<int>?> Function()>(
-      (ref) => () async {
-        final file = await openFile(
-          acceptedTypeGroups: [
-            const XTypeGroup(
-              label: 'Excel 工作簿',
-              extensions: ['xlsx'],
-              uniformTypeIdentifiers: [
-                'org.openxmlformats.spreadsheetml.sheet',
-              ],
-            ),
-          ],
-        );
-        return file?.readAsBytes();
-      },
-    );
 
 class PublicRoomsPage extends ConsumerStatefulWidget {
   const PublicRoomsPage({this.termId, super.key});
@@ -69,55 +49,6 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
     );
     if (result == null || !mounted) return;
     await _save([result], '场室已保存');
-  }
-
-  Future<void> _import() async {
-    setState(() => _busy = true);
-    try {
-      final bytes = await ref.read(publicRoomWorkbookPickerProvider)();
-      if (bytes == null || !mounted) return;
-      final currentRooms = await ref.read(publicRoomsProvider.future);
-      if (!mounted) return;
-      final result = parsePublicRoomsWorkbook(
-        bytes,
-        existingRooms: currentRooms,
-        idForIndex: (_) => _newId(),
-      );
-      if (result.errors.isNotEmpty) {
-        setState(() => _busy = false);
-        await showAppDialog<void>(
-          context: context,
-          builder: (context) => AppDialog(
-            title: const Text('导入未保存'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('请修正以下问题后重新导入。'),
-                const SizedBox(height: 12),
-                for (final error in result.errors)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text('$error'),
-                  ),
-              ],
-            ),
-            actions: [
-              AppPrimaryButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
-              ),
-            ],
-          ),
-        );
-      } else {
-        await _save(result.rooms, '已导入 ${result.rooms.length} 个场室');
-      }
-    } catch (error) {
-      if (mounted) _notice('导入失败：$error');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   Future<void> _delete(PublicRoom room) async {
@@ -210,14 +141,9 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
           final padding = AppTheme.pagePaddingForWidth(constraints.maxWidth);
-          final importButton = AppOutlineButton(
-            onPressed: _busy || !rooms.hasValue ? null : _import,
-            child: const Text('导入 Excel'),
-          );
-          final header = AppPageHeader(
+          const header = AppPageHeader(
             title: '公共场室',
             subtitle: '维护全校共用的行课场室，容量单位为班。',
-            actions: compact ? [] : [importButton],
           );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -228,42 +154,16 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     header,
-                    if (compact) ...[
+                    if (termId == null) ...[
                       const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: importButton,
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 15,
+                      Text(
+                        '选择学期后显示关联科目',
+                        style: TextStyle(
+                          fontSize: 12,
                           color: context.appColors.muted,
                         ),
-                        Text(
-                          '导入 Excel 时，首个工作表需包含：场室、个数、容量（班）。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: context.appColors.inkSecondary,
-                            height: 1.45,
-                          ),
-                        ),
-                        if (termId == null)
-                          Text(
-                            '选择学期后显示关联科目',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.appColors.muted,
-                            ),
-                          ),
-                      ],
-                    ),
+                      ),
+                    ],
                     if (termData?.hasError == true)
                       Padding(
                         padding: EdgeInsets.only(top: 6),
@@ -358,7 +258,7 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
           padding: EdgeInsets.symmetric(vertical: 32, horizontal: 16),
           child: Center(
             child: Text(
-              '暂无公共场室，添加或导入后即可为科目设置行课场室。',
+              '暂无公共场室，添加后即可为科目设置行课场室。',
               style: TextStyle(fontSize: 13, color: context.appColors.muted),
             ),
           ),
@@ -466,7 +366,7 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
           padding: EdgeInsets.symmetric(vertical: 32),
           child: Center(
             child: Text(
-              '暂无公共场室，添加或导入后即可为科目设置行课场室。',
+              '暂无公共场室，添加后即可为科目设置行课场室。',
               style: TextStyle(fontSize: 13, color: context.appColors.muted),
             ),
           ),
