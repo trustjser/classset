@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>教师预排 · 界面优化稿</title>
+<style>
+  :root {
+    --brand: #0052D9;
+    --brand-hover: #266FE8;
+    --brand-light: #F2F3FF;      /* 继承组预排 */
+    --brand-border: #B5C4F0;
+    --warn-light: #FFF1E6;       /* 个人例外 */
+    --warn: #E37318;
+    --warn-border: #F0C9A0;
+    --danger: #D54941;
+    --danger-light: #FDECEE;
+    --text-1: #1A1A1A;
+    --text-2: #4B4B4B;
+    --text-3: #8A8A8A;
+    --surface: #FFFFFF;
+    --surface-2: #F7F8FA;
+    --border: #DCDCDE;
+    --border-light: #E7E7EA;
+    --fs-title: 16px;
+    --fs-body: 14px;
+    --fs-aux: 13px;
+    --fs-cap: 12px;
+    --r: 6px;
+    --font: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: var(--font); font-size: var(--fs-body); color: var(--text-1); background:#EDEEF0; height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+  /* ===== 顶栏（二级页） ===== */
+  .topbar {
+    height:52px; background:var(--surface); border-bottom:1px solid var(--border-light);
+    display:flex; align-items:center; padding:0 20px; gap:12px; flex-shrink:0;
+  }
+  .topbar .back { width:32px; height:32px; border:none; background:transparent; border-radius:var(--r); color:var(--text-2); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .topbar .back:hover { background:var(--surface-2); }
+  .topbar h1 { font-size:var(--fs-title); font-weight:600; flex:1; text-align:center; }
+  .topbar .actions { display:flex; gap:8px; min-width:180px; justify-content:flex-end; }
+
+  .btn { height:32px; padding:0 14px; border-radius:var(--r); font-size:var(--fs-body); font-family:var(--font); cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+  .btn-sec { background:#fff; border:1px solid var(--border); color:var(--text-1); }
+  .btn-sec:hover { border-color:var(--brand); color:var(--brand); }
+  .btn-pri { background:var(--brand); border:1px solid var(--brand); color:#fff; font-weight:500; }
+  .btn-pri:hover { background:var(--brand-hover); }
+
+  /* ===== 主体三栏 ===== */
+  .main { flex:1; display:grid; grid-template-columns: 220px 200px 1fr; gap:12px; padding:12px 20px; min-height:0; }
+  .col { background:var(--surface); border:1px solid var(--border-light); border-radius:var(--r); display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+
+  .col-head { padding:12px 14px 8px; font-size:var(--fs-body); font-weight:600; display:flex; align-items:center; justify-content:space-between; }
+  .col-head .cnt { font-size:var(--fs-cap); color:var(--text-3); font-weight:400; }
+
+  /* 教师列表 */
+  .search { margin:0 14px 8px; position:relative; }
+  .search input {
+    width:100%; height:32px; border:1px solid var(--border); border-radius:var(--r);
+    padding:0 10px 0 30px; font-size:var(--fs-aux); font-family:var(--font); color:var(--text-1); outline:none;
+  }
+  .search input:focus { border-color:var(--brand); box-shadow:0 0 0 2px rgba(0,82,217,.1); }
+  .search svg { position:absolute; left:9px; top:9px; color:var(--text-3); }
+  .tlist { flex:1; overflow-y:auto; padding:0 8px 8px; }
+  .titem { display:flex; align-items:center; gap:8px; padding:0 8px; height:34px; border-radius:var(--r); cursor:pointer; font-size:var(--fs-aux); color:var(--text-1); }
+  .titem:hover { background:var(--surface-2); }
+  .titem.active { background:var(--brand-light); color:var(--brand); font-weight:500; }
+  .titem .subj { margin-left:auto; font-size:11px; color:var(--text-3); background:var(--surface-2); border:1px solid var(--border-light); border-radius:3px; padding:0 5px; line-height:18px; white-space:nowrap; }
+  .titem.active .subj { background:#fff; border-color:var(--brand-border); color:var(--brand); }
+  .titem .cross { font-size:10px; color:var(--warn); border:1px solid var(--warn-border); background:var(--warn-light); border-radius:3px; padding:0 4px; line-height:16px; }
+
+  /* 范围树 */
+  .tree { flex:1; overflow-y:auto; padding:0 8px 8px; font-size:var(--fs-aux); }
+  .node { display:flex; align-items:center; gap:6px; height:32px; padding:0 8px; border-radius:var(--r); cursor:pointer; color:var(--text-2); }
+  .node:hover { background:var(--surface-2); }
+  .node.sel { background:var(--brand-light); color:var(--brand); font-weight:500; }
+  .node .tw { width:14px; color:var(--text-3); font-size:10px; text-align:center; }
+  .node .ic { color:var(--text-3); }
+  .node.sel .ic { color:var(--brand); }
+  .node.child { margin-left:20px; }
+  .node .chk { margin-left:auto; font-size:10px; color:var(--text-3); border:1px solid var(--border-light); border-radius:3px; padding:0 4px; line-height:16px; }
+
+  /* 矩阵卡 */
+  .mhead { padding:12px 16px 0; }
+  .mhead .t { display:flex; align-items:center; gap:8px; }
+  .mhead .t h2 { font-size:var(--fs-title); font-weight:600; }
+  .mhead .t .scope { font-size:var(--fs-cap); color:var(--brand); background:var(--brand-light); border-radius:3px; padding:0 6px; line-height:20px; }
+  .legend { display:flex; align-items:center; gap:14px; margin-top:8px; font-size:var(--fs-cap); color:var(--text-3); flex-wrap:wrap; }
+  .legend .li { display:inline-flex; align-items:center; gap:5px; }
+  .legend .sw { width:12px; height:12px; border-radius:3px; border:1px solid var(--border-light); background:#fff; }
+  .legend .sw.b { background:var(--brand-light); border-color:var(--brand-border); }
+  .legend .sw.o { background:var(--warn-light); border-color:var(--warn-border); }
+  .legend .sw.r { background:var(--danger-light); border-color:#F0B6B2; }
+  .legend .sw.g { background:#F4F5F7; border-color:var(--border-light); background-image:repeating-linear-gradient(45deg, transparent 0 3px, #E0E1E5 3px 5px); }
+  .legend .tip { margin-left:auto; }
+
+  .mwrap { flex:1; overflow:auto; padding:12px 16px 16px; }
+  table.grid { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; }
+  .grid th {
+    background:var(--surface-2); color:var(--text-3); font-size:var(--fs-cap); font-weight:400;
+    height:36px; border:1px solid var(--border-light); border-right:none; border-bottom:none;
+  }
+  .grid th:last-child { border-right:1px solid var(--border-light); }
+  .grid td.rowhead {
+    background:var(--surface-2); font-size:var(--fs-aux); color:var(--text-2); text-align:center;
+    border:1px solid var(--border-light); border-right:none; width:88px;
+  }
+  .grid td.rowhead .sess { display:block; font-size:10px; color:var(--text-3); }
+  .grid td.cell {
+    height:48px; border:1px solid var(--border-light); border-right:none; border-bottom:none;
+    background:#fff; cursor:pointer; position:relative; text-align:center; vertical-align:middle;
+    font-size:var(--fs-aux);
+  }
+  .grid tr:last-child td.cell { border-bottom:1px solid var(--border-light); }
+  .grid td.cell:last-child { border-right:1px solid var(--border-light); }
+  .grid td.cell:hover::after { content:""; position:absolute; inset:2px; border:1.5px solid var(--brand); border-radius:4px; pointer-events:none; }
+  .grid td.cell.b { background:var(--brand-light); color:var(--brand); box-shadow:inset 0 0 0 1px var(--brand-border); }
+  .grid td.cell.o { background:var(--warn-light); color:var(--warn); box-shadow:inset 0 0 0 1px var(--warn-border); }
+  .grid td.cell.r { background:var(--danger-light); color:var(--danger); box-shadow:inset 0 0 0 1px #F0B6B2; }
+  .grid td.cell.g {
+    background:#F4F5F7; color:var(--text-3);
+    background-image:repeating-linear-gradient(45deg, transparent 0 4px, #E7E8EC 4px 8px);
+  }
+  .grid td.cell .src { display:block; font-size:10px; margin-top:2px; opacity:.75; }
+
+  /* ===== 底部：全部预排信息 ===== */
+  .bottom { margin:0 20px 16px; background:var(--surface); border:1px solid var(--border-light); border-radius:var(--r); flex-shrink:0; }
+  .bottom .bh { display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--border-light); }
+  .bottom .bh h3 { font-size:var(--fs-body); font-weight:600; }
+  .badge { font-size:var(--fs-cap); color:var(--brand); background:var(--brand-light); border-radius:999px; padding:0 8px; line-height:18px; font-variant-numeric:tabular-nums; }
+  .bottom .bh .hint { margin-left:auto; font-size:var(--fs-cap); color:var(--text-3); }
+  .prule { display:flex; align-items:center; gap:10px; padding:8px 16px; font-size:var(--fs-aux); color:var(--text-2); border-bottom:1px solid var(--border-light); }
+  .prule:hover { background:#FAFBFC; }
+  .prule:last-child { border-bottom:none; }
+  .tag { font-size:var(--fs-cap); border-radius:3px; padding:0 6px; line-height:20px; white-space:nowrap; }
+  .tag-t { background:var(--brand-light); color:var(--brand); }
+  .tag-r { background:var(--danger-light); color:var(--danger); }
+  .tag-o { background:var(--warn-light); color:var(--warn); }
+  .prule .path { font-variant-numeric:tabular-nums; }
+  .prule .val { font-weight:500; }
+  .prule .ops { margin-left:auto; display:flex; gap:4px; }
+  .iconbtn { width:26px; height:26px; border:none; background:transparent; border-radius:4px; color:var(--text-3); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .iconbtn:hover { background:var(--surface-2); color:var(--text-1); }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <button class="back" aria-label="返回">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+  </button>
+  <h1>教师预排</h1>
+  <div class="actions">
+    <button class="btn btn-sec">重置为组预排</button>
+    <button class="btn btn-pri">保存设置</button>
+  </div>
+</div>
+
+<!-- 三栏主体 -->
+<div class="main">
+  <!-- 教师列表 -->
+  <div class="col">
+    <div class="col-head">教师 <span class="cnt">10 人</span></div>
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="6" cy="6" r="4.2"/><path d="M9.2 9.2L12 12"/></svg>
+      <input placeholder="搜索教师">
+    </div>
+    <div class="tlist">
+      <div class="titem active">语文教师 1 <span class="subj">语文</span></div>
+      <div class="titem">语文教师 2 <span class="subj">语文</span></div>
+      <div class="titem">语文教师 3 <span class="subj">语文</span></div>
+      <div class="titem">数学教师 4 <span class="subj">数学</span></div>
+      <div class="titem">数学教师 5 <span class="subj">数学</span></div>
+      <div class="titem">道德与法治教师 6 <span class="subj">道法</span></div>
+      <div class="titem">科学教师 7 <span class="subj">科学</span></div>
+      <div class="titem">体育教师 8 <span class="subj">体育</span> <span class="cross">跨</span></div>
+      <div class="titem">体育教师 9 <span class="subj">体育</span> <span class="cross">跨</span></div>
+      <div class="titem">音乐教师 10 <span class="subj">音乐</span></div>
+    </div>
+  </div>
+
+  <!-- 应用范围 -->
+  <div class="col">
+    <div class="col-head">应用范围 <span class="cnt">小学部</span></div>
+    <div class="tree">
+      <div class="node sel"><span class="tw">▾</span>
+        <svg class="ic" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.5L7 2l5 3.5V12H2V5.5z"/></svg>
+        小学部 <span class="chk">全部</span>
+      </div>
+      <div class="node child"><span class="tw">▸</span>一年级</div>
+      <div class="node child"><span class="tw">▸</span>二年级</div>
+      <div class="node child"><span class="tw">▸</span>三年级</div>
+      <div class="node child"><span class="tw">▸</span>四年级</div>
+      <div class="node child"><span class="tw">▸</span>五年级</div>
+      <div class="node child"><span class="tw">▸</span>六年级</div>
+      <div class="node"><span class="tw">▸</span>
+        <svg class="ic" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.5L7 2l5 3.5V12H2V5.5z"/></svg>
+        初中部
+      </div>
+    </div>
+  </div>
+
+  <!-- 矩阵 -->
+  <div class="col">
+    <div class="mhead">
+      <div class="t"><h2>语文教师 1 · 小学部</h2><span class="scope">继承「语文教研组」组预排</span></div>
+      <div class="legend">
+        <span class="li"><span class="sw"></span>自动</span>
+        <span class="li"><span class="sw b"></span>继承组预排</span>
+        <span class="li"><span class="sw o"></span>个人例外</span>
+        <span class="li"><span class="sw r"></span>不排</span>
+        <span class="li"><span class="sw g"></span>无课</span>
+        <span class="li tip">右键单元格可设置例外与恢复继承</span>
+      </div>
+    </div>
+    <div class="mwrap">
+      <table class="grid">
+        <tr>
+          <th style="width:88px;">节次</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th>
+        </tr>
+        <tr>
+          <td class="rowhead">第 1 节<span class="sess">上午</span></td>
+          <td class="cell b">一定排<span class="src">组 · 一定排</span></td>
+          <td class="cell"></td><td class="cell"></td><td class="cell"></td><td class="cell"></td>
+        </tr>
+        <tr>
+          <td class="rowhead">第 2 节<span class="sess">上午</span></td>
+          <td class="cell"></td><td class="cell"></td><td class="cell b">尽量排<span class="src">组 · 尽量排</span></td><td class="cell"></td><td class="cell"></td>
+        </tr>
+        <tr>
+          <td class="rowhead">第 3 节<span class="sess">上午</span></td>
+          <td class="cell"></td><td class="cell"></td><td class="cell"></td><td class="cell"></td><td class="cell"></td>
+        </tr>
+        <tr>
+          <td class="rowhead">第 4 节<span class="sess">上午</span></td>
+          <td class="cell"></td><td class="cell"></td><td class="cell"></td><td class="cell"></td><td class="cell"></td>
+        </tr>
+        <tr>
+          <td class="rowhead">第 5 节<span class="sess">下午</span></td>
+          <td class="cell"></td><td class="cell"></td><td class="cell"></td><td class="cell"></td><td class="cell"></td>
+        </tr>
+        <tr>
+          <td class="rowhead">第 6 节<span class="sess">下午</span></td>
+          <td class="cell r">不排<span class="src">个人例外</span></td>
+          <td class="cell o">课后服务<span class="src">个人例外</span></td>
+          <td class="cell o">课后服务<span class="src">个人例外</span></td>
+          <td class="cell o">课后服务<span class="src">个人例外</span></td>
+          <td class="cell g">无课</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 全部预排信息 -->
+<div class="bottom">
+  <div class="bh">
+    <h3>全部预排信息</h3><span class="badge">4 条</span>
+    <span class="hint">改动实时同步至此列表 · 点击矩阵单元格可修改</span>
+  </div>
+  <div class="prule">
+    <span class="tag tag-t">组</span>
+    <span class="path">语文教师 1 · 小学部</span>
+    <span>周一 · 上午 · 第 1 节</span>
+    <span class="val">一定排</span>
+    <span style="color:var(--text-3);font-size:var(--fs-cap);">继承自 语文教研组</span>
+    <span class="ops">
+      <button class="iconbtn" title="恢复继承"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7a4.5 4.5 0 1 1 1.3 3.2M2.5 10.5V7.5h3"/></svg></button>
+      <button class="iconbtn" title="删除"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2.5 3.5h9M5.5 3V2h3v1M3.5 3.5l.5 8h6l.5-8"/></svg></button>
+    </span>
+  </div>
+  <div class="prule">
+    <span class="tag tag-t">组</span>
+    <span class="path">语文教师 1 · 小学部</span>
+    <span>周三 · 上午 · 第 2 节</span>
+    <span class="val">尽量排</span>
+    <span style="color:var(--text-3);font-size:var(--fs-cap);">继承自 语文教研组</span>
+    <span class="ops">
+      <button class="iconbtn" title="恢复继承"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7a4.5 4.5 0 1 1 1.3 3.2M2.5 10.5V7.5h3"/></svg></button>
+      <button class="iconbtn" title="删除"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2.5 3.5h9M5.5 3V2h3v1M3.5 3.5l.5 8h6l.5-8"/></svg></button>
+    </span>
+  </div>
+  <div class="prule">
+    <span class="tag tag-o">个人</span>
+    <span class="path">语文教师 1 · 小学部</span>
+    <span>周一 · 下午 · 第 6 节</span>
+    <span class="val">不排</span>
+    <span style="color:var(--text-3);font-size:var(--fs-cap);">个人例外</span>
+    <span class="ops">
+      <button class="iconbtn" title="恢复继承"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7a4.5 4.5 0 1 1 1.3 3.2M2.5 10.5V7.5h3"/></svg></button>
+      <button class="iconbtn" title="删除"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2.5 3.5h9M5.5 3V2h3v1M3.5 3.5l.5 8h6l.5-8"/></svg></button>
+    </span>
+  </div>
+  <div class="prule">
+    <span class="tag tag-o">个人</span>
+    <span class="path">语文教师 1 · 小学部</span>
+    <span>周二 ~ 周四 · 下午 · 第 6 节</span>
+    <span class="val">课后服务</span>
+    <span style="color:var(--text-3);font-size:var(--fs-cap);">个人例外</span>
+    <span class="ops">
+      <button class="iconbtn" title="恢复继承"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7a4.5 4.5 0 1 1 1.3 3.2M2.5 10.5V7.5h3"/></svg></button>
+      <button class="iconbtn" title="删除"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2.5 3.5h9M5.5 3V2h3v1M3.5 3.5l.5 8h6l.5-8"/></svg></button>
+    </span>
+  </div>
+</div>
+
+</body>
+</html>

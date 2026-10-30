@@ -4,6 +4,7 @@ import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/features/teachers/teachers_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart';
 
@@ -17,6 +18,59 @@ Widget _wrap(Widget child) => MaterialApp(
 );
 
 void main() {
+  testWidgets('仅可编辑预排单元格响应鼠标悬停', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        SizedBox(
+          width: 600,
+          height: 300,
+          child: TeacherPresetMatrix(
+            routine: _presetTestRoutine(),
+            values: const {},
+            onChanged: (cell, value) {},
+            exemptions: {
+              (
+                weekday: 1,
+                periodTypeId: 'p_am',
+                lessonIndex: 1,
+              ): FreeSlotViewResolution(
+                full: FreeSlot(
+                  id: 'locked',
+                  scope: FreeSlotScope.stage,
+                  scopeId: 'st1',
+                  stageId: 'st1',
+                  periodTypeId: 'p_am',
+                  weekday: 1,
+                  lessonIndex: 1,
+                  label: '不上课',
+                ),
+              ),
+            },
+          ),
+        ),
+      ),
+    );
+    final editable = find.byKey(const ValueKey('preset-cell-2-p_am-1'));
+    expect(editable, findsOneWidget);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(editable));
+    await tester.pumpAndSettle();
+    final hovered = tester
+        .widgetList<AnimatedContainer>(
+          find.byKey(const ValueKey('teacher-preset-hover-overlay')),
+        )
+        .where((item) => (item.decoration as BoxDecoration).border != null);
+    expect(hovered, hasLength(1));
+    await mouse.moveTo(tester.getCenter(find.text('不上课')));
+    await tester.pumpAndSettle();
+    final lockedHovered = tester
+        .widgetList<AnimatedContainer>(
+          find.byKey(const ValueKey('teacher-preset-hover-overlay')),
+        )
+        .where((item) => (item.decoration as BoxDecoration).border != null);
+    expect(lockedHovered, isEmpty);
+  });
   testWidgets('范围树按层级展开并回传所选节点', (tester) async {
     String? selected;
     await tester.pumpWidget(
@@ -259,9 +313,7 @@ void main() {
     // 仍可打开菜单设置预排。
     await tester.tap(find.text('不上课'));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('teacher-preset-menu-prefer')),
-    );
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-menu-prefer')));
     await tester.pumpAndSettle();
     expect(changed, PresetValue.prefer);
     expect(tester.takeException(), isNull);

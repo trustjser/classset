@@ -172,8 +172,7 @@ class TeacherPresetMatrix extends StatelessWidget {
     final fullExemption = exemption?.full;
     final partialExemption = exemption?.partial;
     final hasLesson =
-        row.lessonIndex <=
-        routine.effectiveLessonCount(row.period.id, weekday);
+        row.lessonIndex <= routine.effectiveLessonCount(row.period.id, weekday);
     Widget child;
     if (fullExemption != null) {
       // 免任课整体生效：无论当天是否有课节都锁定展示，
@@ -215,16 +214,18 @@ class TeacherPresetMatrix extends StatelessWidget {
       final showPartialMark =
           partialExemption != null &&
           (current == null || current == PresetValue.auto);
-      child = TeacherPresetValueMenu(
-        key: ValueKey(
-          'preset-cell-$weekday-${row.period.id}-${row.lessonIndex}',
+      child = _PresetHoverCell(
+        child: TeacherPresetValueMenu(
+          key: ValueKey(
+            'preset-cell-$weekday-${row.period.id}-${row.lessonIndex}',
+          ),
+          contextLabel: '${row.label} · ${_weekdayLabel(weekday)}',
+          current: current,
+          onChanged: (value) => onChanged(cell, value),
+          child: showPartialMark
+              ? _partialExemptContent(context, partialExemption.label, visual)
+              : _presetCellContent(context, current, visual),
         ),
-        contextLabel: '${row.label} · ${_weekdayLabel(weekday)}',
-        current: current,
-        onChanged: (value) => onChanged(cell, value),
-        child: showPartialMark
-            ? _partialExemptContent(context, partialExemption.label, visual)
-            : _presetCellContent(context, current, visual),
       );
       if (partialExemption != null) {
         child = Tooltip(
@@ -374,6 +375,47 @@ class TeacherPresetMatrix extends StatelessWidget {
             ),
     );
   }
+}
+
+class _PresetHoverCell extends StatefulWidget {
+  const _PresetHoverCell({required this.child});
+  final Widget child;
+
+  @override
+  State<_PresetHoverCell> createState() => _PresetHoverCellState();
+}
+
+class _PresetHoverCellState extends State<_PresetHoverCell> {
+  bool hovered = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    onEnter: (_) => setState(() => hovered = true),
+    onExit: (_) => setState(() => hovered = false),
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        IgnorePointer(
+          child: AnimatedContainer(
+            key: const ValueKey('teacher-preset-hover-overlay'),
+            duration: const Duration(milliseconds: 120),
+            decoration: BoxDecoration(
+              color: hovered
+                  ? context.appColors.blue.withValues(alpha: .10)
+                  : Colors.transparent,
+              border: hovered
+                  ? Border.all(
+                      color: context.appColors.blue.withValues(alpha: .65),
+                    )
+                  : null,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class TeacherPresetValueMenu extends StatelessWidget {

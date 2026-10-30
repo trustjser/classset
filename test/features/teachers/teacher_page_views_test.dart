@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:class_set/core/theme/app_theme.dart';
@@ -36,6 +37,8 @@ class _PresetRecordingRepository implements SchoolRepository {
 
   List<TeacherPreset>? teacherPresets;
   List<TeacherGroupPreset>? teacherGroupPresets;
+  bool failTeacherSave = false;
+  Completer<void>? teacherSaveGate;
 
   @override
   Future<void> replaceTeacherPresets({
@@ -43,6 +46,8 @@ class _PresetRecordingRepository implements SchoolRepository {
     required String teacherId,
     required List<TeacherPreset> presets,
   }) async {
+    if (failTeacherSave) throw StateError('模拟保存失败');
+    if (teacherSaveGate case final gate?) await gate.future;
     teacherPresets = List.unmodifiable(presets);
   }
 
@@ -927,6 +932,300 @@ void main() {
     expect(rulesRect.left, closeTo(modeRect.left, 1));
     expect(rulesRect.right, closeTo(matrixRect.right, 1));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('教师预排选择后立即保存，失败恢复原值', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repository = _PresetRecordingRepository();
+    await _mountTeacherPage(
+      tester,
+      repository: repository,
+      useFixtureTeacherDataWithRepository: true,
+      routines: const {
+        'primary': StageRoutine(
+          stageId: 'primary',
+          teachingWeekdays: {1},
+          overrides: [],
+          periodTypes: [
+            LessonPeriodType(
+              id: 'am',
+              name: '上午',
+              defaultLessonCount: 1,
+              sortOrder: 0,
+              lessonTimes: [],
+            ),
+          ],
+        ),
+      },
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('预排'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-menu-forbid')));
+    await tester.pumpAndSettle();
+    expect(repository.teacherPresets?.single.value, PresetValue.forbid);
+    expect(find.byKey(const ValueKey('teacher-preset-save')), findsNothing);
+    repository.failTeacherSave = true;
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-menu-prefer')));
+    await tester.pumpAndSettle();
+    expect(repository.teacherPresets?.single.value, PresetValue.forbid);
+    expect(find.textContaining('保存预排失败'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('当前：不排'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('保存中的教师预排返回时先完成写入', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repository = _PresetRecordingRepository()
+      ..teacherSaveGate = Completer<void>();
+    await _mountTeacherPage(
+      tester,
+      repository: repository,
+      useFixtureTeacherDataWithRepository: true,
+      routines: const {
+        'primary': StageRoutine(
+          stageId: 'primary',
+          teachingWeekdays: {1},
+          overrides: [],
+          periodTypes: [
+            LessonPeriodType(
+              id: 'am',
+              name: '上午',
+              defaultLessonCount: 1,
+              sortOrder: 0,
+              lessonTimes: [],
+            ),
+          ],
+        ),
+      },
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('预排'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-menu-forbid')));
+    await tester.pump();
+    expect(find.text('保存中…'), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('teacher-preset-workspace')),
+      findsOneWidget,
+    );
+    repository.teacherSaveGate!.complete();
+    await tester.pumpAndSettle();
+    expect(repository.teacherPresets?.single.value, PresetValue.forbid);
+    expect(
+      find.byKey(const ValueKey('teacher-preset-workspace')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('教师分组预排选择后自动保存', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repository = _PresetRecordingRepository();
+    await _mountTeacherPage(
+      tester,
+      repository: repository,
+      useFixtureTeacherDataWithRepository: true,
+      groups: const [
+        TeacherGroup(id: 'group-1', termId: _termId, name: '教研组', sortOrder: 0),
+      ],
+      routines: const {
+        'primary': StageRoutine(
+          stageId: 'primary',
+          teachingWeekdays: {1},
+          overrides: [],
+          periodTypes: [
+            LessonPeriodType(
+              id: 'am',
+              name: '上午',
+              defaultLessonCount: 1,
+              sortOrder: 0,
+              lessonTimes: [],
+            ),
+          ],
+        ),
+      },
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('预排'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-mode-group')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-menu-prefer')));
+    await tester.pumpAndSettle();
+    expect(repository.teacherGroupPresets?.single.value, PresetValue.prefer);
+    expect(find.byKey(const ValueKey('teacher-preset-save')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('自动保存遇到分组冲突时恢复单元格且不写入', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const conflict = TeacherGroupPreset(
+      id: 'other',
+      groupId: 'group-2',
+      scope: TeacherPresetScope.stage,
+      scopeId: 'primary',
+      stageId: 'primary',
+      weekday: 1,
+      periodTypeId: 'am',
+      lessonIndex: 1,
+      value: PresetValue.forbid,
+    );
+    final repository = _PresetRecordingRepository(
+      teacherGroupPresets: const [conflict],
+    );
+    await _mountTeacherPage(
+      tester,
+      repository: repository,
+      useFixtureTeacherDataWithRepository: true,
+      groups: const [
+        TeacherGroup(id: 'group-1', termId: _termId, name: '一组', sortOrder: 0),
+        TeacherGroup(id: 'group-2', termId: _termId, name: '二组', sortOrder: 1),
+      ],
+      groupMembers: const [
+        TeacherGroupMember(
+          id: 'm1',
+          groupId: 'group-1',
+          teacherId: 'teacher-1',
+        ),
+        TeacherGroupMember(
+          id: 'm2',
+          groupId: 'group-2',
+          teacherId: 'teacher-1',
+        ),
+      ],
+      teacherGroupPresets: const [conflict],
+      routines: const {
+        'primary': StageRoutine(
+          stageId: 'primary',
+          teachingWeekdays: {1},
+          overrides: [],
+          periodTypes: [
+            LessonPeriodType(
+              id: 'am',
+              name: '上午',
+              defaultLessonCount: 1,
+              sortOrder: 0,
+              lessonTimes: [],
+            ),
+          ],
+        ),
+      },
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('预排'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-mode-group')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-menu-must')));
+    await tester.pumpAndSettle();
+    expect(repository.teacherGroupPresets, [conflict]);
+    expect(find.textContaining('分组预排冲突'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('当前：自动'), findsOneWidget);
+  });
+
+  testWidgets('自动保存的教师预排重新进入页面后仍在', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final database = db.AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = DriftSchoolRepository(database);
+    await repository.saveTerm(
+      AcademicTerm(
+        id: _termId,
+        title: '学期',
+        academicYear: '2026',
+        semesterLabel: '秋季',
+        firstTeachingWeekStart: null,
+        teachingWeekCount: 20,
+        createdAt: DateTime(2026),
+      ),
+    );
+    await repository.saveStage(
+      const SchoolStage(
+        id: 'primary',
+        termId: _termId,
+        name: '小学部',
+        sortOrder: 0,
+      ),
+    );
+    const routine = StageRoutine(
+      stageId: 'primary',
+      teachingWeekdays: {1},
+      overrides: [],
+      periodTypes: [
+        LessonPeriodType(
+          id: 'am',
+          name: '上午',
+          defaultLessonCount: 1,
+          sortOrder: 0,
+          lessonTimes: [],
+        ),
+      ],
+    );
+    await repository.saveRoutine(routine);
+    await repository.saveTeachers(const [
+      Teacher(id: 'teacher-1', name: '张伟', shortName: '张', sortOrder: 0),
+    ]);
+    await _mountTeacherPage(
+      tester,
+      repository: repository,
+      routines: const {'primary': routine},
+    );
+    Future<void> openPreset() async {
+      await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('预排'));
+      await tester.pumpAndSettle();
+    }
+
+    await openPreset();
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-preset-menu-forbid')));
+    await tester.pumpAndSettle();
+    final stored = (await tester.runAsync(
+      () => repository.watchTeacherPresets(_termId).first,
+    ))!;
+    expect(stored.single.value, PresetValue.forbid);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await openPreset();
+    await tester.tap(find.byKey(const ValueKey('preset-cell-1-am-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('当前：不排'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('教师预排窄屏保留矩阵操作高度并支持整页滚动', (tester) async {

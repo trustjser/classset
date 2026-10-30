@@ -143,6 +143,9 @@ class _TeacherPresetWorkspaceState
   final Set<String> _editedScopeKeys = {};
   final Map<String, List<TeacherPreset>> _personalOverrides = {};
   final Map<String, List<TeacherGroupPreset>> _groupOverrides = {};
+  Future<bool>? _saveInFlight;
+  bool _saving = false;
+  bool _popWhenSaved = false;
 
   @override
   void initState() {
@@ -332,7 +335,7 @@ class _TeacherPresetWorkspaceState
                   .map((teacher) => teacher.displayName)
                   .firstOrNull;
               _showMessage(
-                '${teacherName ?? '该教师'}的分组预排冲突（${error.values.map((value) => value.label).join('、')}），请先解决后保存。',
+                '${teacherName ?? '该教师'}的分组预排冲突（${error.values.map((value) => value.label).join('、')}），请先解决冲突。',
               );
               return false;
             }
@@ -361,7 +364,8 @@ class _TeacherPresetWorkspaceState
   }
 
   Future<void> _changeOwnerKind(_PresetOwnerKind kind) async {
-    if (kind == _ownerKind || !await _saveDraft()) return;
+    if (kind == _ownerKind || !await (_saveInFlight ?? _saveDraft())) return;
+    if (!mounted) return;
     setState(() {
       _ownerKind = kind;
       _ownerId = null;
@@ -371,7 +375,8 @@ class _TeacherPresetWorkspaceState
   }
 
   Future<void> _selectOwner(String id) async {
-    if (id == _ownerId || !await _saveDraft()) return;
+    if (id == _ownerId || !await (_saveInFlight ?? _saveDraft())) return;
+    if (!mounted) return;
     setState(() {
       _ownerId = id;
       _draftOwnerKey = null;
@@ -388,7 +393,7 @@ class _TeacherPresetWorkspaceState
     if (rule.kind == _ownerKind &&
         rule.ownerId == _ownerId &&
         _editedScopeKeys.isNotEmpty) {
-      _showMessage('请先保存当前预排，再删除规则。');
+      _showMessage('预排正在保存，请稍后再删除规则。');
       return;
     }
     final confirmed = await showAppDialog<bool>(
@@ -615,7 +620,6 @@ class _TeacherPresetWorkspaceState
             child: AppTextFormField(
               controller: _ownerSearchController,
               decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search, size: 16),
                 hintText: _ownerKind == _PresetOwnerKind.teacher
                     ? '搜索教师'
                     : '搜索分组',
@@ -712,8 +716,7 @@ class _TeacherPresetWorkspaceState
               ?.gradeId
         : null;
     final (applicableGradeIds, applicableClassIds) = switch (scope.scope) {
-      TeacherPresetScope.school ||
-      TeacherPresetScope.stage => (
+      TeacherPresetScope.school || TeacherPresetScope.stage => (
         {
           for (final item in widget.configuration.classes)
             if (item.stageId == stageId) item.gradeId,
@@ -753,10 +756,11 @@ class _TeacherPresetWorkspaceState
           );
           if (resolution.full != null || resolution.partial != null) {
             exemptions[(
-              weekday: weekday,
-              periodTypeId: period.id,
-              lessonIndex: lesson,
-            )] = resolution;
+                  weekday: weekday,
+                  periodTypeId: period.id,
+                  lessonIndex: lesson,
+                )] =
+                resolution;
           }
         }
       }
@@ -779,15 +783,12 @@ class _TeacherPresetWorkspaceState
       title: ownerLabel == null
           ? '预排矩阵'
           : '$ownerLabel · ${scope?.label ?? '选择应用范围'}',
-      trailing: _editedScopeKeys.isEmpty
-          ? null
-          : AppPrimaryButton.icon(
-              key: const ValueKey('teacher-preset-save'),
-              onPressed: () => unawaited(_saveDraft()),
-              icon: const Icon(Icons.save_outlined, size: 15),
-              label: const Text('保存预排'),
-              size: FButtonSizeVariant.xs,
-            ),
+      trailing: _saving
+          ? Text(
+              '保存中…',
+              style: TextStyle(color: context.appColors.muted, fontSize: 11),
+            )
+          : null,
       padding: EdgeInsets.zero,
       expandChild: true,
       child: routine == null || scope == null || ownerLabel == null
@@ -821,7 +822,8 @@ class _TeacherPresetWorkspaceState
                             lessonIndex: entry.key.lessonIndex,
                           ): entry.value,
                     },
-                    onChanged: (cell, value) => setState(() {
+                    onChanged: (cell, value) {
+                      if (_saving) return;
                       final key = (
                         scope: scope.scope,
                         scopeId: scope.scopeId,
@@ -830,13 +832,33 @@ class _TeacherPresetWorkspaceState
                         periodTypeId: cell.periodTypeId,
                         lessonIndex: cell.lessonIndex,
                       );
-                      _editedScopeKeys.add(scope.key);
-                      if (value == null) {
-                        _values.remove(key);
-                      } else {
-                        _values[key] = value;
-                      }
-                    }),
+                      final previousValues =
+                          Map<_TeacherPresetCellKey, PresetValue>.of(_values);
+                      final previousScopes = Set<String>.of(_editedScopeKeys);
+                      setState(() {
+                        _editedScopeKeys.add(scope.key);
+                        if (value == null) {
+                          _values.remove(key);
+                        } else {
+                          _values[key] = value;
+                        }
+                        _saving = true;
+                      });
+                      _saveInFlight = () async {
+                        final saved = await _saveDraft();
+                        if (!saved) {
+                          _values
+                            ..clear()
+                            ..addAll(previousValues);
+                          _editedScopeKeys
+                            ..clear()
+                            ..addAll(previousScopes);
+                        }
+                        _saveInFlight = null;
+                        if (mounted) setState(() => _saving = false);
+                        return saved;
+                      }();
+                    },
                   ),
                 ),
               ],
@@ -1031,59 +1053,77 @@ class _TeacherPresetWorkspaceState
     );
     final rulesPanel = _rulesPanel(rules);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 900) {
-          return Scrollbar(
-            child: SingleChildScrollView(
-              key: const ValueKey('teacher-preset-page-scroll'),
-              primary: true,
-              child: Column(
-                children: [
-                  modePanel,
-                  const SizedBox(height: 10),
-                  SizedBox(height: 220, child: ownerPanel),
-                  const SizedBox(height: 10),
-                  SizedBox(height: 240, child: scopePanel),
-                  const SizedBox(height: 10),
-                  SizedBox(height: 420, child: matrixPanel),
-                  const SizedBox(height: 12),
-                  SizedBox(height: 300, child: rulesPanel),
-                ],
-              ),
-            ),
-          );
+    return PopScope(
+      canPop: !_saving,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop || _saveInFlight == null || _popWhenSaved) return;
+        _popWhenSaved = true;
+        final navigator = Navigator.of(context);
+        await _saveInFlight;
+        if (!mounted) return;
+        await WidgetsBinding.instance.endOfFrame;
+        if (mounted) {
+          _popWhenSaved = false;
+          navigator.maybePop();
         }
-
-        return Column(
-          children: [
-            Expanded(
-              flex: 7,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    width: 228,
-                    child: Column(
-                      children: [
-                        modePanel,
-                        const SizedBox(height: 10),
-                        Expanded(child: ownerPanel),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(width: 228, child: scopePanel),
-                  const SizedBox(width: 10),
-                  Expanded(child: matrixPanel),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(flex: 3, child: rulesPanel),
-          ],
-        );
       },
+      child: AbsorbPointer(
+        absorbing: _saving,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 900) {
+              return Scrollbar(
+                child: SingleChildScrollView(
+                  key: const ValueKey('teacher-preset-page-scroll'),
+                  primary: true,
+                  child: Column(
+                    children: [
+                      modePanel,
+                      const SizedBox(height: 10),
+                      SizedBox(height: 220, child: ownerPanel),
+                      const SizedBox(height: 10),
+                      SizedBox(height: 240, child: scopePanel),
+                      const SizedBox(height: 10),
+                      SizedBox(height: 420, child: matrixPanel),
+                      const SizedBox(height: 12),
+                      SizedBox(height: 300, child: rulesPanel),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              children: [
+                Expanded(
+                  flex: 7,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: 228,
+                        child: Column(
+                          children: [
+                            modePanel,
+                            const SizedBox(height: 10),
+                            Expanded(child: ownerPanel),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(width: 228, child: scopePanel),
+                      const SizedBox(width: 10),
+                      Expanded(child: matrixPanel),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(flex: 3, child: rulesPanel),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 }
