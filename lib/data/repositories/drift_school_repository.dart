@@ -2642,6 +2642,162 @@ class DriftSchoolRepository implements SchoolRepository {
       });
 
   @override
+  Future<void> importTeachersWithGroups({
+    required String termId,
+    required List<domain.Teacher> teachers,
+    required Map<String, List<String>> groupsByTeacher,
+    Set<String> replaceGroupsForTeachers = const {},
+    Set<String> replaceSubjectsForTeachers = const {},
+  }) => _database.transaction(() async {
+    final term = await (_database.select(
+      _database.academicTerms,
+    )..where((row) => row.id.equals(termId))).getSingleOrNull();
+    if (term == null) throw ArgumentError('学期不存在');
+    final ids = teachers.map((teacher) => teacher.id).toSet();
+    if (ids.length != teachers.length ||
+        !ids.containsAll(groupsByTeacher.keys) ||
+        !ids.containsAll(replaceGroupsForTeachers) ||
+        !ids.containsAll(replaceSubjectsForTeachers)) {
+      throw ArgumentError('教师数据无效或重复');
+    }
+    final existingGroups = await (_database.select(
+      _database.teacherGroups,
+    )..where((row) => row.termId.equals(termId))).get();
+    final groups = <String, List<TeacherGroup>>{};
+    var nextGroupOrder = existingGroups.fold<int>(
+      0,
+      (next, group) => group.sortOrder >= next ? group.sortOrder + 1 : next,
+    );
+    for (final group in existingGroups) {
+      groups.putIfAbsent(group.name.trim(), () => []).add(group);
+    }
+    for (final group in existingGroups) {
+      if (replaceGroupsForTeachers.isEmpty) break;
+      final oldMembers =
+          await (_database.select(_database.teacherGroupMembers)..where(
+                (row) =>
+                    row.groupId.equals(group.id) &
+                    row.teacherId.isIn(replaceGroupsForTeachers),
+              ))
+              .get();
+      if (oldMembers.isEmpty) continue;
+      final preset =
+          await (_database.select(_database.teacherGroupPresets)
+                ..where((row) => row.groupId.equals(group.id))
+                ..limit(1))
+              .getSingleOrNull();
+      if (preset != null &&
+          oldMembers.any(
+            (member) => !(groupsByTeacher[member.teacherId] ?? []).contains(
+              group.name.trim(),
+            ),
+          )) {
+        await _scheduling.captureReconciliationBaselineIfNeeded(termId);
+      }
+    }
+    for (final entry in groupsByTeacher.entries) {
+      for (final name in entry.value.map((item) => item.trim()).toSet()) {
+        final matches = groups[name] ?? [];
+        if (name.isEmpty || matches.length > 1) {
+          throw ArgumentError('分组名称为空或不唯一：$name');
+        }
+        if (matches.isEmpty) continue;
+        final groupId = matches.single.id;
+        final oldMember =
+            await (_database.select(_database.teacherGroupMembers)..where(
+                  (row) =>
+                      row.groupId.equals(groupId) &
+                      row.teacherId.equals(entry.key),
+                ))
+                .getSingleOrNull();
+        final preset =
+            await (_database.select(_database.teacherGroupPresets)
+                  ..where((row) => row.groupId.equals(groupId))
+                  ..limit(1))
+                .getSingleOrNull();
+        if (oldMember == null && preset != null) {
+          await _scheduling.captureReconciliationBaselineIfNeeded(termId);
+        }
+      }
+    }
+    final currentTags = await (_database.select(
+      _database.teacherSubjectTags,
+    )..where((row) => row.teacherId.isIn(ids))).get();
+    final tagsByTeacher = <String, Set<String>>{};
+    for (final tag in currentTags) {
+      tagsByTeacher.putIfAbsent(tag.teacherId, () => {}).add(tag.subjectId);
+    }
+    final termSubjects = await (_database.select(
+      _database.subjects,
+    )..where((row) => row.termId.equals(termId))).get();
+    final termSubjectIds = termSubjects.map((subject) => subject.id).toSet();
+    await saveTeachers([
+      for (final teacher in teachers)
+        teacher.copyWith(
+          subjectIds: replaceSubjectsForTeachers.contains(teacher.id)
+              ? {
+                  ...?tagsByTeacher[teacher.id]?.difference(termSubjectIds),
+                  ...teacher.subjectIds,
+                }
+              : {...?tagsByTeacher[teacher.id], ...teacher.subjectIds},
+        ),
+    ]);
+    final additions = <String, Set<String>>{};
+    for (final entry in groupsByTeacher.entries) {
+      for (final rawName in entry.value) {
+        final name = rawName.trim();
+        if (name.isEmpty) throw ArgumentError('分组名称不能为空');
+        var matches = groups[name] ?? [];
+        if (matches.length > 1) throw ArgumentError('分组名称“$name”不唯一');
+        if (matches.isEmpty) {
+          final group = domain.TeacherGroup(
+            id: _newId(),
+            termId: termId,
+            name: name,
+            sortOrder: nextGroupOrder++,
+          );
+          await saveTeacherGroup(group);
+          final created = await (_database.select(
+            _database.teacherGroups,
+          )..where((row) => row.id.equals(group.id))).getSingle();
+          matches = [created];
+          groups[name] = matches;
+        }
+        additions.putIfAbsent(matches.single.id, () => {}).add(entry.key);
+      }
+    }
+    for (final group in existingGroups) {
+      if (replaceGroupsForTeachers.isNotEmpty) {
+        additions.putIfAbsent(group.id, () => {});
+      }
+    }
+    for (final entry in additions.entries) {
+      final current = await (_database.select(
+        _database.teacherGroupMembers,
+      )..where((row) => row.groupId.equals(entry.key))).get();
+      final oldIds = current.map((row) => row.teacherId).toSet();
+      final members = {
+        ...oldIds.difference(replaceGroupsForTeachers),
+        ...entry.value,
+      };
+      if (members.length == oldIds.length && members.containsAll(oldIds)) {
+        continue;
+      }
+      await replaceTeacherGroupMembers(
+        groupId: entry.key,
+        members: [
+          for (final id in members)
+            domain.TeacherGroupMember(
+              id: '${entry.key}:$id',
+              groupId: entry.key,
+              teacherId: id,
+            ),
+        ],
+      );
+    }
+  });
+
+  @override
   Future<void> deleteTeacher(String teacherId) =>
       _database.transaction(() async {
         final terms =

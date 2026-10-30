@@ -981,6 +981,7 @@ class AppDialog extends StatelessWidget {
     this.titleGap = 16,
     this.actionsGap = 20,
     this.maxWidth = 560,
+    this.clipBehavior = Clip.none,
     super.key,
   });
 
@@ -991,9 +992,11 @@ class AppDialog extends StatelessWidget {
   final double titleGap;
   final double actionsGap;
   final double maxWidth;
+  final Clip clipBehavior;
 
   @override
   Widget build(BuildContext context) => FDialog(
+    clipBehavior: clipBehavior,
     constraints: BoxConstraints(minWidth: 280, maxWidth: maxWidth),
     builder: (context, style) => Padding(
       padding: padding,
@@ -1404,6 +1407,7 @@ class AppSelectField<T> extends StatelessWidget {
     this.contentGroupId,
     this.searchable = false,
     this.searchHint = '搜索选项',
+    this.selectedLabelFormatter,
     this.compact = false,
     super.key,
   });
@@ -1418,6 +1422,7 @@ class AppSelectField<T> extends StatelessWidget {
   final Object? contentGroupId;
   final bool searchable;
   final String searchHint;
+  final String Function(String label)? selectedLabelFormatter;
 
   /// Compact, softly filled treatment for toolbar filters.
   final bool compact;
@@ -1475,6 +1480,44 @@ class AppSelectField<T> extends StatelessWidget {
       );
     }
 
+    if (selectedLabelFormatter != null) {
+      final labels = {
+        for (final entry in items.entries) entry.value: entry.key,
+      };
+      return alignCompactField(
+        FSelect<T>.searchBuilder(
+          size: compact ? FTextFieldSizeVariant.sm : FTextFieldSizeVariant.md,
+          style: selectStyle,
+          textAlignVertical: compact ? TextAlignVertical.center : null,
+          contentConstraints: compact
+              ? const FPortalConstraints(
+                  minWidth: 260,
+                  maxWidth: 320,
+                  maxHeight: 300,
+                )
+              : const FAutoWidthPortalConstraints(maxHeight: 300),
+          format: (value) => selectedLabelFormatter!(labels[value] ?? ''),
+          filter: (query) {
+            final normalizedQuery = query.trim().toLowerCase();
+            return items.entries
+                .where(
+                  (entry) => entry.key.toLowerCase().contains(normalizedQuery),
+                )
+                .map((entry) => entry.value);
+          },
+          contentBuilder: (context, query, values) => [
+            for (final value in values)
+              FSelectItem<T>(title: Text(labels[value] ?? ''), value: value),
+          ],
+          searchFieldProperties: FSelectSearchFieldProperties(hint: searchHint),
+          control: control,
+          enabled: enabled,
+          label: fieldLabel,
+          hint: hint,
+          contentGroupId: contentGroupId,
+        ),
+      );
+    }
     return alignCompactField(
       FSelect<T>.search(
         size: compact ? FTextFieldSizeVariant.sm : FTextFieldSizeVariant.md,

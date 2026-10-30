@@ -37,6 +37,29 @@ List<int> _withBuiltinNumberFormatDeclaration(List<int> bytes) {
 }
 
 void main() {
+  test('教师模板支持分组和科目并提供说明与科目数据源', () {
+    final bytes = buildTeachersWorkbook(
+      [
+        const TeacherWorkbookRow(
+          name: '王老师',
+          shortName: '王',
+          groups: ['语文组', '年级组'],
+          subjects: ['语文', '数学'],
+        ),
+      ],
+      subjectNames: ['语文', '数学'],
+    );
+    final book = Excel.decodeBytes(bytes);
+    expect(book.tables.keys, containsAll(['教师', '填写说明', '科目数据源']));
+    final row = parseTeachersWorkbook(bytes).rows.single;
+    expect(row.groups, ['语文组', '年级组']);
+    expect(row.subjects, ['语文', '数学']);
+    expect(
+      book['科目数据源'].rows.map((row) => row.first?.value.toString()),
+      containsAll(['语文', '数学']),
+    );
+  });
+
   test('parses teacher rows and trims cells', () {
     final result = parseTeachersWorkbook(
       _workbook([
@@ -97,6 +120,8 @@ void main() {
     expect(rows.first.map((cell) => cell?.value.toString()).toList(), [
       '教师',
       '简称',
+      '分组',
+      '任课科目',
     ]);
     expect(rows[1][0]?.value.toString(), '王老师');
     expect(rows[1][1]?.value.toString(), '王');

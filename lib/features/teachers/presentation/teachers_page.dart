@@ -16,8 +16,8 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/features/teachers/io/teacher_workbook.dart';
+import 'package:class_set/features/teachers/io/teacher_import_plan.dart';
 import 'package:class_set/features/teachers/io/assignment_workbook.dart';
-import 'package:class_set/features/teachers/io/group_workbook.dart';
 import 'package:class_set/features/teachers/domain/teacher_assignment_matrix_data.dart';
 import 'package:class_set/features/teachers/presentation/teacher_select_options.dart';
 import 'package:class_set/features/teachers/domain/teacher_preset_repository_payload.dart';
@@ -42,6 +42,16 @@ part 'widgets/teacher_preset_matrix.dart';
 part 'widgets/teacher_preset_page.dart';
 part 'widgets/teacher_form_widgets.dart';
 part 'dialogs/teacher_dialogs.dart';
+part 'dialogs/teacher_import_dialog.dart';
 part 'dialogs/assignment_import_dialog.dart';
 part 'dialogs/assignment_dialogs.dart';
 part 'dialogs/batch_assignment_dialog.dart';
+
+final teacherImportFilePickerProvider = Provider<Future<XFile?> Function()>(
+  (ref) =>
+      () => openFile(
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
+        ],
+      ),
+);

@@ -17,6 +17,11 @@ import 'package:class_set/features/subjects/dialogs/class_detail_dialog.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/subjects/widgets/subject_matrix.dart';
 import 'package:drift/native.dart';
+import 'package:excel/excel.dart' as excel;
+import 'package:file_selector/file_selector.dart';
+
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey, SystemChannels;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -190,6 +195,157 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Excel 导入可下载空模板并阻止无效文件', (tester) async {
+    await seedData();
+    List<int>? downloaded;
+    container.dispose();
+    container = ProviderContainer(
+      overrides: [
+        schoolRepositoryProvider.overrideWithValue(repository),
+        subjectWorkbookPickerProvider.overrideWithValue(
+          () async =>
+              XFile.fromData(Uint8List.fromList([1, 2, 3]), name: '无效.xlsx'),
+        ),
+        subjectWorkbookSaverProvider.overrideWithValue((bytes) async {
+          downloaded = bytes;
+          return true;
+        }),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.text('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导入 Excel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('否'));
+    await tester.tap(find.byKey(const ValueKey('subject-import-download')));
+    await tester.pumpAndSettle();
+    expect(downloaded, isNotNull);
+    expect(excel.Excel.decodeBytes(downloaded!)['科目节数'].rows.length, 1);
+    await tester.tap(find.byKey(const ValueKey('subject-import-pick')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('无法读取 Excel'), findsOneWidget);
+    expect(
+      tester
+          .widget<AppPrimaryButton>(
+            find.byKey(const ValueKey('subject-import-confirm')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(
+      (await tester.runAsync(() => repository.watchAllRequirements().first))!,
+      isEmpty,
+    );
+  });
+
+  testWidgets('Excel 导入先进入草稿并保存当前筛选之外的年级', (tester) async {
+    await seedData();
+    await repository.saveGrade(
+      const GradeGroup(id: 'g2', stageId: 'gz', name: '高一', sortOrder: 0),
+    );
+    await repository.saveClass(
+      const ClassGroup(id: 'c3', gradeId: 'g2', name: '高一班', sortOrder: 0),
+    );
+    final book = excel.Excel.createExcel();
+    book.rename(book.getDefaultSheet()!, '科目节数');
+    final sheet = book['科目节数'];
+    sheet.appendRow([
+      for (final h in ['学段', '年级', '科目', '节数']) excel.TextCellValue(h),
+    ]);
+    sheet.appendRow([
+      excel.TextCellValue('初中部'),
+      excel.TextCellValue('一年级'),
+      excel.TextCellValue('语文'),
+      excel.TextCellValue('2,3|1|0'),
+    ]);
+    sheet.appendRow([
+      excel.TextCellValue('高中部'),
+      excel.TextCellValue('高一'),
+      excel.TextCellValue('数学'),
+      excel.IntCellValue(3),
+    ]);
+    final bytes = Uint8List.fromList(book.encode()!);
+    container.dispose();
+    container = ProviderContainer(
+      overrides: [
+        schoolRepositoryProvider.overrideWithValue(repository),
+        subjectWorkbookPickerProvider.overrideWithValue(
+          () async => XFile.fromData(bytes, name: '课程.xlsx'),
+        ),
+        subjectWorkbookSaverProvider.overrideWithValue((_) async => true),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.text('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导入 Excel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('subject-import-pick')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('已校验 3 条班级科目设置'), findsOneWidget);
+    expect(find.textContaining('高一班 · 数学：每周 3'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('subject-import-confirm')));
+    await tester.pumpAndSettle();
+    expect(
+      (await tester.runAsync(() => repository.watchAllRequirements().first))!,
+      isEmpty,
+    );
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final requirements = (await tester.runAsync(
+      () => repository.watchAllRequirements().first,
+    ))!;
+    expect(
+      requirements
+          .where(
+            (row) =>
+                row.subjectId == 's_chinese' &&
+                row.classId == 'c1' &&
+                row.weekMode == WeekMode.weekly,
+          )
+          .single
+          .lessonCount,
+      2,
+    );
+    expect(
+      requirements
+          .where(
+            (row) =>
+                row.subjectId == 's_chinese' &&
+                row.classId == 'c2' &&
+                row.weekMode == WeekMode.weekly,
+          )
+          .single
+          .lessonCount,
+      3,
+    );
+    expect(
+      requirements
+          .where(
+            (row) =>
+                row.subjectId == 's_chinese' &&
+                row.classId == 'c2' &&
+                row.weekMode == WeekMode.odd,
+          )
+          .single
+          .lessonCount,
+      1,
+    );
+    expect(
+      requirements
+          .where((row) => row.subjectId == 's_math' && row.lessonCount == 3)
+          .single
+          .classId,
+      'c3',
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('修改单个科目后保留其他科目的年级需求记录', (tester) async {
     await seedData();
@@ -2270,6 +2426,176 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('还没有配对。新增配对后，两门课将占用同一时段。'), findsOneWidget);
+  });
+
+  testWidgets('年级批量配对只提供相应单双周科目并保存至每个班级', (tester) async {
+    await seedData();
+    await repository.saveSubjects(const [
+      Subject(
+        id: 'weekly',
+        termId: 't1',
+        name: '每周课程',
+        shortName: '周',
+        sortOrder: 3,
+      ),
+    ]);
+    await repository.replaceGradeRequirements(
+      gradeId: 'g1',
+      requirements: const [
+        SubjectRequirement(
+          id: 'odd',
+          subjectId: 's_chinese',
+          gradeId: 'g1',
+          weekMode: WeekMode.odd,
+          lessonCount: 1,
+        ),
+        SubjectRequirement(
+          id: 'even',
+          subjectId: 's_math',
+          gradeId: 'g1',
+          weekMode: WeekMode.even,
+          lessonCount: 1,
+        ),
+        SubjectRequirement(
+          id: 'weekly-r',
+          subjectId: 'weekly',
+          gradeId: 'g1',
+          weekMode: WeekMode.weekly,
+          lessonCount: 1,
+        ),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.text('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('配对课程'));
+    await tester.pumpAndSettle();
+    Finder selects() => find.descendant(
+      of: find.byType(f.FDialog),
+      matching: find.byType(AppSelectField<String>),
+    );
+    final scope = tester.widget<AppSelectField<String>>(selects().at(0));
+    expect(tester.getSize(selects().at(0)).width, greaterThanOrEqualTo(260));
+    tester.view.physicalSize = const Size(640, 900);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(tester.getSize(selects().at(0)).width, greaterThanOrEqualTo(260));
+    tester.view.physicalSize = const Size(1440, 900);
+    await tester.pumpAndSettle();
+    expect(
+      scope.items.keys.any(
+        (label) => label.contains('一年级') && label.contains('全部班级'),
+      ),
+      isTrue,
+    );
+    scope.onChanged(
+      scope.items.entries
+          .firstWhere(
+            (entry) => entry.key.contains('一年级') && entry.key.contains('全部班级'),
+          )
+          .value,
+    );
+    await tester.pumpAndSettle();
+    final odd = tester.widget<AppSelectField<String>>(selects().at(1));
+    final even = tester.widget<AppSelectField<String>>(selects().at(2));
+    expect(odd.items.keys, contains('语文'));
+    expect(odd.items.keys, isNot(contains('数学')));
+    expect(odd.items.keys, isNot(contains('每周课程')));
+    expect(even.items.keys, contains('数学'));
+    expect(even.items.keys, isNot(contains('语文')));
+    odd.onChanged('s_chinese');
+    even.onChanged('s_math');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+    expect(
+      (await tester.runAsync(() => repository.watchAllPairings().first))!,
+      isEmpty,
+    );
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final saved = (await tester.runAsync(
+      () => repository.watchAllPairings().first,
+    ))!;
+    expect(saved.map((pairing) => pairing.classId).toSet(), {'c1', 'c2'});
+    expect(
+      saved.every(
+        (pairing) =>
+            pairing.oddSubjectId == 's_chinese' &&
+            pairing.evenSubjectId == 's_math',
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('年级配对阻止节数不一致并允许按班配对', (tester) async {
+    await seedData();
+    await repository.replaceGradeRequirements(
+      gradeId: 'g1',
+      requirements: const [
+        SubjectRequirement(
+          id: 'odd',
+          subjectId: 's_chinese',
+          gradeId: 'g1',
+          weekMode: WeekMode.odd,
+          lessonCount: 1,
+        ),
+        SubjectRequirement(
+          id: 'even',
+          subjectId: 's_math',
+          gradeId: 'g1',
+          weekMode: WeekMode.even,
+          lessonCount: 1,
+        ),
+        SubjectRequirement(
+          id: 'even-c2',
+          subjectId: 's_math',
+          gradeId: 'g1',
+          classId: 'c2',
+          weekMode: WeekMode.even,
+          lessonCount: 2,
+        ),
+      ],
+    );
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    await tester.tap(find.text('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('配对课程'));
+    await tester.pumpAndSettle();
+    Finder selects() => find.descendant(
+      of: find.byType(f.FDialog),
+      matching: find.byType(AppSelectField<String>),
+    );
+    tester
+        .widget<AppSelectField<String>>(selects().at(1))
+        .onChanged('s_chinese');
+    tester.widget<AppSelectField<String>>(selects().at(2)).onChanged('s_math');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('一（2）班的单周与双周节数须相同'), findsOneWidget);
+    tester.widget<AppSelectField<String>>(selects().at(0)).onChanged('c1');
+    await tester.pumpAndSettle();
+    tester
+        .widget<AppSelectField<String>>(selects().at(1))
+        .onChanged('s_chinese');
+    tester.widget<AppSelectField<String>>(selects().at(2)).onChanged('s_math');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('语文（单周）'), findsOneWidget);
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final saved = (await tester.runAsync(
+      () => repository.watchAllPairings().first,
+    ))!;
+    expect(saved.map((item) => item.classId), ['c1']);
   });
 
   testWidgets('未保存科目的配对先暂存，页面保存后落库', (tester) async {

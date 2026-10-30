@@ -12,6 +12,7 @@ import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/features/scheduling/scheduling_controller.dart';
 import 'package:class_set/features/scheduling/scheduling_timetable.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart' as f;
 import 'package:material_ui/material_ui.dart' as material_ui;
@@ -20,6 +21,7 @@ void main() {
   Future<void> mount(
     WidgetTester tester, {
     bool withUnplaced = false,
+    bool longClassName = false,
     Future<int?> Function(Set<String>)? onPlaceUnplaced,
     void Function(List<ScheduleItem>, String)? onExport,
   }) async {
@@ -67,7 +69,9 @@ void main() {
           ClassGroup(
             id: 'c$i',
             gradeId: 'g',
-            name: '一年级 ${i + 1} 班',
+            name: longClassName && i == 0
+                ? '一班特别长的班级名称用于显示完整提示'
+                : '一年级 ${i + 1} 班',
             sortOrder: i,
           ),
       ],
@@ -153,6 +157,34 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('班级选择和节次时间悬停显示完整内容', (tester) async {
+    await mount(tester, longClassName: true);
+    final selector = find.byKey(const ValueKey('schedule-class-selector'));
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: selector, matching: find.byType(EditableText)),
+    );
+    expect(editable.controller.text, endsWith('…'));
+    final classTooltip = find.byWidgetPredicate(
+      (widget) =>
+          widget is Tooltip && widget.message == '小学 · 一年级 一班特别长的班级名称用于显示完整提示',
+    );
+    final timeTooltip = find.byWidgetPredicate(
+      (widget) => widget is Tooltip && widget.message == '第 1 节 · 08:00',
+    );
+    expect(classTooltip, findsOneWidget);
+    expect(timeTooltip, findsOneWidget);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(selector));
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('小学 · 一年级 一班特别长的班级名称用于显示完整提示'), findsOneWidget);
+    await mouse.moveTo(tester.getCenter(timeTooltip));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('第 1 节 · 08:00'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('暂放区展示可拖动卡片、标题栏切换和一键放入反馈', (tester) async {
     Set<String>? requested;

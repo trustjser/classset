@@ -452,6 +452,8 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         hint: '选择班级',
         searchable: true,
         searchHint: '搜索班级',
+        selectedLabelFormatter: (label) =>
+            _truncateSelectorLabel(context, label),
       ),
       _ScheduleView.teacher => AppSelectField<String>(
         key: const ValueKey('schedule-teacher-selector'),
@@ -625,7 +627,14 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                     const SizedBox(width: 8),
                     SizedBox(
                       width: _view == _ScheduleView.schoolClass ? 210 : 175,
-                      child: selector,
+                      child:
+                          _view == _ScheduleView.schoolClass && classId != null
+                          ? Tooltip(
+                              message:
+                                  '${_stageName(snapshot, classId)} · ${_gradeName(snapshot, classId)} ${snapshot.classes.where((item) => item.id == classId).firstOrNull?.name ?? ''}',
+                              child: selector,
+                            )
+                          : selector,
                     ),
                   ],
                 ),
@@ -1635,24 +1644,33 @@ class _TimetableGrid extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            stageName == null
+          Tooltip(
+            message: stageName == null
                 ? _shortPeriodName(row.periodName)
                 : '$stageName · ${_shortPeriodName(row.periodName)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: context.appColors.ink,
-              fontSize: stageName == null ? 12 : 11,
-              fontWeight: FontWeight.w600,
+            child: Text(
+              stageName == null
+                  ? _shortPeriodName(row.periodName)
+                  : '$stageName · ${_shortPeriodName(row.periodName)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: context.appColors.ink,
+                fontSize: stageName == null ? 12 : 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: context.appColors.muted, fontSize: 11.5),
+          Tooltip(
+            message:
+                '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
+            child: Text(
+              '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: context.appColors.muted, fontSize: 11.5),
+            ),
           ),
         ],
       ),
@@ -3119,6 +3137,32 @@ String _dayLabel(int day) => switch (day) {
   6 => '周六',
   _ => '周日',
 };
+
+String _truncateSelectorLabel(BuildContext context, String label) {
+  final painter = TextPainter(
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+    text: TextSpan(text: label, style: const TextStyle(fontSize: 13)),
+  )..layout();
+  const availableWidth = 160.0;
+  if (painter.width <= availableWidth) {
+    painter.dispose();
+    return label;
+  }
+  final characters = label.characters.toList();
+  while (characters.isNotEmpty) {
+    characters.removeLast();
+    painter.text = TextSpan(
+      text: '${characters.join()}…',
+      style: const TextStyle(fontSize: 13),
+    );
+    painter.layout();
+    if (painter.width <= availableWidth) break;
+  }
+  painter.dispose();
+  return '${characters.join()}…';
+}
 
 String _minuteLabel(int minute) =>
     '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';

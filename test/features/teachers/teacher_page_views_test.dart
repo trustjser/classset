@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/database/app_database.dart' as db;
@@ -13,6 +15,8 @@ import 'package:class_set/domain/models/teacher_preset.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/features/teachers/teachers_page.dart';
+import 'package:class_set/features/teachers/io/teacher_workbook.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -69,10 +73,16 @@ Future<void> _mountTeacherPage(
   List<SchoolStage>? stages,
   Map<String, StageRoutine> routines = const {},
   bool useFixtureTeacherDataWithRepository = false,
+  Future<XFile?> Function()? teacherImportPicker,
+  bool dark = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (teacherImportPicker != null)
+          teacherImportFilePickerProvider.overrideWithValue(
+            teacherImportPicker,
+          ),
         if (repository != null)
           schoolRepositoryProvider.overrideWithValue(repository),
         for (final entry in routines.entries)
@@ -129,9 +139,9 @@ Future<void> _mountTeacherPage(
         ),
       ],
       child: MaterialApp(
-        theme: AppTheme.light,
+        theme: AppTheme.themeFor(dark),
         builder: (context, child) => FTheme(
-          data: AppTheme.foruiFor(false),
+          data: AppTheme.foruiFor(dark),
           child: FToaster(child: child!),
         ),
         home: const Scaffold(body: TeachersPage(termId: _termId)),
@@ -142,6 +152,236 @@ Future<void> _mountTeacherPage(
 }
 
 void main() {
+  testWidgets('教师导入预览在明暗主题和窄窗口中展示可筛选表格', (tester) async {
+    for (final dark in [false, true]) {
+      tester.view.physicalSize = const Size(900, 850);
+      tester.view.devicePixelRatio = 1;
+      final bytes = buildTeachersWorkbook([
+        const TeacherWorkbookRow(name: '张伟', subjects: ['数学']),
+        const TeacherWorkbookRow(
+          name: '李老师',
+          subjects: ['数学'],
+          groups: ['数学组'],
+        ),
+      ]);
+      await _mountTeacherPage(
+        tester,
+        dark: dark,
+        teacherImportPicker: () async =>
+            XFile.fromData(Uint8List.fromList(bytes), name: '教师.xlsx'),
+      );
+      await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Excel导入教师'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('teacher-import-template-card')),
+        findsOneWidget,
+      );
+      final templateCard = tester.widget<Container>(
+        find.byKey(const ValueKey('teacher-import-template-card')),
+      );
+      expect(
+        (templateCard.decoration! as BoxDecoration).color,
+        dark ? AppThemeColors.dark.surface : AppThemeColors.light.surface,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('teacher-import-select-file')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('teacher-import-select-file')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('teacher-import-file-card')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('teacher-import-preview-table')),
+      );
+      expect(
+        find.byKey(const ValueKey('teacher-import-preview-table')),
+        findsOneWidget,
+      );
+      expect(find.text('李老师'), findsOneWidget);
+      final chip = find.byKey(const ValueKey('teacher-import-status-skip'));
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      final selectedChip = tester.widget<OutlinedButton>(chip);
+      expect(
+        selectedChip.style!.backgroundColor!.resolve({}),
+        dark
+            ? AppThemeColors.dark.selectedBlue
+            : AppThemeColors.light.selectedBlue,
+      );
+      expect(find.text('系统中已存在同名教师，新增模式跳过'), findsOneWidget);
+      tester.view.physicalSize = const Size(600, 850);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    tester.view.reset();
+  });
+  testWidgets('教师与分组视角的更多菜单均不显示分组导入导出', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _mountTeacherPage(tester);
+    for (final tab in ['teacher-view-tab-teacher', 'teacher-view-tab-group']) {
+      await tester.tap(find.byKey(ValueKey(tab)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+      await tester.pumpAndSettle();
+      expect(find.text('导入分组'), findsNothing);
+      expect(find.text('导出分组'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+      await tester.pumpAndSettle();
+    }
+  });
+  testWidgets('Excel 导入教师同时保存科目标签与多个分组', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final database = db.AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = DriftSchoolRepository(database);
+    await repository.saveTerm(
+      AcademicTerm(
+        id: _termId,
+        title: '学期',
+        academicYear: '2026',
+        semesterLabel: '秋季',
+        firstTeachingWeekStart: null,
+        teachingWeekCount: 20,
+        createdAt: DateTime(2026),
+      ),
+    );
+    const subjects = [
+      Subject(
+        id: 'math',
+        termId: _termId,
+        name: '数学',
+        shortName: '数',
+        sortOrder: 0,
+      ),
+      Subject(
+        id: 'chinese',
+        termId: _termId,
+        name: '语文',
+        shortName: '语',
+        sortOrder: 1,
+      ),
+    ];
+    await repository.saveSubjects(subjects);
+    var bytes = buildTeachersWorkbook([
+      const TeacherWorkbookRow(
+        name: '新老师',
+        shortName: '新',
+        groups: ['数学组', '年级组'],
+        subjects: ['数学', '语文'],
+      ),
+    ]);
+    await _mountTeacherPage(
+      tester,
+      repository: repository,
+      subjects: subjects,
+      teacherImportPicker: () async =>
+          XFile.fromData(Uint8List.fromList(bytes), name: '教师.xlsx'),
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+    await tester.pumpAndSettle();
+    expect(find.text('导入分组'), findsNothing);
+    expect(find.text('导出分组'), findsNothing);
+    await tester.tap(find.text('Excel导入教师'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-import-select-file')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('数学组、年级组'), findsOneWidget);
+    expect(
+      (await tester.runAsync(() => repository.watchTeachers(_termId).first))!,
+      isEmpty,
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-import-confirm')));
+    await tester.pumpAndSettle();
+    final teachers = (await tester.runAsync(
+      () => repository.watchTeachers(_termId).first,
+    ))!;
+    expect(teachers.single.subjectIds, {'math', 'chinese'});
+    final groups = (await tester.runAsync(
+      () => repository.watchTeacherGroups(_termId).first,
+    ))!;
+    expect(groups.map((group) => group.name).toSet(), {'数学组', '年级组'});
+    final members = (await tester.runAsync(
+      () => repository.watchTeacherGroupMembers(_termId).first,
+    ))!;
+    expect(members.length, 2);
+    expect(
+      members.every((member) => member.teacherId == teachers.single.id),
+      isTrue,
+    );
+    bytes = buildTeachersWorkbook([const TeacherWorkbookRow(name: '新老师')]);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Excel导入教师'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('teacher-import-select-file')),
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-import-select-file')));
+    await tester.pumpAndSettle();
+    expect(find.text('跳过 1'), findsOneWidget);
+    await tester.ensureVisible(find.text('更新'));
+    await tester.tap(find.text('更新'));
+    await tester.tap(find.text('清空'));
+    await tester.pumpAndSettle();
+    expect(find.text('可更新 1'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('teacher-import-confirm')));
+    await tester.pumpAndSettle();
+    final updated = (await tester.runAsync(
+      () => repository.watchTeachers(_termId).first,
+    ))!.single;
+    expect(updated.subjectIds, isEmpty);
+    expect(updated.shortName, isEmpty);
+    expect(
+      (await tester.runAsync(
+        () => repository.watchTeacherGroupMembers(_termId).first,
+      ))!,
+      isEmpty,
+    );
+    bytes = buildTeachersWorkbook([
+      const TeacherWorkbookRow(
+        name: '错误老师',
+        groups: ['不应创建'],
+        subjects: ['不存在的科目'],
+      ),
+    ]);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-header-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Excel导入教师'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-import-select-file')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('科目“不存在的科目”不存在'), findsOneWidget);
+    expect(
+      (await tester.runAsync(() => repository.watchTeachers(_termId).first))!
+          .length,
+      1,
+    );
+    expect(
+      (await tester.runAsync(
+        () => repository.watchTeacherGroups(_termId).first,
+      ))!.length,
+      2,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
   testWidgets('页头三个小标签切换班级教师和分组，班级页只显示矩阵', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
@@ -1875,21 +2115,12 @@ void main() {
     await tester.tap(find.text('Excel导入教师'));
     await tester.pumpAndSettle();
     expect(find.byType(AppDialog), findsOneWidget);
-    expect(find.text('下载模板'), findsOneWidget);
-    expect(find.text('包含现有数据'), findsOneWidget);
-    expect(find.text('选择 Excel 文件'), findsOneWidget);
-    final downloadCard = find
-        .ancestor(of: find.text('下载教师模板'), matching: find.byType(AppSurface))
-        .first;
-    final includeExistingCheckbox = find.descendant(
-      of: downloadCard,
-      matching: find.byType(FCheckbox),
+    expect(
+      find.byKey(const ValueKey('teacher-import-download-template')),
+      findsOneWidget,
     );
-    expect(includeExistingCheckbox, findsOneWidget);
-    expect(tester.widget<FCheckbox>(includeExistingCheckbox).value, isFalse);
-    await tester.tap(find.text('包含现有数据'));
-    await tester.pumpAndSettle();
-    expect(tester.widget<FCheckbox>(includeExistingCheckbox).value, isTrue);
+    expect(find.text('模板是否包含现有教师数据'), findsOneWidget);
+    expect(find.text('选择 Excel 文件'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     await tester.tap(more);

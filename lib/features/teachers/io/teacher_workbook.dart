@@ -14,10 +14,23 @@ class TeacherWorkbookError {
 }
 
 class TeacherWorkbookRow {
-  const TeacherWorkbookRow({required this.name, this.shortName = ''});
+  const TeacherWorkbookRow({
+    required this.name,
+    this.shortName = '',
+    this.groups = const [],
+    this.subjects = const [],
+    this.rowNumber = 0,
+    this.hasGroups = true,
+    this.hasSubjects = true,
+  });
 
   final String name;
   final String shortName;
+  final List<String> groups;
+  final List<String> subjects;
+  final int rowNumber;
+  final bool hasGroups;
+  final bool hasSubjects;
 }
 
 class TeacherWorkbookResult {
@@ -35,15 +48,20 @@ TeacherWorkbookResult parseTeachersWorkbook(List<int> bytes) {
         errors: [TeacherWorkbookError(1, '工作表为空，请使用列：教师、简称')],
       );
     }
-    final rows = book.tables.values.first.rows;
+    final rows = (book.tables['教师'] ?? book.tables.values.first).rows;
     final headers = rows.first.map((cell) => _text(cell?.value)).toList();
     const required = ['教师', '简称'];
     if (required.any(
           (header) => headers.where((h) => h == header).length != 1,
         ) ||
-        headers.length != required.length) {
+        headers.where((header) => header == '分组').length > 1 ||
+        headers.where((header) => header == '任课科目').length > 1 ||
+        headers.any(
+          (header) =>
+              header.isNotEmpty && !['教师', '简称', '分组', '任课科目'].contains(header),
+        )) {
       return const TeacherWorkbookResult(
-        errors: [TeacherWorkbookError(1, '表格只能包含「教师」「简称」两列')],
+        errors: [TeacherWorkbookError(1, '表头须包含「教师」「简称」，可包含「分组」「任课科目」')],
       );
     }
     final nameColumn = headers.indexOf('教师');
@@ -54,13 +72,30 @@ TeacherWorkbookResult parseTeachersWorkbook(List<int> bytes) {
       final cells = rows[index];
       if (cells.every((cell) => _text(cell?.value).isEmpty)) continue;
       CellValue? at(int column) =>
-          column < cells.length ? cells[column]?.value : null;
+          column >= 0 && column < cells.length ? cells[column]?.value : null;
       final name = _text(at(nameColumn));
       final shortName = _text(at(shortColumn));
       if (name.isEmpty) {
         errors.add(TeacherWorkbookError(index + 1, '教师姓名不能为空'));
       } else {
-        parsed.add(TeacherWorkbookRow(name: name, shortName: shortName));
+        List<String> split(String header) =>
+            _text(at(headers.indexOf(header)))
+                .split(',')
+                .map((value) => value.trim())
+                .where((value) => value.isNotEmpty)
+                .toSet()
+                .toList();
+        parsed.add(
+          TeacherWorkbookRow(
+            name: name,
+            shortName: shortName,
+            groups: split('分组'),
+            subjects: split('任课科目'),
+            rowNumber: index + 1,
+            hasGroups: headers.contains('分组'),
+            hasSubjects: headers.contains('任课科目'),
+          ),
+        );
       }
     }
     if (errors.isNotEmpty) return TeacherWorkbookResult(errors: errors);
@@ -109,16 +144,45 @@ List<int> _removeBuiltinNumberFormatDeclarations(List<int> bytes) {
   return bytes;
 }
 
-List<int> buildTeachersWorkbook(List<TeacherWorkbookRow> rows) {
+List<int> buildTeachersWorkbook(
+  List<TeacherWorkbookRow> rows, {
+  List<String> subjectNames = const [],
+}) {
   final book = Excel.createExcel();
-  final sheet = book[book.getDefaultSheet()!];
-  sheet.appendRow([TextCellValue('教师'), TextCellValue('简称')]);
+  book.rename(book.getDefaultSheet()!, '教师');
+  final sheet = book['教师'];
+  sheet.appendRow([
+    for (final title in ['教师', '简称', '分组', '任课科目']) TextCellValue(title),
+  ]);
   for (final row in rows) {
     sheet.appendRow([
       TextCellValue(row.name.trim()),
       TextCellValue(row.shortName.trim()),
+      TextCellValue(row.groups.join(',')),
+      TextCellValue(row.subjects.join(',')),
     ]);
   }
+  for (var index = 0; index < 4; index++) {
+    sheet.setColumnWidth(index, index < 2 ? 20 : 36);
+  }
+  final instructions = book['填写说明'];
+  for (final line in [
+    ['教师导入填写说明'],
+    ['教师', '填写教师姓名，简称可留空；同名教师导入时需要确认身份。'],
+    ['分组', '多个分组用英文逗号分隔；已有分组添加成员，未存在的分组会新建。'],
+    ['任课科目', '填写科目全称，多个科目用英文逗号分隔，名称参照“科目数据源”。'],
+    ['导入规则', '可选择新增、更新或新增及更新，并设置空白是否清除；不会自动分配班级或课时。'],
+  ]) {
+    instructions.appendRow(line.map(TextCellValue.new).toList());
+  }
+  instructions.setColumnWidth(0, 18);
+  instructions.setColumnWidth(1, 95);
+  final source = book['科目数据源'];
+  source.appendRow([TextCellValue('科目')]);
+  for (final name in subjectNames) {
+    source.appendRow([TextCellValue(name)]);
+  }
+  source.setColumnWidth(0, 30);
   return book.encode()!;
 }
 

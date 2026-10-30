@@ -285,6 +285,14 @@ abstract interface class SchoolRepository {
 
   Future<void> saveTeachers(List<Teacher> teachers);
 
+  Future<void> importTeachersWithGroups({
+    required String termId,
+    required List<Teacher> teachers,
+    required Map<String, List<String>> groupsByTeacher,
+    Set<String> replaceGroupsForTeachers = const {},
+    Set<String> replaceSubjectsForTeachers = const {},
+  });
+
   Future<void> deleteTeacher(String teacherId);
 
   Future<int> countTeacherAssignments(String teacherId);

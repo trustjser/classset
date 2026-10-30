@@ -2,6 +2,7 @@ import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/features/subjects/subjects_data.dart';
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart' as f;
 
@@ -17,6 +18,8 @@ class PairingDialog extends StatefulWidget {
     required this.pairings,
     required this.subjectNames,
     required this.classLabels,
+    required this.gradeLabels,
+    required this.valuesByClassAndSubject,
     super.key,
   });
 
@@ -34,6 +37,8 @@ class PairingDialog extends StatefulWidget {
 
   /// 班级 ID → 下拉显示标签（同名班级已按学段/年级消歧）。
   final Map<String, String> classLabels;
+  final Map<String, String> gradeLabels;
+  final Map<(String, String), ClassSubjectValues> valuesByClassAndSubject;
 
   @override
   State<PairingDialog> createState() => _PairingDialogState();
@@ -50,8 +55,31 @@ class _PairingDialogState extends State<PairingDialog> {
   void initState() {
     super.initState();
     _pairings = List.of(widget.pairings);
-    _classId = widget.classes.isNotEmpty ? widget.classes.first.id : null;
+    _classId = widget.classes.isNotEmpty
+        ? 'grade:${widget.classes.first.gradeId}'
+        : null;
   }
+
+  List<ClassBrief> get _selectedClasses => _classId == null
+      ? []
+      : _classId!.startsWith('grade:')
+      ? widget.classes
+            .where((item) => item.gradeId == _classId!.substring(6))
+            .toList()
+      : widget.classes.where((item) => item.id == _classId).toList();
+
+  List<Subject> _eligibleSubjects(WeekMode mode) =>
+      widget.subjects.where((subject) {
+        final classes = _selectedClasses;
+        return classes.isNotEmpty &&
+            classes.every((schoolClass) {
+              final values =
+                  widget.valuesByClassAndSubject[(schoolClass.id, subject.id)];
+              return mode == WeekMode.odd
+                  ? (values?.odd ?? 0) > 0
+                  : (values?.even ?? 0) > 0;
+            });
+      }).toList();
 
   List<SubjectPairing> get _visiblePairings {
     final classIds = widget.classes.map((classBrief) => classBrief.id).toSet();
@@ -69,39 +97,80 @@ class _PairingDialogState extends State<PairingDialog> {
       classId;
 
   void _addPairing() {
-    final classId = _classId;
+    final classes = _selectedClasses;
     final oddSubjectId = _oddSubjectId;
     final evenSubjectId = _evenSubjectId;
-    if (classId == null || oddSubjectId == null || evenSubjectId == null) {
-      setState(() => _error = '请选择班级与两门科目');
+    if (classes.isEmpty || oddSubjectId == null || evenSubjectId == null) {
+      setState(() => _error = '请选择年级或班级与两门科目');
       return;
     }
     if (oddSubjectId == evenSubjectId) {
       setState(() => _error = '两门科目不能相同');
       return;
     }
-    final duplicate = _pairings.any(
-      (pairing) =>
-          pairing.classId == classId &&
-          ((pairing.oddSubjectId == oddSubjectId &&
-                  pairing.evenSubjectId == evenSubjectId) ||
-              (pairing.oddSubjectId == evenSubjectId &&
-                  pairing.evenSubjectId == oddSubjectId)),
-    );
-    if (duplicate) {
-      setState(() => _error = '该班级已存在相同配对');
+    final invalid = classes.where((schoolClass) {
+      final odd =
+          widget.valuesByClassAndSubject[(schoolClass.id, oddSubjectId)]?.odd ??
+          0;
+      final even =
+          widget
+              .valuesByClassAndSubject[(schoolClass.id, evenSubjectId)]
+              ?.even ??
+          0;
+      return odd == 0 || odd != even;
+    }).toList();
+    if (invalid.isNotEmpty) {
+      setState(
+        () => _error =
+            '${invalid.map((item) => _className(item.id)).join('、')}的单周与双周节数须相同且大于 0',
+      );
+      return;
+    }
+    final conflicts = classes
+        .where(
+          (schoolClass) => _pairings.any(
+            (pairing) =>
+                pairing.classId == schoolClass.id &&
+                (pairing.oddSubjectId == oddSubjectId ||
+                    pairing.evenSubjectId == evenSubjectId) &&
+                (pairing.oddSubjectId != oddSubjectId ||
+                    pairing.evenSubjectId != evenSubjectId),
+          ),
+        )
+        .toList();
+    if (conflicts.isNotEmpty) {
+      setState(
+        () => _error =
+            '${conflicts.map((item) => _className(item.id)).join('、')}已有占用所选科目的配对，请先解除',
+      );
+      return;
+    }
+    final missing = classes
+        .where(
+          (schoolClass) => !_pairings.any(
+            (pairing) =>
+                pairing.classId == schoolClass.id &&
+                pairing.oddSubjectId == oddSubjectId &&
+                pairing.evenSubjectId == evenSubjectId,
+          ),
+        )
+        .toList();
+    if (missing.isEmpty) {
+      setState(() => _error = '所选范围已存在相同配对');
       return;
     }
     setState(() {
       _error = null;
-      _pairings.add(
-        SubjectPairing(
-          id: 'pairing_${_pairings.length}_${DateTime.now().microsecondsSinceEpoch}',
-          classId: classId,
-          oddSubjectId: oddSubjectId,
-          evenSubjectId: evenSubjectId,
-        ),
-      );
+      for (var index = 0; index < missing.length; index++) {
+        _pairings.add(
+          SubjectPairing(
+            id: 'pairing_${DateTime.now().microsecondsSinceEpoch}_$index',
+            classId: missing[index].id,
+            oddSubjectId: oddSubjectId,
+            evenSubjectId: evenSubjectId,
+          ),
+        );
+      }
       _oddSubjectId = null;
       _evenSubjectId = null;
     });
@@ -119,8 +188,9 @@ class _PairingDialogState extends State<PairingDialog> {
     final visible = _visiblePairings;
     return AppDialog(
       title: const Text('配对课程'),
+      maxWidth: 860,
       content: SizedBox(
-        width: 480,
+        width: 810,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -145,15 +215,27 @@ class _PairingDialogState extends State<PairingDialog> {
                 ),
               )
             else
-              for (final pairing in visible)
-                _PairingRow(
-                  pairing: pairing,
-                  oddName: widget.subjectNames[pairing.oddSubjectId] ?? '未知科目',
-                  evenName:
-                      widget.subjectNames[pairing.evenSubjectId] ?? '未知科目',
-                  className: _className(pairing.classId),
-                  onRemove: () => _removePairing(pairing),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 180),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      for (final pairing in visible)
+                        _PairingRow(
+                          pairing: pairing,
+                          oddName:
+                              widget.subjectNames[pairing.oddSubjectId] ??
+                              '未知科目',
+                          evenName:
+                              widget.subjectNames[pairing.evenSubjectId] ??
+                              '未知科目',
+                          className: _className(pairing.classId),
+                          onRemove: () => _removePairing(pairing),
+                        ),
+                    ],
+                  ),
                 ),
+              ),
             const SizedBox(height: 14),
             Text(
               '+ 新增配对',
@@ -164,53 +246,73 @@ class _PairingDialogState extends State<PairingDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                SizedBox(
-                  width: 130,
-                  child: AppSelectField<String>(
-                    items: {
-                      for (final classBrief in widget.classes)
-                        widget.classLabels[classBrief.id] ?? classBrief.name:
-                            classBrief.id,
-                    },
-                    value: _classId,
-                    hint: '班级',
-                    onChanged: (value) => setState(() => _classId = value),
+            LayoutBuilder(
+              builder: (context, constraints) => Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  SizedBox(
+                    width: constraints.maxWidth < 280
+                        ? constraints.maxWidth
+                        : 280,
+                    child: AppSelectField<String>(
+                      items: {
+                        for (final gradeId
+                            in widget.classes
+                                .map((item) => item.gradeId)
+                                .toSet())
+                          '${widget.gradeLabels[gradeId] ?? gradeId} · 全部班级':
+                              'grade:$gradeId',
+                        for (final classBrief in widget.classes)
+                          widget.classLabels[classBrief.id] ?? classBrief.name:
+                              classBrief.id,
+                      },
+                      value: _classId,
+                      hint: '年级或班级',
+                      onChanged: (value) => setState(() {
+                        _classId = value;
+                        _oddSubjectId = null;
+                        _evenSubjectId = null;
+                        _error = null;
+                      }),
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: 130,
-                  child: AppSelectField<String>(
-                    items: {
-                      for (final subject in widget.subjects)
-                        subject.name: subject.id,
-                    },
-                    value: _oddSubjectId,
-                    hint: '科目 A（单周）',
-                    onChanged: (value) => setState(() => _oddSubjectId = value),
+                  SizedBox(
+                    width: constraints.maxWidth < 210
+                        ? constraints.maxWidth
+                        : 210,
+                    child: AppSelectField<String>(
+                      items: {
+                        for (final subject in _eligibleSubjects(WeekMode.odd))
+                          subject.name: subject.id,
+                      },
+                      value: _oddSubjectId,
+                      hint: '科目 A（单周）',
+                      onChanged: (value) =>
+                          setState(() => _oddSubjectId = value),
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: 130,
-                  child: AppSelectField<String>(
-                    items: {
-                      for (final subject in widget.subjects)
-                        subject.name: subject.id,
-                    },
-                    value: _evenSubjectId,
-                    hint: '科目 B（双周）',
-                    onChanged: (value) =>
-                        setState(() => _evenSubjectId = value),
+                  SizedBox(
+                    width: constraints.maxWidth < 210
+                        ? constraints.maxWidth
+                        : 210,
+                    child: AppSelectField<String>(
+                      items: {
+                        for (final subject in _eligibleSubjects(WeekMode.even))
+                          subject.name: subject.id,
+                      },
+                      value: _evenSubjectId,
+                      hint: '科目 B（双周）',
+                      onChanged: (value) =>
+                          setState(() => _evenSubjectId = value),
+                    ),
                   ),
-                ),
-                AppSecondaryButton(
-                  onPressed: _addPairing,
-                  child: const Text('添加'),
-                ),
-              ],
+                  AppSecondaryButton(
+                    onPressed: _addPairing,
+                    child: const Text('添加'),
+                  ),
+                ],
+              ),
             ),
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -224,7 +326,7 @@ class _PairingDialogState extends State<PairingDialog> {
             ],
             const SizedBox(height: 14),
             Text(
-              '配对只约束「两门课必须占同一时段」，不改变各自节数与周模式；完成后仍需点击页面「保存」才会生效。',
+              '仅显示所选范围内每个班级均有对应单周或双周节数的科目。两门课在各班的单双周节数须相同；完成后仍需点击页面「保存」才会生效。',
               style: TextStyle(
                 color: context.appColors.muted,
                 fontSize: 11,
@@ -271,7 +373,10 @@ class _PairingRow extends StatelessWidget {
       color: context.appColors.selectedBlue,
       borderRadius: BorderRadius.circular(8),
     ),
-    child: Row(
+    child: Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 4,
       children: [
         _SubjectChip(label: '$oddName（单周）'),
         Padding(
@@ -288,7 +393,6 @@ class _PairingRow extends StatelessWidget {
           '→ $className',
           style: TextStyle(color: context.appColors.inkSecondary, fontSize: 12),
         ),
-        const Spacer(),
         AppGhostButton(
           size: f.FButtonSizeVariant.xs,
           onPressed: onRemove,

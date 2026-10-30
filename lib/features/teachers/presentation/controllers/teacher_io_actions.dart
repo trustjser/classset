@@ -2,12 +2,75 @@ part of '../teachers_page.dart';
 
 extension _TeacherIoActions on _TeachersPageState {
   Future<void> _importTeachers() async {
-    final upload = await _showTeacherImportDialog(
-      context,
-      onDownloadTemplate: _downloadTeacherImportTemplate,
+    final teachers = await ref.read(teachersProvider(widget.termId).future);
+    final subjects = await ref.read(
+      subjectsForTermProvider(widget.termId).future,
     );
-    if (upload != true || !mounted) return;
-    await _selectAndImportTeachers();
+    final groups = await ref.read(teacherGroupsProvider(widget.termId).future);
+    if (!mounted) return;
+    final result = await showAppDialog<(List<TeacherImportEntry>, bool)>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _TeacherImportDialog(
+        teachers: teachers,
+        subjects: subjects,
+        groups: groups,
+        pickFile: ref.read(teacherImportFilePickerProvider),
+        download: _downloadTeacherImportTemplate,
+      ),
+    );
+    if (result == null || !mounted) return;
+    final (entries, clearEmpty) = result;
+    final imported = <Teacher>[];
+    final groupsByTeacher = <String, List<String>>{};
+    final replaceGroups = <String>{};
+    final replaceSubjects = <String>{};
+    var order = teachers.length;
+    for (final entry in entries.where(
+      (item) =>
+          item.status == TeacherImportStatus.create ||
+          item.status == TeacherImportStatus.update,
+    )) {
+      final row = entry.row;
+      final old = entry.teacher;
+      final teacher = old == null
+          ? Teacher(
+              id: _id('teacher'),
+              name: row.name,
+              shortName: row.shortName,
+              sortOrder: order++,
+              subjectIds: entry.subjectIds,
+            )
+          : old.copyWith(
+              shortName: row.shortName.isNotEmpty || clearEmpty
+                  ? row.shortName
+                  : old.shortName,
+              subjectIds: entry.subjectIds,
+            );
+      imported.add(teacher);
+      if (old == null ||
+          (row.hasGroups && (row.groups.isNotEmpty || clearEmpty))) {
+        groupsByTeacher[teacher.id] = row.groups;
+        if (old != null) replaceGroups.add(teacher.id);
+      }
+      if (old != null &&
+          row.hasSubjects &&
+          (row.subjects.isNotEmpty || clearEmpty)) {
+        replaceSubjects.add(teacher.id);
+      }
+    }
+    try {
+      await _repository.importTeachersWithGroups(
+        termId: widget.termId,
+        teachers: imported,
+        groupsByTeacher: groupsByTeacher,
+        replaceGroupsForTeachers: replaceGroups,
+        replaceSubjectsForTeachers: replaceSubjects,
+      );
+      if (mounted) _showMessage('已导入 ${imported.length} 名教师');
+    } catch (error) {
+      if (mounted) _showMessage('导入教师失败：$error');
+    }
   }
 
   Future<void> _downloadTeacherImportTemplate(bool includeExisting) async {
@@ -18,22 +81,40 @@ extension _TeacherIoActions on _TeachersPageState {
       ],
     );
     if (location == null) return;
+    final teachers = await ref.read(teachersProvider(widget.termId).future);
+    final subjects = await ref.read(
+      subjectsForTermProvider(widget.termId).future,
+    );
+    final groups = await ref.read(teacherGroupsProvider(widget.termId).future);
+    final members = await ref.read(
+      teacherGroupMembersProvider(widget.termId).future,
+    );
+    final groupNames = {for (final group in groups) group.id: group.name};
     final file = XFile.fromData(
       Uint8List.fromList(
         buildTeachersWorkbook(
           includeExisting
               ? [
-                  for (final teacher
-                      in ref
-                              .read(teachersProvider(widget.termId))
-                              .valueOrNull ??
-                          const <Teacher>[])
+                  for (final teacher in teachers)
                     TeacherWorkbookRow(
                       name: teacher.name,
                       shortName: teacher.shortName,
+                      groups: [
+                        for (final member in members.where(
+                          (member) => member.teacherId == teacher.id,
+                        ))
+                          if (groupNames[member.groupId] != null)
+                            groupNames[member.groupId]!,
+                      ],
+                      subjects: [
+                        for (final subject in subjects)
+                          if (teacher.subjectIds.contains(subject.id))
+                            subject.name,
+                      ],
                     ),
                 ]
               : const [],
+          subjectNames: [for (final subject in subjects) subject.name],
         ),
       ),
       name: '教师导入模板.xlsx',
@@ -42,60 +123,6 @@ extension _TeacherIoActions on _TeachersPageState {
     );
     await file.saveTo(location.path);
     if (mounted) _showMessage('教师导入模板已下载');
-  }
-
-  Future<void> _selectAndImportTeachers() async {
-    final file = await openFile(
-      acceptedTypeGroups: [
-        const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
-      ],
-    );
-    if (file == null || !mounted) return;
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    final result = parseTeachersWorkbook(bytes);
-    if (result.errors.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.errors.map((error) => '$error').join('；')),
-        ),
-      );
-      return;
-    }
-    final current =
-        ref.read(teachersProvider(widget.termId)).valueOrNull ?? const [];
-    final plan = await _showTeacherImportPreview(
-      context,
-      rows: result.rows,
-      teachers: current,
-    );
-    if (plan == null) return;
-    var newTeacherOrder = current.length;
-    try {
-      await _repository.saveTeachers([
-        for (final item in plan)
-          if (item.teacherId != null)
-            current
-                .firstWhere((teacher) => teacher.id == item.teacherId)
-                .copyWith(name: item.row.name, shortName: item.row.shortName)
-          else
-            Teacher(
-              id: _id('teacher'),
-              name: item.row.name,
-              shortName: item.row.shortName,
-              displayQualifier: item.displayQualifier,
-              sortOrder: newTeacherOrder++,
-            ),
-      ]);
-    } catch (error) {
-      if (mounted) _showMessage('导入教师失败：$error');
-      return;
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('已导入 ${result.rows.length} 名教师')));
-    }
   }
 
   Future<void> _importAssignments() async {
@@ -211,115 +238,5 @@ extension _TeacherIoActions on _TeachersPageState {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ).saveTo(location.path);
     if (mounted) _showMessage('任课分配导入模板已下载');
-  }
-
-  Future<void> _importGroups() async {
-    final file = await openFile(
-      acceptedTypeGroups: [
-        const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
-      ],
-    );
-    if (file == null || !mounted) return;
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    final result = parseTeacherGroupsWorkbook(bytes);
-    if (result.errors.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.errors.map((error) => '$error').join('；')),
-        ),
-      );
-      return;
-    }
-    final teachers =
-        ref.read(teachersProvider(widget.termId)).valueOrNull ?? const [];
-    final teachersByName = <String, List<Teacher>>{};
-    for (final teacher in teachers) {
-      teachersByName.putIfAbsent(teacher.name, () => []).add(teacher);
-    }
-    final existing =
-        ref.read(teacherGroupsProvider(widget.termId)).valueOrNull ?? const [];
-    final groups = <TeacherGroup>[];
-    final members = <TeacherGroupMember>[];
-    final memberErrors = <String>[];
-    for (var index = 0; index < result.rows.length; index++) {
-      final row = result.rows[index];
-      final group = TeacherGroup(
-        id: _id('group'),
-        termId: widget.termId,
-        name: row.name,
-        description: row.description.isEmpty ? null : row.description,
-        sortOrder: existing.length + index,
-      );
-      groups.add(group);
-      for (final name in row.memberNames) {
-        final candidates = teachersByName[name] ?? const <Teacher>[];
-        if (candidates.length != 1) {
-          memberErrors.add(
-            '第 ${index + 2} 行成员「$name」${candidates.isEmpty ? '不存在' : '姓名重复'}，请先在教师视角手动核对。',
-          );
-          continue;
-        }
-        members.add(
-          TeacherGroupMember(
-            id: '${group.id}:${candidates.single.id}',
-            groupId: group.id,
-            teacherId: candidates.single.id,
-          ),
-        );
-      }
-    }
-    if (memberErrors.isNotEmpty) {
-      _showMessage(memberErrors.join('；'));
-      return;
-    }
-    await _repository.saveTeacherGroupsWithMembers(
-      groups: groups,
-      members: members,
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('已导入 ${result.rows.length} 个分组')));
-    }
-  }
-
-  Future<void> _exportGroups() async {
-    final groups =
-        ref.read(teacherGroupsProvider(widget.termId)).valueOrNull ?? const [];
-    final teachers =
-        ref.read(teachersProvider(widget.termId)).valueOrNull ?? const [];
-    final members =
-        ref.read(teacherGroupMembersProvider(widget.termId)).valueOrNull ??
-        const [];
-    final names = {for (final teacher in teachers) teacher.id: teacher.name};
-    final location = await getSaveLocation(
-      suggestedName: '教师分组.xlsx',
-      acceptedTypeGroups: [
-        const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
-      ],
-    );
-    if (location == null) return;
-    final file = XFile.fromData(
-      Uint8List.fromList(
-        buildTeacherGroupsWorkbook([
-          for (final group in groups)
-            TeacherGroupWorkbookRow(
-              name: group.name,
-              description: group.description ?? '',
-              memberNames: [
-                for (final member in members.where(
-                  (row) => row.groupId == group.id,
-                ))
-                  if (names[member.teacherId] != null) names[member.teacherId]!,
-              ],
-            ),
-        ]),
-      ),
-      name: '教师分组.xlsx',
-      mimeType:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-    await file.saveTo(location.path);
   }
 }

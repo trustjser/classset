@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/navigation/draft_navigation_guard.dart';
@@ -16,10 +18,44 @@ import 'package:class_set/features/subjects/dialogs/class_detail_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/pairing_dialog.dart';
 import 'package:class_set/features/subjects/dialogs/subject_preset_dialog.dart';
 import 'package:class_set/features/subjects/subjects_data.dart';
+import 'package:class_set/features/subjects/subject_import_dialog.dart';
+import 'package:class_set/features/subjects/subject_workbook.dart';
 import 'package:class_set/features/subjects/widgets/subject_matrix.dart';
 import 'package:class_set/features/subjects/widgets/subject_scope_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_selector/file_selector.dart';
+
+final subjectWorkbookPickerProvider = Provider<Future<XFile?> Function()>(
+  (ref) =>
+      () => openFile(
+        acceptedTypeGroups: [
+          const XTypeGroup(
+            label: 'Excel 工作簿',
+            extensions: ['xlsx'],
+            uniformTypeIdentifiers: ['org.openxmlformats.spreadsheetml.sheet'],
+          ),
+        ],
+      ),
+);
+final subjectWorkbookSaverProvider = Provider<Future<bool> Function(List<int>)>(
+  (ref) => (bytes) async {
+    final location = await getSaveLocation(
+      suggestedName: '科目节数导入模板.xlsx',
+      acceptedTypeGroups: [
+        const XTypeGroup(label: 'Excel 工作簿', extensions: ['xlsx']),
+      ],
+    );
+    if (location == null) return false;
+    await XFile.fromData(
+      Uint8List.fromList(bytes),
+      name: '科目节数导入模板.xlsx',
+      mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ).saveTo(location.path);
+    return true;
+  },
+);
 
 /// 科目节数：科目 × 年级矩阵 + 按班下钻 + 容量校验（US-012/013）。
 class SubjectsPage extends ConsumerStatefulWidget {
@@ -234,8 +270,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
               AppMenuButton(
                 items: [
                   AppMenuItem(label: '配对课程', onPressed: _openPairing),
-                  AppMenuItem(label: '生成模板', onPressed: _showComingSoon),
-                  AppMenuItem(label: '导入 Excel', onPressed: _showComingSoon),
+                  AppMenuItem(label: '导入 Excel', onPressed: _openSubjectImport),
                 ],
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -1171,6 +1206,19 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           for (final subject in subjects) subject.id: subject.name,
         },
         classLabels: classLabels,
+        gradeLabels: {
+          for (final grade in gradeById.values)
+            grade.id: '${stageById[grade.stageId]?.name ?? ''} · ${grade.name}',
+        },
+        valuesByClassAndSubject: {
+          for (final schoolClass in classBriefs)
+            for (final subject in subjects)
+              (schoolClass.id, subject.id): _effectiveValues(
+                subject.id,
+                schoolClass.id,
+                ref.read(allRequirementsProvider).valueOrNull ?? const [],
+              ),
+        },
       ),
     );
     if (result == null) return;
@@ -1355,6 +1403,72 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     });
   }
 
+  Future<void> _openSubjectImport() async {
+    try {
+      final stages = await ref.read(stagesProvider(widget.termId).future);
+      final grades = await ref.read(
+        gradesForTermProvider(widget.termId).future,
+      );
+      final classes = await ref.read(
+        classesForTermProvider(widget.termId).future,
+      );
+      final savedSubjects = await ref.read(
+        subjectsForTermProvider(widget.termId).future,
+      );
+      final requirements = await ref.read(allRequirementsProvider.future);
+      final subjects = _visibleSubjects(savedSubjects);
+      final term = (await ref.read(termsProvider.future))
+          .where((item) => item.id == widget.termId)
+          .firstOrNull;
+      if (!mounted) return;
+      final plan = await showAppDialog<SubjectWorkbookPlan>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => SubjectImportDialog(
+          termLabel: term?.title ?? '',
+          stages: stages,
+          grades: grades,
+          classes: classes,
+          subjects: subjects,
+          values: {
+            for (final schoolClass in classes)
+              for (final subject in subjects)
+                (schoolClass.id, subject.id): _effectiveValues(
+                  subject.id,
+                  schoolClass.id,
+                  requirements,
+                ),
+          },
+          alternating: _alternatingWeeks,
+          pickFile: ref.read(subjectWorkbookPickerProvider),
+          saveTemplate: ref.read(subjectWorkbookSaverProvider),
+        ),
+      );
+      if (plan == null || !mounted) return;
+      var changed = 0;
+      setState(() {
+        for (final entry in plan.values.entries) {
+          final (classId, subjectId) = entry.key;
+          if (_effectiveValues(subjectId, classId, requirements) ==
+              entry.value) {
+            continue;
+          }
+          _draft[_scopeKey(subjectId, classId, WeekMode.weekly)] =
+              entry.value.weekly;
+          _draft[_scopeKey(subjectId, classId, WeekMode.odd)] = entry.value.odd;
+          _draft[_scopeKey(subjectId, classId, WeekMode.even)] =
+              entry.value.even;
+          changed++;
+        }
+      });
+      _showMessage(
+        changed == 0 ? '导入内容与现有设置一致' : '已导入 $changed 条班级科目设置，请点击“保存”',
+      );
+    } catch (error) {
+      if (mounted) _showMessage('导入失败：$error');
+    }
+  }
+
   Future<bool> _save() =>
       _saveInFlight ??= _performSave().whenComplete(() => _saveInFlight = null);
 
@@ -1365,24 +1479,42 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final scopeGrades = _scopeStageId == null
         ? allGrades
         : allGrades.where((grade) => grade.stageId == _scopeStageId).toList();
-    // 只保存当前可见的年级列（编辑所见即所存）。
-    final grades = scopeGrades
+    final allClasses =
+        ref.read(classesForTermProvider(widget.termId)).valueOrNull ??
+        const <ClassBrief>[];
+    final allSubjects = _visibleSubjects(
+      ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
+          const <Subject>[],
+    );
+    final editedGradeIds = {
+      for (final schoolClass in allClasses)
+        if (allSubjects.any(
+          (subject) => WeekMode.values.any(
+            (mode) =>
+                _draft.containsKey(_scopeKey(subject.id, schoolClass.id, mode)),
+          ),
+        ))
+          schoolClass.gradeId,
+    };
+    final visibleIds = scopeGrades
         .where(
           (grade) =>
               _visibleGradeIds.isEmpty || _visibleGradeIds.contains(grade.id),
         )
+        .map((grade) => grade.id)
+        .toSet();
+    final grades = allGrades
+        .where(
+          (grade) =>
+              visibleIds.contains(grade.id) ||
+              editedGradeIds.contains(grade.id),
+        )
         .toList();
-    final allClasses =
-        ref.read(classesForTermProvider(widget.termId)).valueOrNull ??
-        const <ClassBrief>[];
     final visibleGradeIds = grades.map((grade) => grade.id).toSet();
     final classBriefs = allClasses
         .where((classBrief) => visibleGradeIds.contains(classBrief.gradeId))
         .toList();
-    final subjects = _visibleSubjects(
-      ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
-          const <Subject>[],
-    );
+    final subjects = allSubjects;
     final requirements =
         ref.read(allRequirementsProvider).valueOrNull ??
         const <SubjectRequirement>[];
@@ -1586,11 +1718,6 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           .showSnackBar(SnackBar(content: Text('保存失败：$error')));
       return false;
     }
-  }
-
-  void _showComingSoon() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('该功能将在后续版本提供')));
   }
 }
 

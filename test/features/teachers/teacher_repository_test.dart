@@ -54,6 +54,172 @@ void main() {
     expect(stage.termId, 'term-1');
   }
 
+  test('教师导入合并科目及分组并在失败时整体回滚', () async {
+    await seed();
+    await repository.saveTeachers(const [
+      Teacher(
+        id: 'old',
+        name: '旧教师',
+        shortName: '旧',
+        sortOrder: 0,
+        subjectIds: {'subject-1'},
+      ),
+    ]);
+    await repository.saveTeacherGroup(
+      const TeacherGroup(
+        id: 'group-1',
+        termId: 'term-1',
+        name: '数学组',
+        sortOrder: 0,
+      ),
+    );
+    await repository.replaceTeacherGroupMembers(
+      groupId: 'group-1',
+      members: const [
+        TeacherGroupMember(id: 'm', groupId: 'group-1', teacherId: 'old'),
+      ],
+    );
+    await repository.importTeachersWithGroups(
+      termId: 'term-1',
+      teachers: const [
+        Teacher(
+          id: 'new',
+          name: '新教师',
+          shortName: '新',
+          sortOrder: 1,
+          subjectIds: {'subject-1'},
+        ),
+      ],
+      groupsByTeacher: {
+        'new': ['数学组', '年级组'],
+      },
+    );
+    final teachers = await repository.watchTeachers('term-1').first;
+    expect(teachers.firstWhere((item) => item.id == 'new').subjectIds, {
+      'subject-1',
+    });
+    final groups = await repository.watchTeacherGroups('term-1').first;
+    expect(groups.map((item) => item.name), containsAll(['数学组', '年级组']));
+    final members = await repository.watchTeacherGroupMembers('term-1').first;
+    expect(
+      members
+          .where((item) => item.groupId == 'group-1')
+          .map((item) => item.teacherId)
+          .toSet(),
+      {'old', 'new'},
+    );
+    await expectLater(
+      repository.importTeachersWithGroups(
+        termId: 'term-1',
+        teachers: const [
+          Teacher(
+            id: 'bad',
+            name: '错误教师',
+            shortName: '',
+            sortOrder: 2,
+            subjectIds: {'missing'},
+          ),
+        ],
+        groupsByTeacher: const {
+          'bad': ['失败组'],
+        },
+      ),
+      throwsA(anything),
+    );
+    expect(
+      (await repository.watchTeachers('term-1').first).any(
+        (item) => item.id == 'bad',
+      ),
+      isFalse,
+    );
+    expect(
+      (await repository.watchTeacherGroups('term-1').first).any(
+        (item) => item.name == '失败组',
+      ),
+      isFalse,
+    );
+  });
+
+  test('更新教师时清空当前学期科目和分组但保留其他学期数据', () async {
+    await seed();
+    await repository.saveTerm(
+      AcademicTerm(
+        id: 'term-2',
+        title: '新学期',
+        academicYear: '2027',
+        semesterLabel: '春季',
+        firstTeachingWeekStart: null,
+        teachingWeekCount: 20,
+        createdAt: DateTime(2027),
+      ),
+    );
+    await repository.saveSubjects(const [
+      Subject(
+        id: 'subject-2',
+        termId: 'term-2',
+        name: '英语',
+        shortName: '英',
+        sortOrder: 0,
+      ),
+    ]);
+    await repository.saveTeachers(const [
+      Teacher(
+        id: 'teacher',
+        name: '张老师',
+        shortName: '张',
+        sortOrder: 0,
+        subjectIds: {'subject-1', 'subject-2'},
+      ),
+    ]);
+    await repository.saveTeacherGroup(
+      const TeacherGroup(
+        id: 'group-current',
+        termId: 'term-1',
+        name: '本学期',
+        sortOrder: 0,
+      ),
+    );
+    await repository.saveTeacherGroup(
+      const TeacherGroup(
+        id: 'group-other',
+        termId: 'term-2',
+        name: '其他学期',
+        sortOrder: 0,
+      ),
+    );
+    for (final groupId in ['group-current', 'group-other']) {
+      await repository.replaceTeacherGroupMembers(
+        groupId: groupId,
+        members: [
+          TeacherGroupMember(
+            id: 'm-$groupId',
+            groupId: groupId,
+            teacherId: 'teacher',
+          ),
+        ],
+      );
+    }
+    await repository.importTeachersWithGroups(
+      termId: 'term-1',
+      teachers: const [
+        Teacher(id: 'teacher', name: '张老师', shortName: '', sortOrder: 0),
+      ],
+      groupsByTeacher: const {'teacher': []},
+      replaceGroupsForTeachers: const {'teacher'},
+      replaceSubjectsForTeachers: const {'teacher'},
+    );
+    expect((await repository.watchTeachers('term-1').first).single.subjectIds, {
+      'subject-2',
+    });
+    expect(await repository.watchTeacherGroupMembers('term-1').first, isEmpty);
+    expect(
+      (await repository.watchTeacherGroupMembers('term-2').first)
+          .single
+          .teacherId,
+      'teacher',
+    );
+  });
+
   test('教师、标签、分组和拆分任课可持久化', () async {
     await seed();
     await repository.saveTeachers([
