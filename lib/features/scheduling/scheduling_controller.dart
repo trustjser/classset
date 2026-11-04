@@ -44,6 +44,7 @@ class SchedulingState {
     this.redoCount = 0,
     this.detectionIssues = const [],
     this.detectionRan = false,
+    this.placementUnplaced = const [],
     this.pendingBaseline,
     this.currentSnapshot,
     this.reconciliationPreview,
@@ -63,6 +64,7 @@ class SchedulingState {
   final int redoCount;
   final List<ScheduleBlocker> detectionIssues;
   final bool detectionRan;
+  final List<ScheduleUnplacedCourse> placementUnplaced;
   final SchedulingSnapshot? pendingBaseline;
   final SchedulingSnapshot? currentSnapshot;
   final ScheduleReconciliationPreview? reconciliationPreview;
@@ -91,6 +93,7 @@ class SchedulingState {
     int? redoCount,
     List<ScheduleBlocker>? detectionIssues,
     bool? detectionRan,
+    List<ScheduleUnplacedCourse>? placementUnplaced,
     Object? pendingBaseline = _notProvided,
     Object? currentSnapshot = _notProvided,
     Object? reconciliationPreview = _notProvided,
@@ -117,6 +120,7 @@ class SchedulingState {
     redoCount: redoCount ?? this.redoCount,
     detectionIssues: detectionIssues ?? this.detectionIssues,
     detectionRan: detectionRan ?? this.detectionRan,
+    placementUnplaced: placementUnplaced ?? this.placementUnplaced,
     pendingBaseline: identical(pendingBaseline, _notProvided)
         ? this.pendingBaseline
         : pendingBaseline as SchedulingSnapshot?,
@@ -183,6 +187,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
         redoCount: _redo.length,
         detectionIssues: const [],
         detectionRan: false,
+        placementUnplaced: const [],
         pendingBaseline: pending,
         currentSnapshot: current,
         reconciliationPreview: null,
@@ -431,7 +436,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
     return result;
   }
 
-  /// 将暂放课程批量放入空位，以一次可撤销操作保存。
+  /// 将暂放课程放入课表，必要时腾挪，以一次可撤销操作保存。
   Future<int?> placeUnplaced(Set<String> itemIds) async {
     final snapshot = state.snapshot;
     if (snapshot == null ||
@@ -441,6 +446,10 @@ class SchedulingController extends StateNotifier<SchedulingState> {
       return null;
     }
     final originalItems = state.items;
+    final requestedUnplacedIds = originalItems
+        .where((item) => itemIds.contains(item.id) && !item.isPlaced)
+        .map((item) => item.id)
+        .toSet();
     final problem = state.problem;
     state = state.copyWith(status: SchedulingStatus.savingEdit, error: null);
     try {
@@ -454,7 +463,10 @@ class SchedulingController extends StateNotifier<SchedulingState> {
       );
       if (!mounted) return null;
       if (result.changedItemIds.isEmpty) {
-        state = state.copyWith(status: SchedulingStatus.ready);
+        state = state.copyWith(
+          status: SchedulingStatus.ready,
+          placementUnplaced: result.unplaced,
+        );
         return 0;
       }
       final before = originalItems
@@ -482,7 +494,12 @@ class SchedulingController extends StateNotifier<SchedulingState> {
         detectionRan: false,
       );
       await refresh(preserveHistory: true);
-      return result.changedItemIds.where(itemIds.contains).length;
+      if (mounted) state = state.copyWith(placementUnplaced: result.unplaced);
+      return result.items
+          .where(
+            (item) => requestedUnplacedIds.contains(item.id) && item.isPlaced,
+          )
+          .length;
     } on Object catch (error) {
       if (mounted) {
         if (error.toString().contains('已改变')) {

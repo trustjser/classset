@@ -1920,7 +1920,11 @@ class _ReportPanel extends StatelessWidget {
     final blockersById = {
       for (final entry in report?.unplaced ?? const <ScheduleUnplacedCourse>[])
         entry.itemId: entry.blockers,
+      for (final entry in state.placementUnplaced) entry.itemId: entry.blockers,
     };
+    final placementIds = state.placementUnplaced
+        .map((entry) => entry.itemId)
+        .toSet();
     final classNames = {
       for (final item in snapshot.classes) item.id: item.name,
     };
@@ -1965,7 +1969,7 @@ class _ReportPanel extends StatelessWidget {
                 title: _itemLabel(item, classNames, subjectNames),
                 summary: blockersById[item.id]?.firstOrNull == null
                     ? '手工暂放或尚未安排'
-                    : '上次自动排课：${blockersById[item.id]!.first.message}',
+                    : '${placementIds.contains(item.id) ? '本次一键放入' : '上次自动排课'}：${blockersById[item.id]!.first.message}',
                 blockers:
                     blockersById[item.id]
                         ?.map((blocker) => blocker.message)

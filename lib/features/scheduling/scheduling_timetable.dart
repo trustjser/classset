@@ -2929,13 +2929,16 @@ class _RightRail extends StatelessWidget {
                                       SnackBar(
                                         content: Text(
                                           count == 0
-                                              ? '没有找到符合条件的空位置，课程仍在暂放区。'
-                                              : '已放入 $count 节，剩余 $remaining 节；已排课程位置保持不变。',
+                                              ? '暂未找到可行方案；已尝试空位和腾挪，请查看未排课程报告中的原因。'
+                                              : '已放入 $count 节，剩余 $remaining 节；可撤销本次调整。',
                                         ),
                                       ),
                                     );
                                   },
-                            child: const Text('一键放入'),
+                            child: const Tooltip(
+                              message: '优先使用空位，必要时腾挪未锁定课程；可一次撤销。',
+                              child: Text('一键放入'),
+                            ),
                           ),
                         TextButton(
                           onPressed: onReport,

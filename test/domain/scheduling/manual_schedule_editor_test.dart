@@ -41,6 +41,50 @@ const _afternoon = SchedulePosition(
 void main() {
   const editor = ManualScheduleEditor();
 
+  test('大批互不冲突的暂放课不会把搜索预算全部耗在候选计数上', () {
+    final classes = [
+      for (var i = 0; i < 600; i++)
+        ClassGroup(
+          id: 'class-$i',
+          gradeId: 'grade',
+          name: '$i 班',
+          sortOrder: i,
+        ),
+    ];
+    final items = [
+      for (var i = 0; i < classes.length; i++)
+        _item('item-$i', classes[i].id, 'teacher-$i', _first).at(null),
+    ];
+    final snapshot = _snapshot(items: items, classes: classes);
+    final positions = [
+      for (var day = 1; day <= 5; day++)
+        for (var lesson = 1; lesson <= 8; lesson++)
+          SchedulePosition(
+            stageId: 'stage',
+            weekday: day,
+            periodTypeId: 'morning',
+            lessonIndex: lesson,
+            startMinute: 480 + lesson * 50,
+            endMinute: 520 + lesson * 50,
+          ),
+    ];
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: items.map((item) => item.id).toSet(),
+      problem: SchedulingProblem(
+        snapshot: snapshot,
+        selectedClassIds: classes.map((item) => item.id).toSet(),
+        positionsByClass: {for (final group in classes) group.id: positions},
+        fixedItems: const [],
+        units: const [],
+        checks: const [],
+      ),
+    );
+    expect(result.items.where((item) => item.isPlaced), hasLength(600));
+    expect(result.changedItemIds, hasLength(600));
+  });
+
   test('一键放入只使用合法空位并保留现有课程', () {
     final items = [
       _item('placed', 'class-a', 'teacher-a', _first),
@@ -124,6 +168,197 @@ void main() {
     expect(result.items.first.position?.cellKey, _first.cellKey);
   });
 
+  test('暂放课只能用被占位置时，把原课程腾挪到合法空位', () {
+    final items = [
+      _item('existing', 'class-a', 'teacher-a', _first),
+      _item('waiting', 'class-a', 'teacher-b', _first).at(null),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      teacherPresets: [
+        _forbid('teacher-b', _second),
+        _forbid('teacher-b', _afternoon),
+      ],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, {'existing', 'waiting'});
+    expect(result.items[1].position?.cellKey, _first.cellKey);
+    expect(result.items[0].position?.cellKey, _second.cellKey);
+    expect(
+      editor.detectAll(
+        snapshot: snapshot,
+        items: result.items,
+        problem: _problem(snapshot),
+      ),
+      isEmpty,
+    );
+    expect(items[0].position?.cellKey, _first.cellKey);
+    expect(items[1].isPlaced, isFalse);
+  });
+
+  test('跨班教师占用可以通过两级腾挪解开', () {
+    final items = [
+      _item('teacher-conflict', 'class-b', 'teacher-a', _first),
+      _item('next', 'class-b', 'teacher-b', _second),
+      _item('waiting', 'class-a', 'teacher-a', _first).at(null),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      teacherPresets: [
+        _forbid('teacher-a', _afternoon),
+        _forbid('teacher-b', _first),
+      ],
+    );
+    final base = _problem(snapshot);
+    final problem = SchedulingProblem(
+      snapshot: snapshot,
+      selectedClassIds: base.selectedClassIds,
+      positionsByClass: {
+        'class-a': [_first],
+        'class-b': [_first, _second, _afternoon],
+      },
+      fixedItems: const [],
+      units: const [],
+      checks: const [],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: problem,
+    );
+    expect(result.changedItemIds, {'teacher-conflict', 'next', 'waiting'});
+    expect(result.items.map((item) => item.position?.cellKey), [
+      _second.cellKey,
+      _afternoon.cellKey,
+      _first.cellKey,
+    ]);
+    expect(
+      editor.detectAll(
+        snapshot: snapshot,
+        items: result.items,
+        problem: problem,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('整周课程可腾挪同格的单双周课程，保留周次', () {
+    ScheduleItem single(String id, WeekMode week) => ScheduleItem(
+      id: id,
+      termId: 'term',
+      assignmentId: id,
+      classId: 'class-a',
+      teacherId: 'teacher-a',
+      subjectId: 'subject',
+      weekMode: week,
+      position: _first,
+    );
+    final items = [
+      single('odd', WeekMode.odd),
+      single('even', WeekMode.even),
+      _item('waiting', 'class-a', 'teacher-b', _first).at(null),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      teacherPresets: [
+        _forbid('teacher-b', _second),
+        _forbid('teacher-b', _afternoon),
+      ],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.items.every((item) => item.isPlaced), isTrue);
+    expect(result.items.last.position?.cellKey, _first.cellKey);
+    expect(result.items[0].position?.cellKey, _second.cellKey);
+    expect(result.items[1].position?.cellKey, _second.cellKey);
+    expect(result.items.map((item) => item.weekMode), [
+      WeekMode.odd,
+      WeekMode.even,
+      WeekMode.weekly,
+    ]);
+  });
+
+  test('腾挪不会移动锁定教师或把原课程留在暂放区', () {
+    final items = [
+      _item('existing', 'class-a', 'teacher-a', _first),
+      _item('waiting', 'class-a', 'teacher-b', _first).at(null),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      teacherPresets: [
+        _forbid('teacher-b', _second),
+        _forbid('teacher-b', _afternoon),
+      ],
+      locks: const [
+        ScheduleLock(
+          termId: 'term',
+          scope: ScheduleLockScope.teacher,
+          targetId: 'teacher-a',
+        ),
+      ],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, isEmpty);
+    expect(result.items.first.position?.cellKey, _first.cellKey);
+    expect(result.items.last.isPlaced, isFalse);
+    expect(
+      result.unplaced.single.blockers.any(
+        (blocker) => blocker.code == 'locked',
+      ),
+      isTrue,
+    );
+  });
+
+  test('腾挪失败不会破坏原有的硬性最低节数', () {
+    final items = [
+      _item('existing', 'class-a', 'teacher-a', _first),
+      _item('waiting', 'class-a', 'teacher-b', _first).at(null),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      teacherPresets: [
+        _forbid('teacher-b', _second),
+        _forbid('teacher-b', _afternoon),
+        _forbid('teacher-a', _second),
+      ],
+      conditions: const [
+        ScheduleCondition(
+          id: 'morning-minimum',
+          termId: 'term',
+          type: ScheduleConditionType.periodLimit,
+          targetType: ScheduleConditionTarget.teacher,
+          targetId: 'teacher-a',
+          periodTypeId: 'morning',
+          minimum: 1,
+        ),
+      ],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, isEmpty);
+    expect(result.items.first.position?.cellKey, _first.cellKey);
+    expect(result.items.last.isPlaced, isFalse);
+  });
+
   test('锁定班级的暂放课不会自动放入', () {
     final waiting = _item('waiting', 'class-a', 'teacher-a', _first).at(null);
     final snapshot = _snapshot(
@@ -171,6 +406,50 @@ void main() {
       result.items[1].position?.cellKey,
     );
     expect(result.items.every((item) => item.isPlaced), isTrue);
+  });
+
+  test('腾挪合班课时所有班级一起移动', () {
+    final items = [
+      for (final classId in ['class-a', 'class-b'])
+        ScheduleItem(
+          id: classId,
+          termId: 'term',
+          assignmentId: 'assignment-$classId',
+          classId: classId,
+          teacherId: 'teacher-a',
+          subjectId: 'subject',
+          weekMode: WeekMode.weekly,
+          meetingId: 'meeting',
+          combinedGroupId: 'combined',
+          position: _first,
+        ),
+      _item('waiting', 'class-a', 'teacher-b', _first).at(null),
+    ];
+    final snapshot = _snapshot(
+      items: items,
+      teacherPresets: [
+        _forbid('teacher-b', _second),
+        _forbid('teacher-b', _afternoon),
+      ],
+    );
+    final result = editor.placeUnplaced(
+      snapshot: snapshot,
+      items: items,
+      itemIds: {'waiting'},
+      problem: _problem(snapshot),
+    );
+    expect(result.changedItemIds, {'class-a', 'class-b', 'waiting'});
+    expect(result.items[0].position?.cellKey, _second.cellKey);
+    expect(result.items[1].position?.cellKey, _second.cellKey);
+    expect(result.items[2].position?.cellKey, _first.cellKey);
+    expect(
+      editor.detectAll(
+        snapshot: snapshot,
+        items: result.items,
+        problem: _problem(snapshot),
+      ),
+      isEmpty,
+    );
   });
 
   test('同班占用格可交换两节课', () {
@@ -348,6 +627,19 @@ void main() {
   });
 }
 
+TeacherPreset _forbid(String teacherId, SchedulePosition position) =>
+    TeacherPreset(
+      id: '$teacherId-${position.cellKey}',
+      teacherId: teacherId,
+      scope: TeacherPresetScope.school,
+      scopeId: 'term',
+      stageId: 'stage',
+      weekday: position.weekday,
+      periodTypeId: position.periodTypeId,
+      lessonIndex: position.lessonIndex,
+      value: PresetValue.forbid,
+    );
+
 ScheduleItem _item(
   String id,
   String classId,
@@ -366,6 +658,10 @@ ScheduleItem _item(
 
 SchedulingSnapshot _snapshot({
   required List<ScheduleItem> items,
+  List<ClassGroup> classes = const [
+    ClassGroup(id: 'class-a', gradeId: 'grade', name: '一班', sortOrder: 0),
+    ClassGroup(id: 'class-b', gradeId: 'grade', name: '二班', sortOrder: 1),
+  ],
   List<ScheduleCondition> conditions = const [],
   List<ScheduleLock> locks = const [],
   List<SubjectLessonConstraint> lessonConstraints = const [],
@@ -387,10 +683,7 @@ SchedulingSnapshot _snapshot({
   grades: const [
     GradeGroup(id: 'grade', stageId: 'stage', name: '一年级', sortOrder: 0),
   ],
-  classes: const [
-    ClassGroup(id: 'class-a', gradeId: 'grade', name: '一班', sortOrder: 0),
-    ClassGroup(id: 'class-b', gradeId: 'grade', name: '二班', sortOrder: 1),
-  ],
+  classes: classes,
   conditions: conditions,
   lessonConstraints: lessonConstraints,
   teacherPresets: teacherPresets,

@@ -13,11 +13,13 @@ class ManualMoveResult {
     required this.items,
     required this.blockers,
     required this.changedItemIds,
+    this.unplaced = const [],
   });
 
   final List<ScheduleItem> items;
   final List<ScheduleBlocker> blockers;
   final Set<String> changedItemIds;
+  final List<ScheduleUnplacedCourse> unplaced;
 
   bool get allowed => blockers.isEmpty;
 }
@@ -78,7 +80,7 @@ class ManualScheduleEditor {
     return _uniqueBlockers(blockers);
   }
 
-  /// 尝试为指定暂放课组寻找空位置，始终保留已排课程。
+  /// 优先填入空位，必要时有限腾挪未锁定的课组，不减少已排课程。
   ManualMoveResult placeUnplaced({
     required SchedulingSnapshot snapshot,
     required List<ScheduleItem> items,
@@ -101,7 +103,8 @@ class ManualScheduleEditor {
     const maxChecks = 20000;
     const maxDepth = 512;
     final clock = Stopwatch()..start();
-    const maxTime = Duration(seconds: 3);
+    // 为后续腾挪保留预算，避免直接放入的回溯耗尽全部时间。
+    const maxTime = Duration(seconds: 2);
     var checks = 0;
     var bestItems = items;
     var bestChanged = <String>{};
@@ -153,9 +156,10 @@ class ManualScheduleEditor {
           }
         }
         if (moves.isNotEmpty) {
-          chosenKey = entry.key;
-          chosenMoves = moves;
-          break;
+          if (chosenKey == null || moves.length < chosenMoves.length) {
+            chosenKey = entry.key;
+            chosenMoves = moves;
+          }
         }
         if (!getBudgetAvailable()) break;
       }
@@ -186,11 +190,82 @@ class ManualScheduleEditor {
         final comparison = left.compareTo(right);
         return comparison != 0 ? comparison : a.key.compareTo(b.key);
       });
+    // 先保留快速顺排的结果，避免大批量课程耗尽候选计数预算却没有进展。
+    for (final entry in ordered) {
+      for (final position
+          in schedulingProblem.positionsByClass[entry.value.classId] ??
+              const <SchedulePosition>[]) {
+        if (!getBudgetAvailable()) break;
+        checks++;
+        final result = previewMove(
+          snapshot: snapshot,
+          items: bestItems,
+          itemId: entry.value.id,
+          target: position,
+          problem: schedulingProblem,
+        );
+        if (!result.allowed || result.changedItemIds.isEmpty) continue;
+        bestItems = result.items;
+        bestChanged.addAll(result.changedItemIds);
+        break;
+      }
+      if (!getBudgetAvailable()) break;
+    }
     search(items, Map.fromEntries(ordered), <String>{}, 0);
+    final repair = _UnplacedRepairSearch(
+      snapshot,
+      schedulingProblem,
+      () => checks++ < 40000 && clock.elapsed < const Duration(seconds: 3),
+      items,
+    );
+    // 逐步加深，优先尝试较短的腾挪链。
+    for (var depth = 1; depth <= 3; depth++) {
+      for (final entry in ordered) {
+        final selected = bestItems.firstWhere(
+          (item) => item.id == entry.value.id,
+        );
+        if (selected.isPlaced) continue;
+        for (final proposal in repair.place(bestItems, selected, depth, {})) {
+          final result = _result(bestItems, {
+            for (final item in proposal) item.id: item,
+          });
+          if (_proposalBlockers(
+            schedulingProblem,
+            bestItems,
+            result,
+          ).isNotEmpty) {
+            continue;
+          }
+          bestItems = result.items;
+          break;
+        }
+      }
+    }
+    bestChanged = _result(items, {
+      for (final item in bestItems) item.id: item,
+    }).changedItemIds;
+    final unplaced = <ScheduleUnplacedCourse>[];
+    final bestById = {for (final item in bestItems) item.id: item};
+    final diagnosticsClock = Stopwatch()..start();
+    var diagnosticChecks = 0;
+    bool canDiagnose() =>
+        diagnosticChecks++ < 2000 &&
+        diagnosticsClock.elapsed < const Duration(milliseconds: 250);
+    for (final entry in ordered) {
+      final selected = bestById[entry.value.id]!;
+      if (selected.isPlaced) continue;
+      final reasons = repair.diagnose(bestItems, selected, canDiagnose);
+      for (final member in _groupFor(bestItems, selected)) {
+        unplaced.add(
+          ScheduleUnplacedCourse(itemId: member.id, blockers: reasons),
+        );
+      }
+    }
     return ManualMoveResult(
       items: bestItems,
       blockers: const [],
       changedItemIds: bestChanged,
+      unplaced: unplaced,
     );
   }
 
@@ -404,51 +479,254 @@ class ManualScheduleEditor {
     final proposal = _result(items, destination);
     if (proposal.changedItemIds.isEmpty) return proposal;
 
-    final changedGroupKeys = proposal.items
-        .where((item) => proposal.changedItemIds.contains(item.id))
-        .map(_groupKey)
-        .toSet();
-    final changedGroups = <String, List<ScheduleItem>>{};
-    for (final item in proposal.items) {
-      if (changedGroupKeys.contains(_groupKey(item))) {
-        changedGroups.putIfAbsent(_groupKey(item), () => []).add(item);
-      }
-    }
-    final blockers = <ScheduleBlocker>[];
-    for (final entry in changedGroups.entries) {
-      final group = entry.value;
-      if (group.every((item) => item.position == null)) continue;
-      final groupIds = group.map((item) => item.id).toSet();
-      final others = proposal.items
-          .where((item) => !groupIds.contains(item.id))
-          .toList();
-      blockers.addAll(
-        evaluator.evaluatePlacement(
-          schedulingProblem,
-          others,
-          SchedulePlacementCandidate(
-            unit: ScheduleUnit(entry.key, group),
-            positions: {for (final item in group) item.id: item.position!},
-          ),
-        ),
-      );
-    }
-    blockers.addAll(
-      _newHardRequirementBlockers(
-        evaluator,
-        schedulingProblem,
-        items,
-        proposal.items,
-      ),
-    );
+    final blockers = _proposalBlockers(schedulingProblem, items, proposal);
     if (blockers.isNotEmpty) {
       return ManualMoveResult(
         items: items,
-        blockers: _uniqueBlockers(blockers),
+        blockers: blockers,
         changedItemIds: const {},
       );
     }
     return proposal;
+  }
+}
+
+/// 只验证最终结果，腾挪中间暂时移出的课组不参与最低节数检查。
+List<ScheduleBlocker> _proposalBlockers(
+  SchedulingProblem schedulingProblem,
+  List<ScheduleItem> items,
+  ManualMoveResult proposal,
+) {
+  const evaluator = ConstraintEvaluator();
+  final changedGroupKeys = proposal.items
+      .where((item) => proposal.changedItemIds.contains(item.id))
+      .map(_groupKey)
+      .toSet();
+  final changedGroups = <String, List<ScheduleItem>>{};
+  for (final item in proposal.items) {
+    if (changedGroupKeys.contains(_groupKey(item))) {
+      changedGroups.putIfAbsent(_groupKey(item), () => []).add(item);
+    }
+  }
+  final blockers = <ScheduleBlocker>[];
+  for (final entry in changedGroups.entries) {
+    final group = entry.value;
+    if (group.every((item) => item.position == null)) continue;
+    final groupIds = group.map((item) => item.id).toSet();
+    final others = proposal.items
+        .where((item) => !groupIds.contains(item.id))
+        .toList();
+    blockers.addAll(
+      evaluator.evaluatePlacement(
+        schedulingProblem,
+        others,
+        SchedulePlacementCandidate(
+          unit: ScheduleUnit(entry.key, group),
+          positions: {for (final item in group) item.id: item.position!},
+        ),
+      ),
+    );
+  }
+  blockers.addAll(
+    _newHardRequirementBlockers(
+      evaluator,
+      schedulingProblem,
+      items,
+      proposal.items,
+    ),
+  );
+  return _uniqueBlockers(blockers);
+}
+
+/// 带预算的局部腾挪；每个分支必须把被挤出的完整课组全部放回。
+class _UnplacedRepairSearch {
+  _UnplacedRepairSearch(
+    this.snapshot,
+    this.problem,
+    this.hasBudget,
+    List<ScheduleItem> items,
+  ) : lockedItemIds = _lockedMembers(
+        snapshot,
+        items,
+      ).map((item) => item.id).toSet();
+
+  final SchedulingSnapshot snapshot;
+  final SchedulingProblem problem;
+  final bool Function() hasBudget;
+  final Set<String> lockedItemIds;
+
+  SchedulePlacementCandidate? _candidate(
+    List<ScheduleItem> moving,
+    SchedulePosition anchor,
+  ) {
+    final destinations = <String, SchedulePosition>{};
+    for (final member in moving) {
+      final position = _resolvePosition(
+        snapshot: snapshot,
+        problem: problem,
+        classId: member.classId,
+        anchor: anchor,
+      );
+      if (position == null) return null;
+      destinations[member.id] = position;
+    }
+    return SchedulePlacementCandidate(
+      unit: ScheduleUnit(_groupKey(moving.first), moving),
+      positions: destinations,
+    );
+  }
+
+  List<ScheduleBlocker> diagnose(
+    List<ScheduleItem> items,
+    ScheduleItem selected,
+    bool Function() canDiagnose,
+  ) {
+    const fallback = ScheduleBlocker(
+      code: 'searchLimit',
+      message: '本次有限搜索未找到可行方案，请检查作息、锁定及排课规则。',
+    );
+    if (!canDiagnose()) return const [fallback];
+    final moving = _groupFor(items, selected);
+    if (moving.any((item) => lockedItemIds.contains(item.id))) {
+      return const [
+        ScheduleBlocker(code: 'locked', message: '待放入课组的班级或教师已锁定，请先解锁。'),
+      ];
+    }
+    final movingIds = moving.map((item) => item.id).toSet();
+    final others = items.where((item) => !movingIds.contains(item.id)).toList();
+    final reasons = <String, ScheduleBlocker>{};
+    for (final anchor
+        in problem.positionsByClass[selected.classId] ??
+            const <SchedulePosition>[]) {
+      if (!canDiagnose()) {
+        reasons['searchLimit'] = fallback;
+        break;
+      }
+      final candidate = _candidate(moving, anchor);
+      if (candidate == null) continue;
+      final blockers = const ConstraintEvaluator().evaluatePlacement(
+        problem,
+        others,
+        candidate,
+      );
+      for (final blocker in blockers) {
+        if (blocker.relatedIds.any(lockedItemIds.contains)) {
+          reasons['locked'] = const ScheduleBlocker(
+            code: 'locked',
+            message: '可用位置涉及已锁定的班级或教师课程，无法自动腾挪，请先解锁。',
+          );
+        }
+        reasons.putIfAbsent(
+          '${blocker.code}:${blocker.conditionId}:${blocker.message}',
+          () => blocker,
+        );
+      }
+    }
+    return reasons.isEmpty ? const [fallback] : reasons.values.toList();
+  }
+
+  Iterable<List<ScheduleItem>> place(
+    List<ScheduleItem> items,
+    ScheduleItem selected,
+    int depth,
+    Set<String> protected,
+  ) sync* {
+    if (!hasBudget()) return;
+    final moving = _groupFor(items, selected);
+    if (moving.any((item) => lockedItemIds.contains(item.id))) return;
+    final movingIds = moving.map((item) => item.id).toSet();
+    final byId = {for (final item in items) item.id: item};
+    final candidates =
+        <
+          ({
+            Map<String, ScheduleItem> replacements,
+            List<ScheduleItem> displaced,
+          })
+        >[];
+    const evaluator = ConstraintEvaluator();
+    for (final anchor
+        in problem.positionsByClass[selected.classId] ??
+            const <SchedulePosition>[]) {
+      if (!hasBudget()) break;
+      final candidate = _candidate(moving, anchor);
+      if (candidate == null) continue;
+      final others = items
+          .where((item) => !movingIds.contains(item.id))
+          .toList();
+      final blockers = evaluator.evaluatePlacement(problem, others, candidate);
+      // 只有明确关联到其他课节的冲突才可通过腾挪解决。
+      if (blockers.any(
+        (blocker) =>
+            blocker.relatedIds.isEmpty ||
+            blocker.relatedIds.any((id) => !byId.containsKey(id)),
+      )) {
+        continue;
+      }
+      final displaced = <String, ScheduleItem>{};
+      for (final blocker in blockers) {
+        for (final id in blocker.relatedIds) {
+          final other = byId[id]!;
+          displaced[_groupKey(other)] = other;
+        }
+      }
+      if (displaced.isNotEmpty && depth == 0) continue;
+      if (displaced.keys.any(
+        (key) => protected.contains(key) || key == _groupKey(selected),
+      )) {
+        continue;
+      }
+      final displacedMembers = [
+        for (final other in displaced.values) ..._groupFor(items, other),
+      ];
+      if (displacedMembers.any((item) => lockedItemIds.contains(item.id))) {
+        continue;
+      }
+      final displacedIds = displacedMembers.map((item) => item.id).toSet();
+      final cleared = others
+          .where((item) => !displacedIds.contains(item.id))
+          .toList();
+      if (evaluator.evaluatePlacement(problem, cleared, candidate).isNotEmpty) {
+        continue;
+      }
+      candidates.add((
+        replacements: {
+          for (final member in displacedMembers) member.id: member.at(null),
+          for (final member in candidate.placedItems) member.id: member,
+        },
+        displaced: displaced.values.toList(),
+      ));
+    }
+    candidates.sort((a, b) => a.displaced.length.compareTo(b.displaced.length));
+    for (final candidate in candidates) {
+      if (!hasBudget()) return;
+      final proposal = [
+        for (final item in items) candidate.replacements[item.id] ?? item,
+      ];
+      yield* _restore(proposal, candidate.displaced, depth - 1, {
+        ...protected,
+        _groupKey(selected),
+      });
+    }
+  }
+
+  Iterable<List<ScheduleItem>> _restore(
+    List<ScheduleItem> items,
+    List<ScheduleItem> displaced,
+    int depth,
+    Set<String> protected,
+  ) sync* {
+    if (displaced.isEmpty) {
+      yield items;
+      return;
+    }
+    if (!hasBudget()) return;
+    final selected = items.firstWhere((item) => item.id == displaced.first.id);
+    for (final proposal in place(items, selected, depth, protected)) {
+      yield* _restore(proposal, displaced.sublist(1), depth, {
+        ...protected,
+        _groupKey(selected),
+      });
+    }
   }
 }
 

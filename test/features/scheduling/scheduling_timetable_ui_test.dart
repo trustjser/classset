@@ -24,6 +24,7 @@ void main() {
     bool longClassName = false,
     Future<int?> Function(Set<String>)? onPlaceUnplaced,
     void Function(List<ScheduleItem>, String)? onExport,
+    VoidCallback? onReport,
   }) async {
     tester.view.physicalSize = const Size(1180, 850);
     tester.view.devicePixelRatio = 1;
@@ -139,7 +140,7 @@ void main() {
             onStart: () {},
             onRefresh: () {},
             onRules: () {},
-            onReport: () {},
+            onReport: onReport ?? () {},
             onDetectionReport: () {},
             onCancel: () {},
             onDone: () {},
@@ -222,6 +223,25 @@ void main() {
     await tester.tap(find.text('导出/打印'));
     await tester.pumpAndSettle();
     expect(requested, hasLength(26));
+  });
+
+  testWidgets('一键放入失败后仍可查看未排原因报告', (tester) async {
+    var reportOpened = false;
+    await mount(
+      tester,
+      withUnplaced: true,
+      onPlaceUnplaced: (_) async => 0,
+      onReport: () => reportOpened = true,
+    );
+    await tester.ensureVisible(find.text('一键放入'));
+    await tester.tap(find.text('一键放入'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('请查看未排课程报告中的原因'), findsOneWidget);
+    expect(find.byKey(const ValueKey('unplaced-card-item0')), findsOneWidget);
+    await tester.tap(find.text('查看未排课程报告'));
+    await tester.pumpAndSettle();
+    expect(reportOpened, isTrue);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('总课表窄单元格可展开收起且不溢出', (tester) async {

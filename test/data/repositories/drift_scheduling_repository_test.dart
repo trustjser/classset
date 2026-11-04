@@ -15,6 +15,7 @@ import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
+import 'package:class_set/domain/models/teacher_preset.dart';
 import 'package:class_set/domain/scheduling/course_scheduler.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
@@ -23,6 +24,179 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('一键腾挪写入数据库，撤销重做覆盖原课程和暂放课', () async {
+    final database = db.AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final school = DriftSchoolRepository(database);
+    await school.saveTerm(
+      AcademicTerm(
+        id: 'repair',
+        title: '腾挪测试',
+        academicYear: '2026',
+        semesterLabel: '秋季学期',
+        firstTeachingWeekStart: DateTime(2026, 9, 1),
+        teachingWeekCount: 20,
+        createdAt: DateTime(2026),
+      ),
+    );
+    final stage = (await school.watchStages('repair').first).first;
+    await school.saveGrade(
+      GradeGroup(
+        id: 'grade-repair',
+        stageId: stage.id,
+        name: '一年级',
+        sortOrder: 0,
+      ),
+    );
+    await school.saveClass(
+      const ClassGroup(
+        id: 'class-repair',
+        gradeId: 'grade-repair',
+        name: '一班',
+        sortOrder: 0,
+      ),
+    );
+    await school.saveRoutine(
+      StageRoutine(
+        stageId: stage.id,
+        teachingWeekdays: {1},
+        overrides: const [],
+        periodTypes: const [
+          LessonPeriodType(
+            id: 'repair-morning',
+            name: '上午',
+            defaultLessonCount: 2,
+            sortOrder: 0,
+            lessonTimes: [
+              LessonTime(
+                lessonIndex: 1,
+                label: '第一节',
+                startMinute: 480,
+                endMinute: 520,
+              ),
+              LessonTime(
+                lessonIndex: 2,
+                label: '第二节',
+                startMinute: 530,
+                endMinute: 570,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await school.saveSubjects(const [
+      Subject(
+        id: 'subject-repair',
+        termId: 'repair',
+        name: '数学',
+        shortName: '数',
+        sortOrder: 0,
+      ),
+    ]);
+    await school.saveTeachers(const [
+      Teacher(id: 'flexible', name: '可调整教师', shortName: '甲', sortOrder: 0),
+      Teacher(id: 'restricted', name: '受限教师', shortName: '乙', sortOrder: 1),
+    ]);
+    await database.customStatement(
+      'INSERT INTO subject_requirements '
+      '(id, subject_id, grade_id, week_mode, lesson_count) VALUES (?, ?, ?, ?, ?)',
+      ['requirement-repair', 'subject-repair', 'grade-repair', 'weekly', 2],
+    );
+    await school.addTeacherAssignments(
+      termId: 'repair',
+      assignments: [
+        for (final teacher in ['flexible', 'restricted'])
+          TeacherAssignment(
+            id: 'assignment-$teacher',
+            termId: 'repair',
+            teacherId: teacher,
+            classId: 'class-repair',
+            subjectId: 'subject-repair',
+            weekMode: WeekMode.weekly,
+            lessonCount: 1,
+          ),
+      ],
+    );
+    await school.replaceTeacherPresets(
+      termId: 'repair',
+      teacherId: 'restricted',
+      presets: [
+        TeacherPreset(
+          id: 'restricted-second',
+          teacherId: 'restricted',
+          scope: TeacherPresetScope.school,
+          scopeId: 'repair',
+          stageId: stage.id,
+          weekday: 1,
+          periodTypeId: 'repair-morning',
+          lessonIndex: 2,
+          value: PresetValue.forbid,
+        ),
+      ],
+    );
+    for (final teacher in ['flexible', 'restricted']) {
+      await database.customStatement(
+        'INSERT INTO schedule_items '
+        '(id, term_id, assignment_id, class_id, teacher_id, subject_id, week_mode, '
+        'stage_id, weekday, period_type_id, lesson_index) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          'item-$teacher',
+          'repair',
+          'assignment-$teacher',
+          'class-repair',
+          teacher,
+          'subject-repair',
+          'weekly',
+          if (teacher == 'flexible') ...[
+            stage.id,
+            1,
+            'repair-morning',
+            1,
+          ] else ...[
+            null,
+            null,
+            null,
+            null,
+          ],
+        ],
+      );
+    }
+    final controller = SchedulingController(school, 'repair');
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    expect(controller.state.pendingBaseline, isNull);
+    expect(await controller.placeUnplaced({'item-restricted'}), 1);
+    expect(controller.state.error, isNull);
+    Future<Map<String, int?>> positions() async => {
+      for (final item in (await school.loadSchedulingSnapshot(
+        'repair',
+      )).existingItems)
+        item.id: item.position?.lessonIndex,
+    };
+    expect(await positions(), {'item-flexible': 2, 'item-restricted': 1});
+    expect(controller.state.undoCount, 1);
+    await controller.undo();
+    expect(await positions(), {'item-flexible': 1, 'item-restricted': null});
+    await controller.redo();
+    expect(await positions(), {'item-flexible': 2, 'item-restricted': 1});
+    await controller.undo();
+    await controller.setLock(
+      const ScheduleLock(
+        termId: 'repair',
+        scope: ScheduleLockScope.teacher,
+        targetId: 'flexible',
+      ),
+      enabled: true,
+    );
+    expect(await controller.placeUnplaced({'item-restricted'}), 0);
+    expect(await positions(), {'item-flexible': 1, 'item-restricted': null});
+    expect(controller.state.placementUnplaced.single.itemId, 'item-restricted');
+    expect(controller.state.placementUnplaced.single.blockers, isNotEmpty);
+    expect(controller.state.undoCount, 0);
+  });
+
   test('读取排课快照包含已保存学期且指纹稳定', () async {
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
