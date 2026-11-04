@@ -702,7 +702,13 @@ void main() {
       ),
     );
     expect(result.changes, isEmpty);
-    expect(result.errors, contains('教师该时段已有课'));
+    expect(
+      result.errors,
+      contains(
+        '换入「subject（teacher）」时，教师「teacher」在'
+        '9月8日（周二）上午第2节已为「other」上「other（teacher）」',
+      ),
+    );
   });
 
   test('跨学段共用场室缺少时间时不能提交调整', () {

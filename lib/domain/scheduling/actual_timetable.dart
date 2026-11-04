@@ -738,7 +738,7 @@ class ActualTimetable {
       lessons,
       ActualChangePreview(
         changes: errors.isEmpty ? changes : const [],
-        errors: errors,
+        errors: errors.toSet().toList(),
       ),
       problem: resolvedProblem,
     );
@@ -870,6 +870,57 @@ class ActualTimetable {
     return errors.isEmpty
         ? preview
         : ActualChangePreview(changes: const [], errors: errors);
+  }
+
+  String _lessonConflictLabel(
+    SchedulingSnapshot snapshot,
+    ActualLesson lesson,
+  ) {
+    final subject = snapshot.subjects
+        .where((subject) => subject.id == lesson.item.subjectId)
+        .firstOrNull;
+    final teacher = snapshot.teachers
+        .where((teacher) => teacher.id == lesson.item.teacherId)
+        .firstOrNull;
+    final subjectName = subject?.name ?? lesson.item.subjectId;
+    final teacherName = teacher?.displayName ?? lesson.item.teacherId;
+    return '$subjectName（$teacherName）';
+  }
+
+  String _classConflictLabel(SchedulingSnapshot snapshot, String classId) {
+    final schoolClass = snapshot.classes
+        .where((entry) => entry.id == classId)
+        .firstOrNull;
+    if (schoolClass == null) return classId;
+    final grade = snapshot.grades
+        .where((entry) => entry.id == schoolClass.gradeId)
+        .firstOrNull;
+    final label = [
+      grade?.name,
+      schoolClass.name,
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' ');
+    return label.isEmpty ? classId : label;
+  }
+
+  String _positionConflictLabel(
+    SchedulingSnapshot snapshot,
+    SchedulePosition position,
+  ) {
+    final period = snapshot.routines
+        .where((routine) => routine.stageId == position.stageId)
+        .expand((routine) => routine.periodTypes)
+        .where((period) => period.id == position.periodTypeId)
+        .firstOrNull;
+    final periodName = period?.name;
+    final periodPrefix = periodName == null || periodName.isEmpty
+        ? ''
+        : periodName;
+    return '$periodPrefix第${position.lessonIndex}节';
+  }
+
+  String _dateConflictLabel(DateTime date) {
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    return '${date.month}月${date.day}日（周${weekdays[date.weekday - 1]}）';
   }
 
   ActualChangePreview _previewMove({
@@ -1108,10 +1159,24 @@ class ActualTimetable {
                 targetPosition.startMinute! < position.endMinute! &&
                 position.startMinute! < targetPosition.endMinute!;
       if (overlap && source.item.classId == other.item.classId) {
-        errors.add('班级该时段已有课');
+        errors.add(
+          '换入「${_lessonConflictLabel(snapshot, source)}」时，'
+          '班级「${_classConflictLabel(snapshot, other.item.classId)}」在'
+          '${_dateConflictLabel(targetDate)}${_positionConflictLabel(snapshot, position)}'
+          '已有「${_lessonConflictLabel(snapshot, other)}」',
+        );
       }
       if (overlap && source.item.teacherId == other.item.teacherId) {
-        errors.add('教师该时段已有课');
+        final teacher = snapshot.teachers
+            .where((entry) => entry.id == source.item.teacherId)
+            .firstOrNull;
+        final teacherName = teacher?.displayName ?? source.item.teacherId;
+        errors.add(
+          '换入「${_lessonConflictLabel(snapshot, source)}」时，教师「$teacherName」'
+          '在${_dateConflictLabel(targetDate)}${_positionConflictLabel(snapshot, position)}'
+          '已为「${_classConflictLabel(snapshot, other.item.classId)}」上'
+          '「${_lessonConflictLabel(snapshot, other)}」',
+        );
       }
       if (!overlap &&
           targetPosition.stageId != position.stageId &&
