@@ -528,11 +528,6 @@ class _Sidebar extends ConsumerWidget {
                       isSelected: section == AppSection.scheduling,
                       onTap: () => onNavigate(AppSection.scheduling),
                     ),
-                    _NavComingSoon(
-                      label: '课表编辑',
-                      icon: Icons.calendar_view_week_outlined,
-                      isCompact: compactContents,
-                    ),
                     _NavItem(
                       label: '调代课',
                       icon: Icons.swap_horiz_rounded,
