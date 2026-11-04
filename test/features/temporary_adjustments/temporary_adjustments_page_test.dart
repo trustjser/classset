@@ -34,6 +34,12 @@ Widget _wrap(Widget child) => MaterialApp(
   home: Scaffold(body: child),
 );
 
+/// 课格状态不再渲染成可见文字，改由 Tooltip message 表达；
+/// 测试据此断言，避免把「检测中 / 可选」当作交互定位点。
+Finder _tooltipWith(String message) => find.byWidgetPredicate(
+  (widget) => widget is Tooltip && widget.message == message,
+);
+
 class _Repository implements SchoolRepository {
   _Repository(this.state);
   final TemporaryTimetableState state;
@@ -340,7 +346,10 @@ void main() {
     await tester.tap(find.text('移课').last);
     await tester.pumpAndSettle();
     // 移课需先选择目标空课位，再进入预览弹窗选择日期范围。
-    await tester.tap(find.text('可选').first);
+    // 用课格 key 定位，不依赖格内状态文案。
+    await tester.tap(
+      find.byKey(const ValueKey('temporary-cell-2026-09-07-p-2')),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('下一步 · 预览'));
     await tester.pumpAndSettle();
@@ -353,6 +362,18 @@ void main() {
     await tester.pumpAndSettle();
     tester.view.physicalSize = const Size(700, 700);
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    // 窄屏回归：面板不内部滚动抢手势，页面能整体滚到下方课表。
+    final dayHeader = find.text('周二');
+    expect(dayHeader, findsWidgets);
+    final beforeScroll = tester.getTopLeft(dayHeader.first).dy;
+    await tester.drag(find.text('发起调整'), const Offset(0, -240));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(dayHeader.first).dy,
+      lessThan(beforeScroll - 100),
+      reason: '窄屏下应能滚动页面看到课表，而不是被面板内的滚动条挡住',
+    );
     expect(tester.takeException(), isNull);
 
     tester.view.physicalSize = const Size(1400, 900);
@@ -419,7 +440,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('调整记录'));
     await tester.pumpAndSettle();
-    expect(find.text('数学·李老师 ↔ 语文·王老师（互换时间，各自科目与教师不变）'), findsOneWidget);
+    // 记录列表摘要用「·」分隔说明；括号版文案是预览弹窗的格式。
+    expect(find.text('数学·李老师 ↔ 语文·王老师 · 互换时间，科目与教师不变'), findsOneWidget);
     expect(find.text('数学·李老师 → 语文·王老师（保留时间）'), findsOneWidget);
     expect(
       (tester.getCenter(find.text('有效').first).dy -
@@ -454,13 +476,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('移课').last);
     await tester.pump();
-    expect(find.text('检测中'), findsWidgets);
+    // 检测状态不再铺成可见文字，改由课格 Tooltip message 表达。
+    expect(_tooltipWith('正在检测'), findsWidgets);
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(seconds: 2)),
     );
     await tester.pump();
     await tester.pumpAndSettle();
-    expect(find.text('可选'), findsWidgets);
+    expect(_tooltipWith('正在检测'), findsNothing);
+    expect(_tooltipWith('可选'), findsWidgets);
     await tester.tap(find.text('换课').last);
     await tester.pump();
     await tester.runAsync(
@@ -471,11 +495,11 @@ void main() {
       const ValueKey('temporary-cell-2026-09-08-p-1'),
     );
     expect(
-      find.descendant(of: swapCell, matching: find.text('检测中')),
+      find.ancestor(of: swapCell, matching: _tooltipWith('正在检测')),
       findsNothing,
     );
     expect(
-      find.descendant(of: swapCell, matching: find.text('可选')),
+      find.ancestor(of: swapCell, matching: _tooltipWith('可选')),
       findsOneWidget,
     );
     await tester.tap(swapCell);

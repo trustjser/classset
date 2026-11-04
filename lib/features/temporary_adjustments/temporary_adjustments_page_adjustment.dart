@@ -198,47 +198,8 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
       fontWeight: FontWeight.w600,
       color: colors.ink,
     );
-    final subjectName = subjectId == null ? null : _subject(subjectId);
-    final title = subjectName != null && line1.startsWith(subjectName)
-        ? Text.rich(
-            TextSpan(
-              style: titleStyle,
-              children: [
-                TextSpan(
-                  text: subjectName,
-                  style: TextStyle(
-                    color: SubjectColors.of(context, subjectId!),
-                  ),
-                ),
-                TextSpan(text: line1.substring(subjectName.length)),
-              ],
-            ),
-          )
-        : Text(line1, style: titleStyle);
-    final line2SubjectName = line2SubjectId == null
-        ? null
-        : _subject(line2SubjectId);
-    final subtitle = line2 == null
-        ? null
-        : line2SubjectName != null && line2.startsWith(line2SubjectName)
-        ? Text.rich(
-            TextSpan(
-              style: TextStyle(fontSize: 12, color: colors.inkSecondary),
-              children: [
-                TextSpan(
-                  text: line2SubjectName,
-                  style: TextStyle(
-                    color: SubjectColors.of(context, line2SubjectId!),
-                  ),
-                ),
-                TextSpan(text: line2.substring(line2SubjectName.length)),
-              ],
-            ),
-          )
-        : Text(
-            line2,
-            style: TextStyle(fontSize: 12, color: colors.inkSecondary),
-          );
+    // 科目色收敛为小圆点，文字统一深色，不再给整张卡片染彩色。
+    final dotSubjectId = subjectId ?? line2SubjectId;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -246,12 +207,30 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
         color: plain ? _hintNeutral : colors.selectedBlue,
         borderRadius: BorderRadius.circular(11),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          title,
-          if (subtitle != null) ...[const SizedBox(height: 2), subtitle],
-          if (extra != null) ...[const SizedBox(height: 3), extra],
+          if (dotSubjectId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 5, right: 8),
+              child: SubjectDot(subjectId: dotSubjectId, size: 8),
+            ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(line1, style: titleStyle),
+                if (line2 != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    line2,
+                    style: TextStyle(fontSize: 12, color: colors.inkSecondary),
+                  ),
+                ],
+                if (extra != null) ...[const SizedBox(height: 3), extra],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -269,58 +248,139 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
     });
   }
 
+  /// 互斥调整方式按项目约定用单选框，且竖排成卡片，每项自带说明。
   Widget _adjustmentModeSelector() {
     final colors = context.appColors;
+    const descriptions = <String, String>{
+      'swap': '与本班另一实际课次互换时间，可跨日期、跨周',
+      'move': '移到本班空课位，原位置变为空位',
+      'substitute': '更换任课教师，时间和班级保持不变',
+    };
     Widget option(String value, String label) {
       final selected = _kind == value;
-      return Expanded(
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 7),
         child: InkWell(
           onTap: () => _setAdjustmentKind(value),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(10),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            height: 34,
-            alignment: Alignment.center,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
             decoration: BoxDecoration(
-              color: selected ? _blueWash : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              color: selected ? _blueWash : colors.surface,
+              border: Border.all(color: selected ? colors.blue : colors.border),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: selected ? colors.blue : colors.inkSecondary,
-              ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: _radioIndicator(selected),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        descriptions[value]!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: colors.inkSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: _segBackground,
-        borderRadius: BorderRadius.circular(8),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        option('swap', '换课'),
+        option('move', '移课'),
+        option('substitute', '代课'),
+      ],
+    );
+  }
+
+  /// 目标未选时的虚线空态卡，明确承接「下一步做什么」。
+  Widget _targetEmptyCard(String action) {
+    final colors = context.appColors;
+    return CustomPaint(
+      foregroundPainter: _DashBorderPainter(
+        color: colors.blue.withValues(alpha: .45),
+        radius: 10,
       ),
-      child: Row(
-        children: [
-          option('swap', '换课'),
-          option('move', '移课'),
-          option('substitute', '代课'),
-        ],
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.ads_click_outlined, size: 16, color: colors.blue),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.55,
+                    color: colors.inkSecondary,
+                  ),
+                  children: [
+                    const TextSpan(text: '尚未选择。请在左侧课表中 '),
+                    TextSpan(
+                      text: action,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: colors.blue,
+                      ),
+                    ),
+                    const TextSpan(text: '，虚线蓝框的格子都可选。'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  String get _adjustmentModeDescription => switch (_kind) {
-    'move' => '移到本班空课位，原位置变为空位。',
-    'substitute' => '更换任课教师，时间和班级保持不变。',
-    _ => '与本班另一实际课次互换时间，可跨日期、跨周。',
-  };
+  String get _panelHint {
+    if (_saving) return '正在处理…';
+    if (_kind == 'substitute') return '请先选择代课教师';
+    if (_kind == 'move') return '请先在课表中选择目标空课位';
+    return '请先在课表中选择要交换的目标课次';
+  }
 
-  Widget _panel(TemporaryTimetableState state) {
+  /// [scrollBody] 为 true 时面板内部独立滚动（宽屏右侧栏）；
+  /// 窄屏改用页面整体滚动时设为 false，避免内层滚动抢走手势。
+  Widget _panel(TemporaryTimetableState state, {bool scrollBody = true}) {
     final colors = context.appColors;
     final source = _source!;
     final group = source.item.meetingId == null
@@ -429,11 +489,6 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
             _secLabel('调整方式'),
             const SizedBox(height: 7),
             _adjustmentModeSelector(),
-            const SizedBox(height: 6),
-            Text(
-              _adjustmentModeDescription,
-              style: TextStyle(fontSize: 12, color: colors.inkSecondary),
-            ),
           ],
         ),
         if (_kind == 'swap')
@@ -460,23 +515,7 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
                         ),
                       ),
                     )
-                  : _hintBox(
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            const TextSpan(text: '在周课表中'),
-                            TextSpan(
-                              text: '选择另一节课程',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: colors.ink,
-                              ),
-                            ),
-                            const TextSpan(text: '作为互换目标，可跨日期、跨周。'),
-                          ],
-                        ),
-                      ),
-                    ),
+                  : _targetEmptyCard('选择要交换的课次'),
             ],
           ),
         if (_kind == 'move')
@@ -495,23 +534,7 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
                       line2:
                           '空课位 · ${_subject(source.item.subjectId)} 将移入，原位置变为空位',
                     )
-                  : _hintBox(
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            const TextSpan(text: '在周课表中'),
-                            TextSpan(
-                              text: '选择一个空课位',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: colors.ink,
-                              ),
-                            ),
-                            const TextSpan(text: '作为目标，原位置会空出来。'),
-                          ],
-                        ),
-                      ),
-                    ),
+                  : _targetEmptyCard('点击一个空课位'),
             ],
           ),
         if (_kind == 'substitute')
@@ -579,16 +602,34 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
             child: Row(
               children: [
-                Expanded(
+                Text(
+                  '发起调整',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: colors.ink,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.selectedBlue,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                   child: Text(
-                    '调整课次',
+                    '2 / 3',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w600,
-                      color: colors.ink,
+                      color: colors.blue,
                     ),
                   ),
                 ),
+                const Spacer(),
                 AppIconButton(
                   icon: Icons.close,
                   tooltip: '关闭',
@@ -603,32 +644,52 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
               ],
             ),
           ),
-          Expanded(
-            child: SingleChildScrollView(
+          if (scrollBody)
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: body,
+              ),
+            )
+          else
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: body,
             ),
-          ),
           Container(
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: colors.border)),
             ),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                AppGhostButton(
-                  onPressed: _saving
-                      ? null
-                      : () => setState(() {
-                          _invalidateCandidateBatch();
-                          _source = null;
-                        }),
-                  child: const Text('取消'),
-                ),
-                const Spacer(),
-                AppPrimaryButton(
-                  onPressed: _panelReady ? _openPreview : null,
-                  child: Text(_saving ? '正在处理…' : '下一步 · 预览'),
+                if (!_panelReady)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      _panelHint,
+                      style: TextStyle(fontSize: 11, color: colors.muted),
+                    ),
+                  ),
+                Row(
+                  children: [
+                    AppGhostButton(
+                      onPressed: _saving
+                          ? null
+                          : () => setState(() {
+                              _invalidateCandidateBatch();
+                              _source = null;
+                            }),
+                      child: const Text('取消'),
+                    ),
+                    const Spacer(),
+                    AppPrimaryButton(
+                      onPressed: _panelReady ? _openPreview : null,
+                      child: Text(_saving ? '正在处理…' : '下一步 · 预览'),
+                    ),
+                  ],
                 ),
               ],
             ),

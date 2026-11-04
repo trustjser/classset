@@ -89,8 +89,6 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
       _isDark ? const Color(0x38FFFFFF) : const Color(0x24000000);
   Color get _blueWash =>
       _isDark ? const Color(0xFF1C2D3D) : const Color(0xFFF3F8FE);
-  Color get _segBackground =>
-      _isDark ? const Color(0xFF262A31) : const Color(0xFFEFEDEB);
   Color get _hintNeutral =>
       _isDark ? const Color(0xFF2A2E35) : const Color(0xFFF4F3F2);
   Color get _amberText =>
@@ -174,50 +172,6 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
         ),
       );
 
-  Widget _segmentShell(List<Widget> children) => Container(
-    padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(
-      color: _segBackground,
-      borderRadius: BorderRadius.circular(11),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: children),
-  );
-
-  Widget _segmentButton(
-    String label, {
-    required bool active,
-    required VoidCallback? onTap,
-    Widget? trailing,
-  }) {
-    final colors = context.appColors;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: active ? _blueWash : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: active ? FontWeight.w500 : FontWeight.w400,
-                color: active ? colors.blue : colors.inkSecondary,
-              ),
-            ),
-            if (trailing != null) ...[const SizedBox(width: 4), trailing],
-          ],
-        ),
-      ),
-    );
-  }
-
   /// 弹出式选择按钮：白底描边小壳 + FPopoverMenu 菜单（30px 行）。
   /// 带搜索的弹出选择控件：Forui FSelect 自带搜索框与限高滚动列表，
   /// 班级 / 教师等长选项列表不会溢出屏幕。
@@ -246,6 +200,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
   // ---------------------------------------------------------------- 工具栏
 
   Widget _tabsSegment(TemporaryTimetableState state, {bool showCount = true}) {
+    final colors = context.appColors;
     final visibleCount = _filteredRecords(state).length;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -278,11 +233,22 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
             }
           }),
           trailing: showCount
-              ? Text(
-                  '$visibleCount 条',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: context.appColors.inkSecondary,
+              ? Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _records ? colors.selectedBlue : colors.tableHeader,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$visibleCount 条',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _records ? colors.blue : colors.inkSecondary,
+                    ),
                   ),
                 )
               : null,
@@ -330,30 +296,182 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     );
   }
 
-  Widget _viewSegment() => _segmentShell([
-    _segmentButton(
-      '班级视图',
-      active: !_teacherView,
-      onTap: () => setState(() {
-        _invalidateCandidateBatch();
-        _teacherView = false;
-        _recordClass = _classId;
-        _recordTeacher = null;
-      }),
-    ),
-    _segmentButton(
-      '教师视图',
-      active: _teacherView,
-      onTap: () => setState(() {
-        _invalidateCandidateBatch();
-        _teacherView = true;
-        _recordClass = null;
-        _recordTeacher = _viewTeacherId;
-        _source = null;
-        _kind = null;
-      }),
-    ),
-  ]);
+  /// 互斥视角切换按项目约定使用单选框，不做分段控件。
+  Widget _viewSegment() {
+    final colors = context.appColors;
+    Widget option(String label, bool selected, VoidCallback onTap) => InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _radioIndicator(selected),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: selected ? colors.ink : colors.inkSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        option(
+          '班级视图',
+          !_teacherView,
+          () => setState(() {
+            _invalidateCandidateBatch();
+            _teacherView = false;
+            _recordClass = _classId;
+            _recordTeacher = null;
+          }),
+        ),
+        const SizedBox(width: 14),
+        option(
+          '教师视图',
+          _teacherView,
+          () => setState(() {
+            _invalidateCandidateBatch();
+            _teacherView = true;
+            _recordClass = null;
+            _recordTeacher = _viewTeacherId;
+            _source = null;
+            _kind = null;
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _flowStep(String label, int number, String status) {
+    final colors = context.appColors;
+    final done = status == 'done';
+    final current = status == 'current';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: done
+                ? colors.successSurface
+                : current
+                ? colors.blue
+                : colors.surface,
+            border: Border.all(
+              color: done
+                  ? colors.success
+                  : current
+                  ? colors.blue
+                  : colors.border,
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            done ? '✓' : '$number',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: done
+                  ? colors.success
+                  : current
+                  ? colors.surface
+                  : colors.muted,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: current || done ? FontWeight.w600 : FontWeight.w400,
+            color: current
+                ? colors.blue
+                : done
+                ? colors.inkSecondary
+                : colors.muted,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 调整流程条：把原来放在页脚的弱提示升级为可见的三步进度与当前动作。
+  Widget _flowBar() {
+    final colors = context.appColors;
+    final ready = _panelReady;
+    // 批次 key 在 build 中即写入，比 isolate 的 running 标志更早、更稳定。
+    final checking =
+        _candidateBatchKey != null &&
+        !_candidateBatchComplete &&
+        _candidateBatchError == null;
+    final action = checking
+        ? '正在检测可用课位…'
+        : ready
+        ? '已选好目标，点击右侧「下一步 · 预览」核对'
+        : _kind == 'substitute'
+        ? '在右侧面板选择代课教师'
+        : _kind == 'move'
+        ? '在课表中点击一个空课位'
+        : '在课表中点击要交换的课次';
+    final sep = Container(width: 18, height: 1, color: colors.border);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: _blueWash,
+        border: Border.all(color: colors.blue.withValues(alpha: .25)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _flowStep('选择课次', 1, 'done'),
+          sep,
+          _flowStep('选择目标', 2, ready ? 'done' : 'current'),
+          sep,
+          _flowStep('确认生效', 3, ready ? 'current' : 'todo'),
+          const SizedBox(width: 8),
+          Text(
+            action,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: checking ? colors.inkSecondary : colors.blue,
+            ),
+          ),
+          _textButton(
+            '取消调整',
+            onTap: () => setState(() {
+              _invalidateCandidateBatch();
+              _source = null;
+              _kind = null;
+              _swapTarget = null;
+              _targetDate = null;
+              _targetPosition = null;
+              _teacherId = null;
+              _subjectId = null;
+            }),
+            color: colors.inkSecondary,
+            fontSize: 12,
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _classSelect(TemporaryTimetableState state, {double width = 148}) =>
       _selectField(

@@ -2,13 +2,14 @@ part of 'temporary_adjustments_page.dart';
 
 extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
   Widget _gridFootNote() {
+    // 当前动作与检测进度统一由流程条承担，这里只保留一句轻说明。
     final message = _teacherView
         ? '教师视图用于核对占用；请在班级视图选择课次发起调整。'
         : switch (_kind) {
-            'swap' when _source != null => '在课表中选择另一节课程作为互换目标。',
-            'move' => '在课表中选择一个空课位；原课位会空出来。',
+            'swap' when _source != null => '虚线蓝框为可选目标，蓝实线为源课次，绿实线为已选目标。',
+            'move' => '点选一个虚线空课位作为目标，原课位会空出来。',
             'substitute' => '选择代课教师后，可预览本次变更。',
-            _ => '选择一节课开始调整；已生效的变更会标记在课格中。',
+            _ => '点击任意课格发起调整；已生效的变更会标记在课格中。',
           };
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
@@ -58,6 +59,27 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                   color: today ? colors.blue : colors.inkSecondary,
                 ),
               ),
+              if (today) ...[
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.selectedBlue,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '今天',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: colors.blue,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           if (note != null)
@@ -80,18 +102,27 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
       padding: const EdgeInsets.fromLTRB(0, 6, 10, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '$periodName 第 $index 节',
+            periodName,
             style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
+              fontSize: 10,
+              letterSpacing: .5,
+              color: colors.muted,
+            ),
+          ),
+          Text(
+            '第 $index 节',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
               height: 1.35,
               color: colors.inkSecondary,
             ),
           ),
           if (time != null)
-            Text(time, style: TextStyle(fontSize: 11, color: colors.muted)),
+            Text(time, style: TextStyle(fontSize: 10.5, color: colors.muted)),
         ],
       ),
     );
@@ -103,15 +134,44 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: _blueWash,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         _kindLabel(kind),
         style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
           height: 1.5,
           color: colors.blue,
+        ),
+      ),
+    );
+  }
+
+  /// 调整流程中的课格角标：源课次（实心蓝）/ 目标课次（浅绿）。
+  Widget _statePill(String label, {bool filled = false, bool success = false}) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: filled
+            ? colors.blue
+            : success
+            ? colors.successSurface
+            : colors.selectedBlue,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          height: 1.5,
+          color: filled
+              ? colors.surface
+              : success
+              ? colors.success
+              : colors.blue,
         ),
       ),
     );
@@ -291,18 +351,17 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                                 date,
                                 slot.key,
                               );
-                              final subjectColor = courses.isEmpty
-                                  ? null
-                                  : SubjectColors.of(
-                                      context,
-                                      courses.first.item.subjectId,
-                                    );
                               final subjectBackground = courses.isEmpty
                                   ? null
-                                  : SubjectColors.cellBackground(
+                                  : SubjectColors.quietCellBackground(
                                       context,
                                       courses.first.item.subjectId,
                                     );
+                              final edgeColor = courses.isEmpty
+                                  ? (_isDark
+                                        ? const Color(0x1FFFFFFF)
+                                        : const Color(0x1A000000))
+                                  : colors.border;
                               final changed = indexes
                                   .recordForLessons(courses)
                                   ?.record;
@@ -326,13 +385,9 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                                               filled: courses.isNotEmpty,
                                             ),
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: courses.isEmpty
-                                              ? _isDark
-                                                    ? const Color(0x1FFFFFFF)
-                                                    : const Color(0x1A000000)
-                                              : colors.border,
-                                        ),
+                                        // 教师视图用极浅学科底 + 深色文字即可；
+                                        // 3px 色条留给班级视图，避免圆角配非均匀色边框。
+                                        border: Border.all(color: edgeColor),
                                       ),
                                       child: courses.isEmpty
                                           ? null
@@ -388,9 +443,8 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                                                               fontSize: 13,
                                                               fontWeight:
                                                                   FontWeight
-                                                                      .w500,
-                                                              color:
-                                                                  subjectColor,
+                                                                      .w600,
+                                                              color: colors.ink,
                                                             ),
                                                           ),
                                                           const SizedBox(
@@ -477,7 +531,7 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
         : SubjectColors.of(context, course.item.subjectId);
     final subjectBackground = course == null
         ? null
-        : SubjectColors.cellBackground(context, course.item.subjectId);
+        : SubjectColors.quietCellBackground(context, course.item.subjectId);
     final record = course == null
         ? null
         : indexes.recordForLesson(course.key)?.record;
@@ -562,14 +616,17 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
         !waiting &&
         (selecting ? eligible : course != null);
 
-    // 底色与描边
+    // 底色与描边：学科色只保留 3px 左色条，文字统一深色；
+    // 调整态再用蓝/绿区分源课次与目标课次。
     Color bg() {
       if (!available) return Colors.transparent;
-      if (isChosenTarget) return colors.selectedBlue;
+      if (isSource) return colors.selectedBlue;
+      if (isChosenTarget) return colors.successSurface;
       if (invalid) return colors.tableHeader;
+      if (selecting && eligible) return colors.surface;
       if (subjectBackground != null) return subjectBackground;
       if (makeupDay) return _blueWash;
-      return _slotBackground(filled: course != null, candidate: eligible);
+      return _slotBackground(filled: course != null);
     }
 
     Widget body;
@@ -578,35 +635,30 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
         child: Text('—', style: TextStyle(fontSize: 12, color: colors.muted)),
       );
     } else if (course == null) {
-      final text = eligible
-          ? (waiting
-                ? '检测中'
-                : invalid
-                ? '不可选'
-                : '可选')
-          : '空课位';
-      final color = invalid
-          ? colors.warning
-          : eligible
-          ? colors.blue
-          : colors.muted;
+      // 不再把「检测中 / 可选 / 不可选」铺进每个课格：
+      // 可选态由蓝色虚线框表达，整体检测进度交给流程条与页脚。
+      final actionable = selecting && eligible && !waiting && !invalid;
       body = Center(
-        child: Text(text, style: TextStyle(fontSize: 11.5, color: color)),
+        child: Text(
+          actionable && _kind == 'move' ? '＋ 移入此位' : '空课位',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: actionable ? colors.blue : colors.muted,
+          ),
+        ),
       );
     } else {
-      final stateText = selecting && eligible
-          ? (waiting
-                ? '检测中'
-                : invalid
-                ? '不可选'
-                : '可选')
+      final badge = isSource
+          ? _statePill('源课次', filled: true)
+          : isChosenTarget
+          ? _statePill('目标课次', success: true)
+          : record != null && !selecting
+          ? _typePill(record.kind)
           : null;
-      // 课格内容直接作为容器子节点（容器已有 8px 内边距），
-      // 再包一层会挤压三行文字的可用高度导致溢出。
       body = Stack(
         children: [
           Padding(
-            padding: record != null && !selecting
+            padding: badge != null
                 ? const EdgeInsets.only(right: 34)
                 : EdgeInsets.zero,
             child: Column(
@@ -619,8 +671,8 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: subjectForeground,
+                    fontWeight: FontWeight.w600,
+                    color: colors.ink,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -630,81 +682,79 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 12, color: colors.inkSecondary),
                 ),
-                if (stateText != null)
-                  Text(
-                    stateText,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: invalid
-                          ? colors.warning
-                          : waiting
-                          ? colors.muted
-                          : colors.blue,
-                    ),
-                  ),
               ],
             ),
           ),
-          if (record != null && !selecting)
-            Positioned(top: 5, right: 6, child: _typePill(record.kind)),
+          if (badge != null) Positioned(top: 5, right: 6, child: badge),
         ],
       );
     }
 
     final highlight = isSource || isChosenTarget;
-    final dashed = course == null && available;
-    Widget decorated;
-    if (dashed) {
-      decorated = Container(
-        height: 75,
-        margin: const EdgeInsets.all(3),
-        child: _TemporaryLessonHover(
-          enabled: canTap && !highlight,
+    // 虚线用于「空课位」与「调整中可选的目标」；源 / 目标用实线高亮。
+    final dashed =
+        available && !highlight && (course == null || (selecting && eligible));
+    final outlineColor = isSource
+        ? colors.blue
+        : isChosenTarget
+        ? colors.success
+        : invalid
+        ? colors.warning
+        : selecting && eligible
+        ? colors.blue.withValues(alpha: .55)
+        : course == null
+        ? (_isDark ? const Color(0x1FFFFFFF) : const Color(0x1A000000))
+        : colors.border;
+    final Widget decorated = Container(
+      height: 75,
+      margin: const EdgeInsets.all(3),
+      child: _TemporaryLessonHover(
+        enabled: canTap && !highlight,
+        borderRadius: BorderRadius.circular(8),
+        child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: CustomPaint(
-            foregroundPainter: _DashBorderPainter(
-              color: eligible
-                  ? (invalid
-                        ? colors.warning
-                        : colors.blue.withValues(alpha: .45))
-                  : _isDark
-                  ? const Color(0x1FFFFFFF)
-                  : const Color(0x1A000000),
-              radius: 8,
-            ),
+            foregroundPainter: dashed
+                ? _DashBorderPainter(color: outlineColor, radius: 8)
+                : null,
             child: Container(
               height: 75,
-              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: bg(),
                 borderRadius: BorderRadius.circular(8),
+                border: dashed
+                    ? null
+                    : Border.all(
+                        color: highlight ? outlineColor : colors.border,
+                        width: highlight ? 1.5 : 1,
+                      ),
               ),
-              child: body,
+              child: Stack(
+                children: [
+                  // 学科色只剩 3px 左色条；选中态色条跟随高亮色。
+                  if (subjectForeground != null)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 3,
+                        color: highlight ? outlineColor : subjectForeground,
+                      ),
+                    ),
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(11, 8, 8, 8),
+                      child: body,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      );
-    } else {
-      decorated = Container(
-        margin: const EdgeInsets.all(3),
-        child: _TemporaryLessonHover(
-          enabled: canTap && !highlight,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            height: 75,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: bg(),
-              borderRadius: BorderRadius.circular(8),
-              border: highlight
-                  ? Border.all(color: colors.blue, width: 1.5)
-                  : null,
-            ),
-            child: body,
-          ),
-        ),
-      );
-    }
+      ),
+    );
     Widget cell = Tooltip(
       message: hint,
       child: InkWell(
@@ -738,7 +788,7 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
       ),
     );
     if (selecting && !eligible && !isSource) {
-      cell = Opacity(opacity: .45, child: cell);
+      cell = Opacity(opacity: .62, child: cell);
     }
     final draggable = course == null || state.reconciliationPending || selecting
         ? cell
@@ -765,8 +815,8 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                         _subject(course.item.subjectId),
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: subjectForeground,
+                          fontWeight: FontWeight.w600,
+                          color: colors.ink,
                         ),
                       ),
                       Text(

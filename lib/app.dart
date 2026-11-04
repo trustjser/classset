@@ -51,8 +51,19 @@ final selectedSectionProvider = StateProvider<AppSection>(
 );
 final activeTermIdProvider = StateProvider<String?>((ref) => null);
 
-/// 最近一次成功写入本地数据库的时间；顶栏据此展示最近保存时间。
+/// 最近一次成功写入本地数据库的时间；侧栏本地数据卡据此展示保存状态。
 final lastPersistedAtProvider = StateProvider<DateTime?>((ref) => null);
+
+/// 保存时间的可读文案：当天只显示时分，跨天补月日。
+String _savedTimeLabel(DateTime time) {
+  final now = DateTime.now();
+  final timeText =
+      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  if (time.year == now.year && time.month == now.month && time.day == now.day) {
+    return timeText;
+  }
+  return '${time.month}/${time.day} $timeText';
+}
 
 class ClassSetApp extends StatefulWidget {
   const ClassSetApp({required this.databasePath, super.key});
@@ -397,6 +408,7 @@ class _Sidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final terms = ref.watch(termsProvider).valueOrNull ?? const [];
     final selectedTermId = ref.watch(activeTermIdProvider);
+    final lastPersistedAt = ref.watch(lastPersistedAtProvider);
     final selectedTerm = terms.where((term) => term.id == selectedTermId);
     final termTitle = selectedTerm.isEmpty ? '当前学期' : selectedTerm.first.title;
 
@@ -592,6 +604,18 @@ class _Sidebar extends ConsumerWidget {
                                   fontSize: 9,
                                 ),
                               ),
+                              if (lastPersistedAt != null) ...[
+                                const SizedBox(height: 1),
+                                Text(
+                                  '最近保存 ${_savedTimeLabel(lastPersistedAt)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: context.appColors.muted,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -917,7 +941,6 @@ class _TopBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final lastPersistedAt = ref.watch(lastPersistedAtProvider);
     final terms = ref.watch(termsProvider).valueOrNull ?? const [];
     final activeId = ref.watch(activeTermIdProvider);
     final activeTerm = terms.where((term) => term.id == activeId);
@@ -1008,54 +1031,10 @@ class _TopBar extends ConsumerWidget {
               onPressed: onCycleThemeMode,
               iconSize: 17,
             ),
-            if (constraints.maxWidth > 720) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                decoration: BoxDecoration(
-                  color: context.appColors.successSurface,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: context.appColors.success,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      lastPersistedAt == null
-                          ? '上次保存：暂无'
-                          : '上次保存：${_savedTime(lastPersistedAt)}',
-                      style: TextStyle(
-                        color: context.appColors.success,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
     );
-  }
-
-  static String _savedTime(DateTime time) {
-    final now = DateTime.now();
-    final timeText =
-        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    if (time.year == now.year &&
-        time.month == now.month &&
-        time.day == now.day) {
-      return timeText;
-    }
-    return '${time.month}/${time.day} $timeText';
   }
 }
 

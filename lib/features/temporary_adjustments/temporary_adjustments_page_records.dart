@@ -51,6 +51,7 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
     var sameSubject = false;
     var sameGrade = false;
     var sameClass = false;
+    var searchQuery = '';
     var pickedId = _teacherId;
     var expandedId = <String>{};
     final week = state.snapshot.term.teachingWeekOf(source.date);
@@ -74,7 +75,12 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, update) {
           final colors = context.appColors;
+          final normalizedQuery = searchQuery.trim().toLowerCase();
           final candidates = state.snapshot.teachers.where((teacher) {
+            if (normalizedQuery.isNotEmpty &&
+                !teacher.displayName.toLowerCase().contains(normalizedQuery)) {
+              return false;
+            }
             final assignments = state.snapshot.assignments.where(
               (assignment) => assignment.teacherId == teacher.id,
             );
@@ -166,6 +172,27 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                         }),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 4),
+                  TextField(
+                    onChanged: (value) => update(() => searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: '搜索教师姓名',
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        size: 18,
+                        color: colors.muted,
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   if (candidates.isEmpty)

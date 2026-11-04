@@ -188,6 +188,10 @@ class _TemporaryAdjustmentsPageState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _records ? _recordsToolbar(state) : _scheduleToolbar(state, start),
+          if (!_records && _source != null) ...[
+            const SizedBox(height: 10),
+            _flowBar(),
+          ],
           if (state.reconciliationPending) ...[
             const SizedBox(height: 10),
             _hintBox(const Text('课表待协调，完成协调后才能进行临时调整。'), tone: 'amber'),
@@ -208,20 +212,23 @@ class _TemporaryAdjustmentsPageState
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       if (constraints.maxWidth < 1040) {
+                        // 窄屏只保留一个「页面级」纵向滚动源：
+                        // 面板按内容自然撑高（不再内部滚动抢手势），
+                        // 课表给固定高度，在其内部横向 / 纵向滚动。
                         return SingleChildScrollView(
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               if (_source != null) ...[
-                                SizedBox(
-                                  height: 500,
-                                  width: double.infinity,
-                                  child: _panel(state),
-                                ),
+                                _panel(state, scrollBody: false),
                                 const SizedBox(height: 14),
                               ],
-                              _teacherView
-                                  ? _teacherGrid(state, start)
-                                  : _grid(state, start),
+                              SizedBox(
+                                height: 420,
+                                child: _teacherView
+                                    ? _teacherGrid(state, start)
+                                    : _grid(state, start),
+                              ),
                               _gridFootNote(),
                             ],
                           ),

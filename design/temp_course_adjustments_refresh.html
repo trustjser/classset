@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#f6f5f4" />
+<title>课集 ClassSet · 调代课（优化稿）</title>
+<!--
+  ─────────────────────────────────────────────────────────────
+  自检报告 / Self-check
+  · 基线：design/DESIGN.md（token）+ design/temp_course_adjustments.html（交互骨架），未覆盖原文件
+  · PC 桌面端标准：hover / focus-visible / active / disabled 四态齐全；键盘 Tab + Enter + Esc 可达
+  · 关键状态：初始态、已选源课次、已选目标、预览确认、冲突提示、空课位、已生效调整角标、记录空态
+  · 无外网字体 / 无外网图片；图标全部内联 SVG，currentColor
+  · 所有视觉值集中在 :root，改色只需改变量；学科色仅用于 3px 色条与极浅底
+  · 中文行高 1.5–1.7，辅助文字 ≥11px，正文对比度 ≥ 4.5:1
+  · 圆角仅 2 种体系（卡片 14 / 控件 10，胶囊 999 为标签例外）
+  · 静态 HTML 原型：状态只保存在当前页面会话，不代表已接入 Flutter
+  ─────────────────────────────────────────────────────────────
+-->
+<style>
+:root {
+  color-scheme: light;
+  /* 表面 */
+  --canvas: #F6F5F4;
+  --surface: #FFFFFF;
+  --surface-2: #F1F0EE;
+  --surface-3: #EDEBE9;
+  /* 品牌与焦点 */
+  --blue: #0075DE;
+  --blue-hover: #0066C4;
+  --blue-active: #005BAD;
+  --blue-soft: #E8F1FC;
+  --blue-wash: #F3F8FE;
+  --blue-border: rgba(0, 117, 222, .38);
+  --focus-ring: rgba(0, 117, 222, .25);
+  /* 文字 */
+  --ink: #1A1A1A;
+  --ink-2: #615D59;
+  --muted: #A39E98;
+  /* 描边 */
+  --border: rgba(0, 0, 0, .08);
+  --border-strong: rgba(0, 0, 0, .14);
+  /* 语义色 */
+  --green: #2BA471; --green-bg: #E9F6EF;
+  --amber: #C98A2B; --amber-bg: #FAF1E2;
+  --red: #D54941;   --red-bg: #FBECEB;
+  /* 形状 / 间距（4px 基数） */
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --radius-pill: 999px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  /* 尺寸 */
+  --side-width: 236px;
+  --panel-width: 336px;
+  --topbar-h: 58px;
+  /* 阴影 */
+  --shadow: 0 8px 30px rgba(35, 30, 24, .06), 0 1px 3px rgba(35, 30, 24, .04);
+  --shadow-pop: 0 18px 60px rgba(24, 27, 32, .2), 0 2px 8px rgba(24, 27, 32, .08);
+  /* 字阶 */
+  --fs-title: 18px; --fs-h2: 15px; --fs-body: 13.5px; --fs-aux: 12px; --fs-micro: 11px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: #EEDEDB; }
+body { padding: 18px; color: var(--ink); }
+button, input, select, textarea { font: inherit; }
+button { color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus-ring); outline-offset: 2px;
+}
+::placeholder { color: var(--muted); }
+.hidden { display: none !important; }
+
+/* ── 应用外框 ─────────────────────────────── */
+.app {
+  display: flex; flex-direction: column;
+  width: min(1500px, 100%); height: min(930px, calc(100vh - 36px));
+  min-height: 700px; margin: 0 auto; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 18px; box-shadow: var(--shadow);
+}
+.topbar {
+  flex: 0 0 var(--topbar-h); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--sp-5) 0 var(--sp-4); border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: var(--sp-2); }
+.divider-v { width: 1px; height: 18px; background: var(--border-strong); margin: 0 var(--sp-1); }
+.page-title { font-size: var(--fs-body); font-weight: 600; }
+.term-select {
+  height: 30px; padding: 0 26px 0 10px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23615D59' stroke-width='1.3'/%3E%3C/svg%3E") no-repeat right 9px center;
+  font-size: var(--fs-aux); color: var(--ink-2); appearance: none;
+}
+.term-select:hover { border-color: var(--border-strong); }
+.link-btn { font-size: var(--fs-aux); color: var(--ink-2); padding: 6px 9px; border-radius: 8px; }
+.link-btn:hover { background: var(--surface-2); color: var(--ink); }
+.body-row { flex: 1; display: flex; min-height: 0; }
+
+/* ── 侧边导航 ─────────────────────────────── */
+.sidebar {
+  flex: 0 0 var(--side-width); display: flex; flex-direction: column;
+  padding: var(--sp-4) var(--sp-3) var(--sp-3); border-right: 1px solid var(--border);
+  background: var(--surface); overflow-y: auto;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: linear-gradient(135deg, #0075DE, #57A6F0); color: #fff;
+  box-shadow: 0 3px 8px rgba(0, 117, 222, .2);
+}
+.brand-mark svg { width: 19px; height: 19px; }
+.brand-name { font-size: 15px; font-weight: 650; line-height: 1.15; }
+.brand-sub { font-size: 9.5px; letter-spacing: .14em; color: var(--muted); }
+.school-card {
+  margin: var(--sp-4) 4px var(--sp-5); padding: 10px 11px; border: 1px solid var(--border);
+  border-radius: var(--radius-control); background: var(--canvas);
+}
+.school-card b { display: block; font-size: var(--fs-body); font-weight: 600; }
+.school-card span { font-size: var(--fs-micro); color: var(--ink-2); }
+.nav-group { margin-bottom: var(--sp-5); }
+.nav-label { padding: 0 10px 7px; font-size: var(--fs-micro); color: var(--muted); letter-spacing: .04em; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px;
+  padding: 6px 10px; border-radius: 9px; font-size: var(--fs-body); color: var(--ink-2); text-align: left;
+}
+.nav-item svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.nav-item:hover { background: var(--surface-2); color: var(--ink); }
+.nav-item:active { background: var(--surface-3); }
+.nav-item.active { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+.nav-item .side-note { margin-left: auto; font-size: var(--fs-micro); color: var(--muted); font-weight: 400; }
+.sidebar .spacer { flex: 1; }
+.local-state { display: flex; gap: 9px; padding: 10px; border-top: 1px solid var(--border); }
+.local-state .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-top: 5px; flex: 0 0 auto; }
+.local-state b { display: block; font-size: var(--fs-aux); font-weight: 600; }
+.local-state span { display: block; font-size: var(--fs-micro); color: var(--muted); margin-top: 2px; }
+
+/* ── 主内容 ───────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--canvas); }
+.content { flex: 1; display: flex; min-height: 0; padding: var(--sp-4) var(--sp-5) var(--sp-5); }
+.workarea { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: var(--sp-3); }
+
+.toolbar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.tabs { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); }
+.tab { position: relative; padding: 8px 12px 10px; font-size: var(--fs-body); color: var(--ink-2); }
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--blue); font-weight: 600; }
+.tab.active::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--blue); }
+.tab .count {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: var(--radius-pill);
+  background: var(--surface-3); color: var(--ink-2); font-size: var(--fs-micro); font-weight: 500;
+}
+.tab.active .count { background: var(--blue-soft); color: var(--blue); }
+.toolbar .grow { flex: 1; }
+.week-nav { display: flex; align-items: center; gap: 2px; }
+.icon-btn { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-2); }
+.icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+.icon-btn:active { background: var(--surface-3); }
+.icon-btn svg { width: 14px; height: 14px; }
+.week-label { font-size: var(--fs-body); font-weight: 600; padding: 0 var(--sp-2); white-space: nowrap; }
+.week-label .sub { font-weight: 400; color: var(--muted); font-size: var(--fs-aux); margin-left: 6px; }
+.text-btn { font-size: var(--fs-aux); color: var(--ink-2); padding: 6px 9px; border-radius: 8px; }
+.text-btn:hover { background: var(--surface-2); color: var(--ink); }
+.text-btn.blue { color: var(--blue); }
+.text-btn.blue:hover { background: var(--blue-soft); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 14px; border-radius: var(--radius-control); font-size: var(--fs-body);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); white-space: nowrap;
+}
+.btn:hover { background: var(--surface-2); border-color: rgba(0,0,0,.2); }
+.btn:active { background: var(--surface-3); }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
+.btn.primary:hover { background: var(--blue-hover); border-color: var(--blue-hover); }
+.btn.primary:active { background: var(--blue-active); }
+.btn.primary:disabled, .btn.primary[disabled] {
+  background: #C6DAF0; border-color: transparent; color: #fff; cursor: not-allowed;
+}
+.btn.ghost { border-color: transparent; color: var(--ink-2); }
+.btn.ghost:hover { background: var(--surface-2); color: var(--ink); }
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; right: 0; top: calc(100% + 6px); min-width: 216px; z-index: 40;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-pop); padding: 5px;
+}
+.menu button { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px; }
+.menu button:hover { background: var(--surface-2); }
+.menu button b { font-size: var(--fs-body); font-weight: 500; }
+.menu button span { font-size: var(--fs-micro); color: var(--muted); }
+
+/* ── 第二工具行：Radio + 班级 + 流程条 ─────── */
+.subbar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.radio-inline { display: flex; align-items: center; gap: var(--sp-4); }
+.radio-inline label { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-body); color: var(--ink-2); cursor: pointer; }
+.radio-inline label:hover { color: var(--ink); }
+.radio-inline input { position: absolute; opacity: 0; width: 0; height: 0; }
+.radio-dot {
+  width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--border-strong);
+  display: grid; place-items: center; flex: 0 0 auto; transition: border-color .12s;
+}
+.radio-dot::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); transform: scale(0); transition: transform .12s; }
+.radio-inline input:checked + .radio-dot { border-color: var(--blue); }
+.radio-inline input:checked + .radio-dot::after { transform: scale(1); }
+.radio-inline input:checked ~ .radio-text { color: var(--ink); font-weight: 600; }
+.radio-inline input:focus-visible + .radio-dot { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.filter-select {
+  height: 30px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface); color: var(--ink-2); font-size: var(--fs-aux);
+}
+.filter-select:hover { border-color: var(--border-strong); }
+
+.flow-bar {
+  flex: 1 1 100%;
+  display: flex; align-items: center; gap: var(--sp-3); padding: 9px 12px;
+  border: 1px solid var(--blue-border); border-radius: var(--radius-control);
+  background: var(--blue-wash); min-height: 42px;
+}
+.steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.step { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-aux); color: var(--muted); }
+.step .num {
+  width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--border-strong); font-size: 10.5px; font-weight: 600;
+}
+.step.done { color: var(--ink-2); }
+.step.done .num { background: var(--green-bg); border-color: transparent; color: var(--green); }
+.step.current { color: var(--blue); font-weight: 600; }
+.step.current .num { background: var(--blue); border-color: var(--blue); color: #fff; }
+.step-sep { width: 18px; height: 1px; background: var(--border-strong); }
+.flow-hint { font-size: var(--fs-aux); color: var(--ink-2); }
+.flow-hint b { color: var(--blue); font-weight: 600; }
+.flow-bar .grow { flex: 1; }
+
+/* ── 课表 ─────────────────────────────────── */
+.board { flex: 1; display: flex; gap: var(--sp-4); min-height: 0; }
+.grid-wrap { flex: 1; min-width: 0; overflow: auto; padding: 2px; }
+.weekgrid {
+  display: grid; grid-template-columns: 84px repeat(5, minmax(132px, 1fr));
+  gap: 7px; min-width: 770px; align-content: start;
+}
+.day-head { padding: 2px 4px 7px; display: flex; align-items: baseline; gap: 6px; }
+.day-head .dw { font-size: var(--fs-body); font-weight: 600; }
+.day-head .dd { font-size: var(--fs-aux); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.day-head.today .dw, .day-head.today .dd { color: var(--blue); }
+.today-pill { padding: 1px 7px; border-radius: var(--radius-pill); background: var(--blue-soft); color: var(--blue); font-size: 10px; font-weight: 600; }
+.period-head { align-self: center; padding: 4px 6px 4px 2px; line-height: 1.45; }
+.period-head b { display: block; font-size: var(--fs-aux); font-weight: 600; color: var(--ink-2); }
+.period-head span { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
+.period-head .half { display: block; font-size: 10px; color: var(--muted); margin-bottom: 2px; letter-spacing: .08em; }
+
+.cell {
+  position: relative; min-height: 66px; padding: 9px 11px 9px 14px; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--sc-soft, var(--surface));
+  display: flex; flex-direction: column; gap: 3px; cursor: pointer;
+  transition: border-color .12s, box-shadow .12s, opacity .12s, transform .12s;
+}
+.cell::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--sc, transparent); }
+.cell:hover { border-color: var(--border-strong); box-shadow: 0 2px 8px rgba(35, 30, 24, .07); }
+.cell:active { transform: translateY(1px); }
+.cell .subj { font-size: var(--fs-body); font-weight: 600; line-height: 1.35; color: var(--ink); }
+.cell .teach { font-size: var(--fs-aux); color: var(--ink-2); line-height: 1.4; }
+.cell .cls { font-size: var(--fs-micro); color: var(--muted); }
+.cell .badge {
+  position: absolute; top: 7px; right: 8px; padding: 1px 7px; border-radius: var(--radius-pill);
+  font-size: 10px; font-weight: 600; line-height: 1.6; white-space: nowrap;
+}
+.badge.adjusted { background: var(--blue-soft); color: var(--blue); }
+.badge.source { background: var(--blue); color: #fff; }
+.badge.target { background: var(--green-bg); color: var(--green); }
+.cell.empty {
+  background: transparent; border: 1px dashed rgba(0, 0, 0, .12); cursor: default;
+  align-items: center; justify-content: center;
+}
+.cell.empty .subj { font-size: var(--fs-aux); font-weight: 400; color: var(--muted); }
+.cell.empty:hover { box-shadow: none; }
+.cell.selected {
+  border-color: var(--blue); background: var(--blue-wash);
+  box-shadow: 0 0 0 3px rgba(0, 117, 222, .14);
+}
+.cell.selected::before { width: 4px; background: var(--blue); }
+.cell.targetable { border: 1.5px dashed var(--blue-border); background: var(--surface); }
+.cell.targetable:hover { border-style: solid; border-color: var(--blue); background: var(--blue-wash); }
+.cell.targetable::after {
+  content: attr(data-hint); position: absolute; right: 7px; bottom: 6px;
+  padding: 2px 7px; border-radius: var(--radius-pill); background: var(--blue); color: #fff;
+  font-size: 10px; font-weight: 600; opacity: 0; transform: translateY(3px); transition: opacity .12s, transform .12s;
+}
+.cell.targetable:hover::after, .cell.targetable:focus-visible::after { opacity: 1; transform: none; }
+.cell.chosen-target { border-color: var(--green); background: var(--green-bg); box-shadow: 0 0 0 3px rgba(43, 164, 113, .13); }
+.cell.dimmed { opacity: .62; }
+.cell.dimmed:hover { opacity: .88; }
+.cell.conflict { border-color: var(--red); }
+.cell.conflict .badge { background: var(--red-bg); color: var(--red); }
+.board-foot { font-size: var(--fs-micro); color: var(--muted); padding: 0 4px; line-height: 1.6; }
+
+/* 学科色：只用于 3px 色条 + 极浅底，文字保持深色 */
+[data-subj="语文"] { --sc: #D9822B; --sc-soft: #FFF6EC; }
+[data-subj="数学"] { --sc: #2E9C8C; --sc-soft: #ECF8F5; }
+[data-subj="音乐"] { --sc: #C86AA8; --sc-soft: #FDF0F8; }
+[data-subj="美术"] { --sc: #5FA35F; --sc-soft: #F0F8EF; }
+[data-subj="科学"] { --sc: #8472CC; --sc-soft: #F3F0FD; }
+[data-subj="体育与健康"] { --sc: #2F86C9; --sc-soft: #EDF6FD; }
+[data-subj="劳动"] { --sc: #9A72C0; --sc-soft: #F6F0FB; }
+[data-subj="道德与法治"] { --sc: #6FA053; --sc-soft: #F1F8EB; }
+[data-subj="综合实践活动"] { --sc: #98A33C; --sc-soft: #F7F8E9; }
+
+/* ── 发起调整面板 ─────────────────────────── */
+.adjust-panel {
+  flex: 0 0 var(--panel-width); display: flex; flex-direction: column; min-height: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-card); box-shadow: var(--shadow); overflow: hidden;
+}
+.panel-head { display: flex; align-items: center; gap: var(--sp-2); padding: 14px var(--sp-4) 10px; }
+.panel-head h3 { margin: 0; font-size: var(--fs-h2); font-weight: 650; }
+.step-chip { padding: 2px 8px; border-radius: var(--radius-pill); background: var(--blue-soft); color: var(--blue); font-size: var(--fs-micro); font-weight: 600; }
+.panel-head .grow { flex: 1; }
+.panel-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--sp-4) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+.sec-label { display: block; font-size: var(--fs-aux); color: var(--muted); margin-bottom: 7px; }
+.course-card { padding: 10px 12px; border-radius: 11px; background: var(--blue-soft); display: flex; flex-direction: column; gap: 3px; }
+.course-card .line1 { font-size: var(--fs-body); font-weight: 650; line-height: 1.4; }
+.course-card .line2 { font-size: var(--fs-aux); color: var(--ink-2); line-height: 1.5; }
+.course-card.plain { background: var(--surface-2); }
+.course-card.ok { background: var(--green-bg); }
+.course-card .swap-arrow { color: var(--blue); font-weight: 600; }
+.radio-stack { display: flex; flex-direction: column; gap: 7px; }
+.radio-row {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left;
+  padding: 9px 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface);
+  transition: border-color .12s, background .12s;
+}
+.radio-row:hover { border-color: var(--border-strong); }
+.radio-row:active { background: var(--surface-2); }
+.radio-row.on { border-color: var(--blue); background: var(--blue-wash); }
+.radio-row .radio-dot { margin-top: 2px; }
+.radio-row.on .radio-dot { border-color: var(--blue); }
+.radio-row.on .radio-dot::after { transform: scale(1); }
+.rr-title { font-size: var(--fs-body); font-weight: 600; }
+.rr-desc { display: block; font-size: var(--fs-aux); color: var(--ink-2); margin-top: 2px; line-height: 1.55; }
+.target-empty {
+  display: flex; align-items: center; gap: 9px; padding: 12px; border: 1.5px dashed var(--blue-border);
+  border-radius: 11px; background: var(--blue-wash); font-size: var(--fs-aux); color: var(--ink-2); line-height: 1.55;
+}
+.target-empty svg { width: 16px; height: 16px; color: var(--blue); flex: 0 0 auto; }
+.hint-box { padding: 9px 11px; border-radius: 10px; background: var(--surface-2); font-size: var(--fs-aux); color: var(--ink-2); line-height: 1.6; }
+.hint-box b { color: var(--ink); font-weight: 600; }
+.hint-box.warn { background: var(--amber-bg); color: #8A5A14; }
+.field label { display: block; font-size: var(--fs-aux); color: var(--ink-2); margin-bottom: 6px; }
+.field input {
+  width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 9px; background: var(--surface); font-size: var(--fs-body);
+}
+.field input:hover { border-color: var(--border-strong); }
+.field input:focus { border-color: var(--blue); outline: 3px solid var(--focus-ring); outline-offset: 0; }
+.field .field-note { font-size: var(--fs-micro); color: var(--muted); margin-top: 5px; }
+.panel-foot { padding: 12px var(--sp-4) 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: var(--sp-2); background: var(--surface); }
+.panel-foot .grow { flex: 1; }
+.panel-foot .foot-note { font-size: var(--fs-micro); color: var(--muted); margin-bottom: 6px; }
+
+/* ── 调整记录 ─────────────────────────────── */
+.records-wrap { flex: 1; min-height: 0; overflow: auto; }
+.rec-list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; }
+.rec-row { display: flex; align-items: center; gap: var(--sp-4); padding: 14px var(--sp-4); border-bottom: 1px solid var(--border); }
+.rec-row:last-child { border-bottom: 0; }
+.rec-row:hover { background: #FBFBFA; }
+.rec-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rec-line1 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-body); font-weight: 600; flex-wrap: wrap; }
+.rec-line2 { font-size: var(--fs-aux); color: var(--ink-2); }
+.rec-reason { font-size: var(--fs-micro); color: var(--muted); }
+.pill { padding: 2px 9px; border-radius: var(--radius-pill); font-size: var(--fs-micro); font-weight: 600; white-space: nowrap; }
+.pill.swap { background: var(--blue-soft); color: var(--blue); }
+.pill.move { background: var(--amber-bg); color: var(--amber); }
+.pill.sub { background: var(--green-bg); color: var(--green); }
+.status { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-aux); color: var(--green); }
+.status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.empty-state { padding: 56px 20px; text-align: center; color: var(--muted); font-size: var(--fs-body); }
+
+/* ── 弹窗 / toast ─────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; background: rgba(20, 18, 16, .4); display: none;
+  align-items: center; justify-content: center; z-index: 100; padding: 24px;
+}
+.overlay.open { display: flex; }
+.dialog { width: 500px; max-width: 100%; max-height: calc(100vh - 60px); display: flex; flex-direction: column; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-pop); overflow: hidden; }
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 20px 0; }
+.dialog-head h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.dialog-head .sub { margin-top: 4px; font-size: var(--fs-aux); color: var(--ink-2); }
+.dialog-body { padding: 14px 20px 4px; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-3); }
+.dialog-foot { display: flex; align-items: center; gap: 10px; padding: 14px 20px 18px; }
+.dialog-foot .grow { flex: 1; }
+.pv-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 11px; }
+.pv-row .pv-icon { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--green-bg); color: var(--green); font-size: 11px; flex: 0 0 auto; }
+.pv-row.bad { border-color: rgba(213, 73, 65, .4); background: #FDF7F6; }
+.pv-row.bad .pv-icon { background: var(--red-bg); color: var(--red); }
+.pv-main { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-aux); color: var(--ink-2); line-height: 1.55; }
+.pv-main b { font-size: var(--fs-body); color: var(--ink); font-weight: 600; }
+.cand-row { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px; cursor: pointer; }
+.cand-row:hover { border-color: var(--border-strong); }
+.cand-row.on { border-color: var(--blue); background: var(--blue-wash); }
+.cand-row.busy { opacity: .55; cursor: not-allowed; }
+.cand-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--blue); color: #fff; font-size: var(--fs-aux); font-weight: 600; }
+.cand-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.cand-main b { font-size: var(--fs-body); font-weight: 600; }
+.cand-main span { font-size: var(--fs-aux); color: var(--ink-2); }
+.toast {
+  position: fixed; left: 50%; bottom: 34px; transform: translate(-50%, 16px);
+  background: #2B2926; color: #fff; font-size: var(--fs-body); padding: 10px 18px;
+  border-radius: var(--radius-pill); box-shadow: var(--shadow-pop);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 200;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ── 设计说明（在应用之外，默认收起） ─────── */
+.design-notes { max-width: 1500px; margin: 14px auto 0; font-size: var(--fs-aux); color: var(--ink-2); }
+.design-notes summary { cursor: pointer; padding: 8px 12px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border); font-weight: 600; }
+.design-notes .notes-body { padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-top: 0; border-radius: 0 0 12px 12px; line-height: 1.8; }
+.design-notes h4 { margin: 14px 0 4px; font-size: var(--fs-body); color: var(--ink); }
+.design-notes h4:first-child { margin-top: 0; }
+.design-notes ul { margin: 0; padding-left: 20px; }
+.design-notes code { padding: 1px 5px; border-radius: 5px; background: var(--surface-2); font-size: var(--fs-micro); }
+
+/* ── 窄窗口降级（桌面应用，非网站限宽） ───── */
+@media (max-width: 1180px) {
+  .sidebar { flex-basis: 200px; }
+  .content { padding: var(--sp-3); }
+  .adjust-panel { position: fixed; right: 0; bottom: 0; left: 0; z-index: 60; flex-basis: auto; max-height: 70%; border-radius: 16px 16px 0 0; border: 0; border-top: 1px solid var(--border); box-shadow: var(--shadow-pop); }
+}
+@media (max-width: 768px) {
+  body { padding: 0; }
+  .app { height: 100vh; min-height: 0; border: 0; border-radius: 0; }
+  .sidebar { display: none; }
+  .topbar { padding: 0 var(--sp-3); }
+  .content { padding: var(--sp-3); }
+  .toolbar { gap: var(--sp-2); }
+  .week-label .sub { display: none; }
+  .flow-bar { flex-wrap: wrap; }
+  .weekgrid { min-width: 700px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="icon-btn" title="收起侧边导航" onclick="toast('演示原型：窄窗口下侧栏自动收起')" aria-label="收起侧边导航">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+      </button>
+      <span class="page-title">调代课</span>
+      <span class="divider-v"></span>
+      <select class="term-select" aria-label="选择学期"><option>2026 学年 · 秋季学期</option></select>
+    </div>
+    <div class="topbar-right">
+      <button class="link-btn" onclick="toast('演示原型：帮助文档')">帮助</button>
+    </div>
+  </header>
+
+  <div class="body-row">
+    <!-- 侧栏 -->
+    <nav class="sidebar" aria-label="主导航">
+      <div class="brand">
+        <span class="brand-mark"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 5.5h6a2 2 0 0 1 2 2v8a2 2 0 0 0-2-2H3zM17 5.5h-6a2 2 0 0 0-2 2v8a2 2 0 0 1 2-2h6z"/></svg></span>
+        <span><span class="brand-name">课集</span><br /><span class="brand-sub">CLASSSET</span></span>
+      </div>
+      <div class="school-card"><b>未命名学校</b><span>2026 学年 · 秋季学期</span></div>
+
+      <div class="nav-group">
+        <div class="nav-label">排课前准备</div>
+        <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>工作台</button>
+        <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 2v2M10.5 2v2"/></svg>学期与日历</button>
+        <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13V6l6-3 6 3v7M2 13h12M6 13V9h4v4"/></svg>班级与学段</button>
+        <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>作息设置<span class="side-note">9 年级</span></button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">排课与课表</div>
+        <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M2 6h12M6 6v8"/></svg>科目节数</button>
+        <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="5.5" r="2.3"/><path d="M2 13c0-2.2 1.8-3.5 4-3.5s4 1.3 4 3.5M11 4h3M12.5 2.5v3"/></svg>教师任课</button>
+        <button class="nav-item active"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 5h9l-2-2M14 11H5l2 2"/></svg>调代课</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">更多</div>
+        <button class="nav-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13V5l6-3 6 3v8M2 13h12M6 13V9h4v4"/></svg>公共场室</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="local-state">
+        <span class="dot"></span>
+        <div><b>本地数据 · 离线可用</b><span>数据保存在这台设备 · 最近保存 14:02</span></div>
+      </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <main class="main">
+      <div class="content">
+        <div class="workarea">
+
+          <!-- 第一行：页签 / 周导航 / 导出 -->
+          <div class="toolbar">
+            <div class="tabs" role="tablist">
+              <button class="tab active" id="tab-schedule" role="tab" aria-selected="true" onclick="switchTab('schedule')">实际课表</button>
+              <button class="tab" id="tab-records" role="tab" aria-selected="false" onclick="switchTab('records')">调整记录<span class="count">1 条</span></button>
+            </div>
+            <div class="grow"></div>
+            <div class="week-nav">
+              <button class="icon-btn" title="上一周" aria-label="上一周" onclick="toast('演示原型：仅展示第 10 教学周')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
+              <span class="week-label">第 10 教学周 · 每周<span class="sub">11/03 – 11/09</span></span>
+              <button class="icon-btn" title="下一周" aria-label="下一周" onclick="toast('演示原型：仅展示第 10 教学周')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>
+              <button class="text-btn blue" onclick="toast('已回到本周')">本周</button>
+            </div>
+            <div class="menu-wrap">
+              <button class="btn" id="export-btn" aria-haspopup="menu" onclick="toggleMenu(event)">导出 ▾</button>
+              <div class="menu hidden" id="export-menu" role="menu">
+                <button role="menuitem" onclick="exportAs('教师通知')"><b>教师通知</b><span>按教师汇总实际课次与调整</span></button>
+                <button role="menuitem" onclick="exportAs('班级通知')"><b>班级通知</b><span>按班级汇总实际课次与调整</span></button>
+                <button role="menuitem" onclick="exportAs('调整明细')"><b>调整明细</b><span>全部有效调整的逐条明细</span></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 第二行：视图 Radio / 班级 / 流程条 -->
+          <div class="subbar" id="subbar">
+            <div class="radio-inline" role="radiogroup" aria-label="课表视角">
+              <label><input type="radio" name="view" value="class" checked onchange="switchView('class')" /><span class="radio-dot"></span><span class="radio-text">班级视图</span></label>
+              <label><input type="radio" name="view" value="teacher" onchange="switchView('teacher')" /><span class="radio-dot"></span><span class="radio-text">教师视图</span></label>
+            </div>
+            <span class="divider-v"></span>
+            <select class="filter-select" id="class-select" aria-label="选择班级"><option>一年级 1 班</option><option>一年级 2 班</option></select>
+            <div class="flow-bar hidden" id="flow-bar">
+              <div class="steps">
+                <span class="step done"><span class="num">✓</span>选择课次</span><span class="step-sep"></span>
+                <span class="step current" id="step-2"><span class="num">2</span>选择目标</span><span class="step-sep"></span>
+                <span class="step" id="step-3"><span class="num">3</span>确认生效</span>
+              </div>
+              <span class="grow"></span>
+              <span class="flow-hint" id="flow-hint">在课表中<b>点击要交换的课次</b></span>
+              <button class="text-btn" onclick="cancelAdjust()">取消调整</button>
+            </div>
+          </div>
+
+          <!-- 课表 + 面板 -->
+          <div class="board" id="board">
+            <div class="grid-wrap"><div class="weekgrid" id="weekgrid"></div></div>
+            <aside class="adjust-panel hidden" id="adjust-panel" aria-label="发起调整"></aside>
+          </div>
+
+          <!-- 记录列表 -->
+          <div class="records-wrap hidden" id="records-wrap"></div>
+
+          <div class="board-foot" id="board-foot">点击任意课格发起调整；带「换课 / 移课 / 代课」角标的课格表示已有生效调整，点击可查看原安排。</div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 预览确认弹窗 -->
+<div class="overlay" id="dlg-preview" role="dialog" aria-modal="true" aria-labelledby="pv-title">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div><h3 id="pv-title">预览调整</h3><div class="sub" id="pv-sub"></div></div>
+      <button class="icon-btn" aria-label="关闭" onclick="closeDlg('dlg-preview')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+    </div>
+    <div class="dialog-body" id="pv-body"></div>
+    <div class="dialog-foot">
+      <span style="font-size:11px;color:var(--muted)">仅本次生效 · 常规周课表不变</span>
+      <div class="grow"></div>
+      <button class="btn ghost" onclick="closeDlg('dlg-preview')">返回修改</button>
+      <button class="btn primary" id="pv-confirm" onclick="confirmAdjust()">确认生效</button>
+    </div>
+  </div>
+</div>
+
+<!-- 代课教师弹窗 -->
+<div class="overlay" id="dlg-substitute" role="dialog" aria-modal="true" aria-labelledby="sub-title">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div><h3 id="sub-title">选择代课教师</h3><div class="sub" id="sub-sub"></div></div>
+      <button class="icon-btn" aria-label="关闭" onclick="closeDlg('dlg-substitute')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+    </div>
+    <div class="dialog-body" id="sub-body"></div>
+    <div class="dialog-foot"><span style="font-size:11px;color:var(--muted)">候选默认按该时段空闲状态排序</span><div class="grow"></div><button class="btn ghost" onclick="closeDlg('dlg-substitute')">取消</button><button class="btn primary" id="sub-confirm" disabled onclick="pickSubstitute()">确定</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<!-- 设计说明：不进入产品界面 -->
+<details class="design-notes">
+  <summary>设计说明 · 优化对照与状态清单（点击展开）</summary>
+  <div class="notes-body">
+    <h4>本轮改动（对照两张原截图）</h4>
+    <ul>
+      <li><b>学科色降噪</b>：整格高饱和填充 → 3px 左侧色条 + 极浅底，科目文字统一深色。保留辨识度，消除「彩色积木墙」。</li>
+      <li><b>删除常驻「检测中」</b>：系统检测态不是课程信息，改为仅在冲突/异常时出现角标，每格少一行噪音。</li>
+      <li><b>流程可见</b>：新增三步流程条（选择课次 → 选择目标 → 确认生效）替代底部居中那句弱提示，当前步骤与下一步动作同时可见。</li>
+      <li><b>选择态统一</b>：源课次=蓝实线+「源」标，可选目标=蓝虚线+hover「⇅ 选为目标」，已选目标=绿实线+「目标」标，不可选=降透明度。不再只在零星格子挂「换课」小按钮。</li>
+      <li><b>控件符合项目约定</b>：班级/教师视图、调整方式一律 TDesign 单选框（16px 圆环 + 8px 内点），不用分段控件；主色沿用 <code>DESIGN.md</code> 的 <code>#0075DE</code>。</li>
+      <li><b>抽屉升级</b>：「调整课次」→ 带 2/3 步骤徽标的「发起调整」；目标课次用虚线空态卡明确承接动作；底部禁用按钮配一句说明，不再让用户猜为什么点不动。</li>
+      <li><b>顶栏收敛</b>：不在顶导航展示「保存 / 已自动暂存」，保存状态移到侧栏底部的「本地数据」区。</li>
+      <li><b>数据修正</b>：原抽屉写「11 月 6 日（周四）」，但列头 11/06 是周五、11/05 才是周四；本稿以「11 月 5 日（周四）」为准。</li>
+      <li><b>列头与节次</b>：周三加「今天」胶囊，解释蓝色高亮；节次列压成「上午/下午 · 第 N 节 · 时间」三行紧凑信息。</li>
+    </ul>
+    <h4>已覆盖状态</h4>
+    <ul>
+      <li>交互四态：hover / focus-visible / active / disabled（含禁用主按钮与不可选课格）</li>
+      <li>业务状态：初始态、已选源课次、已选目标、预览确认、代课候选（含占用禁用）、已生效调整角标、空课位、调整记录空态</li>
+      <li>键盘：Tab 顺序自然、Enter/Space 选中课格、Esc 关闭弹窗或取消调整、焦点环不被移除</li>
+      <li>降级：1180px 侧栏收窄 + 面板转底部抽屉；768px 侧栏隐藏、课表横向滚动</li>
+    </ul>
+    <h4>契约 token 入口</h4>
+    <ul><li>全部集中在 <code>:root</code>：<code>--blue / --blue-soft / --canvas / --surface / --ink / --ink-2 / --muted / --border / --radius-card / --radius-control / --sp-*</code>；学科色在 <code>[data-subj="…"]</code> 中集中定义，改色只动一处。</li></ul>
+    <h4>边界</h4>
+    <ul><li>静态 HTML 原型，状态仅保存在当前页面会话；未接入 Flutter / Forui，未做持久化。</li></ul>
+  </div>
+</details>
+
+<script>
+/* ───── 数据（对齐原截图，修正日期与星期矛盾） ───── */
+const DAYS = [
+  { w: '周二', d: '11/03', full: '11 月 3 日（周二）' },
+  { w: '周三', d: '11/04', full: '11 月 4 日（周三）', today: true },
+  { w: '周四', d: '11/05', full: '11 月 5 日（周四）' },
+  { w: '周五', d: '11/06', full: '11 月 6 日（周五）' },
+  { w: '周一', d: '11/09', full: '11 月 9 日（周一）' },
+];
+const PERIODS = [
+  { half: '上午', name: '第 1 节', time: '08:00' },
+  { half: '',    name: '第 2 节', time: '08:50' },
+  { half: '',    name: '第 3 节', time: '09:50' },
+  { half: '',    name: '第 4 节', time: '10:40' },
+  { half: '下午', name: '第 1 节', time: '14:00' },
+  { half: '',    name: '第 2 节', time: '14:50' },
+];
+/* key = "列-行"，行从 1 开始 */
+const GRID = {
+  '0-1': ['音乐', '音乐教师 10'], '1-1': ['语文', '语文教师 1'], '2-1': ['科学', '科学教师 7'], '3-1': ['音乐', '音乐教师 10'], '4-1': ['语文', '语文教师 1'],
+  '0-2': ['美术', '美术教师 11'], '1-2': ['语文', '语文教师 1'], '2-2': ['数学', '数学教师 4'], '3-2': ['语文', '语文教师 1'], '4-2': ['语文', '语文教师 1'],
+  '0-3': ['美术', '美术教师 11'], '1-3': ['数学', '数学教师 4'], '2-3': ['体育与健康', '体育与健康教师 8'], '3-3': ['劳动', '劳动教师 12'], '4-3': ['数学', '数学教师 4'],
+  '0-4': ['综合实践活动', '综合实践活动教师 13'], '1-4': ['道德与法治', '道德与法治教师 6'], '2-4': ['体育与健康', '体育与健康教师 8'], '3-4': ['体育与健康', '体育与健康教师 8'], '4-4': ['数学', '数学教师 4'],
+  '0-5': ['数学', '数学教师 4'], '1-5': ['道德与法治', '道德与法治教师 6'], '2-5': ['语文', '语文教师 1'], '3-5': ['体育与健康', '体育与健康教师 8'], '4-5': ['语文', '语文教师 1'],
+  '4-6': ['语文', '语文教师 1'],
+};
+/* 已生效调整角标（对应第二张截图里零星出现的「换课」） */
+const ADJUSTED = { '0-3': '换课', '3-3': '换课' };
+const CANDIDATES = [
+  { name: '王小雨', subj: '体育与健康', free: true, note: '该时段空闲 · 本周新增 2 节' },
+  { name: '张倩',   subj: '体育与健康', free: true, note: '该时段空闲 · 本周新增 4 节' },
+  { name: '刘洁',   subj: '体育与健康', free: false, note: '该时段有课：一年级 2 班 体育与健康 第 3 节' },
+];
+const TYPE_META = {
+  swap: { name: '换课', desc: '与本班另一实际课次互换时间，可跨日期、跨周', target: '点击要交换的课次', hint: '⇅ 选为目标' },
+  move: { name: '移课', desc: '移到本班的实际空课位，原位置变为空位', target: '点击一个空课位', hint: '＋ 移入此位' },
+  sub:  { name: '代课', desc: '时间与班级不变，更换任课教师，默认保留科目', target: '选择代课教师', hint: '' },
+};
+
+/* ───── 状态 ───── */
+let state = {
+  tab: 'schedule', view: 'class',
+  adjusting: true,        // 默认演示「已选源课次」态，对应截图 1
+  src: '2-3',             // 周四 第 3 节 · 体育与健康
+  type: 'swap',
+  target: null,
+  subTeacher: null,
+  reason: '',
+  pickedCand: null,
+  records: [{ type: '换课', title: '一年级 1 班 · 11/05（四）第 3 节 ⇄ 11/03（二）第 3 节', change: '体育与健康 ⇄ 美术（两节互换时间，科目与教师不变）', reason: '第 10 周教研活动' }],
+};
+const $ = id => document.getElementById(id);
+const courseOf = key => GRID[key];
+const labelOf = key => {
+  const [d, p] = key.split('-').map(Number);
+  return `${DAYS[d].full} ${PERIODS[p - 1].name}`;
+};
+const shortOf = key => {
+  const [d, p] = key.split('-').map(Number);
+  return `${DAYS[d].w} ${DAYS[d].d} ${PERIODS[p - 1].name}`;
+};
+
+/* ───── 课表 ───── */
+function renderGrid() {
+  const grid = $('weekgrid');
+  grid.innerHTML = '';
+  const corner = document.createElement('div');
+  grid.appendChild(corner);
+  DAYS.forEach(day => {
+    const h = document.createElement('div');
+    h.className = 'day-head' + (day.today ? ' today' : '');
+    h.innerHTML = `<span class="dw">${day.w}</span><span class="dd">${day.d}</span>` +
+      (day.today ? '<span class="today-pill">今天</span>' : '');
+    grid.appendChild(h);
+  });
+  PERIODS.forEach((p, pi) => {
+    const ph = document.createElement('div');
+    ph.className = 'period-head';
+    ph.innerHTML = (p.half ? `<span class="half">${p.half}</span>` : '') +
+      `<b>${p.name}</b><span>${p.time}</span>`;
+    grid.appendChild(ph);
+    DAYS.forEach((_, di) => grid.appendChild(buildCell(`${di}-${pi + 1}`)));
+  });
+  $('board-foot').textContent = state.adjusting
+    ? '虚线蓝框为可选目标；蓝实线为源课次，绿实线为已选目标。常规周课表不受调整影响。'
+    : '点击任意课格发起调整；带「换课 / 移课 / 代课」角标的课格表示已有生效调整，点击可查看原安排。';
+}
+
+function buildCell(key) {
+  const data = courseOf(key);
+  const div = document.createElement('div');
+  div.className = 'cell';
+  div.dataset.key = key;
+  if (!data) {
+    div.classList.add('empty');
+    div.innerHTML = '<span class="subj">空课位</span>';
+  } else {
+    div.dataset.subj = data[0];
+    const badge = ADJUSTED[key] ? `<span class="badge adjusted">${ADJUSTED[key]}</span>` : '';
+    div.innerHTML = `<span class="subj">${data[0]}</span><span class="teach">${data[1]}</span>` +
+      (state.view === 'teacher' ? '<span class="cls">一年级 1 班</span>' : '') + badge;
+  }
+
+  if (!state.adjusting) {
+    div.tabIndex = 0; div.setAttribute('role', 'button');
+    if (data) div.setAttribute('aria-label', `${shortOf(key)} ${data[0]} ${data[1]}`);
+    div.onclick = () => startAdjust(key);
+    div.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startAdjust(key); } };
+    return div;
+  }
+
+  const isSrc = key === state.src;
+  const isTarget = key === state.target;
+  const needsTarget = state.type !== 'sub' && !state.target;
+  let targetable = false;
+  if (!isSrc && needsTarget) {
+    if (state.type === 'swap') targetable = !!data && !ADJUSTED[key];
+    if (state.type === 'move') targetable = !data;
+  }
+
+  if (isSrc) {
+    div.classList.add('selected');
+    const b = document.createElement('span'); b.className = 'badge source'; b.textContent = '源课次'; div.appendChild(b);
+  } else if (isTarget) {
+    div.classList.add('chosen-target');
+    const b = document.createElement('span'); b.className = 'badge target'; b.textContent = '目标课次'; div.appendChild(b);
+  } else if (targetable) {
+    div.classList.add('targetable');
+    div.dataset.hint = TYPE_META[state.type].hint;
+    div.tabIndex = 0; div.setAttribute('role', 'button');
+    div.onclick = () => chooseTarget(key);
+    div.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseTarget(key); } };
+  } else {
+    div.classList.add('dimmed');
+    div.onclick = () => toast(state.type === 'sub' ? '代课请在右侧面板选择教师' : '该课格不可作为当前调整的目标');
+  }
+  return div;
+}
+
+/* ───── 面板 ───── */
+function renderPanel() {
+  const panel = $('adjust-panel');
+  panel.classList.toggle('hidden', !state.adjusting);
+  $('flow-bar').classList.toggle('hidden', !state.adjusting);
+  if (!state.adjusting) return;
+
+  const c = courseOf(state.src);
+  const ready = state.type === 'sub' ? !!state.subTeacher : !!state.target;
+  const step2 = $('step-2'), step3 = $('step-3');
+  step2.className = 'step ' + (ready ? 'done' : 'current');
+  step2.innerHTML = `<span class="num">${ready ? '✓' : '2'}</span>选择目标`;
+  step3.className = 'step' + (ready ? ' current' : '');
+  step3.innerHTML = `<span class="num">3</span>确认生效`;
+  $('flow-hint').innerHTML = ready
+    ? '已选好目标，点击右侧 <b>下一步 · 预览</b> 核对'
+    : state.type === 'sub' ? '在右侧面板 <b>选择代课教师</b>' : `在课表中 <b>${TYPE_META[state.type].target}</b>`;
+
+  let targetHtml = '';
+  if (state.type === 'sub') {
+    targetHtml = state.subTeacher
+      ? `<div class="course-card ok"><span class="line1">${state.subTeacher.name} · ${state.subTeacher.subj}</span><span class="line2">该时段空闲 · 本次新增 2 节</span></div>
+         <button class="link-btn" style="margin-top:6px;font-size:12px" onclick="openSubstitute()">更换教师</button>`
+      : `<button class="btn" style="width:100%" onclick="openSubstitute()">选择代课教师</button>`;
+  } else if (state.target) {
+    const t = courseOf(state.target);
+    targetHtml = `<div class="course-card plain"><span class="line1">${labelOf(state.target)}</span>
+        <span class="line2">${t ? `${t[0]} · ${t[1]}` : '空课位'} <span class="swap-arrow">${state.type === 'swap' ? '⇅ 与源课次互换' : '＋ 移入此位'}</span></span></div>
+        <button class="link-btn" style="margin-top:6px;font-size:12px" onclick="clearTarget()">重新选择目标</button>`;
+  } else {
+    targetHtml = `<div class="target-empty">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"/></svg>
+      <span>尚未选择。请在左侧课表中 <b>${TYPE_META[state.type].target}</b>，虚线蓝框的格子都可选。</span></div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="panel-head"><h3>发起调整</h3><span class="step-chip">2 / 3</span><div class="grow"></div>
+      <button class="icon-btn" aria-label="关闭面板" onclick="cancelAdjust()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+    </div>
+    <div class="panel-body">
+      <div><span class="sec-label">已选课次</span>
+        <div class="course-card"><span class="line1">${c[0]} · ${labelOf(state.src)}</span>
+          <span class="line2">${c[1]} · 一年级 1 班</span></div>
+      </div>
+      <div><span class="sec-label">调整方式</span>
+        <div class="radio-stack">
+          ${Object.entries(TYPE_META).map(([k, m]) => `
+            <button class="radio-row ${state.type === k ? 'on' : ''}" role="radio" aria-checked="${state.type === k}" onclick="setType('${k}')">
+              <span class="radio-dot"></span><span><span class="rr-title">${m.name}</span><span class="rr-desc">${m.desc}</span></span>
+            </button>`).join('')}
+        </div>
+      </div>
+      <div><span class="sec-label">${state.type === 'sub' ? '代课教师' : state.type === 'move' ? '目标空课位' : '目标课次'}</span>${targetHtml}</div>
+      <div class="field"><label for="reason-input">原因（选填，会记录在调整记录中）</label>
+        <input id="reason-input" placeholder="如：教研活动、外出培训、场地占用" value="${state.reason}" oninput="state.reason=this.value" />
+        <div class="field-note">仅本次生效，不影响常规周课表。</div>
+      </div>
+      <div class="hint-box">调整将写入<b>实际课表</b>并生成一条调整记录；确认前可随时取消。</div>
+    </div>
+    <div class="panel-foot">
+      <div style="flex:1"><div class="foot-note">${ready ? '信息已齐备，可进入预览' : state.type === 'sub' ? '请先选择代课教师' : '请先在课表中选择目标'}</div>
+        <button class="btn ghost" onclick="cancelAdjust()">取消</button></div>
+      <button class="btn primary" ${ready ? '' : 'disabled'} onclick="openPreview()">下一步 · 预览</button>
+    </div>`;
+}
+
+/* ───── 操作 ───── */
+function startAdjust(key) {
+  if (!courseOf(key)) { toast('空课位不能直接发起调整，可选一节课后使用「移课」'); return; }
+  if (ADJUSTED[key]) { toast('该课格已有生效调整：请到「调整记录」查看或取消'); return; }
+  state.adjusting = true; state.src = key; state.type = 'swap'; state.target = null; state.subTeacher = null;
+  renderAll();
+}
+function cancelAdjust() {
+  state.adjusting = false; state.target = null; state.subTeacher = null; state.type = 'swap';
+  renderAll();
+}
+function setType(t) {
+  state.type = t; state.target = null; state.subTeacher = null;
+  renderAll();
+}
+function chooseTarget(key) {
+  state.target = key; renderAll();
+  toast(state.type === 'move' ? '已选择目标空课位' : '已选择目标课次');
+}
+function clearTarget() { state.target = null; renderAll(); }
+function switchView(v) { state.view = v; renderGrid(); if (v === 'teacher') toast('教师视图：课格补充显示班级信息（演示数据）'); }
+function switchTab(t) {
+  state.tab = t;
+  const sch = t === 'schedule';
+  $('tab-schedule').classList.toggle('active', sch);
+  $('tab-records').classList.toggle('active', !sch);
+  $('tab-schedule').setAttribute('aria-selected', sch);
+  $('tab-records').setAttribute('aria-selected', !sch);
+  $('board').classList.toggle('hidden', !sch);
+  $('board-foot').classList.toggle('hidden', !sch);
+  $('subbar').classList.toggle('hidden', !sch);
+  $('records-wrap').classList.toggle('hidden', sch);
+  if (!sch && state.adjusting) { $('flow-bar').classList.add('hidden'); $('adjust-panel').classList.add('hidden'); }
+  if (sch) renderAll();
+}
+function renderRecords() {
+  $('records-wrap').innerHTML = state.records.length
+    ? `<div class="rec-list">${state.records.map(r => `
+        <div class="rec-row"><span class="pill swap">${r.type}</span>
+          <div class="rec-main"><div class="rec-line1">${r.title}<span class="status">有效</span></div>
+            <div class="rec-line2">${r.change}</div><div class="rec-reason">原因：${r.reason}</div></div>
+          <button class="text-btn" onclick="toast('演示原型：查看记录详情')">详情</button>
+          <button class="text-btn" onclick="toast('演示原型：取消调整会同时恢复两节课')">取消</button>
+        </div>`).join('')}</div>`
+    : '<div class="rec-list"><div class="empty-state">还没有调整记录。点击「实际课表」中的任意课格即可发起调整。</div></div>';
+}
+
+/* ───── 预览 / 代课 ───── */
+function openPreview() {
+  const c = courseOf(state.src);
+  const t = state.target ? courseOf(state.target) : null;
+  const desc = state.type === 'swap'
+    ? `${c[0]} ⇄ ${t[0]}：两节互换时间，科目与教师各自不变`
+    : state.type === 'move'
+      ? `${c[0]} 移至 ${shortOf(state.target)}，原位置变为空课位`
+      : `${c[0]} · ${c[1]} → ${state.subTeacher.name}（保留科目与时间）`;
+  $('pv-sub').textContent = `${TYPE_META[state.type].name} · ${labelOf(state.src)} · 一年级 1 班`;
+  $('pv-body').innerHTML = `
+    <div class="pv-row"><span class="pv-icon">✓</span><div class="pv-main"><b>${shortOf(state.src)}</b><span>${desc}</span></div></div>
+    <div class="pv-row"><span class="pv-icon">✓</span><div class="pv-main"><b>冲突校验通过</b><span>教师、班级与场室在该时段均无重叠；调整仅影响本次实际课次。</span></div></div>
+    <div class="hint-box">原因：${state.reason || '未填写（选填）'} · 生效范围：仅本次 · 将生成 1 条调整记录。</div>`;
+  openDlg('dlg-preview');
+}
+function confirmAdjust() {
+  const c = courseOf(state.src);
+  if (state.type === 'swap' && state.target) {
+    const t = courseOf(state.target);
+    GRID[state.src] = t; GRID[state.target] = c;
+    ADJUSTED[state.src] = '换课'; ADJUSTED[state.target] = '换课';
+    state.records.unshift({ type: '换课', title: `一年级 1 班 · ${shortOf(state.src)} ⇄ ${shortOf(state.target)}`, change: `${c[0]} ⇄ ${t[0]}（两节互换时间，科目与教师不变）`, reason: state.reason || '—' });
+  } else if (state.type === 'move' && state.target) {
+    GRID[state.target] = c; delete GRID[state.src];
+    state.records.unshift({ type: '移课', title: `一年级 1 班 · ${shortOf(state.src)} → ${shortOf(state.target)}`, change: `${c[0]} 移至空课位，原位置变为空课位`, reason: state.reason || '—' });
+  } else if (state.type === 'sub') {
+    state.records.unshift({ type: '代课', title: `一年级 1 班 · ${shortOf(state.src)}`, change: `${c[0]} · ${c[1]} → ${state.subTeacher.name}`, reason: state.reason || '—' });
+  }
+  closeDlg('dlg-preview');
+  document.querySelectorAll('.tab .count').forEach(el => el.textContent = `${state.records.length} 条`);
+  cancelAdjust();
+  renderRecords();
+  toast('调整已生效，实际课表已更新（常规周课表不变）');
+}
+function openSubstitute() {
+  state.pickedCand = null;
+  $('sub-sub').textContent = `${labelOf(state.src)} · ${courseOf(state.src)[0]} · 一年级 1 班`;
+  renderCands();
+  openDlg('dlg-substitute');
+}
+function renderCands() {
+  $('sub-body').innerHTML = CANDIDATES.map((cd, i) => `
+    <div class="cand-row ${cd.free ? '' : 'busy'} ${state.pickedCand === i ? 'on' : ''}"
+      ${cd.free ? `tabindex="0" role="button" onclick="pickCand(${i})" onkeydown="if(event.key==='Enter')pickCand(${i})"` : ''}>
+      <span class="cand-avatar">${cd.name[0]}</span>
+      <div class="cand-main"><b>${cd.name} <span class="pill swap" style="font-weight:400">${cd.subj}</span></b><span>${cd.note}</span></div>
+      ${cd.free ? '<span style="font-size:11px;color:var(--green)">可选</span>' : '<span style="font-size:11px;color:var(--amber)">有课冲突</span>'}
+    </div>`).join('');
+  $('sub-confirm').disabled = state.pickedCand === null;
+}
+function pickCand(i) { state.pickedCand = i; renderCands(); }
+function pickSubstitute() {
+  state.subTeacher = CANDIDATES[state.pickedCand];
+  closeDlg('dlg-substitute'); renderAll();
+}
+
+/* ───── 通用 ───── */
+function renderAll() { renderGrid(); renderPanel(); }
+function openDlg(id) { $(id).classList.add('open'); }
+function closeDlg(id) { $(id).classList.remove('open'); }
+function toggleMenu(e) { e.stopPropagation(); $('export-menu').classList.toggle('hidden'); }
+function exportAs(name) { $('export-menu').classList.add('hidden'); toast(`已导出「${name}」（按当前有效调整生成）`); }
+let toastTimer;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+document.addEventListener('click', () => $('export-menu').classList.add('hidden'));
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.overlay.open');
+  if (open) open.classList.remove('open');
+  else if (state.adjusting) cancelAdjust();
+});
+
+/* 初始化：默认展示「已选源课次 + 调整面板」态（对应截图 1） */
+renderAll();
+renderRecords();
+</script>
+</body>
+</html>
