@@ -20,6 +20,7 @@ import 'package:class_set/domain/models/schedule_lock.dart';
 import 'package:class_set/domain/models/schedule_preferences.dart';
 import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
+import 'package:class_set/domain/scheduling/actual_timetable.dart';
 
 class ScheduleViewData {
   const ScheduleViewData({required this.items, this.latestRun});
@@ -36,6 +37,32 @@ class ScheduleCommitResult {
 }
 
 abstract interface class SchoolRepository {
+  Future<TemporaryTimetableState> loadTemporaryTimetable(String termId);
+
+  Future<void> commitTemporaryMove({
+    required String termId,
+    required TemporaryMoveRequest request,
+    required String expectedRevision,
+  });
+
+  Future<void> commitTemporarySubstitute({
+    required String termId,
+    required TemporarySubstituteRequest request,
+    required String expectedRevision,
+  });
+
+  Future<void> commitTemporarySwap({
+    required String termId,
+    required TemporarySwapRequest request,
+    required String expectedRevision,
+  });
+
+  Future<void> cancelTemporaryAdjustment({
+    required String termId,
+    required String adjustmentId,
+    required String expectedRevision,
+  });
+
   Future<SchedulingSnapshot> loadSchedulingSnapshot(String termId);
 
   /// The timetable and settings as they were before the first pending edit.

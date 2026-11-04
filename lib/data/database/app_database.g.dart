@@ -14871,6 +14871,484 @@ class ScheduleReconciliationBaselinesCompanion
   }
 }
 
+class $TemporaryCourseAdjustmentsTable extends TemporaryCourseAdjustments
+    with
+        TableInfo<$TemporaryCourseAdjustmentsTable, TemporaryCourseAdjustment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TemporaryCourseAdjustmentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _changesJsonMeta = const VerificationMeta(
+    'changesJson',
+  );
+  @override
+  late final GeneratedColumn<String> changesJson = GeneratedColumn<String>(
+    'changes_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cancelledAtMeta = const VerificationMeta(
+    'cancelledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> cancelledAt = GeneratedColumn<DateTime>(
+    'cancelled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    termId,
+    kind,
+    changesJson,
+    reason,
+    createdAt,
+    cancelledAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'temporary_course_adjustments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TemporaryCourseAdjustment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('changes_json')) {
+      context.handle(
+        _changesJsonMeta,
+        changesJson.isAcceptableOrUnknown(
+          data['changes_json']!,
+          _changesJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_changesJsonMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('cancelled_at')) {
+      context.handle(
+        _cancelledAtMeta,
+        cancelledAt.isAcceptableOrUnknown(
+          data['cancelled_at']!,
+          _cancelledAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TemporaryCourseAdjustment map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TemporaryCourseAdjustment(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      changesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}changes_json'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      cancelledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}cancelled_at'],
+      ),
+    );
+  }
+
+  @override
+  $TemporaryCourseAdjustmentsTable createAlias(String alias) {
+    return $TemporaryCourseAdjustmentsTable(attachedDatabase, alias);
+  }
+}
+
+class TemporaryCourseAdjustment extends DataClass
+    implements Insertable<TemporaryCourseAdjustment> {
+  final String id;
+  final String termId;
+  final String kind;
+  final String changesJson;
+  final String reason;
+  final DateTime createdAt;
+  final DateTime? cancelledAt;
+  const TemporaryCourseAdjustment({
+    required this.id,
+    required this.termId,
+    required this.kind,
+    required this.changesJson,
+    required this.reason,
+    required this.createdAt,
+    this.cancelledAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['term_id'] = Variable<String>(termId);
+    map['kind'] = Variable<String>(kind);
+    map['changes_json'] = Variable<String>(changesJson);
+    map['reason'] = Variable<String>(reason);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || cancelledAt != null) {
+      map['cancelled_at'] = Variable<DateTime>(cancelledAt);
+    }
+    return map;
+  }
+
+  TemporaryCourseAdjustmentsCompanion toCompanion(bool nullToAbsent) {
+    return TemporaryCourseAdjustmentsCompanion(
+      id: Value(id),
+      termId: Value(termId),
+      kind: Value(kind),
+      changesJson: Value(changesJson),
+      reason: Value(reason),
+      createdAt: Value(createdAt),
+      cancelledAt: cancelledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelledAt),
+    );
+  }
+
+  factory TemporaryCourseAdjustment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TemporaryCourseAdjustment(
+      id: serializer.fromJson<String>(json['id']),
+      termId: serializer.fromJson<String>(json['termId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      changesJson: serializer.fromJson<String>(json['changesJson']),
+      reason: serializer.fromJson<String>(json['reason']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      cancelledAt: serializer.fromJson<DateTime?>(json['cancelledAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'termId': serializer.toJson<String>(termId),
+      'kind': serializer.toJson<String>(kind),
+      'changesJson': serializer.toJson<String>(changesJson),
+      'reason': serializer.toJson<String>(reason),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'cancelledAt': serializer.toJson<DateTime?>(cancelledAt),
+    };
+  }
+
+  TemporaryCourseAdjustment copyWith({
+    String? id,
+    String? termId,
+    String? kind,
+    String? changesJson,
+    String? reason,
+    DateTime? createdAt,
+    Value<DateTime?> cancelledAt = const Value.absent(),
+  }) => TemporaryCourseAdjustment(
+    id: id ?? this.id,
+    termId: termId ?? this.termId,
+    kind: kind ?? this.kind,
+    changesJson: changesJson ?? this.changesJson,
+    reason: reason ?? this.reason,
+    createdAt: createdAt ?? this.createdAt,
+    cancelledAt: cancelledAt.present ? cancelledAt.value : this.cancelledAt,
+  );
+  TemporaryCourseAdjustment copyWithCompanion(
+    TemporaryCourseAdjustmentsCompanion data,
+  ) {
+    return TemporaryCourseAdjustment(
+      id: data.id.present ? data.id.value : this.id,
+      termId: data.termId.present ? data.termId.value : this.termId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      changesJson: data.changesJson.present
+          ? data.changesJson.value
+          : this.changesJson,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      cancelledAt: data.cancelledAt.present
+          ? data.cancelledAt.value
+          : this.cancelledAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemporaryCourseAdjustment(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('kind: $kind, ')
+          ..write('changesJson: $changesJson, ')
+          ..write('reason: $reason, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('cancelledAt: $cancelledAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    termId,
+    kind,
+    changesJson,
+    reason,
+    createdAt,
+    cancelledAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TemporaryCourseAdjustment &&
+          other.id == this.id &&
+          other.termId == this.termId &&
+          other.kind == this.kind &&
+          other.changesJson == this.changesJson &&
+          other.reason == this.reason &&
+          other.createdAt == this.createdAt &&
+          other.cancelledAt == this.cancelledAt);
+}
+
+class TemporaryCourseAdjustmentsCompanion
+    extends UpdateCompanion<TemporaryCourseAdjustment> {
+  final Value<String> id;
+  final Value<String> termId;
+  final Value<String> kind;
+  final Value<String> changesJson;
+  final Value<String> reason;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> cancelledAt;
+  final Value<int> rowid;
+  const TemporaryCourseAdjustmentsCompanion({
+    this.id = const Value.absent(),
+    this.termId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.changesJson = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.cancelledAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TemporaryCourseAdjustmentsCompanion.insert({
+    required String id,
+    required String termId,
+    required String kind,
+    required String changesJson,
+    this.reason = const Value.absent(),
+    required DateTime createdAt,
+    this.cancelledAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       termId = Value(termId),
+       kind = Value(kind),
+       changesJson = Value(changesJson),
+       createdAt = Value(createdAt);
+  static Insertable<TemporaryCourseAdjustment> custom({
+    Expression<String>? id,
+    Expression<String>? termId,
+    Expression<String>? kind,
+    Expression<String>? changesJson,
+    Expression<String>? reason,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? cancelledAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (termId != null) 'term_id': termId,
+      if (kind != null) 'kind': kind,
+      if (changesJson != null) 'changes_json': changesJson,
+      if (reason != null) 'reason': reason,
+      if (createdAt != null) 'created_at': createdAt,
+      if (cancelledAt != null) 'cancelled_at': cancelledAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TemporaryCourseAdjustmentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? termId,
+    Value<String>? kind,
+    Value<String>? changesJson,
+    Value<String>? reason,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? cancelledAt,
+    Value<int>? rowid,
+  }) {
+    return TemporaryCourseAdjustmentsCompanion(
+      id: id ?? this.id,
+      termId: termId ?? this.termId,
+      kind: kind ?? this.kind,
+      changesJson: changesJson ?? this.changesJson,
+      reason: reason ?? this.reason,
+      createdAt: createdAt ?? this.createdAt,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (changesJson.present) {
+      map['changes_json'] = Variable<String>(changesJson.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (cancelledAt.present) {
+      map['cancelled_at'] = Variable<DateTime>(cancelledAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemporaryCourseAdjustmentsCompanion(')
+          ..write('id: $id, ')
+          ..write('termId: $termId, ')
+          ..write('kind: $kind, ')
+          ..write('changesJson: $changesJson, ')
+          ..write('reason: $reason, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('cancelledAt: $cancelledAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -14925,6 +15403,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ScheduleRunReportsTable(this);
   late final $ScheduleReconciliationBaselinesTable
   scheduleReconciliationBaselines = $ScheduleReconciliationBaselinesTable(this);
+  late final $TemporaryCourseAdjustmentsTable temporaryCourseAdjustments =
+      $TemporaryCourseAdjustmentsTable(this);
   late final Index scheduleItemsTerm = Index(
     'schedule_items_term',
     'CREATE INDEX schedule_items_term ON schedule_items (term_id)',
@@ -14991,6 +15471,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     schedulePreferences,
     scheduleRunReports,
     scheduleReconciliationBaselines,
+    temporaryCourseAdjustments,
     scheduleItemsTerm,
     scheduleItemsAssignment,
     scheduleItemsClassSlot,
@@ -15445,6 +15926,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         ),
       ],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('temporary_course_adjustments', kind: UpdateKind.delete),
+      ],
+    ),
   ]);
 }
 
@@ -15786,6 +16276,31 @@ final class $$AcademicTermsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleReconciliationBaselinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $TemporaryCourseAdjustmentsTable,
+    List<TemporaryCourseAdjustment>
+  >
+  _temporaryCourseAdjustmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.temporaryCourseAdjustments,
+        aliasName: 'academic_terms__id__temporary_course_adjustments__term_id',
+      );
+
+  $$TemporaryCourseAdjustmentsTableProcessedTableManager
+  get temporaryCourseAdjustmentsRefs {
+    final manager = $$TemporaryCourseAdjustmentsTableTableManager(
+      $_db,
+      $_db.temporaryCourseAdjustments,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _temporaryCourseAdjustmentsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -16214,6 +16729,33 @@ class $$AcademicTermsTableFilterComposer
               }) => $$ScheduleReconciliationBaselinesTableFilterComposer(
                 $db: $db,
                 $table: $db.scheduleReconciliationBaselines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> temporaryCourseAdjustmentsRefs(
+    Expression<bool> Function($$TemporaryCourseAdjustmentsTableFilterComposer f)
+    f,
+  ) {
+    final $$TemporaryCourseAdjustmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.temporaryCourseAdjustments,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$TemporaryCourseAdjustmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.temporaryCourseAdjustments,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -16700,6 +17242,35 @@ class $$AcademicTermsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> temporaryCourseAdjustmentsRefs<T extends Object>(
+    Expression<T> Function(
+      $$TemporaryCourseAdjustmentsTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$TemporaryCourseAdjustmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.temporaryCourseAdjustments,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$TemporaryCourseAdjustmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.temporaryCourseAdjustments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AcademicTermsTableTableManager
@@ -16731,6 +17302,7 @@ class $$AcademicTermsTableTableManager
             bool schedulePreferencesRefs,
             bool scheduleRunReportsRefs,
             bool scheduleReconciliationBaselinesRefs,
+            bool temporaryCourseAdjustmentsRefs,
           })
         > {
   $$AcademicTermsTableTableManager(_$AppDatabase db, $AcademicTermsTable table)
@@ -16813,6 +17385,7 @@ class $$AcademicTermsTableTableManager
                 schedulePreferencesRefs = false,
                 scheduleRunReportsRefs = false,
                 scheduleReconciliationBaselinesRefs = false,
+                temporaryCourseAdjustmentsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -16833,6 +17406,8 @@ class $$AcademicTermsTableTableManager
                     if (scheduleRunReportsRefs) db.scheduleRunReports,
                     if (scheduleReconciliationBaselinesRefs)
                       db.scheduleReconciliationBaselines,
+                    if (temporaryCourseAdjustmentsRefs)
+                      db.temporaryCourseAdjustments,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -17152,6 +17727,27 @@ class $$AcademicTermsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (temporaryCourseAdjustmentsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          TemporaryCourseAdjustment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._temporaryCourseAdjustmentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).temporaryCourseAdjustmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -17188,6 +17784,7 @@ typedef $$AcademicTermsTableProcessedTableManager =
         bool schedulePreferencesRefs,
         bool scheduleRunReportsRefs,
         bool scheduleReconciliationBaselinesRefs,
+        bool temporaryCourseAdjustmentsRefs,
       })
     >;
 typedef $$AppSettingsTableCreateCompanionBuilder =
@@ -35403,6 +36000,391 @@ typedef $$ScheduleReconciliationBaselinesTableProcessedTableManager =
       ScheduleReconciliationBaseline,
       PrefetchHooks Function({bool termId})
     >;
+typedef $$TemporaryCourseAdjustmentsTableCreateCompanionBuilder =
+    TemporaryCourseAdjustmentsCompanion Function({
+      required String id,
+      required String termId,
+      required String kind,
+      required String changesJson,
+      Value<String> reason,
+      required DateTime createdAt,
+      Value<DateTime?> cancelledAt,
+      Value<int> rowid,
+    });
+typedef $$TemporaryCourseAdjustmentsTableUpdateCompanionBuilder =
+    TemporaryCourseAdjustmentsCompanion Function({
+      Value<String> id,
+      Value<String> termId,
+      Value<String> kind,
+      Value<String> changesJson,
+      Value<String> reason,
+      Value<DateTime> createdAt,
+      Value<DateTime?> cancelledAt,
+      Value<int> rowid,
+    });
+
+final class $$TemporaryCourseAdjustmentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $TemporaryCourseAdjustmentsTable,
+          TemporaryCourseAdjustment
+        > {
+  $$TemporaryCourseAdjustmentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('temporary_course_adjustments__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TemporaryCourseAdjustmentsTableFilterComposer
+    extends Composer<_$AppDatabase, $TemporaryCourseAdjustmentsTable> {
+  $$TemporaryCourseAdjustmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get changesJson => $composableBuilder(
+    column: $table.changesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get cancelledAt => $composableBuilder(
+    column: $table.cancelledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TemporaryCourseAdjustmentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TemporaryCourseAdjustmentsTable> {
+  $$TemporaryCourseAdjustmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get changesJson => $composableBuilder(
+    column: $table.changesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get cancelledAt => $composableBuilder(
+    column: $table.cancelledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TemporaryCourseAdjustmentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TemporaryCourseAdjustmentsTable> {
+  $$TemporaryCourseAdjustmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get changesJson => $composableBuilder(
+    column: $table.changesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get cancelledAt => $composableBuilder(
+    column: $table.cancelledAt,
+    builder: (column) => column,
+  );
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TemporaryCourseAdjustmentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TemporaryCourseAdjustmentsTable,
+          TemporaryCourseAdjustment,
+          $$TemporaryCourseAdjustmentsTableFilterComposer,
+          $$TemporaryCourseAdjustmentsTableOrderingComposer,
+          $$TemporaryCourseAdjustmentsTableAnnotationComposer,
+          $$TemporaryCourseAdjustmentsTableCreateCompanionBuilder,
+          $$TemporaryCourseAdjustmentsTableUpdateCompanionBuilder,
+          (
+            TemporaryCourseAdjustment,
+            $$TemporaryCourseAdjustmentsTableReferences,
+          ),
+          TemporaryCourseAdjustment,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$TemporaryCourseAdjustmentsTableTableManager(
+    _$AppDatabase db,
+    $TemporaryCourseAdjustmentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TemporaryCourseAdjustmentsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$TemporaryCourseAdjustmentsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TemporaryCourseAdjustmentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> termId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> changesJson = const Value.absent(),
+                Value<String> reason = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> cancelledAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TemporaryCourseAdjustmentsCompanion(
+                id: id,
+                termId: termId,
+                kind: kind,
+                changesJson: changesJson,
+                reason: reason,
+                createdAt: createdAt,
+                cancelledAt: cancelledAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String termId,
+                required String kind,
+                required String changesJson,
+                Value<String> reason = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> cancelledAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TemporaryCourseAdjustmentsCompanion.insert(
+                id: id,
+                termId: termId,
+                kind: kind,
+                changesJson: changesJson,
+                reason: reason,
+                createdAt: createdAt,
+                cancelledAt: cancelledAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $TemporaryCourseAdjustmentsTable,
+                    TemporaryCourseAdjustment
+                  >(table),
+                  $$TemporaryCourseAdjustmentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable:
+                            $$TemporaryCourseAdjustmentsTableReferences
+                                ._termIdTable(db),
+                        referencedColumn:
+                            $$TemporaryCourseAdjustmentsTableReferences
+                                ._termIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TemporaryCourseAdjustmentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TemporaryCourseAdjustmentsTable,
+      TemporaryCourseAdjustment,
+      $$TemporaryCourseAdjustmentsTableFilterComposer,
+      $$TemporaryCourseAdjustmentsTableOrderingComposer,
+      $$TemporaryCourseAdjustmentsTableAnnotationComposer,
+      $$TemporaryCourseAdjustmentsTableCreateCompanionBuilder,
+      $$TemporaryCourseAdjustmentsTableUpdateCompanionBuilder,
+      (TemporaryCourseAdjustment, $$TemporaryCourseAdjustmentsTableReferences),
+      TemporaryCourseAdjustment,
+      PrefetchHooks Function({bool termId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -35482,5 +36464,11 @@ class $AppDatabaseManager {
       $$ScheduleReconciliationBaselinesTableTableManager(
         _db,
         _db.scheduleReconciliationBaselines,
+      );
+  $$TemporaryCourseAdjustmentsTableTableManager
+  get temporaryCourseAdjustments =>
+      $$TemporaryCourseAdjustmentsTableTableManager(
+        _db,
+        _db.temporaryCourseAdjustments,
       );
 }

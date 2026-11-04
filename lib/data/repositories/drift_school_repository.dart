@@ -1,4 +1,5 @@
 import 'package:class_set/data/database/app_database.dart';
+import 'package:class_set/data/repositories/drift_temporary_adjustment_repository.dart';
 import 'package:class_set/data/repositories/drift_scheduling_repository.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart' as domain;
@@ -23,6 +24,7 @@ import 'package:class_set/domain/models/schedule_lock.dart' as domain;
 import 'package:class_set/domain/models/schedule_preferences.dart' as domain;
 import 'package:class_set/domain/models/schedule_run.dart' as domain;
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart' as domain;
+import 'package:class_set/domain/scheduling/actual_timetable.dart' as domain;
 import 'package:drift/drift.dart';
 
 class DriftSchoolRepository implements SchoolRepository {
@@ -30,6 +32,58 @@ class DriftSchoolRepository implements SchoolRepository {
 
   final AppDatabase _database;
   final String? databasePath;
+
+  DriftTemporaryAdjustmentRepository get _temporary =>
+      DriftTemporaryAdjustmentRepository(_database, this);
+
+  @override
+  Future<domain.TemporaryTimetableState> loadTemporaryTimetable(
+    String termId,
+  ) => _temporary.load(termId);
+
+  @override
+  Future<void> commitTemporaryMove({
+    required String termId,
+    required domain.TemporaryMoveRequest request,
+    required String expectedRevision,
+  }) => _temporary.commitMove(
+    termId: termId,
+    request: request,
+    expectedRevision: expectedRevision,
+  );
+
+  @override
+  Future<void> commitTemporarySubstitute({
+    required String termId,
+    required domain.TemporarySubstituteRequest request,
+    required String expectedRevision,
+  }) => _temporary.commitSubstitute(
+    termId: termId,
+    request: request,
+    expectedRevision: expectedRevision,
+  );
+
+  @override
+  Future<void> commitTemporarySwap({
+    required String termId,
+    required domain.TemporarySwapRequest request,
+    required String expectedRevision,
+  }) => _temporary.commitSwap(
+    termId: termId,
+    request: request,
+    expectedRevision: expectedRevision,
+  );
+
+  @override
+  Future<void> cancelTemporaryAdjustment({
+    required String termId,
+    required String adjustmentId,
+    required String expectedRevision,
+  }) => _temporary.cancel(
+    termId: termId,
+    adjustmentId: adjustmentId,
+    expectedRevision: expectedRevision,
+  );
 
   DriftSchedulingRepository get _scheduling =>
       DriftSchedulingRepository(_database, this, databasePath: databasePath);

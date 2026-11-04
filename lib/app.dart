@@ -8,6 +8,7 @@ import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/features/classes/classes_page.dart';
 import 'package:class_set/features/routines/routine_page.dart';
 import 'package:class_set/features/scheduling/scheduling_page.dart';
+import 'package:class_set/features/temporary_adjustments/temporary_adjustments_page.dart';
 import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/teachers/teachers_page.dart';
@@ -28,6 +29,7 @@ enum AppSection {
   subjects,
   teachers,
   scheduling,
+  temporaryAdjustments,
   publicRooms,
 }
 
@@ -280,6 +282,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
             AppSection.subjects => '科目节数',
             AppSection.teachers => '教师任课',
             AppSection.scheduling => '排课与课表',
+            AppSection.temporaryAdjustments => '调代课',
             AppSection.publicRooms => '公共场室',
           };
           return Row(
@@ -318,10 +321,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
                               alignment: Alignment.topLeft,
                               fit: StackFit.expand,
                               clipBehavior: Clip.hardEdge,
-                              children: [
-                                ...previousChildren,
-                                ?currentChild,
-                              ],
+                              children: [...previousChildren, ?currentChild],
                             ),
                         transitionBuilder: (child, animation) => FadeTransition(
                           opacity: animation,
@@ -361,6 +361,12 @@ class _AppShellState extends ConsumerState<_AppShell> {
                               activeTermId == null
                                   ? const _ChooseTermMessage()
                                   : SchedulingPage(termId: activeTermId),
+                            AppSection.temporaryAdjustments =>
+                              activeTermId == null
+                                  ? const _ChooseTermMessage()
+                                  : TemporaryAdjustmentsPage(
+                                      termId: activeTermId,
+                                    ),
                           },
                         ),
                       ),
@@ -526,6 +532,13 @@ class _Sidebar extends ConsumerWidget {
                       label: '课表编辑',
                       icon: Icons.calendar_view_week_outlined,
                       isCompact: compactContents,
+                    ),
+                    _NavItem(
+                      label: '调代课',
+                      icon: Icons.swap_horiz_rounded,
+                      isCompact: compactContents,
+                      isSelected: section == AppSection.temporaryAdjustments,
+                      onTap: () => onNavigate(AppSection.temporaryAdjustments),
                     ),
                     if (!compactContents) const _NavDivider(),
                     if (!compactContents) const _NavGroupLabel('更多'),

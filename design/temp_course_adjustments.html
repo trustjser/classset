@@ -1,0 +1,1289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f6f5f4" />
+  <title>课集 ClassSet · 调代课</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #f6f5f4;
+      --surface: #fff;
+      --blue: #0075de;
+      --blue-hover: #0066c4;
+      --blue-soft: #e8f1fc;
+      --blue-wash: #f3f8fe;
+      --ink: #1a1a1a;
+      --ink-2: #615d59;
+      --muted: #a39e98;
+      --border: rgba(0, 0, 0, .08);
+      --border-strong: rgba(0, 0, 0, .14);
+      --green: #2ba471;
+      --green-bg: #e9f6ef;
+      --red: #d54941;
+      --red-bg: #fbeceb;
+      --amber: #c98a2b;
+      --amber-bg: #faf1e2;
+      --shadow: 0 8px 30px rgba(35, 30, 24, .06), 0 1px 3px rgba(35, 30, 24, .04);
+      --shadow-pop: 0 18px 60px rgba(24, 27, 32, .2), 0 2px 8px rgba(24, 27, 32, .08);
+      --radius-card: 14px;
+      --radius-control: 10px;
+      --radius-pill: 999px;
+      --side-width: 236px;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 360px; min-height: 100%; background: #eeedeb; color: var(--ink); }
+    body { padding: 18px; }
+    button, input, select { font: inherit; }
+    button { color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid rgba(0, 117, 222, .25);
+      outline-offset: 2px;
+    }
+    ::placeholder { color: var(--muted); }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      width: min(1500px, 100%);
+      height: min(930px, calc(100vh - 36px));
+      min-height: 720px;
+      margin: 0 auto;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── 顶栏 ─────────────────────────────── */
+    .topbar {
+      flex: 0 0 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 0 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .topbar-left { display: flex; align-items: center; gap: 10px; }
+    .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; }
+    .brand-mark {
+      width: 26px; height: 26px; border-radius: 8px;
+      background: linear-gradient(135deg, #0075de, #5aa9f2);
+      display: grid; place-items: center;
+      color: #fff; font-size: 13px; font-weight: 700;
+    }
+    .topbar .divider-v { width: 1px; height: 18px; background: var(--border-strong); margin: 0 2px; }
+    .page-title { font-size: 14px; font-weight: 500; }
+    .topbar-right { display: flex; align-items: center; gap: 14px; font-size: 12.5px; color: var(--ink-2); }
+    .topbar-right .muted { color: var(--muted); }
+    .link-btn { color: var(--ink-2); font-size: 12.5px; }
+    .link-btn:hover { color: var(--ink); }
+
+    .body-row { flex: 1; display: flex; min-height: 0; }
+
+    /* ── 侧边导航 ─────────────────────────── */
+    .sidebar {
+      flex: 0 0 var(--side-width);
+      display: flex;
+      flex-direction: column;
+      padding: 14px 12px 12px;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      overflow-y: auto;
+    }
+    .nav-group { margin-bottom: 18px; }
+    .nav-label {
+      padding: 0 10px 6px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 9px;
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 9px;
+      font-size: 13.5px;
+      color: var(--ink-2);
+      text-align: left;
+    }
+    .nav-item:hover { background: #f4f3f2; color: var(--ink); }
+    .nav-item.active { background: var(--blue-soft); color: var(--blue); font-weight: 500; }
+    .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .55; flex: 0 0 auto; }
+    .sidebar .spacer { flex: 1; }
+
+    /* ── 主内容 ───────────────────────────── */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--canvas); }
+    .content { flex: 1; display: flex; min-height: 0; padding: 18px 22px 20px; gap: 18px; }
+
+    .workarea { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: 14px; }
+
+    /* 页签 + 工具行 */
+    .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .tabs { display: flex; gap: 4px; background: #efedec; border-radius: 11px; padding: 3px; }
+    .tab {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      color: var(--ink-2);
+    }
+    .tab:hover { color: var(--ink); }
+    .tab.active { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(35,30,24,.08); }
+    .tab .count { font-size: 11.5px; color: var(--muted); margin-left: 4px; }
+    .tab.active .count { color: var(--ink-2); }
+
+    .seg { display: flex; background: #efedec; border-radius: 11px; padding: 3px; }
+    .seg button { padding: 5px 13px; border-radius: 8px; font-size: 13px; color: var(--ink-2); }
+    .seg button.active { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(35,30,24,.08); }
+
+    .week-nav { display: flex; align-items: center; gap: 4px; }
+    .icon-btn {
+      width: 30px; height: 30px; border-radius: 9px;
+      display: grid; place-items: center;
+      color: var(--ink-2); border: 1px solid transparent;
+    }
+    .icon-btn:hover { background: #efedec; color: var(--ink); }
+    .icon-btn svg { width: 14px; height: 14px; }
+    .week-label { font-size: 13.5px; font-weight: 500; padding: 0 4px; }
+    .week-label .sub { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+    .text-btn { font-size: 13px; color: var(--ink-2); padding: 5px 9px; border-radius: 8px; }
+    .text-btn:hover { background: #efedec; color: var(--ink); }
+    .text-btn.blue { color: var(--blue); }
+    .text-btn.blue:hover { background: var(--blue-soft); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 14px;
+      border-radius: var(--radius-control);
+      font-size: 13px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .btn:hover { background: #f7f6f5; }
+    .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 500; }
+    .btn.primary:hover { background: var(--blue-hover); }
+    .btn.primary:disabled { background: #b9d6f2; border-color: transparent; cursor: not-allowed; }
+    .btn.danger { background: var(--red); border-color: var(--red); color: #fff; font-weight: 500; }
+    .btn.danger:hover { background: #c23d35; }
+    .btn.ghost { border-color: transparent; color: var(--ink-2); }
+    .btn.ghost:hover { background: #efedec; color: var(--ink); }
+
+    .toolbar .grow { flex: 1; }
+    .filter-select {
+      height: 30px; padding: 0 8px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink-2);
+      font-size: 12.5px;
+    }
+
+    /* ── 周课表 ───────────────────────────── */
+    .grid-wrap { flex: 1; min-height: 0; overflow: auto; padding: 2px; }
+    .weekgrid {
+      display: grid;
+      grid-template-columns: 76px repeat(7, minmax(118px, 1fr));
+      gap: 7px;
+      min-width: 980px;
+      height: 100%;
+      grid-auto-rows: min-content;
+    }
+    .day-head { padding: 2px 4px 4px; }
+    .day-head .dw { font-size: 13px; font-weight: 600; }
+    .day-head .dd { font-size: 12px; color: var(--ink-2); margin-left: 5px; }
+    .day-head .note {
+      display: block; margin-top: 1px;
+      font-size: 11px; color: var(--amber);
+    }
+    .day-head .note.rest { color: var(--muted); }
+    .day-head.today .dw { color: var(--blue); }
+    .day-head.today .dd { color: var(--blue); }
+    .period-head {
+      align-self: center;
+      padding: 4px 6px 4px 2px;
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .period-head b { display: block; font-weight: 500; color: var(--ink-2); font-size: 12px; }
+
+    .cell {
+      position: relative;
+      min-height: 62px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color .12s, box-shadow .12s, transform .12s;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .cell:hover { border-color: var(--border-strong); box-shadow: 0 2px 8px rgba(35,30,24,.07); }
+    .cell .subj { font-size: 13.5px; font-weight: 500; line-height: 1.3; }
+    .cell .teach { font-size: 12px; color: var(--ink-2); }
+    .cell .cls-tag { font-size: 11px; color: var(--muted); }
+    .cell .adj-note { font-size: 11px; color: var(--ink-2); line-height: 1.4; }
+    .cell.empty {
+      background: transparent;
+      border: 1px dashed rgba(0,0,0,.10);
+      cursor: default;
+    }
+    .cell.empty:hover { border-color: rgba(0,0,0,.2); box-shadow: none; }
+    .cell.empty .adj-note { color: var(--muted); }
+    .cell.rest { background: transparent; border: 0; cursor: default; align-items: center; justify-content: center; }
+    .cell.rest span { font-size: 12px; color: var(--muted); }
+    .cell.sup { background: var(--blue-wash); }
+    .cell.selected { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,117,222,.16); }
+    .cell.targetable { border-style: dashed; border-color: rgba(0,117,222,.45); }
+    .cell.targetable:hover { border-color: var(--blue); }
+    .cell.chosen-target { border-color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 3px rgba(0,117,222,.14); }
+    .cell.dimmed { opacity: .45; }
+
+    .tag {
+      position: absolute; top: 7px; right: 8px;
+      padding: 1.5px 7px;
+      border-radius: var(--radius-pill);
+      font-size: 10.5px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .tag.swap { background: var(--blue-soft); color: var(--blue); }
+    .tag.move { background: var(--amber-bg); color: var(--amber); }
+    .tag.sub  { background: var(--green-bg); color: var(--green); }
+
+    .grid-foot { font-size: 11.5px; color: var(--muted); padding: 0 4px; }
+
+    /* ── 发起调整面板 ─────────────────────── */
+    .adjust-panel {
+      flex: 0 0 336px;
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow);
+      overflow: hidden auto;
+      min-height: 0;
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px;
+    }
+    .panel-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+    .panel-body { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 14px; }
+    .panel-section .sec-label { font-size: 12px; color: var(--muted); margin-bottom: 7px; }
+
+    .course-card {
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: var(--blue-soft);
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .course-card .line1 { font-size: 13.5px; font-weight: 600; }
+    .course-card .line2 { font-size: 12px; color: var(--ink-2); }
+    .course-card.plain { background: #f4f3f2; }
+    .course-card .swap-arrow { color: var(--blue); font-weight: 600; }
+
+    .radio-row {
+      display: flex; gap: 10px; align-items: flex-start;
+      width: 100%; text-align: left;
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface);
+      transition: border-color .12s, background .12s;
+    }
+    .radio-row:hover { border-color: var(--border-strong); }
+    .radio-row.on { border-color: var(--blue); background: var(--blue-wash); }
+    .radio {
+      flex: 0 0 auto;
+      width: 16px; height: 16px; margin-top: 1px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border-strong);
+      display: grid; place-items: center;
+      transition: border-color .12s;
+    }
+    .radio::after {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--blue); transform: scale(0); transition: transform .12s;
+    }
+    .radio-row.on .radio { border-color: var(--blue); }
+    .radio-row.on .radio::after { transform: scale(1); }
+    .radio-row .rr-title { font-size: 13.5px; font-weight: 500; }
+    .radio-row .rr-desc { font-size: 12px; color: var(--ink-2); margin-top: 1px; line-height: 1.45; }
+
+    .hint-box {
+      padding: 9px 12px;
+      border-radius: 10px;
+      background: #f4f3f2;
+      font-size: 12px; color: var(--ink-2);
+      line-height: 1.55;
+    }
+    .hint-box b { color: var(--ink); font-weight: 500; }
+    .hint-box.blue { background: var(--blue-soft); color: #1c5a96; }
+    .hint-box.amber { background: var(--amber-bg); color: #8a5a14; }
+
+    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    .field input {
+      width: 100%; height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      font-size: 13px;
+    }
+    .field input:focus { border-color: rgba(0,117,222,.5); }
+
+    .panel-foot {
+      margin-top: auto;
+      padding: 12px 16px 14px;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 8px; align-items: center;
+      background: var(--surface);
+    }
+    .panel-foot .grow { flex: 1; }
+
+    /* ── 调整记录列表 ─────────────────────── */
+    .records-wrap { flex: 1; min-height: 0; overflow: auto; }
+    .rec-list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; }
+    .rec-row {
+      display: flex; align-items: center; gap: 16px;
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .rec-row:last-child { border-bottom: 0; }
+    .rec-row:hover { background: #fbfafa; }
+    .rec-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .rec-line1 { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; flex-wrap: wrap; }
+    .rec-line2 { font-size: 12.5px; color: var(--ink-2); }
+    .rec-reason { font-size: 12px; color: var(--muted); }
+    .rec-actions { display: flex; gap: 2px; flex: 0 0 auto; }
+
+    .pill {
+      padding: 2px 9px;
+      border-radius: var(--radius-pill);
+      font-size: 11.5px; font-weight: 500;
+      white-space: nowrap;
+    }
+    .pill.swap { background: var(--blue-soft); color: var(--blue); }
+    .pill.move { background: var(--amber-bg); color: var(--amber); }
+    .pill.sub  { background: var(--green-bg); color: var(--green); }
+    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; white-space: nowrap; }
+    .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+    .status.ok { color: var(--green); } .status.ok::before { background: var(--green); }
+    .status.warn { color: var(--amber); } .status.warn::before { background: var(--amber); }
+    .status.cancel { color: var(--muted); } .status.cancel::before { background: var(--muted); }
+    .rec-row.is-cancel .rec-main { opacity: .55; }
+
+    .chip-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 30px; padding: 0 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      font-size: 12.5px; color: var(--ink-2);
+    }
+    .chip-toggle.on { background: var(--blue-soft); border-color: rgba(0,117,222,.35); color: var(--blue); }
+    .chip-toggle .sw { width: 22px; height: 12px; border-radius: 999px; background: #d8d5d2; position: relative; transition: background .15s; }
+    .chip-toggle .sw::after { content: ''; position: absolute; top: 1.5px; left: 2px; width: 9px; height: 9px; border-radius: 50%; background: #fff; transition: left .15s; }
+    .chip-toggle.on .sw { background: var(--blue); }
+    .chip-toggle.on .sw::after { left: 11px; }
+
+    /* 导出菜单 */
+    .menu-wrap { position: relative; }
+    .menu {
+      position: absolute; right: 0; top: calc(100% + 6px);
+      min-width: 210px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow-pop);
+      padding: 5px;
+      z-index: 40;
+    }
+    .menu button {
+      display: flex; flex-direction: column; gap: 1px;
+      width: 100%; text-align: left;
+      padding: 8px 10px; border-radius: 8px;
+    }
+    .menu button:hover { background: #f4f3f2; }
+    .menu button b { font-size: 13px; font-weight: 500; }
+    .menu button span { font-size: 11.5px; color: var(--muted); }
+    .menu .menu-note { padding: 7px 10px 5px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); margin-top: 4px; }
+
+    /* ── 弹窗 ─────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(20, 18, 16, .4);
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 100;
+      padding: 24px;
+    }
+    .overlay.open { display: flex; }
+    .dialog {
+      width: 560px; max-width: 100%;
+      max-height: calc(100vh - 60px);
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: var(--shadow-pop);
+      overflow: hidden;
+    }
+    .dialog.narrow { width: 470px; }
+    .dialog-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      padding: 18px 20px 0;
+    }
+    .dialog-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
+    .dialog-head .sub { margin-top: 3px; font-size: 12.5px; color: var(--ink-2); }
+    .dialog-body { padding: 14px 20px 4px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+    .dialog-foot {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 20px 18px;
+    }
+    .dialog-foot .grow { flex: 1; }
+
+    .scope-block {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .scope-block .radio-row { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
+    .scope-block .radio-row:last-child { border-bottom: 0; }
+    .scope-detail { padding: 10px 12px 12px 38px; background: var(--blue-wash); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+    .scope-detail .range-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .scope-detail input[type="date"], .scope-detail select {
+      height: 30px; padding: 0 8px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--surface); font-size: 12.5px;
+    }
+    .weekday-picker { display: flex; gap: 5px; }
+    .weekday-picker button {
+      width: 30px; height: 30px; border-radius: 9px;
+      border: 1px solid var(--border);
+      font-size: 12px; color: var(--ink-2);
+      background: var(--surface);
+    }
+    .weekday-picker button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+    .preview-list { display: flex; flex-direction: column; gap: 8px; }
+    .preview-item {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      font-size: 12.5px;
+    }
+    .preview-item .mark { flex: 0 0 auto; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; margin-top: 1px; }
+    .preview-item.ok .mark { background: var(--green-bg); color: var(--green); }
+    .preview-item.bad { border-color: rgba(213,73,65,.4); background: #fdf7f6; }
+    .preview-item.bad .mark { background: var(--red-bg); color: var(--red); }
+    .preview-item.skip { opacity: .65; }
+    .preview-item.skip .mark { background: #f0eeed; color: var(--muted); }
+    .preview-item .pi-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .preview-item .pi-date { font-weight: 600; font-size: 13px; }
+    .preview-item .pi-change { color: var(--ink-2); line-height: 1.5; }
+    .preview-item .pi-issue { color: var(--red); line-height: 1.5; }
+    .preview-item .pi-skipnote { color: var(--muted); }
+
+    .cand-list { display: flex; flex-direction: column; gap: 8px; }
+    .cand-row {
+      display: flex; align-items: center; gap: 11px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      cursor: pointer;
+      transition: border-color .12s, background .12s;
+    }
+    .cand-row:hover { border-color: var(--border-strong); }
+    .cand-row.on { border-color: var(--blue); background: var(--blue-wash); }
+    .cand-row.busy { opacity: .62; cursor: not-allowed; }
+    .cand-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 12.5px; font-weight: 600; color: #fff;
+      flex: 0 0 auto;
+    }
+    .cand-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .cand-line1 { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; }
+    .cand-line2 { font-size: 12px; color: var(--ink-2); }
+    .cand-line2 .busy-reason { color: var(--amber); }
+    .subj-pill { padding: 1px 7px; border-radius: var(--radius-pill); background: #f0eeed; color: var(--ink-2); font-size: 11px; font-weight: 400; }
+    .free-pill { padding: 1px 7px; border-radius: var(--radius-pill); background: var(--green-bg); color: var(--green); font-size: 11px; }
+    .link-mini { font-size: 12px; color: var(--blue); padding: 4px 6px; border-radius: 7px; flex: 0 0 auto; }
+    .link-mini:hover { background: var(--blue-soft); }
+
+    .restore-list { display: flex; flex-direction: column; gap: 6px; }
+    .restore-item { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+    .restore-item .mark { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; background: var(--green-bg); color: var(--green); display: grid; place-items: center; font-size: 10px; margin-top: 1px; }
+    .dep-warn {
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: var(--amber-bg);
+      font-size: 12.5px; color: #8a5a14; line-height: 1.6;
+    }
+    .dep-warn b { font-weight: 600; }
+
+    /* toast */
+    .toast {
+      position: fixed; left: 50%; bottom: 34px;
+      transform: translate(-50%, 16px);
+      background: #2b2926; color: #fff;
+      font-size: 13px;
+      padding: 10px 18px;
+      border-radius: var(--radius-pill);
+      box-shadow: var(--shadow-pop);
+      opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s;
+      z-index: 200;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    .hidden { display: none !important; }
+
+    /* ── 窄窗口：面板转全宽 ───────────────── */
+    @media (max-width: 1180px) {
+      .content { position: relative; }
+      .adjust-panel {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 60;
+        flex-basis: auto;
+        max-height: 72%;
+        border-radius: 16px 16px 0 0;
+        border: 0;
+        border-top: 1px solid var(--border);
+        box-shadow: var(--shadow-pop);
+      }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <!-- 顶栏 -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand"><span class="brand-mark">课</span>课集</div>
+        <div class="divider-v"></div>
+        <span class="page-title">调代课</span>
+      </div>
+      <div class="topbar-right">
+        <span class="muted">示范中学 · 2026—2027 学年 秋季学期</span>
+        <span class="divider-v" style="width:1px;height:14px;background:var(--border)"></span>
+        <button class="link-btn">帮助</button>
+      </div>
+    </header>
+
+    <div class="body-row">
+
+      <!-- 侧边导航 -->
+      <nav class="sidebar">
+        <div class="nav-group">
+          <div class="nav-label">准备工作</div>
+          <button class="nav-item"><span class="dot"></span>学期与日历</button>
+          <button class="nav-item"><span class="dot"></span>班级与学段</button>
+          <button class="nav-item"><span class="dot"></span>作息设置</button>
+          <button class="nav-item"><span class="dot"></span>科目节数</button>
+          <button class="nav-item"><span class="dot"></span>教师任课</button>
+          <button class="nav-item"><span class="dot"></span>排课规则</button>
+          <button class="nav-item"><span class="dot"></span>公共场室</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">排课</div>
+          <button class="nav-item"><span class="dot"></span>排课与课表</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">日常使用</div>
+          <button class="nav-item active"><span class="dot"></span>调代课</button>
+          <button class="nav-item"><span class="dot"></span>值班排班</button>
+          <button class="nav-item"><span class="dot"></span>统计报表</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="nav-group">
+          <button class="nav-item"><span class="dot"></span>设置与授权</button>
+        </div>
+      </nav>
+
+      <!-- 主内容 -->
+      <main class="main">
+        <div class="content">
+
+          <div class="workarea">
+
+            <!-- 工具行 -->
+            <div class="toolbar" id="toolbar-schedule">
+              <div class="tabs">
+                <button class="tab active" id="tab-schedule" onclick="switchTab('schedule')">实际课表</button>
+                <button class="tab" id="tab-records" onclick="switchTab('records')">调整记录<span class="count" id="rec-count">3 条有效</span></button>
+              </div>
+              <div class="seg" id="view-seg">
+                <button class="active" onclick="switchView('class', this)">班级视图</button>
+                <button onclick="switchView('teacher', this)">教师视图</button>
+              </div>
+              <div class="grow"></div>
+              <div class="week-nav">
+                <button class="icon-btn" title="上一周" onclick="toast('演示原型：仅展示第 9 教学周')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
+                <span class="week-label">第 9 教学周 · 单周<span class="sub">10/26 – 11/1</span></span>
+                <button class="icon-btn" title="下一周" onclick="toast('演示原型：仅展示第 9 教学周')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>
+                <button class="text-btn" onclick="toast('已回到本周')">本周</button>
+              </div>
+              <div class="menu-wrap">
+                <button class="btn" onclick="toggleMenu(event)">导出 ▾</button>
+                <div class="menu hidden" id="export-menu">
+                  <button onclick="exportAs('教师通知')"><b>教师通知</b><span>按教师汇总实际课次与调整</span></button>
+                  <button onclick="exportAs('班级通知')"><b>班级通知</b><span>按班级汇总实际课次与调整</span></button>
+                  <button onclick="exportAs('调整明细')"><b>调整明细</b><span>全部有效调整的逐条明细</span></button>
+                  <div class="menu-note">已取消的记录默认不进入通知；「需处理」的课次暂停导出。</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 调整记录工具行 -->
+            <div class="toolbar hidden" id="toolbar-records">
+              <div class="tabs">
+                <button class="tab" id="tab-schedule2" onclick="switchTab('schedule')">实际课表</button>
+                <button class="tab active" id="tab-records2" onclick="switchTab('records')">调整记录<span class="count" id="rec-count2">3 条有效</span></button>
+              </div>
+              <div class="grow"></div>
+              <select class="filter-select" id="f-type" onchange="renderRecords()">
+                <option value="">全部类型</option><option>换课</option><option>移课</option><option>代课</option>
+              </select>
+              <select class="filter-select" id="f-status" onchange="renderRecords()">
+                <option value="">全部状态</option><option value="ok">有效</option><option value="warn">需处理</option><option value="cancel">已取消</option>
+              </select>
+              <button class="chip-toggle" id="show-cancel" onclick="toggleCancelled()"><span class="sw"></span>显示已取消</button>
+            </div>
+
+            <!-- 课表 + 面板 -->
+            <div style="flex:1;display:flex;gap:16px;min-height:0;">
+              <div class="grid-wrap" id="grid-wrap">
+                <div class="weekgrid" id="weekgrid"></div>
+                <p class="grid-foot">带「换课 / 移课 / 代课」标签的课格表示已生效的调整，点击可查看原安排与关联记录；点击任意课格可在右侧发起调整。</p>
+              </div>
+
+              <!-- 发起调整面板 -->
+              <aside class="adjust-panel hidden" id="adjust-panel">
+                <div class="panel-head">
+                  <h3 id="panel-title">发起调整</h3>
+                  <button class="icon-btn" onclick="closePanel()" title="关闭">
+                    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+                  </button>
+                </div>
+                <div class="panel-body" id="panel-body"></div>
+                <div class="panel-foot" id="panel-foot"></div>
+              </aside>
+            </div>
+
+            <!-- 调整记录列表 -->
+            <div class="records-wrap hidden" id="records-wrap">
+              <div class="rec-list" id="rec-list"></div>
+              <p class="grid-foot">默认只显示有效记录；已取消的记录保留备查，可切换查看。日期范围内重复调整首版整体取消。</p>
+            </div>
+
+          </div><!-- /workarea -->
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ── 弹窗：预览确认 ── -->
+  <div class="overlay" id="dlg-preview">
+    <div class="dialog">
+      <div class="dialog-head">
+        <div>
+          <h3>预览调整</h3>
+          <div class="sub" id="pv-sub"></div>
+        </div>
+        <button class="icon-btn" onclick="closeDlg('dlg-preview')"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+      </div>
+      <div class="dialog-body">
+        <div class="scope-block">
+          <button class="radio-row on" id="scope-once" onclick="setScope('once')">
+            <span class="radio"></span>
+            <span><span class="rr-title">仅本次</span><br /><span class="rr-desc" id="scope-once-desc"></span></span>
+          </button>
+          <button class="radio-row" id="scope-range" onclick="setScope('range')">
+            <span class="radio"></span>
+            <span><span class="rr-title">日期范围</span><br /><span class="rr-desc">按选定星期与节次逐周展开，换课保留源与目标的日期间隔</span></span>
+          </button>
+          <div class="scope-detail hidden" id="scope-detail">
+            <div class="range-row">
+              <input type="date" value="2026-10-26" />
+              <span>至</span>
+              <input type="date" value="2026-11-20" />
+            </div>
+            <div class="range-row">
+              <span>上课星期</span>
+              <div class="weekday-picker" id="wd-picker"></div>
+            </div>
+            <div class="range-row">
+              <span>节次</span>
+              <select><option>第 2 节</option><option>第 5 节</option></select>
+              <span style="font-size:11.5px;color:var(--muted)">按教学日历、单双周与补课映射生成实际课次</span>
+            </div>
+          </div>
+        </div>
+        <div class="preview-list" id="pv-list"></div>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn ghost" onclick="closeDlg('dlg-preview')">返回修改</button>
+        <div class="grow"></div>
+        <span id="pv-warn" class="hidden" style="font-size:12px;color:var(--red)"></span>
+        <button class="btn primary" id="pv-confirm" onclick="confirmAdjust()"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 弹窗：代课候选 ── -->
+  <div class="overlay" id="dlg-substitute">
+    <div class="dialog">
+      <div class="dialog-head">
+        <div>
+          <h3>选择代课教师</h3>
+          <div class="sub" id="sub-sub"></div>
+        </div>
+        <button class="icon-btn" onclick="closeDlg('dlg-substitute')"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+      </div>
+      <div class="dialog-body">
+        <div class="hint-box">科目：<b id="sub-subject"></b>（默认保留，<button class="link-mini" style="padding:0 2px" onclick="toast('演示原型：可另选科目')">更改</button>）</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
+          <button class="chip-toggle on">同科目</button>
+          <button class="chip-toggle on">同年级</button>
+          <button class="chip-toggle">本班优先</button>
+          <div class="grow"></div>
+          <span style="font-size:11.5px;color:var(--muted)">3 位候选</span>
+        </div>
+        <div class="cand-list" id="cand-list"></div>
+      </div>
+      <div class="dialog-foot">
+        <span style="font-size:11.5px;color:var(--muted)">候选默认按空闲状态排序；可查看候选教师同期课表。</span>
+        <div class="grow"></div>
+        <button class="btn ghost" onclick="closeDlg('dlg-substitute')">取消</button>
+        <button class="btn primary" id="sub-confirm" disabled onclick="pickSubstitute()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 弹窗：取消调整 ── -->
+  <div class="overlay" id="dlg-cancel">
+    <div class="dialog narrow">
+      <div class="dialog-head">
+        <div>
+          <h3>取消调整</h3>
+          <div class="sub" id="cx-sub"></div>
+        </div>
+        <button class="icon-btn" onclick="closeDlg('dlg-cancel')"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+      </div>
+      <div class="dialog-body">
+        <div class="restore-list" id="cx-restore"></div>
+        <div class="dep-warn hidden" id="cx-dep"></div>
+        <div class="hint-box">取消前已基于当前课表重新校验，恢复后无冲突。</div>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn ghost" onclick="closeDlg('dlg-cancel')">关闭</button>
+        <div class="grow"></div>
+        <button class="btn ghost hidden" id="cx-dep-btn" onclick="toast('请先在记录列表取消依赖的后续调整')">先取消后续调整</button>
+        <button class="btn danger" id="cx-confirm" onclick="confirmCancel()">取消调整</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ───────────────────────── 数据 ───────────────────────── */
+const DAYS = [
+  { w: '周一', d: '10/26', date: '10月26日' },
+  { w: '周二', d: '10/27', date: '10月27日' },
+  { w: '周三', d: '10/28', date: '10月28日' },
+  { w: '周四', d: '10/29', date: '10月29日' },
+  { w: '周五', d: '10/30', date: '10月30日' },
+  { w: '周六', d: '10/31', date: '10月31日', note: '补 · 按周二作息', sup: true },
+  { w: '周日', d: '11/1', date: '11月1日', note: '休息日', rest: true },
+];
+const PERIODS = [
+  ['第1节', '08:00'], ['第2节', '08:55'], ['第3节', '10:00'], ['第4节', '10:55'],
+  ['第5节', '14:00'], ['第6节', '14:55'], ['第7节', '16:00'],
+];
+const C = (s, t, extra) => Object.assign({ s, t }, extra || {});
+
+/* 班级视图：初二(3)班 */
+const classGrid = {
+  '0-1': C('语文', '林岚'), '0-2': C('英语', '周婷', { adj: 'swap', note: '与 10/28(三) 第2节 数学互换' }),
+  '0-3': C('数学', '李诚'), '0-4': C('物理', '赵康'), '0-5': C('体育', '孙倩'), '0-6': C('历史', '钱穆'), '0-7': C('班会', '王芳'),
+  '1-1': C('数学', '李诚'), '1-2': C('语文', '林岚'), '1-3': C('英语', '周婷'), '1-4': C('生物', '何叶'), '1-5': C('物理', '赵康'), '1-6': C('地理', '吴迪'), '1-7': C('自习', '王芳'),
+  '2-1': C('英语', '周婷'), '2-2': C('数学', '李诚', { adj: 'swap', note: '与 10/26(一) 第2节 英语互换' }),
+  '2-3': C('语文', '林岚'), '2-4': C('历史', '钱穆'),
+  '2-5': C('数学', '王小雨', { adj: 'sub', note: '代 李诚 · 仅本次' }),
+  '2-6': C('生物', '何叶'), '2-7': C('体育', '孙倩'),
+  '3-1': C('物理', '赵康'), '3-2': C('数学', '李诚'), '3-3': C('英语', '周婷'), '3-4': C('语文', '林岚'), '3-5': C('美术', '许诺'),
+  '3-6': { empty: true, note: '原 体育 · 已移至 10/30(五) 第6节' }, '3-7': C('地理', '吴迪'),
+  '4-1': C('数学', '李诚'), '4-2': C('英语', '周婷'), '4-3': C('物理', '赵康'), '4-4': C('生物', '何叶'), '4-5': C('音乐', '许诺'),
+  '4-6': C('体育', '孙倩', { adj: 'move', note: '自 10/29(四) 第6节移入' }), '4-7': C('自习', '王芳'),
+  '5-1': C('数学', '李诚'), '5-2': C('语文', '林岚'), '5-3': C('英语', '周婷'), '5-4': C('生物', '何叶'), '5-5': C('物理', '赵康'), '5-6': C('地理', '吴迪'), '5-7': C('自习', '王芳'),
+};
+
+/* 教师视图：李诚（数学） */
+const teacherGrid = {
+  '0-3': C('数学 · 初二(3)班', '李诚'), '0-5': C('数学 · 初二(5)班', '李诚'),
+  '1-1': C('数学 · 初二(3)班', '李诚'), '1-2': C('数学 · 初二(1)班', '李诚'),
+  '2-2': C('数学 · 初二(3)班', '李诚', { adj: 'swap', note: '与 10/26(一) 第2节 英语互换' }),
+  '2-5': C('数学 · 初二(3)班', '王小雨', { adj: 'sub', note: '代 李诚 · 仅本次' }),
+  '3-2': C('数学 · 初二(3)班', '李诚'),
+  '3-6': { empty: true, note: '原 体育节次 · 已移至 10/30' },
+  '4-1': C('数学 · 初二(3)班', '李诚'), '4-3': C('数学 · 初二(5)班', '李诚'),
+  '5-1': C('数学 · 初二(3)班', '李诚'), '5-2': C('数学 · 初二(1)班', '李诚'),
+};
+
+let records = [
+  { id: 1, type: '换课', cls: '初二(3)班', date: '10/27(二) 第2节 ↔ 10/29(四) 第5节', change: '英语·周婷 ↔ 数学·李诚（两节互换时间，各自科目与教师不变）', reason: '第9周教研活动', status: 'ok', deps: [] },
+  { id: 2, type: '代课', cls: '初二(3)班', date: '10/28(三) 第5节', change: '数学 · 李诚 → 王小雨（保留科目与时间）', reason: '李诚老师外出培训', status: 'ok', deps: [] },
+  { id: 3, type: '移课', cls: '初二(3)班', date: '10/29(四) 第6节 → 11/3(二) 第6节', change: '体育·孙倩 移至空课位', reason: '操场地基占用', status: 'warn', warnNote: '常规课表已变化：10/29 第6节的原课次不存在，需先处理该课次', deps: [] },
+  { id: 4, type: '换课', cls: '初二(1)班', date: '10/26(一) 第3节 ↔ 10/30(五) 第3节', change: '语文 ↔ 英语（两节互换）', reason: '—', status: 'cancel', deps: [] },
+];
+
+const candidates = [
+  { name: '王小雨', subj: '数学', free: true, extra: '本周新增 2 节', color: '#0075de' },
+  { name: '张倩', subj: '数学', free: true, extra: '本周新增 4 节', color: '#2ba471' },
+  { name: '刘洁', subj: '数学', free: false, busy: '该时段有课：初二(1)班 数学 第5节', extra: '本周新增 0 节', color: '#c98a2b' },
+];
+
+/* ───────────────────────── 状态 ───────────────────────── */
+let view = 'class';            // class | teacher
+let tab = 'schedule';          // schedule | records
+let panel = null;              // { key, course, mode:'new'|'view', type, target, subT }
+let showCancelled = false;
+let scope = 'once';
+let pickedCand = null;
+let cancelTarget = null;
+
+const $ = (id) => document.getElementById(id);
+
+/* ───────────────────────── 课表渲染 ───────────────────────── */
+function renderGrid() {
+  const grid = $('weekgrid');
+  grid.innerHTML = '';
+  grid.appendChild(el('div', '', ''));
+  DAYS.forEach((day, di) => {
+    const h = el('div', 'day-head' + (di === 2 ? ' today' : ''));
+    h.innerHTML = `<span class="dw">${day.w}</span><span class="dd">${day.d}</span>` +
+      (day.note ? `<span class="note${day.rest ? ' rest' : ''}">${day.note}</span>` : '');
+    grid.appendChild(h);
+  });
+  PERIODS.forEach(([pname,ptime], pi) => {
+    const p = el('div', 'period-head');
+    p.innerHTML = `<b>${pname}</b>${ptime}`;
+    grid.appendChild(p);
+    DAYS.forEach((day, di) => {
+      const cell = buildCell(`${di}-${pi + 1}`, day);
+      grid.appendChild(cell);
+    });
+  });
+}
+
+function buildCell(key, day) {
+  const data = (view === 'class' ? classGrid : teacherGrid)[key];
+  const div = el('div');
+  if (day.rest) {
+    div.className = 'cell rest';
+    div.innerHTML = '<span>—</span>';
+    return div;
+  }
+  if (!data || data.empty) {
+    div.className = 'cell empty';
+    div.innerHTML = `<span class="adj-note">${(data && data.note) || '空课位'}</span>`;
+    if (panel && panel.mode === 'new' && (panel.type === 'move') && !panel.targetKey) {
+      div.classList.add('targetable');
+      div.onclick = () => chooseTarget(key);
+    }
+    if (panel && panel.targetKey === key) div.classList.add('chosen-target');
+    return div;
+  }
+  div.className = 'cell' + (data.sup ? ' sup' : '');
+  const tagCls = { swap: 'swap', move: 'move', sub: 'sub' }[data.adj];
+  div.innerHTML =
+    `<span class="subj">${data.s}</span>` +
+    `<span class="teach">${data.t}</span>` +
+    (data.adj ? `<span class="tag ${tagCls}">${{ swap: '换课', move: '移课', sub: '代课' }[data.adj]}</span>` : '') +
+    (data.note ? `<span class="adj-note">${data.note}</span>` : '');
+  div.onclick = () => openPanel(key, data);
+  if (panel && panel.srcKey === key) div.classList.add('selected');
+  if (panel && panel.targetKey === key) div.classList.add('chosen-target');
+  if (panel && panel.mode === 'new' && panel.srcKey !== key &&
+      (panel.type === 'swap' && !panel.targetKey && !data.adj)) {
+    div.classList.add('targetable');
+  }
+  return div;
+}
+
+function el(tag, cls, text) {
+  const d = document.createElement(tag);
+  if (cls) d.className = cls;
+  if (text !== undefined && text !== '') d.textContent = text;
+  return d;
+}
+
+/* ───────────────────────── 面板 ───────────────────────── */
+function openPanel(key, course) {
+  panel = {
+    srcKey: key, course,
+    mode: course.adj ? 'view' : 'new',
+    type: 'swap', targetKey: null, targetCourse: null, subT: null,
+  };
+  $('adjust-panel').classList.remove('hidden');
+  renderPanel();
+  renderGrid();
+}
+
+function closePanel() {
+  panel = null;
+  $('adjust-panel').classList.add('hidden');
+  renderGrid();
+}
+
+const TYPE_META = {
+  swap: { name: '换课', desc: '与本班另一实际课次互换时间，可跨日期、跨周' },
+  move: { name: '移课', desc: '移到本班的实际空课位，原位置变为空位' },
+  sub:  { name: '代课', desc: '时间与班级不变，更换任课教师，默认保留科目' },
+};
+
+function renderPanel() {
+  const body = $('panel-body'), foot = $('panel-foot');
+  const c = panel.course;
+  const srcLine = `${DAYS[+panel.srcKey.split('-')[0]].date}（${DAYS[+panel.srcKey.split('-')[0]].w}）${PERIODS[+panel.srcKey.split('-')[1] - 1][0]}`;
+  if (panel.mode === 'view') {
+    $('panel-title').textContent = '调整详情';
+    const typeName = { swap: '换课', move: '移课', sub: '代课' }[c.adj];
+    body.innerHTML = `
+      <div class="panel-section">
+        <div class="sec-label">当前课格</div>
+        <div class="course-card">
+          <span class="line1">${srcLine} · ${c.s}</span>
+          <span class="line2">任课：${c.t} · 初二(3)班</span>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="sec-label">调整信息</div>
+        <div class="hint-box blue"><b>${typeName}</b> · ${c.note || ''}<br />原安排：${origOf(c)}。此课格已按调整生效，常规周课表不受影响。</div>
+      </div>`;
+    foot.innerHTML = `
+      <button class="btn ghost" onclick="closePanel()">关闭</button>
+      <div class="grow"></div>
+      <button class="btn" onclick="switchTab('records')">查看关联记录</button>`;
+    return;
+  }
+
+  $('panel-title').textContent = '发起调整';
+  let html = `
+    <div class="panel-section">
+      <div class="sec-label">已选课次</div>
+      <div class="course-card">
+        <span class="line1">${srcLine} · ${c.s}</span>
+        <span class="line2">任课：${c.t} · 初二(3)班</span>
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="sec-label">调整方式</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${['swap', 'move', 'sub'].map(t => `
+          <button class="radio-row ${panel.type === t ? 'on' : ''}" onclick="setType('${t}')">
+            <span class="radio"></span>
+            <span><span class="rr-title">${TYPE_META[t].name}</span><br /><span class="rr-desc">${TYPE_META[t].desc}</span></span>
+          </button>`).join('')}
+      </div>
+    </div>`;
+
+  if (panel.type === 'swap') {
+    html += panel.targetKey
+      ? `<div class="panel-section"><div class="sec-label">目标课次</div>
+         <div class="course-card plain"><span class="line1">${targetLine()} · ${panel.targetCourse.s}</span>
+         <span class="line2">任课：${panel.targetCourse.t} <span class="swap-arrow">⇅ 与已选课次互换</span></span></div></div>`
+      : `<div class="panel-section"><div class="hint-box">在左侧课表中<b>点击要交换的课次</b>，可跨日期、跨周选择。</div></div>`;
+  } else if (panel.type === 'move') {
+    html += panel.targetKey
+      ? `<div class="panel-section"><div class="sec-label">目标空课位</div>
+         <div class="course-card plain"><span class="line1">${targetLine()}</span>
+         <span class="line2">空课位 · ${c.s} 将移入，原位置变为空位</span></div></div>`
+      : `<div class="panel-section"><div class="hint-box">在左侧课表中<b>点击一个空课位</b>作为目标。原位置将变为空位。</div></div>`;
+  } else {
+    html += `
+      <div class="panel-section">
+        <div class="sec-label">代课教师</div>
+        ${panel.subT
+          ? `<div class="course-card plain"><span class="line1">${panel.subT.name}</span>
+             <span class="line2">${panel.subT.subj} · 该时段空闲 · 本次新增 ${panel.subT.extra.match(/\d/) && panel.subT.extra || '1'} 节</span></div>`
+          : `<button class="btn" style="width:100%;justify-content:center" onclick="openSubstitute()">选择代课教师</button>`}
+      </div>`;
+  }
+
+  html += `
+    <div class="panel-section field">
+      <label>原因（选填，会记录在调整记录中）</label>
+      <input placeholder="如：教研活动、外出培训、场地占用" />
+    </div>`;
+  body.innerHTML = html;
+
+  const ready = panel.type === 'sub' ? !!panel.subT : !!panel.targetKey;
+  foot.innerHTML = `
+    <button class="btn ghost" onclick="closePanel()">取消</button>
+    <div class="grow"></div>
+    <button class="btn primary" ${ready ? '' : 'disabled'} onclick="openPreview()">下一步 · 预览</button>`;
+}
+
+function setType(t) { panel.type = t; panel.targetKey = null; panel.targetCourse = null; renderPanel(); renderGrid(); }
+
+function targetLine() {
+  const [di, pi] = panel.targetKey.split('-').map(Number);
+  return `${DAYS[di].date}（${DAYS[di].w}）${PERIODS[pi - 1][0]}`;
+}
+
+function origOf(c) {
+  if (c.adj === 'swap') return '与另一课次互换前的科目与教师见关联记录';
+  if (c.adj === 'sub') return '原任课 ' + (c.note.includes('代 ') ? c.note.replace('代 ', '').split(' ')[0] : '');
+  return '移入前位于另一课次';
+}
+
+function chooseTarget(key) {
+  panel.targetKey = key;
+  panel.targetCourse = classGrid[key] || { s: '', t: '' };
+  renderPanel(); renderGrid();
+}
+
+/* ───────────────────────── 代课候选弹窗 ───────────────────────── */
+function openSubstitute() {
+  const [di, pi] = panel.srcKey.split('-').map(Number);
+  $('sub-sub').textContent = `${DAYS[di].date}（${DAYS[di].w}）${PERIODS[pi - 1][0]} · ${panel.course.s} · 初二(3)班`;
+  $('sub-subject').textContent = panel.course.s;
+  pickedCand = null;
+  renderCands();
+  openDlg('dlg-substitute');
+}
+function renderCands() {
+  $('cand-list').innerHTML = candidates.map((cd, i) => `
+    <div class="cand-row ${cd.busy ? 'busy' : ''} ${pickedCand === i ? 'on' : ''}" ${cd.busy ? '' : `onclick="pickCand(${i})"`}">
+      <span class="cand-avatar" style="background:${cd.color}">${cd.name[0]}</span>
+      <div class="cand-main">
+        <div class="cand-line1">${cd.name}<span class="subj-pill">${cd.subj}</span>
+          ${cd.free ? '<span class="free-pill">该时段空闲</span>' : ''}</div>
+        <div class="cand-line2">${cd.busy ? `<span class="busy-reason">✕ ${cd.busy}</span>` : `本次新增 ${cd.extra.replace('本周新增 ', '')}`}</div>
+      </div>
+      <button class="link-mini" onclick="event.stopPropagation();toast('演示原型：可查看 ${cd.name} 同期课表')">查看课表</button>
+    </div>`).join('');
+  $('sub-confirm').disabled = pickedCand === null;
+}
+function pickCand(i) { pickedCand = i; renderCands(); }
+function pickSubstitute() {
+  panel.subT = candidates[pickedCand];
+  closeDlg('dlg-substitute');
+  renderPanel();
+}
+
+/* ───────────────────────── 预览弹窗 ───────────────────────── */
+function openPreview() {
+  const [di, pi] = panel.srcKey.split('-').map(Number);
+  const day = DAYS[di];
+  $('pv-sub').textContent = panel.type === 'swap'
+    ? `换课 · ${day.date}（${day.w}）${PERIODS[pi-1][0]} ${panel.course.s} 与 ${panel.targetKey ? targetLine() : ''} ${panel.targetCourse.s} 互换`
+    : panel.type === 'move'
+      ? `移课 · ${panel.course.s}·${panel.course.t} 从 ${day.date}（${day.w}）${PERIODS[pi-1][0]} 移至 ${targetLine()}`
+      : `代课 · ${day.date}（${day.w}）${PERIODS[pi-1][0]} ${panel.course.s} · ${panel.course.t} → ${panel.subT.name}`;
+  setScope('once');
+  openDlg('dlg-preview');
+}
+
+function setScope(s) {
+  scope = s;
+  $('scope-once').classList.toggle('on', s === 'once');
+  $('scope-range').classList.toggle('on', s === 'range');
+  $('scope-detail').classList.toggle('hidden', s !== 'range');
+  const [di, pi] = panel.srcKey.split('-').map(Number);
+  $('scope-once-desc').textContent = `仅 ${DAYS[di].date}（${DAYS[di].w}）${PERIODS[pi-1][0]} 这一次课`;
+  renderPreviewList();
+}
+
+function renderPreviewList() {
+  const [di, pi] = panel.srcKey.split('-').map(Number);
+  const base = new Date(2026, 9, 26 + di);
+  const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+  const wd = ['日', '一', '二', '三', '四', '五', '六'][base.getDay()];
+  const items = [];
+  const mk = (offset) => {
+    const d = new Date(base); d.setDate(d.getDate() + offset * 7);
+    return `${fmt(d)}(${wd})`;
+  };
+  const changeFor = (dateStr) => {
+    if (panel.type === 'swap') return `${dateStr} ${PERIODS[pi-1][0]} ${panel.course.s}·${panel.course.t} ⇅ ${targetLine()} ${panel.targetCourse.s}·${panel.targetCourse.t}（互换时间，各自科目与教师不变）`;
+    if (panel.type === 'move') return `${dateStr} ${PERIODS[pi-1][0]} ${panel.course.s}·${panel.course.t} → ${targetLine()}（移至空课位，原位置变为空位）`;
+    return `${dateStr} ${PERIODS[pi-1][0]} ${panel.course.s} · ${panel.course.t} → ${panel.subT.name}（保留科目）`;
+  };
+  const conflictFor = () => {
+    if (panel.type === 'swap') return '目标课次冲突：李诚 该时段已有课（初二(5)班 数学），时间重叠';
+    if (panel.type === 'move') return '目标课次不存在：该周无此空课位（课表已变化），需修正或明确移除';
+    return '教师冲突：王小雨 该时段已有课（初二(1)班 数学），时间重叠';
+  };
+  if (scope === 'once') {
+    items.push({ cls: 'ok', date: `${fmt(base)}(${wd})`, change: changeFor(''), issue: null });
+  } else {
+    items.push({ cls: 'ok', date: mk(0), change: changeFor(''), issue: null });
+    items.push({ cls: 'bad', date: mk(1), change: changeFor(''), issue: conflictFor() });
+    items.push({ cls: 'skip', date: mk(2), change: changeFor(''), issue: null, skip: '该周遇节假日调休，无实际课次，不产生调整' });
+  }
+  const hasBad = items.some(i => i.cls === 'bad');
+  $('pv-list').innerHTML = items.map(i => `
+    <div class="preview-item ${i.cls}">
+      <span class="mark">${i.cls === 'ok' ? '✓' : i.cls === 'bad' ? '✕' : '－'}</span>
+      <div class="pi-main">
+        <span class="pi-date">${i.date}</span>
+        <span class="pi-change">${i.change}</span>
+        ${i.issue ? `<span class="pi-issue">${i.issue}</span>` : ''}
+        ${i.skip ? `<span class="pi-skipnote">${i.skip}</span>` : ''}
+      </div>
+    </div>`).join('');
+  const n = items.filter(i => i.cls !== 'skip').length;
+  $('pv-confirm').textContent = `确认调整（${n}次）`;
+  $('pv-confirm').disabled = hasBad;
+  $('pv-warn').classList.toggle('hidden', !hasBad);
+  $('pv-warn').textContent = hasBad ? '存在冲突课次，需修正后再确认' : '';
+  $('pv-warn').style.color = 'var(--red)';
+}
+
+function confirmAdjust() {
+  closeDlg('dlg-preview');
+  closePanel();
+  toast(`已生效调整，实际课表已更新（常规周课表不变）`);
+}
+
+/* ───────────────────────── 记录列表 ───────────────────────── */
+function renderRecords() {
+  const type = $('f-type').value;
+  const status = $('f-status').value;
+  const rows = records.filter(r =>
+    (!type || r.type === type) &&
+    (!status || r.status === status) &&
+    (showCancelled || r.status !== 'cancel'));
+  $('rec-list').innerHTML = rows.length ? rows.map(r => `
+    <div class="rec-row ${r.status === 'cancel' ? 'is-cancel' : ''}">
+      <span class="pill ${{ '换课': 'swap', '移课': 'move', '代课': 'sub' }[r.type]}">${r.type}</span>
+      <div class="rec-main">
+        <div class="rec-line1">${r.cls} · ${r.date}
+          <span class="status ${{ ok: 'ok', warn: 'warn', cancel: 'cancel' }[r.status]}">${{ ok: '有效', warn: '需处理', cancel: '已取消' }[r.status]}</span>
+        </div>
+        <div class="rec-line2">${r.change}</div>
+        ${r.warnNote && r.status === 'warn' ? `<div class="rec-reason" style="color:var(--amber)">⚠ ${r.warnNote}</div>` : ''}
+        <div class="rec-reason">原因：${r.reason}</div>
+      </div>
+      <div class="rec-actions">
+        ${r.status !== 'cancel' ? `
+          <button class="text-btn" onclick="toast('演示原型：查看记录详情')">详情</button>
+          <button class="text-btn" onclick="askCancel(${r.id})">取消</button>` : `
+          <button class="text-btn" onclick="toast('演示原型：查看记录详情')">详情</button>`}
+      </div>
+    </div>`).join('')
+    : `<div style="padding:48px;text-align:center;color:var(--muted);font-size:13px">没有符合筛选条件的记录</div>`;
+  const valid = records.filter(r => r.status !== 'cancel').length;
+  $('rec-count').textContent = `${valid} 条有效`;
+  $('rec-count2').textContent = `${valid} 条有效`;
+}
+
+function toggleCancelled() {
+  showCancelled = !showCancelled;
+  $('show-cancel').classList.toggle('on', showCancelled);
+  renderRecords();
+}
+
+function askCancel(id) {
+  cancelTarget = records.find(r => r.id === id);
+  $('cx-sub').textContent = `${cancelTarget.type} · ${cancelTarget.cls} · ${cancelTarget.date}`;
+  $('cx-restore').innerHTML = cancelTarget.type === '换课'
+    ? `<div class="restore-item"><span class="mark">✓</span><span>10/27(二) 第2节 恢复为 数学·李诚</span></div>
+       <div class="restore-item"><span class="mark">✓</span><span>10/29(四) 第5节 恢复为 英语·周婷</span></div>
+       <div class="restore-item"><span class="mark">✓</span><span>一次换课整体取消，两节同时恢复</span></div>`
+    : cancelTarget.type === '代课'
+      ? `<div class="restore-item"><span class="mark">✓</span><span>10/28(三) 第5节 恢复由 李诚 任教</span></div>`
+      : `<div class="restore-item"><span class="mark">✓</span><span>体育·孙倩 恢复至 10/29(四) 第6节，11/3(二) 第6节恢复为空课位</span></div>`;
+  const hasDep = cancelTarget.id === 3;
+  $('cx-dep').classList.toggle('hidden', !hasDep);
+  $('cx-dep-btn').classList.toggle('hidden', !hasDep);
+  if (hasDep) $('cx-dep').innerHTML = '<b>存在依赖此结果的后续调整：</b>初二(3)班 换课 · 11/3(二) 第6节 ↔ 11/5(四) 第2节。建议先取消后续调整，再取消本条。';
+  openDlg('dlg-cancel');
+}
+
+function confirmCancel() {
+  if (cancelTarget) { cancelTarget.status = 'cancel'; renderRecords(); }
+  closeDlg('dlg-cancel');
+  toast('调整已取消，课表已恢复并重新校验');
+}
+
+/* ───────────────────────── 页签 / 视图 / 菜单 ───────────────────────── */
+function switchTab(t) {
+  tab = t;
+  const sch = t === 'schedule';
+  $('toolbar-schedule').classList.toggle('hidden', !sch || view !== 'class');
+  $('toolbar-records').classList.toggle('hidden', sch);
+  $('records-wrap').classList.toggle('hidden', sch);
+  $('tab-schedule').classList.toggle('active', sch);
+  $('tab-records').classList.toggle('active', !sch);
+  if (sch) closePanel();
+}
+function switchView(v, btn) {
+  view = v;
+  [...$('view-seg').children].forEach(b => b.classList.toggle('active', b === btn));
+  closePanel();
+  renderGrid();
+  if (v === 'teacher') {
+    $('toolbar-schedule').querySelector('.week-nav').insertAdjacentHTML('afterbegin', '');
+    toast('教师视图 · 李诚（数学）');
+  }
+}
+function toggleMenu(e) {
+  e.stopPropagation();
+  $('export-menu').classList.toggle('hidden');
+}
+function exportAs(name) {
+  $('export-menu').classList.add('hidden');
+  toast(`已导出「${name}」Excel（按当前有效调整生成）`);
+}
+document.addEventListener('click', () => $('export-menu').classList.add('hidden'));
+
+function openDlg(id) { $(id).classList.add('open'); }
+function closeDlg(id) { $(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open')); if (panel) closePanel(); } });
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* 星期选择器（日期范围示意） */
+(function initWeekdays() {
+  const names = ['一', '二', '三', '四', '五', '六', '日'];
+  const wrap = $('wd-picker');
+  names.forEach((n, i) => {
+    const b = el('button', i === 2 ? 'on' : '', n);
+    b.onclick = () => b.classList.toggle('on');
+    wrap.appendChild(b);
+  });
+})();
+
+/* 初始化 */
+renderGrid();
+renderRecords();
+</script>
+</body>
+</html>

@@ -639,6 +639,21 @@ class ScheduleReconciliationBaselines extends Table {
   Set<Column<Object>> get primaryKey => {termId};
 }
 
+/// 临时调代课记录；常规课表始终保留在 ScheduleItems 中。
+class TemporaryCourseAdjustments extends Table {
+  TextColumn get id => text()();
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get kind => text()();
+  TextColumn get changesJson => text()();
+  TextColumn get reason => text().withDefault(const Constant(''))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get cancelledAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     AcademicTerms,
@@ -674,6 +689,7 @@ class ScheduleReconciliationBaselines extends Table {
     SchedulePreferences,
     ScheduleRunReports,
     ScheduleReconciliationBaselines,
+    TemporaryCourseAdjustments,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -682,7 +698,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -784,6 +800,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 15) {
         await migrator.createTable(scheduleReconciliationBaselines);
+      }
+      if (from < 17) {
+        await migrator.createTable(temporaryCourseAdjustments);
       }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),

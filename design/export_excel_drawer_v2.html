@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>导出全部 Excel · Drawer 温暖版</title>
+<style>
+  :root {
+    /* 契约 v2：温暖极简（Notion 质感） */
+    --brand: #0052D9;
+    --brand-hover: #266FE8;
+    --brand-light: #EEF3FE;
+    --success: #2BA471;
+    --text-1: #211F1C;           /* 暖近黑 */
+    --text-2: #57534E;
+    --text-3: #9C968C;           /* 暖灰辅助 */
+    --canvas: #F7F5F2;           /* 暖纸感画布 */
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F5;     /* 暖浅底 / hover */
+    --border: #E3DED6;           /* 暖描边 */
+    --border-light: #EFECE6;
+    --mask: rgba(38, 33, 26, .38);
+    --r-drawer: 14px;
+    --r-card: 10px;
+    --r-ctl: 8px;
+    --font: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    --c-chinese: #EAF2FF;
+    --c-math: #E6F6EC;
+    --c-eng: #FFF4E4;
+    --c-pe: #F4EEFF;
+    --c-sci: #FFEFEF;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:var(--font); font-size:14px; color:var(--text-1); background:var(--canvas); overflow:hidden; }
+
+  /* ===== 背景应用示意 ===== */
+  .app { display:flex; height:100vh; filter:saturate(.92); }
+  .side { width:190px; background:#FCFBF9; border-right:1px solid var(--border-light); padding:16px 12px; }
+  .side .brand { display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:18px; }
+  .side .brand i { width:30px; height:30px; border-radius:9px; background:var(--brand); display:block; }
+  .side .grp { font-size:12px; color:var(--text-3); margin:14px 8px 6px; }
+  .side .it { font-size:13px; color:var(--text-2); padding:7px 8px; border-radius:8px; }
+  .side .it.on { background:var(--brand-light); color:var(--brand); font-weight:500; }
+  .mainbg { flex:1; padding:20px; }
+  .mainbg .tabs { display:flex; gap:20px; font-size:14px; color:var(--text-2); border-bottom:1px solid var(--border-light); padding-bottom:10px; }
+  .mainbg .tabs b { color:var(--brand); border-bottom:2px solid var(--brand); padding-bottom:10px; margin-bottom:-11px; font-weight:500; }
+
+  /* ===== 遮罩 + Drawer ===== */
+  .mask { position:fixed; inset:0; background:var(--mask); display:flex; justify-content:flex-end; }
+  .drawer {
+    width:460px; height:100%; background:var(--surface);
+    box-shadow:-12px 0 32px -8px rgba(38,33,26,.18);
+    display:flex; flex-direction:column;
+    animation: slideIn .22s ease-out;
+  }
+  @keyframes slideIn { from { transform:translateX(48px); opacity:.5; } to { transform:none; opacity:1; } }
+
+  /* 头部：暖色带 + 大标题 */
+  .dr-head { padding:24px 24px 18px; background:linear-gradient(180deg, #FBF9F6 0%, #FFFFFF 100%); border-bottom:1px solid var(--border-light); display:flex; gap:14px; align-items:flex-start; }
+  .dr-head .ic {
+    width:44px; height:44px; border-radius:12px; flex-shrink:0;
+    background:linear-gradient(135deg, #EAF2FF 0%, #DCE9FE 100%); color:var(--brand);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .dr-head .tt { flex:1; }
+  .dr-head h1 { font-size:18px; font-weight:600; line-height:26px; letter-spacing:.2px; }
+  .dr-head .sub { font-size:13px; color:var(--text-3); margin-top:3px; line-height:20px; }
+  .dr-close { width:34px; height:34px; border:none; background:transparent; border-radius:9px; color:var(--text-3); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .dr-close:hover { background:var(--surface-warm); color:var(--text-1); }
+
+  /* 内容滚动区 */
+  .dr-body { flex:1; overflow-y:auto; padding:22px 24px; }
+  .dr-body::-webkit-scrollbar { width:8px; }
+  .dr-body::-webkit-scrollbar-thumb { background:#DDD8D0; border-radius:4px; }
+  .dr-body::-webkit-scrollbar-track { background:transparent; }
+
+  /* 分组：松弛节奏，无编号徽标 */
+  .sec { margin-bottom:30px; }
+  .sec:last-child { margin-bottom:8px; }
+  .sec-title { font-size:15px; font-weight:600; display:flex; align-items:baseline; gap:8px; margin-bottom:2px; }
+  .sec-title .en { font-size:11px; color:var(--text-3); font-weight:400; letter-spacing:.4px; }
+  .sec-desc { font-size:12.5px; color:var(--text-3); margin-bottom:12px; line-height:19px; }
+
+  /* 导出内容：温暖可多选卡 */
+  .scope { display:flex; gap:10px; }
+  .schip {
+    flex:1; border:1px solid var(--border-light); border-radius:var(--r-card);
+    padding:12px 8px 10px; cursor:pointer; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    font-size:13px; color:var(--text-2); background:var(--surface);
+    transition:all .15s;
+  }
+  .schip svg { color:var(--text-3); }
+  .schip .cnt { font-size:11px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .schip:hover { border-color:var(--border); box-shadow:0 2px 8px rgba(38,33,26,.06); transform:translateY(-1px); }
+  .schip.on { border-color:var(--brand); background:var(--brand-light); color:var(--brand); box-shadow:0 2px 8px rgba(0,82,217,.08); }
+  .schip.on svg { color:var(--brand); }
+  .schip.on .cnt { color:var(--brand); }
+
+  /* 选项行：松弛、暖 hover */
+  .opt { display:flex; gap:12px; padding:10px 12px; margin:0 -12px; border-radius:var(--r-ctl); cursor:pointer; transition:background .15s; }
+  .opt:hover { background:var(--surface-warm); }
+  .opt input { display:none; }
+  .opt .ctl { flex-shrink:0; margin-top:3px; }
+  .radio-ring { width:16px; height:16px; border-radius:50%; border:1.5px solid #CFC9BF; background:#fff; display:block; transition:border-color .15s; }
+  .opt:hover .radio-ring { border-color:var(--brand); }
+  .opt input:checked + .radio-ring { border-color:var(--brand); border-width:5px; }
+  .check-box { width:16px; height:16px; border-radius:4px; border:1.5px solid #CFC9BF; background:#fff; display:block; position:relative; transition:all .15s; }
+  .opt:hover .check-box { border-color:var(--brand); }
+  .opt input:checked + .check-box { background:var(--brand); border-color:var(--brand); }
+  .opt input:checked + .check-box::after {
+    content:""; position:absolute; left:4.5px; top:1.5px; width:4px; height:8px;
+    border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg);
+  }
+  .opt .txt .l1 { font-size:14px; line-height:22px; }
+  .opt input:checked ~ .txt .l1 { font-weight:500; }
+  .opt .txt .l2 { font-size:12.5px; line-height:19px; color:var(--text-3); margin-top:2px; }
+  .opt .rec { font-size:11px; color:var(--brand); background:var(--brand-light); border-radius:999px; padding:1px 8px; margin-left:6px; font-weight:400; vertical-align:1.5px; }
+  .opt .tag-sub { font-size:11px; color:var(--text-3); border:1px solid var(--border-light); border-radius:999px; padding:1px 7px; margin-left:6px; vertical-align:1.5px; }
+  .soft-divider { height:1px; background:var(--border-light); margin:24px 0; }
+
+  /* 样式预览：暖纸感小样 */
+  .preview-card { border:1px solid var(--border-light); border-radius:var(--r-card); overflow:hidden; margin-bottom:6px; box-shadow:0 1px 4px rgba(38,33,26,.04); }
+  .pv-head { background:var(--surface-warm); padding:8px 12px; font-size:12px; color:var(--text-3); display:flex; justify-content:space-between; align-items:center; }
+  .pv-head b { color:var(--text-1); font-weight:600; }
+  table.pv { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .pv th { font-size:11px; color:var(--text-3); font-weight:400; background:var(--surface-warm); height:24px; border:1px solid var(--border-light); }
+  .pv td { height:32px; border:1px solid var(--border-light); font-size:11.5px; text-align:center; color:var(--text-1); }
+  .pv td .t2 { display:block; font-size:10px; color:var(--text-3); margin-top:1px; }
+  .pv .c1 { background:var(--c-chinese); } .pv .c2 { background:var(--c-math); } .pv .c3 { background:var(--c-eng); }
+  .pv .c4 { background:var(--c-pe); } .pv .c5 { background:var(--c-sci); }
+
+  /* 底部 */
+  .dr-foot { padding:14px 24px; border-top:1px solid var(--border-light); background:#FCFBF9; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+  .dr-foot .hint { font-size:12px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .dr-foot .acts { display:flex; gap:10px; }
+  .btn { height:34px; padding:0 18px; border-radius:var(--r-ctl); font-size:14px; font-family:var(--font); cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:all .15s; }
+  .btn-sec { background:#fff; border:1px solid var(--border); color:var(--text-1); }
+  .btn-sec:hover { border-color:#C9C2B6; background:var(--surface-warm); }
+  .btn-pri { background:var(--brand); border:1px solid var(--brand); color:#fff; font-weight:500; border-radius:9px; }
+  .btn-pri:hover { background:var(--brand-hover); }
+</style>
+</head>
+<body>
+
+<!-- 背景示意 -->
+<div class="app" aria-hidden="true">
+  <div class="side">
+    <div class="brand"><i></i>课集</div>
+    <div class="grp">排课准备</div>
+    <div class="it">工作台</div><div class="it">学期与日历</div><div class="it">班级与学段</div><div class="it">作息设置</div>
+    <div class="grp">排课与课表</div>
+    <div class="it">科目节数</div><div class="it">教师任课</div><div class="it on">排课与课表</div><div class="it">课表编辑</div>
+    <div class="grp">更多</div>
+    <div class="it">公共场室</div>
+  </div>
+  <div class="mainbg">
+    <div class="tabs"><b>班级课程表</b><span>教师课程表</span><span>总课程表</span><span>场室课程表</span></div>
+  </div>
+</div>
+
+<!-- 遮罩 + Drawer -->
+<div class="mask">
+  <div class="drawer" role="dialog" aria-modal="true" aria-label="导出全部 Excel">
+
+    <!-- 头部 -->
+    <div class="dr-head">
+      <span class="ic">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5h-6A1.5 1.5 0 0 0 4 4v12a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 16 16V7l-4.5-4.5z"/><path d="M11.5 2.5V7H16"/><path d="M7 11.5l2 2 4-4.5"/></svg>
+      </span>
+      <div class="tt">
+        <h1>导出全部 Excel</h1>
+        <div class="sub">选好要导出的课表和样式，确认后打包为一个 ZIP 文件</div>
+      </div>
+      <button class="dr-close" aria-label="关闭">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+      </button>
+    </div>
+
+    <!-- 内容 -->
+    <div class="dr-body">
+
+      <!-- 导出内容 -->
+      <section class="sec">
+        <div class="sec-title">导出内容 <span class="en">SCOPE</span></div>
+        <div class="sec-desc">点击卡片选择要导出的课表，可多选。</div>
+        <div class="scope">
+          <span class="schip on">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6 6.5V13"/></svg>
+            班级课程表 <span class="cnt">12 张</span>
+          </span>
+          <span class="schip on">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5.2" r="2.6"/><path d="M3.2 13.5c.7-2.7 2.5-4 4.8-4s4.1 1.3 4.8 4"/></svg>
+            教师课程表 <span class="cnt">10 张</span>
+          </span>
+          <span class="schip on">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12.5L8 3l5.5 9.5z"/><path d="M2.5 12.5h11"/></svg>
+            学段总课表 <span class="cnt">2 张</span>
+          </span>
+        </div>
+      </section>
+
+      <!-- 课表结构 -->
+      <section class="sec">
+        <div class="sec-title">课表结构 <span class="en">STRUCTURE</span></div>
+        <label class="opt">
+          <input type="radio" name="tmode" checked><span class="ctl radio-ring"></span>
+          <span class="txt">
+            <span class="l1">统一时间轴<span class="rec">推荐</span></span>
+            <span class="l2">起止时间相同的课节合并为一行，跨学段任课的教师一张表通览。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="tmode"><span class="ctl radio-ring"></span>
+          <span class="txt">
+            <span class="l1">按学段分别展示</span>
+            <span class="l2">保留各学段原有的作息行，一个学段一张课表。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">跨学段课程标注学段</span>
+            <span class="l2">课表格子内追加学段和班级名，便于区分任教学段。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">学段总课表按学段汇总整周</span>
+            <span class="l2">勾选后每个学段一张总课表；不勾选则按周次分别生成。</span>
+          </span>
+        </label>
+      </section>
+
+      <div class="soft-divider"></div>
+
+      <!-- Excel 样式 -->
+      <section class="sec">
+        <div class="sec-title">Excel 样式 <span class="en">STYLE</span></div>
+        <div class="sec-desc">预览会随下面的选择实时更新，导出的每张表都应用同样式。</div>
+
+        <div class="preview-card">
+          <div class="pv-head"><b>样式预览 · 一年级 1 班</b><span>实时更新</span></div>
+          <table class="pv">
+            <tr><th style="width:56px;">节次</th><th>周一</th><th>周二</th><th>周三</th></tr>
+            <tr><th>第 1 节<br>08:00</th><td class="c1">语文<span class="t2">语文教师 1</span></td><td class="c2">数学<span class="t2">数学教师 4</span></td><td class="c3">英语<span class="t2">英语教师 11</span></td></tr>
+            <tr><th>第 2 节<br>08:50</th><td class="c1">语文<span class="t2">语文教师 1</span></td><td class="c4">体育<span class="t2">体育教师 8</span></td><td class="c3">英语<span class="t2">英语教师 11</span></td></tr>
+            <tr><th>第 3 节<br>10:00</th><td class="c2">数学<span class="t2">数学教师 4</span></td><td class="c5">科学<span class="t2">科学教师 7</span></td><td class="c1">语文<span class="t2">语文教师 1</span></td></tr>
+          </table>
+        </div>
+
+        <label class="opt">
+          <input type="radio" name="color" checked><span class="ctl radio-ring"></span>
+          <span class="txt">
+            <span class="l1">按科目着色<span class="rec">推荐</span></span>
+            <span class="l2">每个科目固定一种浅色底，黑白打印仍可辨识。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="color"><span class="ctl radio-ring"></span>
+          <span class="txt">
+            <span class="l1">中性灰</span>
+            <span class="l2">表头浅灰、正文无填充，最省墨、最正式。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="color"><span class="ctl radio-ring"></span>
+          <span class="txt">
+            <span class="l1">无填充</span>
+            <span class="l2">仅网格线与文字，便于二次编辑和套用自有模板。</span>
+          </span>
+        </label>
+
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">显示教师<span class="tag-sub">用简称</span></span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox"><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">显示场室</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="dw" checked><span class="ctl radio-ring"></span>
+          <span class="txt">
+            <span class="l1">单双周合并标注<span class="rec">推荐</span></span>
+            <span class="l2">同格显示为「数学（单）/ 英语（双）」。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="dw"><span class="ctl radio-ring"></span>
+          <span class="txt">
+            <span class="l1">单双周分列显示</span>
+            <span class="l2">单周、双周各生成一套工作表。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">连堂课合并单元格</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">显示节次时间</span>
+            <span class="l2">节次列追加起止时间，如「第 1 节 08:00」。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">表头含学校与学年学期</span>
+            <span class="l2">每张表首行为标题：未名学校 · 2027 学年 第一学期。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">冻结首行首列</span>
+            <span class="l2">在 Excel 中滚动时表头与节次列保持可见。</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" checked><span class="ctl check-box"></span>
+          <span class="txt">
+            <span class="l1">按 A4 横向适配一页宽</span>
+            <span class="l2">预设打印方向与缩放，直接打印不跑版。</span>
+          </span>
+        </label>
+      </section>
+    </div>
+
+    <!-- 底部 -->
+    <div class="dr-foot">
+      <span class="hint">共 24 张工作表 · 2027 学年 第一学期</span>
+      <div class="acts">
+        <button class="btn btn-sec">取消</button>
+        <button class="btn btn-pri">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v7M4 6.5L7 9.5l3-3M2.5 11.5h9"/></svg>
+          确认导出
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

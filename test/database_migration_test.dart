@@ -3,6 +3,38 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('v16 升级创建临时调整表并保留原课表', () async {
+    final database = AppDatabase(
+      NativeDatabase.memory(
+        setup: (connection) {
+          connection.execute(
+            'CREATE TABLE academic_terms (id TEXT NOT NULL PRIMARY KEY)',
+          );
+          connection.execute(
+            'CREATE TABLE schedule_items (id TEXT NOT NULL PRIMARY KEY, subject_id TEXT NOT NULL)',
+          );
+          connection.execute("INSERT INTO academic_terms (id) VALUES ('term')");
+          connection.execute(
+            "INSERT INTO schedule_items (id, subject_id) VALUES ('lesson', 'math')",
+          );
+          connection.execute('PRAGMA user_version = 16');
+        },
+      ),
+    );
+    addTearDown(database.close);
+    final existing = await database
+        .customSelect(
+          "SELECT subject_id FROM schedule_items WHERE id = 'lesson'",
+        )
+        .getSingle();
+    expect(existing.read<String>('subject_id'), 'math');
+    final tables = await database
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'temporary_course_adjustments'",
+        )
+        .get();
+    expect(tables, hasLength(1));
+  });
   test('v15 公共时段升级保留数据并添加排序', () async {
     final database = AppDatabase(
       NativeDatabase.memory(

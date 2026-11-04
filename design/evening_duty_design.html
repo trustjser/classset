@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>晚自习带班 · 交互设计稿</title>
+<style>
+  :root {
+    --brand: #0052D9;
+    --brand-hover: #266FE8;
+    --brand-light: #EEF3FE;
+    --brand-border: #C4D5F7;
+    --success: #2BA471;
+    --success-light: #E6F6EC;
+    --warn: #E37318;
+    --warn-light: #FFF1E6;
+    --warn-border: #F0C9A0;
+    --danger: #D54941;
+    --danger-light: #FDECEE;
+    --text-1: #211F1C;
+    --text-2: #57534E;
+    --text-3: #9C968C;
+    --canvas: #F7F5F2;
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F5;
+    --border: #E3DED6;
+    --border-light: #EFECE6;
+    --mask: rgba(38,33,26,.38);
+    --r-card: 10px;
+    --r-ctl: 8px;
+    --font: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:var(--font); font-size:14px; color:var(--text-1); background:var(--canvas); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+  /* ===== 屏幕切换器 ===== */
+  .switcher { display:flex; align-items:center; gap:6px; padding:10px 20px; background:#211F1C; flex-shrink:0; }
+  .switcher .cap { font-size:12px; color:#9C968C; margin-right:8px; }
+  .swbtn { height:30px; padding:0 14px; border:none; border-radius:15px; background:rgba(255,255,255,.08); color:#CFC9BF; font-size:12.5px; font-family:var(--font); cursor:pointer; }
+  .swbtn:hover { background:rgba(255,255,255,.16); color:#fff; }
+  .swbtn.on { background:var(--brand); color:#fff; font-weight:500; }
+  .switcher .note { margin-left:auto; font-size:12px; color:#9C968C; }
+
+  .stage { flex:1; min-height:0; display:flex; }
+  .screen { display:none; flex:1; min-height:0; flex-direction:column; }
+  .screen.on { display:flex; }
+
+  /* ===== 页面骨架 ===== */
+  .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border-light); display:flex; align-items:center; padding:0 20px; gap:12px; flex-shrink:0; }
+  .topbar .back { width:32px; height:32px; border:none; background:transparent; border-radius:8px; color:var(--text-2); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .topbar .back:hover { background:var(--surface-warm); }
+  .topbar h1 { font-size:16px; font-weight:600; flex:1; text-align:center; }
+  .topbar .actions { display:flex; gap:8px; min-width:200px; justify-content:flex-end; }
+
+  .btn { height:32px; padding:0 14px; border-radius:8px; font-size:13.5px; font-family:var(--font); cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all .15s; }
+  .btn-sec { background:#fff; border:1px solid var(--border); color:var(--text-1); }
+  .btn-sec:hover { border-color:#C9C2B6; background:var(--surface-warm); }
+  .btn-pri { background:var(--brand); border:1px solid var(--brand); color:#fff; font-weight:500; }
+  .btn-pri:hover { background:var(--brand-hover); }
+  .btn-text { border:none; background:transparent; color:var(--brand); padding:0 8px; }
+  .btn-text:hover { color:var(--brand-hover); }
+
+  .body { flex:1; min-height:0; overflow:auto; padding:20px; }
+  .body::-webkit-scrollbar { width:8px; }
+  .body::-webkit-scrollbar-thumb { background:#DDD8D0; border-radius:4px; }
+
+  .card { background:var(--surface); border:1px solid var(--border-light); border-radius:var(--r-card); }
+  .card-h { padding:14px 18px 0; display:flex; align-items:center; gap:8px; }
+  .card-h h3 { font-size:15px; font-weight:600; }
+  .card-h .aux { font-size:12px; color:var(--text-3); }
+  .card-h .sp { flex:1; }
+  .card-b { padding:12px 18px 16px; }
+
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip {
+    height:30px; padding:0 12px; border-radius:15px; border:1px solid var(--border-light);
+    background:var(--surface-warm); color:var(--text-2); font-size:13px; font-family:var(--font);
+    cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all .15s;
+  }
+  .chip:hover { border-color:var(--border); }
+  .chip.on { background:var(--brand-light); border-color:var(--brand-border); color:var(--brand); font-weight:500; }
+  .chip.static { cursor:default; }
+  .chip .x { font-size:11px; opacity:.6; }
+  .chip.time { background:var(--surface-warm); }
+
+  .hintline { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-3); margin-top:10px; }
+  .hintline svg { flex-shrink:0; }
+  .hintline.err { color:var(--danger); }
+
+  .tag { font-size:11.5px; border-radius:4px; padding:1px 7px; line-height:19px; white-space:nowrap; }
+  .tag-blue { background:var(--brand-light); color:var(--brand); }
+  .tag-green { background:var(--success-light); color:var(--success); }
+  .tag-warn { background:var(--warn-light); color:var(--warn); }
+  .tag-red { background:var(--danger-light); color:var(--danger); }
+  .tag-gray { background:var(--surface-warm); color:var(--text-3); border:1px solid var(--border-light); }
+
+  /* ===== 屏1 岗位配置 ===== */
+  .post { display:flex; gap:14px; padding:14px 0; border-bottom:1px solid var(--border-light); align-items:flex-start; }
+  .post:last-child { border-bottom:none; }
+  .post .no { width:40px; height:40px; border-radius:10px; background:var(--brand-light); color:var(--brand); font-weight:600; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .post .info { flex:1; min-width:0; }
+  .post .row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  .post .row .lbl { font-size:12.5px; color:var(--text-3); width:56px; flex-shrink:0; }
+  .post .ops { display:flex; gap:4px; flex-shrink:0; }
+
+  /* ===== 屏2 排班草案 ===== */
+  .loadbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .loaditem { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-2); background:var(--surface-warm); border:1px solid var(--border-light); border-radius:8px; padding:5px 10px; }
+  .loaditem .bar { width:60px; height:6px; border-radius:3px; background:var(--border-light); overflow:hidden; }
+  .loaditem .bar i { display:block; height:100%; background:var(--brand); border-radius:3px; }
+  .loaditem .n { font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-1); }
+
+  table.grid { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; }
+  .grid th { background:var(--surface-warm); color:var(--text-3); font-size:12px; font-weight:400; height:38px; border:1px solid var(--border-light); border-right:none; border-bottom:none; }
+  .grid th:last-child { border-right:1px solid var(--border-light); }
+  .grid td.rowhead { background:var(--surface-warm); font-size:13px; color:var(--text-2); text-align:left; padding:0 12px; border:1px solid var(--border-light); border-right:none; width:180px; }
+  .grid td.rowhead .sub { display:block; font-size:11px; color:var(--text-3); }
+  .grid td.cell { height:52px; border:1px solid var(--border-light); border-right:none; border-bottom:none; background:#fff; cursor:pointer; position:relative; text-align:center; vertical-align:middle; font-size:13px; transition:background .15s; }
+  .grid tr:last-child td.cell { border-bottom:1px solid var(--border-light); }
+  .grid td.cell:last-child { border-right:1px solid var(--border-light); }
+  .grid td.cell:hover { background:var(--brand-light); }
+  .grid td.cell.ok .who { color:var(--text-1); font-weight:500; }
+  .grid td.cell.ok .cls { display:block; font-size:10.5px; color:var(--text-3); margin-top:2px; }
+  .grid td.cell.todo { background:var(--danger-light); color:var(--danger); box-shadow:inset 0 0 0 1px #F0B6B2; }
+  .grid td.cell.todo .why { display:block; font-size:10.5px; margin-top:2px; opacity:.8; }
+  .grid td.cell.merged { background:var(--surface-warm); color:var(--text-3); font-size:11.5px; }
+
+  /* ===== 屏3 周表 ===== */
+  .weeknav { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .weeknav .wk { font-size:15px; font-weight:600; }
+  .weeknav .range { font-size:12.5px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .weeknav .sp { flex:1; }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--text-3); align-items:center; }
+  .legend .sw { width:12px; height:12px; border-radius:3px; display:inline-block; vertical-align:-1px; margin-right:4px; }
+  table.duty { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; }
+  .duty th { background:var(--surface-warm); color:var(--text-2); font-size:13px; font-weight:500; height:42px; border:1px solid var(--border-light); border-right:none; border-bottom:none; }
+  .duty th:last-child { border-right:1px solid var(--border-light); }
+  .duty th .d { display:block; font-size:11px; color:var(--text-3); font-weight:400; }
+  .duty th.weekend { background:#FBF6EC; color:var(--warn); }
+  .duty td.rowhead { background:var(--surface-warm); font-size:13px; color:var(--text-2); text-align:center; border:1px solid var(--border-light); border-right:none; width:110px; padding:4px; }
+  .duty td.rowhead .t { display:block; font-size:10.5px; color:var(--text-3); }
+  .duty td.cell { height:76px; border:1px solid var(--border-light); border-right:none; border-bottom:none; background:#fff; cursor:pointer; position:relative; vertical-align:top; padding:8px 10px; transition:background .15s; }
+  .duty tr:last-child td.cell { border-bottom:1px solid var(--border-light); }
+  .duty td.cell:last-child { border-right:1px solid var(--border-light); }
+  .duty td.cell:hover { background:var(--brand-light); }
+  .duty td.cell .who { font-size:13px; font-weight:500; display:flex; align-items:center; gap:6px; }
+  .duty td.cell .cls { font-size:11px; color:var(--text-3); margin-top:3px; }
+  .duty td.cell .rep { margin-top:5px; display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--warn); background:var(--warn-light); border:1px solid var(--warn-border); border-radius:4px; padding:1px 6px; }
+  .duty td.cell.empty { background:var(--surface-warm); color:var(--text-3); text-align:center; vertical-align:middle; font-size:12px; }
+  .duty tr.mergerow td { border-top:none; }
+
+  /* ===== 屏4 弹窗 ===== */
+  .dialogwrap { position:fixed; inset:0; background:var(--mask); display:flex; align-items:center; justify-content:center; z-index:10; }
+  .dialog { width:520px; background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 12px 32px -8px rgba(38,33,26,.24); overflow:hidden; display:flex; flex-direction:column; max-height:calc(100vh - 80px); }
+  .dlg-h { padding:20px 22px 0; display:flex; gap:12px; align-items:flex-start; }
+  .dlg-h .ic { width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#FFF1E6,#FFE3C8); color:var(--warn); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .dlg-h .tt { flex:1; }
+  .dlg-h h2 { font-size:17px; font-weight:600; line-height:24px; }
+  .dlg-h .sub { font-size:12.5px; color:var(--text-3); margin-top:2px; }
+  .dlg-body { padding:16px 22px; overflow-y:auto; }
+  .frow { margin-bottom:14px; }
+  .frow .flbl { font-size:12.5px; color:var(--text-2); margin-bottom:6px; display:block; }
+  .fbox { border:1px solid var(--border-light); border-radius:8px; padding:10px 12px; font-size:13.5px; background:var(--surface-warm); display:flex; align-items:center; gap:8px; }
+  .fbox b { font-weight:600; }
+  .cand { display:flex; flex-wrap:wrap; gap:8px; }
+  .cand .cc { height:32px; padding:0 12px; border-radius:16px; border:1px solid var(--border-light); background:#fff; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all .15s; }
+  .cand .cc:hover { border-color:var(--brand); color:var(--brand); }
+  .cand .cc.on { background:var(--brand-light); border-color:var(--brand-border); color:var(--brand); font-weight:500; }
+  .cand .cc.dis { background:var(--surface-warm); color:var(--text-3); border-color:var(--border-light); cursor:not-allowed; text-decoration:line-through; }
+  .cand .cc.dis .r { font-size:11px; color:var(--danger); text-decoration:none; }
+  .dlg-f { padding:12px 22px; border-top:1px solid var(--border-light); background:#FCFBF9; display:flex; align-items:center; justify-content:space-between; }
+  .dlg-f .note { font-size:12px; color:var(--text-3); }
+  .dlg-f .acts { display:flex; gap:8px; }
+
+  .reclist { margin-top:6px; }
+  .reclist .rrow { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border-light); font-size:13px; color:var(--text-2); }
+  .reclist .rrow:last-child { border-bottom:none; }
+  .reclist .rrow .d { font-variant-numeric:tabular-nums; color:var(--text-1); width:88px; }
+  .reclist .rrow .ops { margin-left:auto; display:flex; gap:6px; align-items:center; }
+
+  /* ===== 屏5 变更确认 ===== */
+  .diffcols { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .diffcard { overflow:hidden; }
+  .diffcard .dh { padding:10px 14px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border-light); }
+  table.dt { width:100%; border-collapse:collapse; table-layout:fixed; font-size:12.5px; }
+  .dt th { background:var(--surface-warm); color:var(--text-3); font-weight:400; height:32px; border-bottom:1px solid var(--border-light); text-align:left; padding:0 12px; }
+  .dt td { padding:8px 12px; border-bottom:1px solid var(--border-light); color:var(--text-2); }
+  .dt tr.add { background:var(--success-light); }
+  .dt tr.del { background:var(--danger-light); }
+  .dt tr.mod { background:var(--warn-light); }
+  .dt td b { color:var(--text-1); }
+  .pausednote { display:flex; align-items:center; gap:8px; margin-top:16px; padding:10px 14px; border-radius:8px; background:var(--warn-light); border:1px solid var(--warn-border); font-size:12.5px; color:var(--warn); }
+</style>
+</head>
+<body>
+
+<!-- 屏幕切换器 -->
+<div class="switcher">
+  <span class="cap">设计稿导航</span>
+  <button class="swbtn on" onclick="go(0)">1 · 岗位配置</button>
+  <button class="swbtn" onclick="go(1)">2 · 自动排班草案</button>
+  <button class="swbtn" onclick="go(2)">3 · 带班周表</button>
+  <button class="swbtn" onclick="go(3)">4 · 临时替班</button>
+  <button class="swbtn" onclick="go(4)">5 · 配置变更确认</button>
+  <span class="note">点击切换屏幕 · 单元格可 hover</span>
+</div>
+
+<div class="stage">
+
+<!-- ============ 屏 1 · 岗位配置 ============ -->
+<div class="screen on">
+  <div class="topbar">
+    <button class="back"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+    <h1>晚自习带班</h1>
+    <div class="actions">
+      <button class="btn btn-sec">生成排班草案 →</button>
+      <button class="btn btn-pri">保存设置</button>
+    </div>
+  </div>
+  <div class="body">
+    <!-- 范围 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-h"><h3>带班范围</h3><span class="aux">以学期为范围，固定周表在学期内逐周重复</span></div>
+      <div class="card-b">
+        <div class="chips" style="margin-bottom:12px;">
+          <span class="chip static on">2027 学年 · 第一学期</span>
+        </div>
+        <div class="row" style="display:flex; gap:24px; flex-wrap:wrap;">
+          <div>
+            <span class="flbl" style="font-size:12.5px;color:var(--text-3);display:block;margin-bottom:6px;">参与节次（来自作息设置）</span>
+            <div class="chips">
+              <span class="chip on">晚自习一 · 18:30–19:10</span>
+              <span class="chip on">晚自习二 · 19:20–20:00</span>
+              <span class="chip">晚自习三 · 20:10–20:50</span>
+            </div>
+          </div>
+          <div>
+            <span class="flbl" style="font-size:12.5px;color:var(--text-3);display:block;margin-bottom:6px;">带班星期</span>
+            <div class="chips">
+              <span class="chip on">周一</span><span class="chip on">周二</span><span class="chip on">周三</span>
+              <span class="chip on">周四</span><span class="chip on">周五</span><span class="chip">周六</span><span class="chip">周日</span>
+            </div>
+          </div>
+        </div>
+        <div class="hintline">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="7" cy="7" r="5.2"/><path d="M7 6.4v3M7 4.4v.1"/></svg>
+          周末按上方实际勾选显示；节次与星期来自「作息设置」，如需调整请先修改作息。
+        </div>
+      </div>
+    </div>
+
+    <!-- 参与教师 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-h"><h3>参与教师</h3><span class="aux">已选 8 人 · 系统在这些人中排班并均衡负担</span><span class="sp"></span>
+        <button class="btn btn-sec" style="height:28px;">添加教师</button>
+      </div>
+      <div class="card-b">
+        <div class="chips">
+          <span class="chip on">王敏 <span class="x">×</span></span>
+          <span class="chip on">李建国 <span class="x">×</span></span>
+          <span class="chip on">吴倩 <span class="x">×</span></span>
+          <span class="chip on">郑楠 <span class="x">×</span></span>
+          <span class="chip on">陈静 <span class="x">×</span></span>
+          <span class="chip on">周宇 <span class="x">×</span></span>
+          <span class="chip on">孙丽 <span class="x">×</span></span>
+          <span class="chip on">赵磊 <span class="x">×</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 岗位 -->
+    <div class="card">
+      <div class="card-h"><h3>带班岗位</h3><span class="aux">每个岗位在每个节次安排 1 名教师 · 一个岗位可覆盖多个班级</span><span class="sp"></span>
+        <button class="btn btn-sec" style="height:28px;">+ 添加岗位</button>
+      </div>
+      <div class="card-b">
+        <div class="post">
+          <span class="no">1</span>
+          <div class="info">
+            <div class="row"><span class="lbl">覆盖班级</span>
+              <span class="chip static on">一年级 1 班</span><span class="chip static on">一年级 2 班</span><span class="chip static on">一年级 3 班</span>
+            </div>
+            <div class="row"><span class="lbl">负责节次</span>
+              <span class="chip static time">晚自习一 ~ 晚自习二（连续）</span>
+              <span class="tag tag-blue">连续节次由同一人带班</span>
+            </div>
+          </div>
+          <div class="ops">
+            <button class="btn btn-sec" style="height:28px;">编辑</button>
+            <button class="btn btn-sec" style="height:28px;">删除</button>
+          </div>
+        </div>
+        <div class="post">
+          <span class="no">2</span>
+          <div class="info">
+            <div class="row"><span class="lbl">覆盖班级</span>
+              <span class="chip static on">二年级 1 班</span><span class="chip static on">二年级 2 班</span>
+            </div>
+            <div class="row"><span class="lbl">负责节次</span>
+              <span class="chip static time">晚自习一</span>
+              <span class="chip static time">晚自习二</span>
+              <span class="tag tag-gray">两个节次独立安排</span>
+            </div>
+          </div>
+          <div class="ops">
+            <button class="btn btn-sec" style="height:28px;">编辑</button>
+            <button class="btn btn-sec" style="height:28px;">删除</button>
+          </div>
+        </div>
+        <div class="post">
+          <span class="no">3</span>
+          <div class="info">
+            <div class="row"><span class="lbl">覆盖班级</span>
+              <span class="chip static on">三年级 1 班</span><span class="chip static on">三年级 2 班</span><span class="chip static on">三年级 3 班</span>
+            </div>
+            <div class="row"><span class="lbl">负责节次</span>
+              <span class="chip static time">晚自习一 ~ 晚自习二（连续）</span>
+              <span class="tag tag-blue">连续节次由同一人带班</span>
+            </div>
+          </div>
+          <div class="ops">
+            <button class="btn btn-sec" style="height:28px;">编辑</button>
+            <button class="btn btn-sec" style="height:28px;">删除</button>
+          </div>
+        </div>
+        <div class="hintline err">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="7" cy="7" r="5.2"/><path d="M7 4.5v3.2M7 9.6v.1"/></svg>
+          「二年级 1 班 · 晚自习一」已同时属于岗位 1 与岗位 2，请调整其中一个岗位的班级组。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 屏 2 · 自动排班草案 ============ -->
+<div class="screen">
+  <div class="topbar">
+    <button class="back"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+    <h1>排班草案 · 2027 学年第一学期 第 1 周</h1>
+    <div class="actions">
+      <button class="btn btn-sec">重新生成</button>
+      <button class="btn btn-pri">预览变更并确认</button>
+    </div>
+  </div>
+  <div class="body">
+    <!-- 负载均衡 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-h"><h3>每人每周带班次数</h3><span class="aux">按「岗位节次数」计 · 目标均衡 2–3 次</span></div>
+      <div class="card-b">
+        <div class="loadbar">
+          <span class="loaditem">王敏 <span class="bar"><i style="width:66%"></i></span> <span class="n">2</span></span>
+          <span class="loaditem">李建国 <span class="bar"><i style="width:100%"></i></span> <span class="n">3</span></span>
+          <span class="loaditem">吴倩 <span class="bar"><i style="width:66%"></i></span> <span class="n">2</span></span>
+          <span class="loaditem">郑楠 <span class="bar"><i style="width:100%"></i></span> <span class="n">3</span></span>
+          <span class="loaditem">陈静 <span class="bar"><i style="width:66%"></i></span> <span class="n">2</span></span>
+          <span class="loaditem">周宇 <span class="bar"><i style="width:33%"></i></span> <span class="n">1</span></span>
+          <span class="loaditem">孙丽 <span class="bar"><i style="width:66%"></i></span> <span class="n">2</span></span>
+          <span class="loaditem">赵磊 <span class="bar"><i style="width:33%"></i></span> <span class="n">1</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 草案矩阵 -->
+    <div class="card">
+      <div class="card-h"><h3>草案矩阵</h3>
+        <span class="legend" style="margin-left:8px;">
+          <span><span class="sw" style="background:var(--success-light);border:1px solid var(--success);"></span>已安排</span>
+          <span><span class="sw" style="background:var(--danger-light);border:1px solid #F0B6B2;"></span>待安排</span>
+        </span>
+        <span class="sp"></span>
+        <span class="aux">点击单元格可手动更换教师</span>
+      </div>
+      <div class="card-b">
+        <table class="grid">
+          <tr><th style="width:180px;"></th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th></tr>
+          <tr>
+            <td class="rowhead">岗位 1 · 一年级 1–3 班<span class="sub">晚自习一~二 · 连续</span></td>
+            <td class="cell ok"><span class="who">王敏</span><span class="cls">18:30–20:00</span></td>
+            <td class="cell ok"><span class="who">吴倩</span><span class="cls">18:30–20:00</span></td>
+            <td class="cell ok"><span class="who">郑楠</span><span class="cls">18:30–20:00</span></td>
+            <td class="cell ok"><span class="who">陈静</span><span class="cls">18:30–20:00</span></td>
+            <td class="cell ok"><span class="who">李建国</span><span class="cls">18:30–20:00</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead">岗位 2 · 二年级 1–2 班<span class="sub">晚自习一</span></td>
+            <td class="cell ok"><span class="who">周宇</span></td>
+            <td class="cell todo">待安排<span class="why">与授课冲突</span></td>
+            <td class="cell ok"><span class="who">孙丽</span></td>
+            <td class="cell todo">待安排<span class="why">与已有禁排冲突</span></td>
+            <td class="cell ok"><span class="who">赵磊</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead">岗位 2 · 二年级 1–2 班<span class="sub">晚自习二</span></td>
+            <td class="cell ok"><span class="who">李建国</span></td>
+            <td class="cell ok"><span class="who">王敏</span></td>
+            <td class="cell ok"><span class="who">周宇</span></td>
+            <td class="cell ok"><span class="who">赵磊</span></td>
+            <td class="cell ok"><span class="who">吴倩</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead">岗位 3 · 三年级 1–3 班<span class="sub">晚自习一~二 · 连续</span></td>
+            <td class="cell ok"><span class="who">孙丽</span><span class="cls">18:30–20:00</span></td>
+            <td class="cell ok"><span class="who">李建国</span><span class="cls">18:30–20:00</span></td>
+            <td class="cell todo">待安排<span class="why">参与教师均冲突</span></td>
+            <td class="cell ok"><span class="who">王敏</span><span class="cls">18:30–20:00</span></td>
+            <td class="cell ok"><span class="who">郑楠</span><span class="cls">18:30–20:00</span></td>
+          </tr>
+        </table>
+        <div class="hintline">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="7" cy="7" r="5.2"/><path d="M7 6.4v3M7 4.4v.1"/></svg>
+          已排除与授课、其他带班、教师禁排冲突的候选；3 处待安排需手动指定教师或调整配置后重新生成。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 屏 3 · 带班周表 ============ -->
+<div class="screen">
+  <div class="topbar">
+    <button class="back"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+    <h1>带班周表</h1>
+    <div class="actions">
+      <button class="btn btn-sec">替班记录</button>
+      <button class="btn btn-sec">导出</button>
+      <button class="btn btn-pri">安排替班</button>
+    </div>
+  </div>
+  <div class="body">
+    <div class="weeknav">
+      <button class="btn btn-sec" style="width:32px;padding:0;">‹</button>
+      <span class="wk">第 9 周</span><span class="range">2026.11.02 – 11.08</span>
+      <button class="btn btn-sec" style="width:32px;padding:0;">›</button>
+      <span class="sp"></span>
+      <div class="legend">
+        <span><span class="sw" style="background:#fff;border:1px solid var(--border);"></span>固定带班</span>
+        <span><span class="sw" style="background:var(--warn-light);border:1px solid var(--warn-border);"></span>临时替班</span>
+        <span><span class="sw" style="background:#FBF6EC;border:1px solid var(--border-light);"></span>周末（按配置显示）</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-b">
+        <table class="duty">
+          <tr>
+            <th style="width:110px;">节次 / 班级</th>
+            <th>周一<span class="d">11.02</span></th>
+            <th>周二<span class="d">11.03</span></th>
+            <th>周三<span class="d">11.04</span></th>
+            <th>周四<span class="d">11.05</span></th>
+            <th>周五<span class="d">11.06</span></th>
+            <th class="weekend">周六<span class="d">11.07</span></th>
+          </tr>
+          <tr>
+            <td class="rowhead">晚自习一<span class="t">18:30–19:10</span></td>
+            <td class="cell">
+              <span class="who">王敏</span>
+              <span class="cls">一年级 1–3 班</span>
+            </td>
+            <td class="cell">
+              <span class="who">吴倩</span>
+              <span class="cls">一年级 1–3 班</span>
+            </td>
+            <td class="cell">
+              <span class="who">郑楠</span>
+              <span class="cls">一年级 1–3 班</span>
+            </td>
+            <td class="cell">
+              <span class="who">陈静</span>
+              <span class="cls">一年级 1–3 班</span>
+              <span class="rep">替 · 孙丽（原 陈静）</span>
+            </td>
+            <td class="cell">
+              <span class="who">李建国</span>
+              <span class="cls">一年级 1–3 班</span>
+            </td>
+            <td class="cell empty">未配置周末带班</td>
+          </tr>
+          <tr>
+            <td class="rowhead">晚自习二<span class="t">19:20–20:00</span></td>
+            <td class="cell">
+              <span class="who">王敏</span>
+              <span class="cls">一年级 1–3 班 · 连续</span>
+            </td>
+            <td class="cell">
+              <span class="who">吴倩</span>
+              <span class="cls">一年级 1–3 班 · 连续</span>
+            </td>
+            <td class="cell">
+              <span class="who">郑楠</span>
+              <span class="cls">一年级 1–3 班 · 连续</span>
+            </td>
+            <td class="cell">
+              <span class="who">孙丽</span>
+              <span class="cls">一年级 1–3 班 · 连续</span>
+              <span class="rep">替 · 孙丽（原 陈静）</span>
+            </td>
+            <td class="cell">
+              <span class="who">李建国</span>
+              <span class="cls">一年级 1–3 班 · 连续</span>
+            </td>
+            <td class="cell empty">未配置周末带班</td>
+          </tr>
+          <tr>
+            <td class="rowhead">晚自习一<span class="t">18:30–19:10</span></td>
+            <td class="cell">
+              <span class="who">周宇</span>
+              <span class="cls">二年级 1–2 班</span>
+            </td>
+            <td class="cell">
+              <span class="who">待安排</span>
+              <span class="cls" style="color:var(--danger);">二年级 1–2 班 · 点击处理</span>
+            </td>
+            <td class="cell">
+              <span class="who">孙丽</span>
+              <span class="cls">二年级 1–2 班</span>
+            </td>
+            <td class="cell">
+              <span class="who">待安排</span>
+              <span class="cls" style="color:var(--danger);">二年级 1–2 班 · 点击处理</span>
+            </td>
+            <td class="cell">
+              <span class="who">赵磊</span>
+              <span class="cls">二年级 1–2 班</span>
+            </td>
+            <td class="cell empty">未配置周末带班</td>
+          </tr>
+        </table>
+        <div class="hintline">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="7" cy="7" r="5.2"/><path d="M7 6.4v3M7 4.4v.1"/></svg>
+          连续节次为同一岗位时合并展示（行合并）· 点击任意单元格可安排当日替班或查看详情 · 班级课表与教师课表同步显示带班信息。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 屏 4 · 临时替班 ============ -->
+<div class="screen">
+  <div class="topbar">
+    <button class="back"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+    <h1>带班周表 · 安排替班</h1>
+    <div class="actions"></div>
+  </div>
+  <div class="body" style="position:relative;">
+    <div class="dialogwrap" style="position:absolute; inset:-20px; z-index:2;">
+      <div class="dialog">
+        <div class="dlg-h">
+          <span class="ic">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5L4.5 10 8 14.5M12 5.5l3.5 4.5L12 14.5"/></svg>
+          </span>
+          <div class="tt">
+            <h2>安排替班</h2>
+            <div class="sub">仅影响所选日期，不改变固定周表</div>
+          </div>
+        </div>
+        <div class="dlg-body">
+          <div class="frow">
+            <span class="flbl">日期与节次</span>
+            <div class="fbox">
+              <b>11 月 5 日 周四</b> · 晚自习一 18:30–19:10
+              <span style="margin-left:auto;" class="tag tag-warn">本周共 2 处待处理</span>
+            </div>
+          </div>
+          <div class="frow">
+            <span class="flbl">岗位与覆盖班级</span>
+            <div class="fbox"><b>岗位 1</b> · 一年级 1 班、一年级 2 班、一年级 3 班</div>
+          </div>
+          <div class="frow">
+            <span class="flbl">原带班教师</span>
+            <div class="fbox"><b>陈静</b><span style="margin-left:auto;font-size:12px;color:var(--text-3);">因故无法到岗</span></div>
+          </div>
+          <div class="frow">
+            <span class="flbl">选择替班教师</span>
+            <div class="cand">
+              <span class="cc on">孙丽 <span style="font-size:11px;">本周 2 次</span></span>
+              <span class="cc">周宇 <span style="font-size:11px;">本周 1 次</span></span>
+              <span class="cc">赵磊 <span style="font-size:11px;">本周 1 次</span></span>
+              <span class="cc dis">王敏 <span class="r">晚自习带班冲突</span></span>
+              <span class="cc dis">吴倩 <span class="r">授课冲突</span></span>
+            </div>
+          </div>
+          <div class="frow">
+            <span class="flbl">事由（可选）</span>
+            <div class="fbox" style="background:#fff;">因公外出</div>
+          </div>
+        </div>
+        <div class="dlg-f">
+          <span class="note">替班将写入带班记录，取消后自动恢复原带班教师</span>
+          <div class="acts">
+            <button class="btn btn-sec">取消</button>
+            <button class="btn btn-pri">确认替班</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 替班记录（背景层） -->
+    <div class="card" style="opacity:.35;">
+      <div class="card-h"><h3>替班记录</h3><span class="aux">本学期</span><span class="sp"></span>
+        <div class="chips">
+          <span class="chip on">全部 6</span><span class="chip">生效中 3</span><span class="chip">已取消 3</span>
+        </div>
+        <button class="btn btn-sec" style="height:28px;">导出</button>
+      </div>
+      <div class="card-b reclist">
+        <div class="rrow"><span class="d">11.05 周四</span><span>岗位 1 · 晚自习一</span><span>陈静 → 孙丽</span><span class="tag tag-warn">生效中</span><span class="ops"><span class="tag tag-gray">因公外出</span></span></div>
+        <div class="rrow"><span class="d">11.03 周二</span><span>岗位 2 · 晚自习二</span><span>王敏 → 周宇</span><span class="tag tag-warn">生效中</span><span class="ops"><span class="tag tag-gray">事病假</span></span></div>
+        <div class="rrow"><span class="d">10.29 周四</span><span>岗位 3 · 晚自习一~二</span><span>郑楠 → 赵磊</span><span class="tag tag-gray">已取消</span><span class="ops"><span class="tag tag-gray">本人恢复</span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 屏 5 · 配置变更确认 ============ -->
+<div class="screen">
+  <div class="topbar">
+    <button class="back"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+    <h1>确认配置变更</h1>
+    <div class="actions">
+      <button class="btn btn-sec">返回调整</button>
+      <button class="btn btn-pri">确认变更</button>
+    </div>
+  </div>
+  <div class="body">
+    <div class="diffcols">
+      <div class="card diffcard">
+        <div class="dh"><span class="tag tag-gray">变更前</span>当前生效的固定周表 <span class="tag tag-gray" style="margin-left:auto;">已暂停编辑</span></div>
+        <table class="dt">
+          <tr><th>岗位</th><th>节次</th><th>周一</th><th>周三</th></tr>
+          <tr class="del"><td>岗位 2 · 二年级 1–2 班</td><td>晚自习一</td><td><b>周宇</b></td><td><b>孙丽</b></td></tr>
+          <tr><td>岗位 2 · 二年级 1–2 班</td><td>晚自习二</td><td>李建国</td><td>周宇</td></tr>
+          <tr><td>岗位 3 · 三年级 1–3 班</td><td>晚自习一~二</td><td>孙丽</td><td><b>王敏</b></td></tr>
+        </table>
+      </div>
+      <div class="card diffcard">
+        <div class="dh"><span class="tag tag-blue">变更后</span>确认后写回并从下周一生效</div>
+        <table class="dt">
+          <tr><th>岗位</th><th>节次</th><th>周一</th><th>周三</th></tr>
+          <tr class="add"><td><b>岗位 2 · 二年级 1–2 班</b></td><td>晚自习一</td><td><b>陈静</b>（新增）</td><td>孙丽</td></tr>
+          <tr class="mod"><td>岗位 2 · 二年级 1–2 班</td><td>晚自习二</td><td>李建国</td><td><b>赵磊</b>（调整）</td></tr>
+          <tr><td>岗位 3 · 三年级 1–3 班</td><td>晚自习一~二</td><td>孙丽</td><td>王敏</td></tr>
+          <tr class="del"><td>岗位 1 · 一年级 1–3 班</td><td>晚自习二</td><td><b>王敏</b></td><td>—（移除）</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="pausednote">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4.5 3v8M9.5 3v8"/></svg>
+      变更预览期间旧固定周表保持生效且暂停编辑；确认后新表写回、本周仍按旧表执行，取消则丢弃本次变更。
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+  function go(i) {
+    document.querySelectorAll('.screen').forEach((s, j) => s.classList.toggle('on', j === i));
+    document.querySelectorAll('.swbtn').forEach((b, j) => b.classList.toggle('on', j === i));
+  }
+</script>
+</body>
+</html>
