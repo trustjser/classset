@@ -280,6 +280,13 @@ class ProblemBuilder {
       }
     }
 
+    final teacherNames = {
+      for (final teacher in snapshot.teachers) teacher.id: teacher.name,
+    };
+    final classNames = {for (final c in snapshot.classes) c.id: c.name};
+    final subjectNames = {
+      for (final subject in snapshot.subjects) subject.id: subject.name,
+    };
     final lockedClasses = snapshot.locks
         .where((lock) => lock.scope == ScheduleLockScope.schoolClass)
         .map((lock) => lock.targetId)
@@ -288,21 +295,38 @@ class ProblemBuilder {
         .where((lock) => lock.scope == ScheduleLockScope.teacher)
         .map((lock) => lock.targetId)
         .toSet();
+    final fixedCombinedGroupIds = <String>{};
+    for (final group in snapshot.combinedGroups) {
+      if (lockedTeachers.contains(group.teacherId) ||
+          group.classIds.any(
+            (classId) =>
+                !selected.contains(classId) || lockedClasses.contains(classId),
+          )) {
+        fixedCombinedGroupIds.add(group.id);
+      }
+    }
+    for (final item in allItems) {
+      final groupId = item.combinedGroupId;
+      if (groupId != null &&
+          (!selected.contains(item.classId) ||
+              lockedClasses.contains(item.classId) ||
+              lockedTeachers.contains(item.teacherId))) {
+        fixedCombinedGroupIds.add(groupId);
+      }
+    }
     final fixed = <ScheduleItem>[];
     final movable = <ScheduleItem>[];
     for (final item in allItems) {
       if (!selected.contains(item.classId) ||
           lockedClasses.contains(item.classId) ||
-          lockedTeachers.contains(item.teacherId)) {
+          lockedTeachers.contains(item.teacherId) ||
+          (item.combinedGroupId != null &&
+              fixedCombinedGroupIds.contains(item.combinedGroupId))) {
         fixed.add(item);
       } else {
         movable.add(item.at(null));
       }
     }
-    final teacherNames = {
-      for (final teacher in snapshot.teachers) teacher.id: teacher.name,
-    };
-    final classNames = {for (final c in snapshot.classes) c.id: c.name};
     final reportedMeetingConflicts = <String>{};
     void reportTeacherConflict(ScheduleItem left, ScheduleItem right) {
       final key =
@@ -381,19 +405,27 @@ class ProblemBuilder {
     }
 
     for (final group in snapshot.combinedGroups) {
-      final members = movable.where((item) => item.combinedGroupId == group.id);
+      final members = allItems.where(
+        (item) => item.combinedGroupId == group.id,
+      );
       final groupedByClass = <String, List<ScheduleItem>>{};
       for (final item in members) {
         groupedByClass.putIfAbsent(item.classId, () => []).add(item);
       }
       if (groupedByClass.isEmpty) continue;
+      final groupClassNames = group.classIds
+          .map((classId) => classNames[classId] ?? '未知班级')
+          .join('、');
+      final groupLabel =
+          '$groupClassNames · ${subjectNames[group.subjectId] ?? '未知科目'}'
+          ' · ${teacherNames[group.teacherId] ?? '未知教师'} · ${group.weekMode.label}';
       if (!selected.containsAll(group.classIds)) {
-        issue('combinedScope', '合班组 ${group.id} 跨越已选与未选班级');
+        issue('combinedScope', '合班组（$groupLabel）跨越已选与未选班级');
       }
       final counts = groupedByClass.values.map((rows) => rows.length).toSet();
       if (counts.length != 1 ||
           groupedByClass.length != group.classIds.length) {
-        issue('combined', '合班组 ${group.id} 的各班任课节数不一致');
+        issue('combined', '合班组（$groupLabel）的各班任课节数不一致');
         continue;
       }
       for (final rows in groupedByClass.values) {

@@ -435,6 +435,19 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
             filteredClasses.every((item) => lockedClasses.contains(item.id)),
       _ScheduleView.room => false,
     };
+    final lockTooltip = switch (_view) {
+      _ScheduleView.schoolClass => scopeLocked ? '解除当前班级课表锁定' : '锁定当前班级课表',
+      _ScheduleView.teacher => scopeLocked ? '解除当前教师课表锁定' : '锁定当前教师课表',
+      _ScheduleView.all =>
+        selectedStage == null
+            ? scopeLocked
+                  ? '解除全校班级课表锁定'
+                  : '锁定全校班级课表'
+            : scopeLocked
+            ? '解除当前学段班级课表锁定'
+            : '锁定当前学段班级课表',
+      _ScheduleView.room => '锁定当前场室课表',
+    };
     final selector = switch (_view) {
       _ScheduleView.schoolClass => AppSelectField<String>(
         key: const ValueKey('schedule-class-selector'),
@@ -697,66 +710,74 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 runSpacing: 4,
                 children: [
                   if (_view != _ScheduleView.room)
-                    AppGhostButton.icon(
-                      onPressed: solving || widget.state.pendingBaseline != null
-                          ? null
-                          : () {
-                              if (_view == _ScheduleView.all) {
-                                if (selectedStage == null) {
-                                  unawaited(widget.onSetAllLocks(!scopeLocked));
-                                } else {
-                                  final ids = filteredClasses
-                                      .map((item) => item.id)
-                                      .toSet();
-                                  final bulk = widget.onSetClassLocks;
-                                  if (bulk != null) {
-                                    unawaited(bulk(ids, !scopeLocked));
+                    Tooltip(
+                      message: lockTooltip,
+                      child: AppGhostButton.icon(
+                        onPressed:
+                            solving || widget.state.pendingBaseline != null
+                            ? null
+                            : () {
+                                if (_view == _ScheduleView.all) {
+                                  if (selectedStage == null) {
+                                    unawaited(
+                                      widget.onSetAllLocks(!scopeLocked),
+                                    );
                                   } else {
-                                    unawaited(() async {
-                                      for (final id in ids) {
-                                        await widget.onSetLock(
-                                          ScheduleLock(
-                                            termId: snapshot.term.id,
-                                            scope:
-                                                ScheduleLockScope.schoolClass,
-                                            targetId: id,
-                                          ),
-                                          !scopeLocked,
-                                        );
-                                      }
-                                    }());
+                                    final ids = filteredClasses
+                                        .map((item) => item.id)
+                                        .toSet();
+                                    final bulk = widget.onSetClassLocks;
+                                    if (bulk != null) {
+                                      unawaited(bulk(ids, !scopeLocked));
+                                    } else {
+                                      unawaited(() async {
+                                        for (final id in ids) {
+                                          await widget.onSetLock(
+                                            ScheduleLock(
+                                              termId: snapshot.term.id,
+                                              scope:
+                                                  ScheduleLockScope.schoolClass,
+                                              targetId: id,
+                                            ),
+                                            !scopeLocked,
+                                          );
+                                        }
+                                      }());
+                                    }
                                   }
+                                  return;
                                 }
-                                return;
-                              }
-                              final id = _view == _ScheduleView.schoolClass
-                                  ? classId
-                                  : teacherId;
-                              if (id == null) return;
-                              unawaited(
-                                widget.onSetLock(
-                                  ScheduleLock(
-                                    termId: snapshot.term.id,
-                                    scope: _view == _ScheduleView.schoolClass
-                                        ? ScheduleLockScope.schoolClass
-                                        : ScheduleLockScope.teacher,
-                                    targetId: id,
+                                final id = _view == _ScheduleView.schoolClass
+                                    ? classId
+                                    : teacherId;
+                                if (id == null) return;
+                                unawaited(
+                                  widget.onSetLock(
+                                    ScheduleLock(
+                                      termId: snapshot.term.id,
+                                      scope: _view == _ScheduleView.schoolClass
+                                          ? ScheduleLockScope.schoolClass
+                                          : ScheduleLockScope.teacher,
+                                      targetId: id,
+                                    ),
+                                    !scopeLocked,
                                   ),
-                                  !scopeLocked,
-                                ),
-                              );
-                            },
-                      icon: Icon(
-                        scopeLocked
-                            ? Icons.lock_outline
-                            : Icons.lock_open_outlined,
-                        size: 16,
-                        color: scopeLocked ? context.appColors.warning : null,
-                      ),
-                      label: Text(
-                        scopeLocked ? '已锁定' : '锁定',
-                        style: TextStyle(
+                                );
+                              },
+                        icon: Icon(
+                          scopeLocked
+                              ? Icons.lock_outline
+                              : Icons.lock_open_outlined,
+                          size: 16,
                           color: scopeLocked ? context.appColors.warning : null,
+                        ),
+                        label: Text(
+                          scopeLocked ? '已锁定' : '锁定',
+                          style: TextStyle(
+                            color: scopeLocked
+                                ? context.appColors.warning
+                                : null,
+                          ),
                         ),
                       ),
                     ),
