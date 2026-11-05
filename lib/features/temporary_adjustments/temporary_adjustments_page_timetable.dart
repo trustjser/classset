@@ -11,12 +11,12 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
             'substitute' => '选择代课教师后，可预览本次变更。',
             _ => '点击任意课格发起调整；已生效的变更会标记在课格中。',
           };
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
-      child: Text(
-        message,
-        style: TextStyle(fontSize: 12, color: context.appColors.inkSecondary),
-      ),
+    return Text(
+      message,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 12, color: context.appColors.inkSecondary),
     );
   }
 
@@ -353,7 +353,7 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                               );
                               final subjectBackground = courses.isEmpty
                                   ? null
-                                  : SubjectColors.quietCellBackground(
+                                  : SubjectColors.cellBackground(
                                       context,
                                       courses.first.item.subjectId,
                                     );
@@ -531,7 +531,7 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
         : SubjectColors.of(context, course.item.subjectId);
     final subjectBackground = course == null
         ? null
-        : SubjectColors.quietCellBackground(context, course.item.subjectId);
+        : SubjectColors.cellBackground(context, course.item.subjectId);
     final record = course == null
         ? null
         : indexes.recordForLesson(course.key)?.record;
@@ -623,8 +623,8 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
       if (isSource) return colors.selectedBlue;
       if (isChosenTarget) return colors.successSurface;
       if (invalid) return colors.tableHeader;
-      if (selecting && eligible) return colors.surface;
       if (subjectBackground != null) return subjectBackground;
+      if (selecting && eligible) return colors.surface;
       if (makeupDay) return _blueWash;
       return _slotBackground(filled: course != null);
     }

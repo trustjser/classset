@@ -55,17 +55,6 @@ abstract final class SubjectColors {
       context.appColors.surface,
     );
   }
-
-  /// 「安静模式」课格底色：仅约 6.5%（暗色 12%），配合 3px 学科色条
-  /// 与深色科目文字使用。用于调代课的实际课表，避免整屏高饱和色块；
-  /// 单独提供而不改 [cellBackground]，避免影响排课课表等既有页面。
-  static Color quietCellBackground(BuildContext context, String subjectId) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Color.alphaBlend(
-      of(context, subjectId).withValues(alpha: isDark ? .12 : .065),
-      context.appColors.surface,
-    );
-  }
 }
 
 /// 科目色标圆点（默认 8×8）：科目节数、教师任课等列表中

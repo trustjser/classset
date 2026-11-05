@@ -588,12 +588,8 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
       ],
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.border),
-      ),
+    return AppSurface(
+      key: const ValueKey('temporary-adjustments-adjustment-panel'),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

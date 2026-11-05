@@ -225,11 +225,13 @@ class _TemporaryAdjustmentsPageState
                               ],
                               SizedBox(
                                 height: 420,
-                                child: _teacherView
-                                    ? _teacherGrid(state, start)
-                                    : _grid(state, start),
+                                child: _timetablePanel(
+                                  _teacherView
+                                      ? _teacherGrid(state, start)
+                                      : _grid(state, start),
+                                  expandChild: true,
+                                ),
                               ),
-                              _gridFootNote(),
                             ],
                           ),
                         );
@@ -238,15 +240,11 @@ class _TemporaryAdjustmentsPageState
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  child: _teacherView
-                                      ? _teacherGrid(state, start)
-                                      : _grid(state, start),
-                                ),
-                                _gridFootNote(),
-                              ],
+                            child: _timetablePanel(
+                              _teacherView
+                                  ? _teacherGrid(state, start)
+                                  : _grid(state, start),
+                              expandChild: true,
                             ),
                           ),
                           if (_source != null) ...[
@@ -262,4 +260,15 @@ class _TemporaryAdjustmentsPageState
       ),
     );
   }
+
+  Widget _timetablePanel(Widget grid, {required bool expandChild}) =>
+      AppSectionPanel(
+        key: const ValueKey('temporary-adjustments-grid-panel'),
+        title: '本周课表',
+        expandTitle: false,
+        trailing: Expanded(child: Center(child: _gridFootNote())),
+        padding: const EdgeInsets.all(12),
+        expandChild: expandChild,
+        child: grid,
+      );
 }

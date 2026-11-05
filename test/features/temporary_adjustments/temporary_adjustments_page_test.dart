@@ -3,6 +3,7 @@ import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_position.dart';
@@ -25,20 +26,64 @@ import 'package:drift/native.dart';
 import 'package:forui/forui.dart' as f;
 
 /// 用应用主题与 Forui 主题包裹页面，与主应用构建方式一致。
-Widget _wrap(Widget child) => MaterialApp(
-  theme: AppTheme.light,
-  builder: (context, inner) => f.FTheme(
-    data: AppTheme.foruiFor(false),
-    child: f.FToaster(child: inner!),
-  ),
-  home: Scaffold(body: child),
-);
+Widget _wrap(Widget child, {ThemeData? theme, bool darkMode = false}) =>
+    MaterialApp(
+      theme: theme ?? AppTheme.light,
+      builder: (context, inner) => f.FTheme(
+        data: AppTheme.foruiFor(darkMode),
+        child: f.FToaster(child: inner!),
+      ),
+      home: Scaffold(body: child),
+    );
 
 /// 课格状态不再渲染成可见文字，改由 Tooltip message 表达；
 /// 测试据此断言，避免把「检测中 / 可选」当作交互定位点。
 Finder _tooltipWith(String message) => find.byWidgetPredicate(
   (widget) => widget is Tooltip && widget.message == message,
 );
+
+void _expectPanelSurface(WidgetTester tester, String key) {
+  final panel = find.byKey(ValueKey(key));
+  expect(panel, findsOneWidget);
+  // Guard the lookup so a missing panel reports the intended stable-key
+  // assertion instead of cascading into a tester.element exception.
+  if (panel.evaluate().isEmpty) return;
+  final surface = tester.element(panel.first).appColors.surface;
+  final decorations = tester
+      .widgetList<DecoratedBox>(
+        find.descendant(of: panel, matching: find.byType(DecoratedBox)),
+      )
+      .toList();
+  expect(decorations, isNotEmpty);
+  if (decorations.isEmpty) return;
+  final decoration = decorations.first.decoration;
+  expect(decoration, isA<BoxDecoration>());
+  expect((decoration as BoxDecoration).color, surface);
+}
+
+void _expectCourseFill(
+  WidgetTester tester,
+  Finder gridPanel,
+  String subjectId,
+) {
+  expect(gridPanel, findsOneWidget);
+  if (gridPanel.evaluate().isEmpty) return;
+  final fill = SubjectColors.cellBackground(
+    tester.element(gridPanel.first),
+    subjectId,
+  );
+  final cellDecorations = tester
+      .widgetList<Container>(
+        find.descendant(of: gridPanel, matching: find.byType(Container)),
+      )
+      .map((container) => container.decoration)
+      .whereType<BoxDecoration>();
+  expect(
+    cellDecorations.any((decoration) => decoration.color == fill),
+    isTrue,
+    reason: '至少一个普通课程格应使用科目专属填充色',
+  );
+}
 
 class _Repository implements SchoolRepository {
   _Repository(this.state);
@@ -295,6 +340,95 @@ void main() {
     expect(find.text('实际课表'), findsOneWidget);
     expect(find.text('调整记录'), findsOneWidget);
     expect(find.text('导出'), findsOneWidget);
+    final gridPanel = find.byKey(
+      const ValueKey('temporary-adjustments-grid-panel'),
+    );
+    const gridHint = '点击任意课格发起调整；已生效的变更会标记在课格中。';
+    final panelHint = find.descendant(
+      of: gridPanel,
+      matching: find.text(gridHint),
+    );
+    expect(panelHint, findsOneWidget, reason: '说明应显示在本周课表标题栏内');
+    expect(
+      tester.getCenter(panelHint).dx,
+      greaterThan(tester.getCenter(find.text('本周课表')).dx),
+      reason: '说明应位于标题右侧',
+    );
+    expect(
+      (tester.getCenter(panelHint).dy - tester.getCenter(find.text('本周课表')).dy)
+          .abs(),
+      lessThan(4),
+      reason: '说明应在标题栏内居中对齐',
+    );
+    final timetableCells = find.descendant(
+      of: gridPanel,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is InkWell &&
+            widget.key is ValueKey<String> &&
+            (widget.key! as ValueKey<String>).value.startsWith(
+              'temporary-cell-',
+            ),
+      ),
+    );
+    final cellRects = [
+      for (var index = 0; index < timetableCells.evaluate().length; index++)
+        tester.getRect(timetableCells.at(index)),
+    ];
+    final leftmostCell = cellRects.reduce(
+      (first, second) => first.left < second.left ? first : second,
+    );
+    final rightmostCell = cellRects.reduce(
+      (first, second) => first.right > second.right ? first : second,
+    );
+    final timetableCenter = (leftmostCell.left + rightmostCell.right) / 2;
+    expect(
+      (tester.getCenter(panelHint).dx - timetableCenter).abs(),
+      lessThan(12),
+      reason: '说明应与下方课程列区域保持居中',
+    );
+    _expectPanelSurface(tester, 'temporary-adjustments-grid-panel');
+    final subject = snapshot.subjects.firstWhere(
+      (item) => item.id == 'subject',
+    );
+    _expectCourseFill(tester, gridPanel, subject.id);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('dark-theme-fixture'),
+        overrides: [
+          schoolRepositoryProvider.overrideWithValue(_Repository(state)),
+        ],
+        child: _wrap(
+          const TemporaryAdjustmentsPage(termId: 't'),
+          theme: AppTheme.dark,
+          darkMode: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    _expectPanelSurface(tester, 'temporary-adjustments-grid-panel');
+    _expectCourseFill(tester, gridPanel, subject.id);
+    await tester.tap(find.text('教师视图'));
+    await tester.pumpAndSettle();
+    _expectCourseFill(tester, gridPanel, subject.id);
+    await tester.tap(find.text('班级视图'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('数学').first);
+    await tester.pumpAndSettle();
+    _expectPanelSurface(tester, 'temporary-adjustments-adjustment-panel');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('light-theme-fixture-restored'),
+        overrides: [
+          schoolRepositoryProvider.overrideWithValue(_Repository(state)),
+        ],
+        child: _wrap(const TemporaryAdjustmentsPage(termId: 't')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
     tester.view.physicalSize = const Size(1000, 900);
     await tester.pumpAndSettle();
     expect(
@@ -317,15 +451,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('李老师'), findsWidgets);
     expect(find.text('数学'), findsWidgets);
+    _expectCourseFill(tester, gridPanel, subject.id);
     await tester.tap(find.text('班级视图'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('数学').first);
     await tester.pumpAndSettle();
+    _expectCourseFill(tester, gridPanel, 'subject2');
     expect(find.text('换课'), findsWidgets);
     expect(find.text('移课'), findsWidgets);
     expect(find.text('代课'), findsWidgets);
     expect(find.text('已选课次'), findsOneWidget);
     expect(find.text('调整方式'), findsOneWidget);
+    _expectPanelSurface(tester, 'temporary-adjustments-adjustment-panel');
     expect(
       tester.getTopLeft(find.text('换课').last).dy,
       lessThan(tester.getTopLeft(find.text('移课').last).dy),
@@ -360,21 +497,37 @@ void main() {
     expect(find.text('结束日期'), findsOneWidget);
     await tester.tap(find.text('返回修改'));
     await tester.pumpAndSettle();
-    tester.view.physicalSize = const Size(700, 700);
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    // 窄屏回归：面板不内部滚动抢手势，页面能整体滚到下方课表。
-    final dayHeader = find.text('周二');
-    expect(dayHeader, findsWidgets);
-    final beforeScroll = tester.getTopLeft(dayHeader.first).dy;
-    await tester.drag(find.text('发起调整'), const Offset(0, -240));
-    await tester.pumpAndSettle();
-    expect(
-      tester.getTopLeft(dayHeader.first).dy,
-      lessThan(beforeScroll - 100),
-      reason: '窄屏下应能滚动页面看到课表，而不是被面板内的滚动条挡住',
-    );
-    expect(tester.takeException(), isNull);
+    for (final viewport in [const Size(390, 780), const Size(700, 700)]) {
+      tester.view.physicalSize = viewport;
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final adjustmentAction = find.text('发起调整');
+      await tester.ensureVisible(adjustmentAction);
+      await tester.pumpAndSettle();
+      final dayHeader = find.text('周二');
+      expect(dayHeader, findsWidgets);
+      final beforeScroll = tester.getTopLeft(dayHeader.first).dy;
+      await tester.drag(adjustmentAction, const Offset(0, -240));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(dayHeader.first).dy,
+        lessThan(beforeScroll - 100),
+        reason: '${viewport.width}×${viewport.height} 下页面应可滚动到课表',
+      );
+      final reachableCell = find.byKey(
+        const ValueKey('temporary-cell-2026-09-07-p-1'),
+      );
+      expect(reachableCell, findsOneWidget);
+      await tester.ensureVisible(reachableCell);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .getRect(reachableCell)
+            .overlaps(Rect.fromLTWH(0, 0, viewport.width, viewport.height)),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    }
 
     tester.view.physicalSize = const Size(1400, 900);
     final first = state.lessons.firstWhere(

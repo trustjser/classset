@@ -85,6 +85,7 @@ class AppSectionPanel extends StatelessWidget {
     this.padding = const EdgeInsets.all(12),
     this.headerPadding,
     this.headerDivider = false,
+    this.expandTitle = true,
     this.expandChild = false,
     this.showBorder = false,
     this.useShadow = true,
@@ -97,6 +98,7 @@ class AppSectionPanel extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? headerPadding;
   final bool headerDivider;
+  final bool expandTitle;
   final bool expandChild;
   final bool showBorder;
 
@@ -115,12 +117,10 @@ class AppSectionPanel extends StatelessWidget {
             padding: headerPadding ?? const EdgeInsets.fromLTRB(12, 12, 12, 10),
             child: Row(
               children: [
-                Expanded(
-                  child: Text(
-                    title!,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
+                if (expandTitle)
+                  Expanded(child: _headerTitle(context))
+                else
+                  _headerTitle(context),
                 ?trailing,
               ],
             ),
@@ -135,6 +135,9 @@ class AppSectionPanel extends StatelessWidget {
       ],
     ),
   );
+
+  Widget _headerTitle(BuildContext context) =>
+      Text(title!, style: Theme.of(context).textTheme.titleSmall);
 }
 
 /// A reusable Forui-token surface for cards and summary blocks.
