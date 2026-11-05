@@ -212,6 +212,20 @@ class _TeacherList extends StatelessWidget {
       for (final assignment in own)
         subjectNames[assignment.subjectId] ?? assignment.subjectId,
     }.toList(growable: false);
+    // 不展开教师行也能看到该教师是否设置了合班课。
+    final combinedGroupNames = combinedGroups.values
+        .map(
+          (members) => deriveCombinedLessonName(
+            members
+                .map(
+                  (assignment) =>
+                      classById[assignment.classId]?.name ??
+                      assignment.classId,
+                )
+                .toList(growable: false),
+          ),
+        )
+        .toList(growable: false);
     final canCombine =
         own
             .where((assignment) => assignment.combinedLessonGroupId == null)
@@ -348,17 +362,40 @@ class _TeacherList extends StatelessWidget {
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        Tooltip(
-                                          message: subjectLabels.join('、'),
-                                          child: Text(
-                                            subjectLabels.join('、'),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: context.appColors.muted,
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Tooltip(
+                                                message: subjectLabels.join(
+                                                  '、',
+                                                ),
+                                                child: Text(
+                                                  subjectLabels.join('、'),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color:
+                                                        context.appColors.muted,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                            if (combinedGroupNames
+                                                .isNotEmpty) ...[
+                                              const SizedBox(width: 6),
+                                              Tooltip(
+                                                message: combinedGroupNames
+                                                    .join('、'),
+                                                child: _TeacherTag(
+                                                  label:
+                                                      '${combinedGroupNames.length} 组合班',
+                                                  isAccent: true,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ],
                                     ),

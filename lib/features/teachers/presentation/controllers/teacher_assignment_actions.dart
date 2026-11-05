@@ -194,53 +194,113 @@ extension _TeacherAssignmentActions on _TeachersPageState {
     }
   }
 
-  Future<void> _combineAssignments(
-    Teacher teacher,
+  /// 合班工作台所需的全量上下文（任课、班级名、科目名、教师名）。
+  ({
     List<TeacherAssignment> assignments,
-  ) async {
+    Map<String, ClassBrief> classById,
+    Map<String, String> subjectNames,
+    Map<String, String> teacherNames,
+  })
+  _combinedLessonContext() {
+    final all =
+        ref.read(teacherAssignmentsProvider(widget.termId)).valueOrNull ??
+        const <TeacherAssignment>[];
     final classList =
-        ref.read(classesForTermProvider(widget.termId)).valueOrNull ?? const [];
-    final classById = {for (final item in classList) item.id: item};
+        ref.read(classesForTermProvider(widget.termId)).valueOrNull ??
+        const <ClassBrief>[];
     final subjects =
         ref.read(subjectsForTermProvider(widget.termId)).valueOrNull ??
-        const [];
-    final subjectNames = {
-      for (final subject in subjects) subject.id: subject.name,
-    };
-    final selected = await _showCombinedAssignmentDialog(
-      context,
-      assignments: assignments,
-      classById: classById,
-      subjectNames: subjectNames,
+        const <Subject>[];
+    final teachers =
+        ref.read(teachersProvider(widget.termId)).valueOrNull ??
+        const <Teacher>[];
+    return (
+      assignments: all,
+      classById: <String, ClassBrief>{
+        for (final item in classList) item.id: item,
+      },
+      subjectNames: <String, String>{
+        for (final item in subjects) item.id: item.name,
+      },
+      teacherNames: <String, String>{
+        for (final item in teachers) item.id: item.displayName,
+      },
     );
-    if (selected == null || selected.length < 2 || !mounted) return;
+  }
+
+  /// 写入合班并返回数据库实际使用的组标识，供工作台刷新本地快照。
+  Future<String?> _performCombine(List<String> assignmentIds) async {
+    final groupId = _id('combined');
     try {
       await _repository.combineTeacherAssignments(
         termId: widget.termId,
-        assignmentIds: selected.map((row) => row.id).toList(),
-        combinedGroupId: _id('combined'),
+        assignmentIds: assignmentIds,
+        combinedGroupId: groupId,
       );
     } on StateError catch (error) {
-      _showMessage(error.message.toString());
-      return;
+      _showMessage(error.message);
+      return null;
     } on ArgumentError catch (error) {
       _showMessage(error.message?.toString() ?? '合班信息无效');
-      return;
+      return null;
     }
-    if (mounted) _showMessage('已将 ${selected.length} 个班级合班');
+    if (mounted) _showMessage('已将 ${assignmentIds.length} 个班级合班');
+    return groupId;
   }
 
-  Future<void> _separateCombinedGroup(String groupId) async {
+  Future<bool> _performSeparate(String groupId) async {
     try {
       await _repository.separateTeacherAssignments(
         termId: widget.termId,
         combinedGroupId: groupId,
       );
     } on StateError catch (error) {
-      _showMessage(error.message.toString());
-      return;
+      _showMessage(error.message);
+      return false;
     }
     if (mounted) _showMessage('已拆分合班');
+    return true;
+  }
+
+  /// ⋯ 菜单 →「合班」：保留唯一创建入口，改为打开右侧合班工作台。
+  Future<void> _combineAssignments(
+    Teacher teacher,
+    List<TeacherAssignment> assignments,
+  ) async {
+    final data = _combinedLessonContext();
+    await showCombinedLessonWorkspace(
+      context: context,
+      termId: widget.termId,
+      assignments: data.assignments.isEmpty ? assignments : data.assignments,
+      classById: data.classById,
+      subjectNames: data.subjectNames,
+      teacherNames: data.teacherNames,
+      initialTeacherId: teacher.id,
+      initialTab: CombinedLessonTab.create,
+      onCombine: _performCombine,
+      onSeparate: _performSeparate,
+    );
+  }
+
+  /// 主界面汇总条 →「查看全部」：直接打开全校合班课视图。
+  Future<void> _openCombinedLessonSummary() async {
+    final data = _combinedLessonContext();
+    await showCombinedLessonWorkspace(
+      context: context,
+      termId: widget.termId,
+      assignments: data.assignments,
+      classById: data.classById,
+      subjectNames: data.subjectNames,
+      teacherNames: data.teacherNames,
+      initialTeacherId: null,
+      initialTab: CombinedLessonTab.all,
+      onCombine: _performCombine,
+      onSeparate: _performSeparate,
+    );
+  }
+
+  Future<void> _separateCombinedGroup(String groupId) async {
+    await _performSeparate(groupId);
   }
 
   Future<void> _assignUnassigned(

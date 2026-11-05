@@ -31,6 +31,27 @@ class SchedulePlacementCandidate {
 class ConstraintEvaluator {
   const ConstraintEvaluator();
 
+  /// 返回调整后新增或进一步恶化的硬性下限缺口。
+  List<ScheduleBlocker> newHardRequirementBlockers(
+    SchedulingProblem problem,
+    List<ScheduleItem> before,
+    List<ScheduleItem> after,
+  ) {
+    final existing = {
+      for (final blocker in unmetHardRequirements(problem, before))
+        _blockerIdentity(blocker): blocker,
+    };
+    return unmetHardRequirements(problem, after).where((blocker) {
+      final previous = existing[_blockerIdentity(blocker)];
+      if (previous == null) return true;
+      final beforeCount = _placedCount(previous);
+      final afterCount = _placedCount(blocker);
+      return beforeCount != null &&
+          afterCount != null &&
+          afterCount < beforeCount;
+    }).toList();
+  }
+
   List<ScheduleBlocker> evaluatePlacement(
     SchedulingProblem problem,
     List<ScheduleItem> placed,
@@ -116,21 +137,23 @@ class ConstraintEvaluator {
     }
 
     if (candidateItems.length > 1) {
-      final first = candidateItems.first;
-      for (final item in candidateItems.skip(1)) {
-        if (first.position == null || item.position == null) continue;
-        if (first.combinedGroupId != null &&
-            first.combinedGroupId == item.combinedGroupId) {
+      for (var index = 0; index < candidateItems.length; index++) {
+        final first = candidateItems[index];
+        for (final item in candidateItems.skip(index + 1)) {
+          if (first.position == null || item.position == null) continue;
           final same = first.position!.stageId == item.position!.stageId
               ? first.position!.sameCell(item.position!)
               : first.position!.hasSameClock(item.position!);
-          if (!same || first.weekMode != item.weekMode) {
-            block('combined', '合班课必须同周次且节次时间完全一致', item);
+          if (first.combinedGroupId != null &&
+              first.combinedGroupId == item.combinedGroupId) {
+            if (!same || first.weekMode != item.weekMode) {
+              block('combined', '合班课必须同周次且节次时间完全一致', item);
+            }
+          } else if (first.meetingId != null &&
+              first.meetingId == item.meetingId &&
+              !same) {
+            block('pairing', '单双周配对必须共用同一节次', item);
           }
-        } else if (first.meetingId != null &&
-            first.meetingId == item.meetingId &&
-            !first.position!.sameCell(item.position!)) {
-          block('pairing', '单双周配对必须共用同一节次', item);
         }
       }
     }
@@ -1053,3 +1076,10 @@ int _consecutivePairCount(
   }
   return count;
 }
+
+String _blockerIdentity(ScheduleBlocker blocker) =>
+    '${blocker.code}:${blocker.conditionId}:${blocker.position?.cellKey}:${blocker.message.replaceAll(RegExp(r'已排 \d+ 节'), '已排 * 节')}';
+
+int? _placedCount(ScheduleBlocker blocker) => int.tryParse(
+  RegExp(r'已排 (\d+) 节').firstMatch(blocker.message)?.group(1) ?? '',
+);

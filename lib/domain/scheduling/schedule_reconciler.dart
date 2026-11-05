@@ -4,13 +4,69 @@ import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
 import 'package:class_set/domain/models/schedule_position.dart';
 import 'package:class_set/domain/models/schedule_preferences.dart';
+import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/scheduling/constraint_evaluator.dart';
+import 'package:class_set/domain/scheduling/course_scheduler.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
+
+// 同步合班需要多个班的共同空位；找不到时仅重排关联班级，供确认前预览。
+List<ScheduleItem> _completeCombinedMeetings(
+  SchedulingSnapshot snapshot,
+  SchedulingProblem problem,
+  List<ScheduleItem> items,
+) {
+  if (!problem.isReady) return items;
+  final selected = items
+      .where((item) => !item.isPlaced && item.combinedGroupId != null)
+      .map((item) => item.classId)
+      .toSet();
+  if (selected.isEmpty) return items;
+  var expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (final unit in problem.units) {
+      if (!unit.items.any((item) => selected.contains(item.classId))) continue;
+      for (final item in unit.items) {
+        if (selected.add(item.classId)) expanded = true;
+      }
+    }
+  }
+  final repairProblem = const ProblemBuilder().build(
+    snapshot.copyWith(existingItems: items),
+    selectedClassIds: selected,
+  );
+  if (!repairProblem.isReady) return items;
+  final run = const CourseScheduler().solve(
+    repairProblem,
+    config: ScheduleRunConfig(
+      selectedClassIds: selected,
+      seed: 7,
+      strength: ScheduleStrength.normal,
+    ),
+  );
+  if (const ConstraintEvaluator()
+      .newHardRequirementBlockers(problem, items, run.items)
+      .isNotEmpty) {
+    return items;
+  }
+  final replacements = {for (final item in run.items) item.id: item};
+  // 不以其他已排课程进入暂放区为代价完成合班。
+  if (items.any(
+    (item) => item.isPlaced && replacements[item.id]?.isPlaced != true,
+  )) {
+    return items;
+  }
+  final beforeCount = items.where((item) => item.isPlaced).length;
+  if (run.items.where((item) => item.isPlaced).length <= beforeCount) {
+    return items;
+  }
+  return run.items;
+}
 
 class ScheduleSettingChange {
   const ScheduleSettingChange(this.group, this.label, this.before, this.after);
@@ -219,8 +275,10 @@ class ScheduleReconciler {
         placed.addAll(chosen.placedItems);
       }
     }
-    final result = [...placed, ...unplaced]
-      ..sort((left, right) => left.id.compareTo(right.id));
+    final result = _completeCombinedMeetings(effective, problem, [
+      ...placed,
+      ...unplaced,
+    ])..sort((left, right) => left.id.compareTo(right.id));
     final locksToRelease = <ScheduleLock>{};
     var kept = 0;
     var moved = 0;

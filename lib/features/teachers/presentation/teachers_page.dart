@@ -19,6 +19,8 @@ import 'package:class_set/features/teachers/io/teacher_workbook.dart';
 import 'package:class_set/features/teachers/io/teacher_import_plan.dart';
 import 'package:class_set/features/teachers/io/assignment_workbook.dart';
 import 'package:class_set/features/teachers/domain/teacher_assignment_matrix_data.dart';
+import 'package:class_set/features/teachers/domain/combined_lesson_view.dart';
+import 'package:class_set/features/teachers/presentation/dialogs/combined_lesson_workspace.dart';
 import 'package:class_set/features/teachers/presentation/teacher_select_options.dart';
 import 'package:class_set/features/teachers/domain/teacher_preset_repository_payload.dart';
 import 'package:file_selector/file_selector.dart';

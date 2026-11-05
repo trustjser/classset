@@ -49,6 +49,43 @@ class SchedulingProblem {
   bool get isReady => checks.every((check) => check.ready);
   int get totalItems =>
       fixedItems.length + units.fold(0, (n, u) => n + u.items.length);
+
+  /// 识别旧版课表中被单双周配对拆散的合班及其关联课组。
+  bool hasInconsistentCombinedMeetings(List<ScheduleItem> items) {
+    final byId = {for (final item in items) item.id: item};
+    for (final unit in units) {
+      if (!unit.items.any((item) => item.combinedGroupId != null)) continue;
+      final members = unit.items.map((item) => byId[item.id]).toList();
+      if (members.every((item) => item == null)) continue;
+      if (members.any((item) => item == null)) return true;
+      final first = members.first!;
+      if (first.meetingId == null) return true;
+      SchedulePosition? positionFor(ScheduleItem item) => item.position == null
+          ? null
+          : (positionsByClass[item.classId] ?? const <SchedulePosition>[])
+                .where((position) => position.sameCell(item.position!))
+                .firstOrNull;
+      final anchor = positionFor(first);
+      for (var index = 0; index < members.length; index++) {
+        final member = members[index]!;
+        if (member.meetingId != first.meetingId ||
+            member.combinedGroupId != unit.items[index].combinedGroupId ||
+            member.isPlaced != first.isPlaced) {
+          return true;
+        }
+        if (!member.isPlaced) continue;
+        final position = positionFor(member);
+        if (anchor == null ||
+            position == null ||
+            !(anchor.stageId == position.stageId
+                ? anchor.sameCell(position)
+                : anchor.hasSameClock(position))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 }
 
 /// 展开年级/班级需求、教师拆分与合班绑定，并检查启动条件。
@@ -262,7 +299,87 @@ class ProblemBuilder {
         movable.add(item.at(null));
       }
     }
+    final teacherNames = {
+      for (final teacher in snapshot.teachers) teacher.id: teacher.name,
+    };
+    final classNames = {for (final c in snapshot.classes) c.id: c.name};
+    final reportedMeetingConflicts = <String>{};
+    void reportTeacherConflict(ScheduleItem left, ScheduleItem right) {
+      final key =
+          '${left.teacherId}:${left.classId}:${right.classId}:${left.weekMode.storageValue}:${right.weekMode.storageValue}';
+      if (!reportedMeetingConflicts.add(key)) return;
+      final week = left.weekMode == WeekMode.weekly
+          ? right.weekMode
+          : left.weekMode;
+      issue(
+        'meetingTeacherConflict',
+        '${teacherNames[left.teacherId] ?? left.teacherId}的${week.label}课程被合班与单双周配对要求同时在'
+            '${classNames[left.classId] ?? left.classId}、${classNames[right.classId] ?? right.classId}上课，'
+            '但这些课程尚未合班。请为该周次设置合班，或解除相关单双周配对。',
+      );
+    }
+
+    final pairingTeacherConflicts = <(ScheduleItem, ScheduleItem)>[];
     final meetingKeys = <String, String>{};
+    final meetingParents = <String, String>{};
+    final meetingMembers = <String, Set<String>>{};
+    final movableById = {for (final item in movable) item.id: item};
+    String meetingRoot(String key) {
+      final parent = meetingParents[key];
+      if (parent == null) return key;
+      return meetingParents[key] = meetingRoot(parent);
+    }
+
+    void bindMeeting(String itemId, String key) {
+      final previous = meetingKeys[itemId];
+      String? mergedRoot;
+      if (previous != null) {
+        final left = meetingRoot(previous);
+        final right = meetingRoot(key);
+        if (left != right) {
+          // 采用稳定根标识，同时保留合班和单双周配对的传递约束。
+          if (left.compareTo(right) < 0) {
+            meetingParents[right] = left;
+            mergedRoot = right;
+          } else {
+            meetingParents[left] = right;
+            mergedRoot = left;
+          }
+        }
+      }
+      meetingKeys[itemId] = key;
+      final root = meetingRoot(key);
+      final members = meetingMembers.putIfAbsent(root, () => {});
+      members.add(itemId);
+      if (mergedRoot != null) {
+        members.addAll(meetingMembers.remove(mergedRoot) ?? const {});
+      }
+    }
+
+    String rootFor(ScheduleItem item) => meetingKeys[item.id] == null
+        ? 'item:${item.id}'
+        : meetingRoot(meetingKeys[item.id]!);
+    bool canPair(ScheduleItem odd, ScheduleItem even) {
+      final left = rootFor(odd);
+      final right = rootFor(even);
+      if (left == right) return true;
+      for (final leftId in meetingMembers[left] ?? {odd.id}) {
+        for (final rightId in meetingMembers[right] ?? {even.id}) {
+          final a = movableById[leftId]!;
+          final b = movableById[rightId]!;
+          if (!weekModesOverlap(a.weekMode, b.weekMode)) continue;
+          if (a.classId == b.classId) return false;
+          if (a.teacherId == b.teacherId &&
+              !(a.combinedGroupId != null &&
+                  a.combinedGroupId == b.combinedGroupId)) {
+            pairingTeacherConflicts.add((a, b));
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
     for (final group in snapshot.combinedGroups) {
       final members = movable.where((item) => item.combinedGroupId == group.id);
       final groupedByClass = <String, List<ScheduleItem>>{};
@@ -282,11 +399,12 @@ class ProblemBuilder {
       for (final rows in groupedByClass.values) {
         rows.sort((a, b) => a.id.compareTo(b.id));
         for (var index = 0; index < rows.length; index++) {
-          meetingKeys[rows[index].id] = 'combined:${group.id}:$index';
+          bindMeeting(rows[index].id, 'combined:${group.id}:$index');
         }
       }
     }
     for (final pairing in snapshot.pairings) {
+      pairingTeacherConflicts.clear();
       final odd =
           movable
               .where(
@@ -309,15 +427,69 @@ class ProblemBuilder {
             ..sort((a, b) => a.id.compareTo(b.id));
       if (odd.length != even.length) {
         issue('pairing', '单双周配对 ${pairing.id} 的需求节数不一致');
+        continue;
       }
-      for (var index = 0; index < odd.length && index < even.length; index++) {
-        meetingKeys[odd[index].id] = 'pair:${pairing.id}:$index';
-        meetingKeys[even[index].id] = 'pair:${pairing.id}:$index';
+      // 已经通过其他班的合班关系配对的课次必须保留，剩余课次做兼容匹配。
+      final matched = <String, ScheduleItem>{};
+      final pinnedEven = <String>{};
+      final pinnedOdd = <String>{};
+      for (final item in odd) {
+        final partner = even
+            .where((other) => rootFor(item) == rootFor(other))
+            .firstOrNull;
+        if (partner == null) continue;
+        matched[partner.id] = item;
+        pinnedEven.add(partner.id);
+        pinnedOdd.add(item.id);
+      }
+      bool match(ScheduleItem item, Set<String> visited) {
+        // 先用空闲课次，只有必要时才调整已有匹配，避免无变更课表产生互换差异。
+        final candidates = [
+          ...even.where((partner) => !matched.containsKey(partner.id)),
+          ...even.where((partner) => matched.containsKey(partner.id)),
+        ];
+        for (final partner in candidates) {
+          if (pinnedEven.contains(partner.id) ||
+              !canPair(item, partner) ||
+              !visited.add(partner.id)) {
+            continue;
+          }
+          final previous = matched[partner.id];
+          if (previous == null || match(previous, visited)) {
+            matched[partner.id] = item;
+            return true;
+          }
+        }
+        return false;
+      }
+
+      if (odd.any((item) => !pinnedOdd.contains(item.id) && !match(item, {}))) {
+        if (pairingTeacherConflicts.isNotEmpty) {
+          final (left, right) = pairingTeacherConflicts.first;
+          reportTeacherConflict(left, right);
+        } else {
+          issue(
+            'pairingCombinedConflict',
+            '合班与单双周配对 ${pairing.id} 无法形成完整课组，请检查合班范围和配对设置。',
+          );
+        }
+        continue;
+      }
+      for (var index = 0; index < odd.length; index++) {
+        final partner = even.firstWhere(
+          (item) => matched[item.id]?.id == odd[index].id,
+        );
+        bindMeeting(odd[index].id, 'pair:${pairing.id}:$index');
+        bindMeeting(partner.id, 'pair:${pairing.id}:$index');
       }
     }
     final unitsById = <String, List<ScheduleItem>>{};
     for (final item in movable) {
-      final unitId = meetingKeys[item.id] ?? item.id;
+      final meetingKey = meetingKeys[item.id];
+      final meetingId = meetingKey == null
+          ? item.meetingId
+          : meetingRoot(meetingKey);
+      final unitId = meetingKey == null ? item.id : meetingId!;
       unitsById
           .putIfAbsent(unitId, () => [])
           .add(
@@ -330,7 +502,7 @@ class ProblemBuilder {
               subjectId: item.subjectId,
               weekMode: item.weekMode,
               combinedGroupId: item.combinedGroupId,
-              meetingId: meetingKeys[item.id] ?? item.meetingId,
+              meetingId: meetingId,
             ),
           );
     }
@@ -339,6 +511,20 @@ class ProblemBuilder {
         ScheduleUnit(entry.key, entry.value),
     ];
     units.sort((a, b) => a.id.compareTo(b.id));
+    for (final unit in units) {
+      for (var i = 0; i < unit.items.length; i++) {
+        final left = unit.items[i];
+        for (final right in unit.items.skip(i + 1)) {
+          if (left.teacherId != right.teacherId ||
+              !weekModesOverlap(left.weekMode, right.weekMode) ||
+              (left.combinedGroupId != null &&
+                  left.combinedGroupId == right.combinedGroupId)) {
+            continue;
+          }
+          reportTeacherConflict(left, right);
+        }
+      }
+    }
 
     // A shared resource can only be checked across stages when every relevant
     // teaching cell has a clock interval.

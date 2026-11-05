@@ -2091,7 +2091,9 @@ class _LessonDragHandleState extends State<_LessonDragHandle> {
                   child: SizedBox(
                     width: 220,
                     child: Text(
-                      preview.blockers.firstOrNull?.message ?? '这节课不能暂放',
+                      preview.blockers.isNotEmpty
+                          ? preview.blockers.first.message
+                          : '这节课不能暂放',
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -2680,6 +2682,11 @@ class _RightRail extends StatelessWidget {
                 ? null
                 : onPreviewMove(itemId, null, null);
             final canDrop = preview?.allowed == true;
+            final previewBlockers = preview?.blockers;
+            final previewBlockerMessage =
+                previewBlockers == null || previewBlockers.isEmpty
+                ? '这节课不能暂放'
+                : previewBlockers.first.message;
             return _RailCard(
               title: '暂放区',
               trailing: Row(
@@ -2726,10 +2733,7 @@ class _RightRail extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        canDrop
-                            ? '松开后移入暂放区'
-                            : preview?.blockers.firstOrNull?.message ??
-                                  '这节课不能暂放',
+                        canDrop ? '松开后移入暂放区' : previewBlockerMessage,
                         style: const TextStyle(fontSize: 12),
                       ),
                     ),
@@ -2774,6 +2778,11 @@ class _RightRail extends StatelessWidget {
                         itemCount: unplaced.length,
                         itemBuilder: (context, index) {
                           final item = unplaced[index];
+                          final itemBlockers = blockers[item.id];
+                          final itemBlockerMessage =
+                              itemBlockers == null || itemBlockers.isEmpty
+                              ? null
+                              : itemBlockers.first.message;
                           final title =
                               '${subjectNames[item.subjectId] ?? item.subjectId} · ${classNames[item.classId] ?? item.classId}';
                           final detail =
@@ -2827,7 +2836,7 @@ class _RightRail extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        '$detail · ${blockers[item.id]?.firstOrNull == null ? '手工暂放或尚未安排' : '上次自动排课：${blockers[item.id]!.first.message}'}',
+                                        '$detail · ${itemBlockerMessage == null ? '手工暂放或尚未安排' : '上次自动排课：$itemBlockerMessage'}',
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(

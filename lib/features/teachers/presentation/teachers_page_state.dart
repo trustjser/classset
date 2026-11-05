@@ -216,6 +216,60 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
     ];
   }
 
+  /// 主界面合班汇总条：1A 无合班时隐藏，2A 只给数量，3A「查看全部」
+  /// 打开独立的「全部合班课」Tab。仅展示已设置的结果，不是创建入口。
+  Widget _buildCombinedLessonSummary(List<TeacherAssignment> assignments) {
+    final stats = combinedLessonStats(assignments, termId: widget.termId);
+    if (stats.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      key: const ValueKey('teacher-combined-lesson-summary'),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: context.appColors.selectedBlue,
+          border: Border.all(color: context.appColors.blue),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: context.appColors.surface,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.group_outlined,
+                size: 14,
+                color: context.appColors.blue,
+              ),
+            ),
+            const SizedBox(width: 10),
+            // 用 Flexible 而非 Expanded：按钮紧跟文字，抽屉从右侧覆盖时
+            // 「查看全部」仍然可见，不会被推到被遮住的最右端。
+            Flexible(
+              child: Text(
+                '已设置 ${stats.groupCount} 组合班课 · 涉及 '
+                '${stats.classCount} 个班级、${stats.teacherCount} 位教师',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: context.appColors.ink),
+              ),
+            ),
+            const SizedBox(width: 12),
+            AppSecondaryButton(
+              key: const ValueKey('teacher-combined-lesson-view-all'),
+              onPressed: () => unawaited(_openCombinedLessonSummary()),
+              child: const Text('查看全部'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final teachers = ref.watch(teachersProvider(widget.termId));
@@ -251,6 +305,10 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
             actionsFlex: 2,
           ),
           const SizedBox(height: AppTheme.pageSectionGap),
+          if (_viewIndex == 1)
+            _buildCombinedLessonSummary(
+              assignments.valueOrNull ?? const <TeacherAssignment>[],
+            ),
           Expanded(
             child: _viewIndex == 2
                 ? _GroupList(

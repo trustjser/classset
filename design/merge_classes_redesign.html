@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>合班 · 交互重设计（保留现有入口）</title>
+<!--
+  ============================================================================
+  课集 ClassSet / 教师任课 · 合班交互重设计 v3
+  ----------------------------------------------------------------------------
+  【v3 新增】合班课在主界面可见（诉求：不点开每个教师也能看到有没有设置合班课）
+    · 页面级汇总条：已设置 N 组合班课 / 涉及 M 个班级、K 位教师 +「查看全部」
+      仅在存在合班组时显示；展示的是「已设置的结果」，不是新建入口
+    · 行级标记：「任课安排」列科目小字后加浅蓝「N 组合班」chip + 班级摘要，
+      不展开该教师行即可看到；无合班的教师行不显示任何标记
+    · 抽屉新增第三 Tab「全部合班课」：按教师汇总全校合班组（含成员 chips），
+      「查看该教师」跳回该教师的合班流程；汇总视图不提供拆分，避免跨教师误操作
+    · 合班的唯一「创建入口」仍是 ⋯ →「合班」，v3 未新增任何创建入口
+  ----------------------------------------------------------------------------
+  【v3 定稿 · 2026-11-05 用户确认 1A + 2A + 3A】三项均为当前实现，后续迭代勿偏离
+    1A 无合班课时：汇总条隐藏，不常驻空状态（renderMergeBar 的 !st.groups 分支）
+    2A 汇总条信息量：只给「组数 / 班级数 / 教师数」，不列具体组名；
+       组名与成员放到「全部合班课」Tab 里查看
+    3A 「全部合班课」独立成第三 Tab，不并入「已有合班组」
+    改动索引：renderMergeBar() 汇总条 · renderTable() 行级标记 ·
+              renderAllView() 全校汇总 · switchTab() Tab 切换 ·
+              globalStats() 统计口径 · CSS 见 .mergebar / .rowmerge / .allcard
+  ----------------------------------------------------------------------------
+  【v2 修正】主界面完整还原用户截图，不改写现有列表与操作：
+    · 四列表格：教师 / 任课安排 / 周均节数 / 操作
+    · 行内展开收起 + 蓝点任课明细
+    · 右上角分段控件（班级 / 教师 / 设置）原样保留
+    · 行尾 ⋯ 菜单 6 项文案与顺序原样保留：
+        添加任课 / 删除任课 / 合班 / 教师预排 / 编辑教师 / 删除教师
+    · 合班唯一入口 = ⋯ 菜单 →「合班」；不新增提示条、概览卡、悬浮按钮
+    · 抽屉只承载合班本身（新建 / 拆分 / 预览），不接管菜单里的其他操作
+  ----------------------------------------------------------------------------
+  设计契约（token 层，改色改密度只动这里）
+  ----------------------------------------------------------------------------
+  色板    brand #0052D9（沿用 design/ 现有原型；DESIGN.md 的 #0075DE 由
+          [data-theme="warm"] 一键覆盖，见页面右下「温暖极简」开关）
+          canvas #F6F5F4 / surface #FFFFFF / surface-2 #F7F8FA
+          text-1 #1A1A1A / text-2 #4B4B4B / text-3 #6B6B6B / disabled #9A9A9A
+          success #2BA471 / warning #C98A2B / danger #D54941（均配淡底）
+  字阶    页面标题 22/600 · 抽屉标题 17/600 · 模块标题 14/600
+          正文 14/400（行高1.6） · 辅助 12/400 · 数字 tabular-nums
+  形状    卡片与浮层 12px / 按钮、输入、chip 8px（系统仅 2 种圆角）
+          间距基数 4/8，密度=标准偏紧凑（桌面 B 端）
+  组件    主按钮实心蓝 / 次按钮白底描边 / 文字按钮；checkbox 16px
+  交互态  所有可点击元素具备 hover / focus-visible / active / disabled
+  断点    1200px：侧栏收为图标栏、抽屉 min(720px, 86vw)
+          768px ：抽屉转底部面板 100% 宽 / 88vh，内部双栏改纵向流
+  状态    空态（预览未选、无可合并班级、无合班组）/ 加载骨架 / 行内校验 /
+          成功 toast / 禁用按钮
+  自检    ✓ 无外网字体与图片 ✓ 无 lorem ipsum ✓ 中文行高 1.6 ✓ 对比度 AA
+          ✓ Esc 关闭 · Enter 提交 · 焦点环可见 ✓ 键盘可达 ✓ 单一线性图标家族
+  说明    本文件为静态交互原型，演示状态仅存于当前页面会话，未接入 Flutter。
+  ============================================================================
+-->
+<style>
+:root{
+  --brand:#0052D9; --brand-hover:#266FE8; --brand-active:#003CAB; --brand-press:#00349B;
+  --brand-soft:#F2F3FF; --brand-border:#B5C4F0; --brand-wash:#E8F1FC;
+  --canvas:#F6F5F4; --surface:#FFFFFF; --surface-2:#F7F8FA; --surface-3:#FAFAFB;
+  --line:#E5E5E8; --line-soft:#EFEFF1;
+  --text-1:#1A1A1A; --text-2:#4B4B4B; --text-3:#6B6B6B; --text-disabled:#9A9A9A;
+  --success:#2BA471; --success-soft:#EAF7F1; --success-border:#BEE5D3;
+  --warning:#C98A2B; --warning-soft:#FFF6E5; --warning-border:#EBD3A4;
+  --danger:#D54941; --danger-soft:#FDECEE; --danger-border:#F0B6B2;
+  --r-card:12px; --r-ctl:8px;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --shadow-drawer:-12px 0 40px rgba(26,26,26,.14);
+  --shadow-pop:0 8px 28px rgba(26,26,26,.14);
+}
+[data-theme="warm"]{
+  --brand:#0075DE; --brand-hover:#2589E8; --brand-active:#005BB0; --brand-press:#0053A3;
+  --brand-soft:#E8F1FC; --brand-border:#BBD8F5; --brand-wash:#E8F1FC;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--font);font-size:14px;line-height:1.6;color:var(--text-1);
+  background:var(--surface);overflow:hidden;-webkit-font-smoothing:antialiased;
+}
+button,input{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+svg{display:block;flex-shrink:0}
+.num{font-variant-numeric:tabular-nums}
+
+/* ============ 应用框架（按截图还原） ============ */
+.app{display:flex;height:100vh;min-width:0}
+.sidebar{width:184px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px 10px}
+.brandline{display:flex;align-items:center;gap:9px;padding:0 6px 12px}
+.logo{width:30px;height:30px;border-radius:var(--r-ctl);background:#1F6FD0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.brandline .nm{font-size:13px;font-weight:600;line-height:1.25}
+.brandline .en{font-size:9px;color:var(--text-3);letter-spacing:1px;line-height:1.3}
+.school{margin:2px 6px 16px;padding:8px 10px;background:var(--surface-3);border-radius:var(--r-ctl)}
+.school .s1{font-size:12px;font-weight:500}
+.school .s2{font-size:10px;color:var(--text-3);margin-top:2px}
+.navgroup{margin-bottom:12px}
+.navgroup .cap{font-size:10px;color:var(--text-3);padding:0 10px 5px}
+.navitem{height:32px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:var(--r-ctl);color:var(--text-2);font-size:12px;cursor:pointer;border:none;background:transparent;width:100%;text-align:left}
+.navitem:hover{background:var(--surface-2);color:var(--text-1)}
+.navitem:active{background:#EDEEF1}
+.navitem.active{background:var(--brand-soft);color:var(--brand);font-weight:500}
+.navitem .mini{margin-left:auto;font-size:9px;color:var(--text-3);border:1px solid var(--line);border-radius:3px;padding:0 4px;line-height:14px}
+.sidefoot{margin-top:auto;padding:9px 10px 0;border-top:1px solid var(--line-soft);font-size:10px;color:var(--text-3);line-height:1.5}
+.sidefoot .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--success);margin-right:5px;vertical-align:1px}
+
+.workspace{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:48px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 18px}
+.iconbtn{width:28px;height:28px;border:none;background:transparent;border-radius:var(--r-ctl);color:var(--text-3);display:flex;align-items:center;justify-content:center}
+.iconbtn:hover{background:var(--surface-2);color:var(--text-1)}
+.iconbtn:active{background:#E9EAED}
+.crumb{font-size:12px;color:var(--text-3)}
+.crumb b{color:var(--text-1);font-weight:500}
+.term{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--surface);font-size:11px;color:var(--text-2)}
+.term:hover{border-color:var(--brand);color:var(--brand)}
+.topbar .spacer{flex:1}
+
+.page{flex:1;min-height:0;overflow:auto;padding:20px 22px 28px;background:var(--surface)}
+.pagehead{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.pagehead h1{font-size:22px;font-weight:600;line-height:1.35;letter-spacing:.2px}
+.pagehead .sub{font-size:12px;color:var(--text-3);margin-top:3px}
+.headops{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
+.search{position:relative}
+.search svg{position:absolute;left:10px;top:9px;color:var(--text-3)}
+.search input{width:172px;height:32px;border:1px solid var(--line);border-radius:var(--r-ctl);padding:0 10px 0 30px;background:var(--surface);font-size:12px;outline:none}
+.search input::placeholder{color:var(--text-disabled)}
+.search input:hover{border-color:#C9C9CE}
+.search input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,82,217,.10);outline:none}
+.btn{height:32px;padding:0 13px;border-radius:var(--r-ctl);font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;transition:background .12s,border-color .12s,color .12s,transform .08s}
+.btn-sec{background:var(--surface);border:1px solid var(--line);color:var(--text-1)}
+.btn-sec:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-wash)}
+.btn-sec:active{background:#E4ECFA;transform:translateY(1px)}
+.btn-pri{background:var(--brand);border:1px solid var(--brand);color:#fff;font-weight:500}
+.btn-pri:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
+.btn-pri:active{background:var(--brand-press);transform:translateY(1px)}
+.btn-ghost{background:transparent;border:1px solid transparent;color:var(--text-2)}
+.btn-ghost:hover{background:var(--surface-2);color:var(--text-1)}
+.btn-ghost:active{background:#E9EAED}
+.btn:disabled,.btn[disabled]{background:#F2F2F4;border-color:#F2F2F4;color:var(--text-disabled);cursor:not-allowed;transform:none}
+.btn-link{border:none;background:transparent;color:var(--brand);font-size:12px;padding:2px 4px;border-radius:4px}
+.btn-link:hover{background:var(--brand-soft);text-decoration:underline}
+.btn-link:active{background:#E4ECFA}
+.btn-link:disabled{color:var(--text-disabled);cursor:not-allowed;text-decoration:none;background:transparent}
+
+/* 分段控件：按截图还原，不改成 Radio */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;background:var(--surface);height:32px}
+.seg button{height:30px;padding:0 13px;border:none;border-right:1px solid var(--line);background:var(--surface);font-size:12px;color:var(--text-2);display:inline-flex;align-items:center;gap:4px}
+.seg button:last-child{border-right:none}
+.seg button:hover{background:var(--surface-2)}
+.seg button:active{background:#E9EAED}
+.seg button.active{background:var(--brand-wash);color:var(--brand);font-weight:500}
+
+/* ============ 主区：四列表格 + 未分配课程 ============ */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:14px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden}
+.thead,.trow{display:grid;grid-template-columns:190px minmax(0,1fr) 158px 46px;align-items:center}
+.thead{height:36px;padding:0 16px;background:var(--surface-2);border-bottom:1px solid var(--line);font-size:11px;color:var(--text-3)}
+.trow{padding:0 16px;min-height:56px;border-bottom:1px solid var(--line-soft)}
+.trow:last-child{border-bottom:none}
+.trow:hover{background:var(--surface-3)}
+.tname{font-size:13px;font-weight:500}
+.tinfo .n{font-size:12px;color:var(--text-1)}
+.tinfo .s{font-size:11px;color:var(--text-3);margin-top:1px;display:flex;align-items:center;gap:6px;min-width:0}
+/* 行级合班标记：不展开教师行也能看到有没有合班课 */
+.rowmerge{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.rowmerge .chipm{font-size:10px;line-height:16px;padding:0 6px;border-radius:var(--r-ctl);background:var(--brand-soft);border:1px solid var(--brand-border);color:var(--brand);white-space:nowrap;font-weight:500}
+.rowmerge .clses{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+/* 页面级合班汇总：只展示已设置的结果，不是新建入口 */
+.mergebar{display:none;align-items:center;gap:10px;margin-bottom:12px;padding:9px 14px;border:1px solid var(--brand-border);border-radius:var(--r-card);background:var(--brand-wash)}
+.mergebar .ic{width:26px;height:26px;border-radius:var(--r-ctl);background:var(--surface);color:var(--brand);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mergebar .tx{font-size:12px;color:var(--text-1);flex:1;min-width:0}
+.mergebar .tx b{color:var(--brand);font-weight:600}
+.mergebar .go{height:28px;padding:0 11px;border-radius:var(--r-ctl);background:var(--surface);border:1px solid var(--brand-border);color:var(--brand);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.mergebar .go:hover{background:var(--brand-soft)}
+.mergebar .go:active{background:#E4ECFA}
+/* 全部合班课（抽屉第三 Tab） */
+.allcard{border:1px solid var(--line);border-radius:var(--r-card);padding:12px 14px;margin-bottom:12px}
+.allcard-h{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.allcard-h b{font-size:13px;font-weight:600}
+.allcard-h .pill{font-size:10px;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-border);border-radius:999px;padding:0 7px;line-height:16px}
+.allcard .grouprow{margin-bottom:8px}
+.allcard .grouprow:last-child{margin-bottom:0}
+.tweek{display:flex;align-items:center;justify-content:flex-end;gap:12px;font-size:12px;color:var(--text-2)}
+.exp{display:inline-flex;align-items:center;gap:3px;border:none;background:transparent;color:var(--text-3);font-size:11px;padding:3px 4px;border-radius:4px}
+.exp:hover{color:var(--brand);background:var(--brand-soft)}
+.exp:active{background:#E4ECFA}
+.trow .op{display:flex;justify-content:flex-end}
+.detail{grid-column:1/-1;padding:2px 16px 12px 206px}
+.detail .li{display:flex;align-items:center;gap:8px;height:22px;font-size:12px;color:var(--text-2)}
+.detail .li .dot{width:5px;height:5px;border-radius:50%;background:var(--brand);flex-shrink:0}
+.detail .li.merged{color:var(--brand);font-weight:500}
+.detail .li.merged .dot{background:var(--brand);width:6px;height:6px}
+
+/* ⋯ 菜单：6 项原样保留，仅加 2 条浅分隔线与「合班」数量提示 */
+.menu{position:fixed;z-index:70;width:150px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--shadow-pop);padding:4px;display:none}
+.menu.on{display:block}
+.menu button{width:100%;height:30px;border:none;background:transparent;border-radius:5px;text-align:left;padding:0 10px;font-size:12px;color:var(--text-1);display:flex;align-items:center;gap:6px}
+.menu button:hover{background:var(--surface-2)}
+.menu button:active{background:#E9EAED}
+.menu button.hi{background:var(--brand-soft);color:var(--brand);font-weight:500}
+.menu button.hi:hover{background:#E4ECFA}
+.menu button.danger{color:var(--danger)}
+.menu button.danger:hover{background:var(--danger-soft)}
+.menu .badge{margin-left:auto;font-size:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:0 6px;line-height:15px;color:var(--text-2);font-weight:400}
+.menu button.hi .badge{background:#fff;border-color:var(--brand-border);color:var(--brand)}
+.menu .sep{height:1px;background:var(--line-soft);margin:4px 2px}
+
+/* 右侧未分配课程 */
+.sidecard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);min-height:360px;position:relative;display:flex;flex-direction:column}
+.sidecard .sh{padding:12px 14px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:8px}
+.sidecard .sh b{font-size:13px;font-weight:600}
+.sidecard .sh .cnt{margin-left:auto;font-size:10px;color:var(--warning);background:var(--warning-soft);border:1px solid var(--warning-border);border-radius:999px;padding:0 7px;line-height:16px}
+.sidecard .empty{padding:80px 12px;text-align:center;color:var(--text-3);font-size:12px;flex:1}
+.sidecard .arrow{position:absolute;right:8px;top:52%;color:#C6C6CB}
+
+/* ============ 遮罩与抽屉 ============ */
+.scrim{position:fixed;inset:0;background:rgba(26,26,26,.30);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:720px;max-width:92vw;z-index:50;background:var(--surface);box-shadow:var(--shadow-drawer);display:flex;flex-direction:column;transform:translateX(102%);transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+.drawer.on{transform:translateX(0)}
+.dhead{padding:14px 24px 12px;border-bottom:1px solid var(--line-soft);display:flex;align-items:flex-start;gap:12px;flex-shrink:0}
+.dhead .dhicon{width:34px;height:34px;border-radius:var(--r-ctl);background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dhead h2{font-size:17px;font-weight:600;line-height:1.35}
+.dhead .dsub{font-size:12px;color:var(--text-3);margin-top:2px}
+.dhead .close{margin-left:auto}
+.source{display:flex;align-items:center;gap:6px;padding:8px 24px 0;font-size:11px;color:var(--text-3);flex-shrink:0;flex-wrap:wrap}
+.source .s-arrow{color:#C6C6CB}
+.source .cur{color:var(--brand);font-weight:500}
+.source .from{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:4px;padding:1px 6px}
+
+/* 上下文条 */
+.ctx{display:flex;align-items:stretch;margin:10px 24px 0;border:1px solid var(--line);border-radius:var(--r-card);background:var(--surface-3);flex-shrink:0;overflow:hidden}
+.ctxitem{flex:1;padding:9px 13px;border-right:1px solid var(--line-soft);min-width:0}
+.ctxitem:last-child{border-right:none}
+.ctxitem .k{font-size:10px;color:var(--text-3)}
+.ctxitem .v{font-size:12px;font-weight:500;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctxitem .v.blue{color:var(--brand)}
+
+/* 多组条件切换（仅同一教师有多组可合并条件时出现） */
+.grouppick{display:none;align-items:center;gap:8px;padding:12px 24px 0;flex-shrink:0;flex-wrap:wrap}
+.grouppick.on{display:flex}
+.grouppick .lab{font-size:11px;color:var(--text-3)}
+.gchip{height:28px;padding:0 11px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--surface);font-size:11px;color:var(--text-2)}
+.gchip:hover{border-color:var(--brand);color:var(--brand)}
+.gchip.on{background:var(--brand-soft);border-color:var(--brand-border);color:var(--brand);font-weight:500}
+
+.tabs{display:flex;gap:22px;padding:0 24px;margin-top:14px;border-bottom:1px solid var(--line);flex-shrink:0}
+.tab{border:none;background:transparent;padding:0 0 9px;font-size:13px;color:var(--text-3);position:relative;display:inline-flex;align-items:center;gap:6px}
+.tab:hover{color:var(--text-1)}
+.tab.active{color:var(--brand);font-weight:500}
+.tab.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--brand);border-radius:2px 2px 0 0}
+.tab .badge{font-size:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:0 6px;line-height:16px;color:var(--text-2)}
+.tab.active .badge{background:var(--brand-soft);border-color:var(--brand-border);color:var(--brand)}
+
+.dbody{flex:1;min-height:0;overflow:auto;padding:16px 24px 20px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.panehead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.panehead h3{font-size:13px;font-weight:600}
+.panehead .n{font-size:11px;color:var(--text-3);font-weight:400}
+.panehead .act{margin-left:auto}
+.tools{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tools .search{flex:1}
+.tools .search input{width:100%;height:30px;font-size:12px}
+.tools .search svg{top:8px}
+
+.picklist{border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden}
+.pickrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background .12s;min-height:42px}
+.pickrow:last-child{border-bottom:none}
+.pickrow:hover{background:var(--surface-3)}
+.pickrow:active{background:#EDF2FD}
+.pickrow.sel{background:var(--brand-soft)}
+.pickrow.sel:hover{background:#EAEEFE}
+.cb{width:16px;height:16px;border:1.5px solid #B9B9BE;border-radius:4px;background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;transition:background .12s,border-color .12s}
+.pickrow:hover .cb{border-color:var(--brand)}
+.pickrow.sel .cb{background:var(--brand);border-color:var(--brand)}
+.cb svg{opacity:0}
+.pickrow.sel .cb svg{opacity:1}
+.pickrow .pn{font-size:12px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pickrow .pv{font-size:11px;color:var(--text-3);white-space:nowrap}
+.pickrow.sel .pn{color:var(--brand);font-weight:500}
+.pickrow.sel .pv{color:var(--brand)}
+.listempty{padding:24px 12px;text-align:center;color:var(--text-3);font-size:12px;line-height:1.6}
+
+.subhead{display:flex;align-items:center;gap:8px;margin:16px 0 8px}
+.subhead .lbl{font-size:12px;color:var(--text-3);font-weight:500}
+.subhead .rule{flex:1;height:1px;background:var(--line-soft)}
+.grouprow{padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--surface-3);margin-bottom:8px}
+.grouprow .g1{display:flex;align-items:center;gap:8px}
+.grouprow .g1 b{font-size:12px;font-weight:500}
+.grouprow .g1 .pill{font-size:10px;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-border);border-radius:999px;padding:0 7px;line-height:16px}
+.grouprow .g1 .op{margin-left:auto}
+.grouprow .g2{font-size:11px;color:var(--text-3);margin-top:2px}
+.inlinewarn{display:flex;align-items:center;gap:6px;margin-top:8px;padding:7px 10px;border-radius:var(--r-ctl);background:var(--warning-soft);border:1px solid var(--warning-border);color:#8A5A12;font-size:11px}
+
+/* 预览 */
+.preview{border:1px solid var(--line);border-radius:var(--r-card);padding:14px;min-height:312px;background:var(--surface)}
+.pv-title{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3);font-weight:500;margin-bottom:12px}
+.pv-title .live{margin-left:auto;font-size:10px;color:var(--success);display:inline-flex;align-items:center;gap:4px}
+.pv-title .live i{width:5px;height:5px;border-radius:50%;background:var(--success);display:block}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;color:var(--text-3);margin-bottom:5px}
+.field input{width:100%;height:32px;border:1px solid var(--line);border-radius:var(--r-ctl);padding:0 10px;font-size:13px;background:var(--surface);outline:none}
+.field input:hover{border-color:#C9C9CE}
+.field input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,82,217,.10);outline:none}
+.field .help{font-size:11px;color:var(--text-3);margin-top:4px}
+.members{display:flex;flex-wrap:wrap;gap:6px}
+.member{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 5px 0 9px;border-radius:var(--r-ctl);background:var(--brand-soft);border:1px solid var(--brand-border);color:var(--brand);font-size:11px;font-weight:500}
+.member button{border:none;background:transparent;color:var(--brand);width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;padding:0}
+.member button:hover{background:rgba(0,82,217,.14)}
+.timetable{margin-top:4px;border:1px solid var(--brand-border);border-radius:var(--r-ctl);overflow:hidden;background:var(--brand-soft)}
+.tt-top{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--brand-border);font-size:10px;color:var(--brand);font-weight:500}
+.tt-main{padding:9px 10px;background:#fff}
+.tt-main .s{font-size:12px;font-weight:600}
+.tt-main .c{font-size:11px;color:var(--text-2);margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.tt-main .c em{font-style:normal;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand);border-radius:4px;padding:0 5px}
+.tt-main .t{font-size:10px;color:var(--text-3);margin-top:4px}
+.note{display:flex;gap:8px;padding:9px 10px;border-radius:var(--r-ctl);background:var(--success-soft);border:1px solid var(--success-border);font-size:11px;color:#1E6B4C;line-height:1.55;margin-top:12px}
+.note.warn{background:var(--warning-soft);border-color:var(--warning-border);color:#8A5A12}
+.checks{margin-top:12px;border-top:1px solid var(--line-soft);padding-top:10px}
+.checks .cap{font-size:11px;color:var(--text-3);margin-bottom:6px}
+.check{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2);padding:2px 0}
+.check svg{color:var(--success)}
+.pv-empty{text-align:center;padding:48px 14px;color:var(--text-3)}
+.pv-empty .ic{width:46px;height:46px;margin:0 auto 12px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:#B7B7BD}
+.pv-empty .t1{font-size:13px;color:var(--text-2);font-weight:500}
+.pv-empty .t2{font-size:11px;margin-top:5px;line-height:1.6}
+
+/* 骨架 */
+.sk{height:12px;border-radius:4px;background:linear-gradient(90deg,#F0F0F2 25%,#E6E6EA 37%,#F0F0F2 63%);background-size:400% 100%;animation:sh 1.3s ease infinite}
+@keyframes sh{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.skrow{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid var(--line-soft)}
+.skrow .sk:first-child{width:16px;height:16px;flex-shrink:0}
+
+/* 底部 */
+.dfoot{flex-shrink:0;border-top:1px solid var(--line);padding:12px 24px;background:var(--surface);display:flex;align-items:center;gap:16px}
+.footstatus{flex:1;min-width:0}
+.footstatus .l1{font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px}
+.footstatus .l1 .ok{color:var(--success)}
+.footstatus .l2{font-size:11px;color:var(--text-3);margin-top:1px}
+.footstatus .l2.warn{color:var(--warning)}
+.footops{display:flex;align-items:center;gap:8px}
+
+.toast{position:fixed;top:18px;left:50%;transform:translate(-50%,-16px);z-index:80;background:#1F2937;color:#fff;border-radius:var(--r-ctl);padding:10px 16px;font-size:13px;box-shadow:var(--shadow-pop);display:flex;align-items:center;gap:8px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast svg{color:#6EE7B7}
+
+/* 评审工具条（非产品界面） */
+.review{position:fixed;right:16px;bottom:16px;z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-pop);padding:8px 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:560px}
+.review .lab{font-size:10px;color:var(--text-3);letter-spacing:.3px;margin-right:2px;white-space:nowrap}
+.review button{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;font-size:11px;height:26px;padding:0 9px;color:var(--text-2)}
+.review button:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}
+.review button:active{background:#E4ECFA}
+.review button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.review .sep{width:1px;height:18px;background:var(--line)}
+.notes{position:fixed;right:16px;bottom:60px;z-index:60;width:352px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-pop);padding:16px;display:none}
+.notes.on{display:block}
+.notes h4{font-size:13px;font-weight:600;margin-bottom:10px}
+.notes ol{padding-left:16px;font-size:11px;color:var(--text-2);line-height:1.75}
+.notes ol li{margin-bottom:6px}
+.notes ol li b{color:var(--text-1)}
+.notes .cl{position:absolute;right:10px;top:10px}
+
+@media(max-width:1200px){
+  .sidebar{width:60px;padding:14px 8px}
+  .brandline{justify-content:center;padding:0 0 12px}
+  .brandline .txt,.school,.navgroup .cap,.navitem span:not(.mini),.sidefoot,.navitem .mini{display:none}
+  .navitem{justify-content:center;padding:0}
+  .drawer{width:min(720px,86vw)}
+  .cols{grid-template-columns:minmax(0,1fr) 230px}
+  .thead,.trow{grid-template-columns:150px minmax(0,1fr) 130px 40px}
+  .detail{padding-left:166px}
+}
+@media(max-width:768px){
+  .drawer{width:100%;max-width:100%;top:auto;height:88vh;transform:translateY(102%);border-radius:var(--r-card) var(--r-card) 0 0}
+  .drawer.on{transform:translateY(0)}
+  .split{grid-template-columns:1fr}
+  .ctx{flex-wrap:wrap}
+  .ctxitem{flex:1 1 50%;border-bottom:1px solid var(--line-soft)}
+  .cols{grid-template-columns:1fr}
+  .thead,.trow{grid-template-columns:120px minmax(0,1fr) 104px 36px}
+  .detail{padding-left:20px}
+  .page{padding:16px 12px}
+  .topbar{padding:0 12px}
+  .review{left:12px;right:12px;bottom:10px;max-width:none;justify-content:center}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brandline">
+      <div class="logo">课</div>
+      <div class="txt"><div class="nm">课集</div><div class="en">CLASSSET</div></div>
+    </div>
+    <div class="school"><div class="s1">未命名学校</div><div class="s2">2026 学年 · 秋季学期</div></div>
+    <div class="navgroup">
+      <div class="cap">排课准备</div>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg><span>工作台</span></button>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg><span>学期与日历</span></button>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13h12M3 13V6l5-3 5 3v7M6.5 13V9h3v4"/></svg><span>班级与学段</span><span class="mini">分享版</span></button>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg><span>作息设置</span></button>
+    </div>
+    <div class="navgroup">
+      <div class="cap">排课与课表</div>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 3.5h11v9h-11zM2.5 6.5h11M6 6.5v6"/></svg><span>科目节数</span></button>
+      <button class="navitem active"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="5.5" r="2.2"/><path d="M2 13c0-2.2 1.8-3.6 4-3.6s4 1.4 4 3.6M11 4.5h3M11 7h3M11 9.5h2"/></svg><span>教师任课</span></button>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 6h12M6 6v7.5"/></svg><span>排课与课表</span></button>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5h8l-2-2M13 11H5l2 2"/></svg><span>调代课</span></button>
+    </div>
+    <div class="navgroup">
+      <div class="cap">更多</div>
+      <button class="navitem"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13V6l6-3 6 3v7M6 13V9h4v4"/></svg><span>公共场室</span></button>
+    </div>
+    <div class="sidefoot"><span class="dot"></span>本地数据 · 离线可用<div style="margin-top:2px">最近保存 20:49</div></div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <button class="iconbtn" aria-label="收起导航"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg></button>
+      <div class="crumb">教师任课 · <b>2026 学年</b></div>
+      <button class="term">2026 学年 · 秋季学期 <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></button>
+      <div class="spacer"></div>
+      <button class="iconbtn" aria-label="外观"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg></button>
+    </header>
+
+    <main class="page">
+      <div class="pagehead">
+        <div>
+          <h1>教师任课</h1>
+          <div class="sub">按教师查看任课和周均节数；可从右侧未分配课程区拖拽分配。</div>
+        </div>
+        <div class="headops">
+          <div class="search">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5L14 14"/></svg>
+            <input placeholder="按姓名查找教师" aria-label="按姓名查找教师">
+          </div>
+          <button class="btn btn-ghost" style="color:var(--brand)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>添加任课</button>
+          <button class="btn btn-ghost">更多 <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></button>
+          <div class="seg">
+            <button>班级</button><button class="active">教师</button><button>设置 <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 页面级合班汇总：一眼看到本学期有没有合班课、有几组、涉及哪些教师 -->
+      <div class="mergebar" id="mergeBar"></div>
+
+      <div class="cols">
+        <!-- 四列表格（按截图还原） -->
+        <section class="panel">
+          <div class="thead"><span>教师</span><span>任课安排</span><span style="text-align:right;padding-right:8px">周均节数</span><span style="text-align:right">操作</span></div>
+          <div id="tbody"></div>
+        </section>
+
+        <!-- 右侧未分配课程（按截图还原） -->
+        <aside class="sidecard">
+          <div class="sh"><b>未分配课程</b><span class="cnt num">6 节</span></div>
+          <div class="empty">课程已全部分配</div>
+          <svg class="arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3l5 5-5 5"/></svg>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ⋯ 菜单：6 项文案与顺序原样保留 -->
+<div class="menu" id="rowMenu">
+  <button data-act="添加任课">添加任课</button>
+  <button data-act="删除任课" class="danger">删除任课</button>
+  <div class="sep"></div>
+  <button data-act="合班" class="hi" id="menuMerge">合班 <span class="badge num" id="menuBadge">0</span></button>
+  <button data-act="教师预排">教师预排</button>
+  <div class="sep"></div>
+  <button data-act="编辑教师">编辑教师</button>
+  <button data-act="删除教师" class="danger">删除教师</button>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- ============ 合班抽屉 ============ -->
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+  <div class="dhead">
+    <div class="dhicon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5.5" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><path d="M1.5 13c0-2.2 1.8-3.5 4-3.5s4 1.3 4 3.5M9 9.8c2.4-.2 5.5.8 5.5 3.2"/></svg></div>
+    <div>
+      <h2 id="drawerTitle">合班 · 道德与法治教师 6</h2>
+      <div class="dsub" id="dsub">候选班级来自该教师展开后的任课明细</div>
+    </div>
+    <button class="iconbtn close" id="btnClose" aria-label="关闭"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </div>
+  <div class="source" id="sourceTrail"></div>
+
+  <div class="ctx" id="ctxBar"></div>
+  <div class="grouppick" id="groupPick"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="new">新建合班</button>
+    <button class="tab" data-tab="manage">已有合班组 <span class="badge num" id="tabCount">0</span></button>
+    <button class="tab" data-tab="all">全部合班课 <span class="badge num" id="allCount">0</span></button>
+  </div>
+
+  <div class="dbody" id="dbody">
+    <div id="paneNew">
+      <div class="split">
+        <div>
+          <div class="panehead"><h3>可合并的班级</h3><span class="n num" id="candCount">0 个</span><span class="act"><button class="btn-link" id="btnAll">全选</button></span></div>
+          <div class="tools">
+            <div class="search">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5L14 14"/></svg>
+              <input id="filter" placeholder="搜索班级，如「3 班」" aria-label="搜索班级">
+            </div>
+          </div>
+          <div class="picklist" id="pickList"></div>
+          <div class="subhead"><span class="lbl">已在合班组中</span><span class="rule"></span><button class="btn-link" id="btnJump">查看全部</button></div>
+          <div id="lockedList"></div>
+        </div>
+        <div>
+          <div class="panehead"><h3>合并预览</h3><span class="n">随选择实时更新</span></div>
+          <div class="preview" id="preview"></div>
+        </div>
+      </div>
+    </div>
+    <div id="paneManage" style="display:none"></div>
+    <div id="paneAll" style="display:none"></div>
+  </div>
+
+  <div class="dfoot">
+    <div class="footstatus" id="footStatus"></div>
+    <div class="footops">
+      <button class="btn btn-ghost" id="btnCancel">取消</button>
+      <button class="btn btn-pri" id="btnConfirm" disabled>确认合班</button>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.5l3 3 7-7"/></svg><span id="toastText"></span></div>
+
+<!-- 评审工具条 -->
+<div class="review">
+  <span class="lab">演示状态 · 评审用</span>
+  <button id="btnEntry">看 ⋯ 入口</button>
+  <button id="btnSummary">合班汇总</button>
+  <button data-state="init" class="on">初始</button>
+  <button data-state="one">选 1 个</button>
+  <button data-state="two">选 2 个</button>
+  <button data-state="loading">加载中</button>
+  <button data-state="success">成功反馈</button>
+  <span class="sep"></span>
+  <button id="btnTheme">温暖极简</button>
+  <button id="btnNotes">改版说明</button>
+</div>
+
+<div class="notes" id="notes">
+  <button class="iconbtn cl" id="notesClose" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  <h4>入口归属 / 合班课在主界面可见</h4>
+  <ol>
+    <li><b>主界面零改动</b>：四列表格（教师 / 任课安排 / 周均节数 / 操作）、展开收起、蓝点明细、右上分段控件、右侧未分配课程，全部照截图还原。</li>
+    <li><b>⋯ 菜单 6 项一个不少</b>：添加任课 / 删除任课 / 合班 / 教师预排 / 编辑教师 / 删除教师，文案与顺序不变，仅加两条浅分隔线分组，并给「合班」加可合并班级数提示。</li>
+    <li><b>唯一入口不变</b>：⋯ →「合班」。撤掉上一版自造的提示条与「合班概览」卡。</li>
+    <li><b>抽屉只做合班</b>：来源面包屑标出「教师任课 › 某教师 › ⋯ › 合班」；上下文条与候选班级按进入时那一行的教师动态生成，来自其展开明细。</li>
+    <li><b>拆分不新增菜单项</b>：属于合班子流程，收在「已有合班组」Tab，拆分后班级立即回到候选列表。</li>
+    <li><b>同一教师有多组条件</b>（如体育与健康教师 8 科目/节数不同）时，抽屉顶部先选「任课条件组」，避免把不能合并的班混在一起。</li>
+    <li><b>结果回到列表</b>：合班后，展开明细里对应两个班合并显示为一行蓝色「合班」条目。</li>
+    <li><b>主界面直接可见（v3）</b>：页面级汇总条显示共几组、涉及几个班与几位教师；「任课安排」列给有合班的教师行加「N 组合班」浅蓝标记与班级摘要，不展开也能扫到。两者都只是<b>查看结果</b>，不是新建入口。</li>
+    <li><b>全校汇总</b>：「全部合班课」Tab 按教师列出所有合班组，点「查看该教师」跳回该教师的合班流程；拆分仍只在教师自己的 Tab 里做，避免跨教师误操作。</li>
+  </ol>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var SVG = {
+    check:'<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 5"/></svg>',
+    tick:'<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8.5l3 3 7-7"/></svg>',
+    users:'<svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="5.5" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><path d="M1.5 13c0-2.2 1.8-3.5 4-3.5s4 1.3 4 3.5M9 9.8c2.4-.2 5.5.8 5.5 3.2"/></svg>',
+    info:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.8h.01"/></svg>',
+    more:'<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.15"/><circle cx="8" cy="8" r="1.15"/><circle cx="12.5" cy="8" r="1.15"/></svg>',
+    down:'<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg>',
+    up:'<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10l4-4 4 4"/></svg>'
+  };
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+
+  /* ---------- 数据：完全按截图的教师与任课明细 ---------- */
+  function mk(names, subject, per){
+    return names.map(function(n){ return {cls:n, sub:subject, per:per, week:'不分单双周', group:null}; });
+  }
+  var TEACHERS = [
+    {id:'t1', name:'语文教师 1', sub:'语文', weekly:12, courses:mk(['一年级 1 班','一年级 2 班','一年级 3 班','一年级 4 班','一年级 5 班','一年级 6 班'],'语文',2)},
+    {id:'t2', name:'语文教师 2', sub:'语文', weekly:12, courses:mk(['二年级 1 班','二年级 2 班','二年级 3 班','二年级 4 班','二年级 5 班','二年级 6 班'],'语文',2)},
+    {id:'t3', name:'语文教师 3', sub:'语文', weekly:12, courses:mk(['三年级 1 班','三年级 2 班','三年级 3 班','三年级 4 班','三年级 5 班','三年级 6 班'],'语文',2)},
+    {id:'t4', name:'数学教师 4', sub:'数学', weekly:15, courses:mk(['一年级 1 班','一年级 2 班','一年级 3 班'],'数学',5)},
+    {id:'t5', name:'数学教师 5', sub:'数学', weekly:15, courses:mk(['一年级 4 班','一年级 5 班','一年级 6 班'],'数学',5)},
+    {id:'t6', name:'道德与法治教师 6', sub:'道德与法治', weekly:12, courses:mk(['一年级 1 班','一年级 2 班','一年级 3 班','一年级 4 班','一年级 5 班','一年级 6 班'],'道德与法治',2)},
+    {id:'t7', name:'科学教师 7', sub:'科学', weekly:6, courses:mk(['一年级 1 班','一年级 3 班','一年级 4 班','一年级 5 班','一年级 6 班','一年级 2 班'],'科学',1)},
+    {id:'t8', name:'体育与健康教师 8', sub:'体育与健康，体育', weekly:12, courses:
+      mk(['一年级 1 班','一年级 2 班','一年级 3 班','一年级 4 班','一年级 5 班'],'体育与健康',2)
+      .concat(mk(['一年级 6 班','二年级 1 班'],'体育',1))},
+    {id:'t9', name:'体育与健康教师 9', sub:'体育与健康，体育', weekly:10, courses:mk(['二年级 1 班','二年级 2 班','二年级 3 班','二年级 4 班','二年级 5 班'],'体育与健康',2)},
+    {id:'t10', name:'音乐教师 10', sub:'音乐', weekly:12, courses:mk(['一年级 1 班','一年级 2 班','一年级 3 班','一年级 4 班','一年级 5 班','一年级 6 班'],'音乐',2)}
+  ];
+  // 截图原状：道德与法治教师 6 的一年级 1、2 班已合班
+  var GROUPS = {}; // teacherId -> [{id,name,key,members:[courseIndex]}]
+  GROUPS.t6 = [{id:'g1', name:'一年级 1、2 班合班', key:'道德与法治|不分单双周|2', members:[0,1]}];
+  GROUPS.t6[0].members.forEach(function(i){ TEACHERS[5].courses[i].group = 'g1'; });
+
+  var activeTeacher = 't6';
+  var activeKey = null;
+  var selected = [];   // course index in active teacher's courses
+  var loading = false;
+  var tab = 'new';
+  var customName = '';
+  var expanded = {t7:true};  // 截图里科学教师 7 是展开态
+  var menuTeacher = null;
+
+  function T(){ return TEACHERS.filter(function(t){return t.id===activeTeacher;})[0]; }
+  function groups(){ return GROUPS[activeTeacher] || []; }
+  function setGroups(g){ GROUPS[activeTeacher] = g; }
+  function keyOf(c){ return c.sub+'|'+c.week+'|'+c.per; }
+  function eligible(t){
+    var m = {};
+    t.courses.forEach(function(c,i){ (m[keyOf(c)] = m[keyOf(c)] || []).push(i); });
+    return Object.keys(m).filter(function(k){ return m[k].length >= 2; }).map(function(k){
+      return {key:k, idx:m[k], sub:m[k].length?t.courses[m[k][0]].sub:'', per:t.courses[m[k][0]].per, week:t.courses[m[k][0]].week};
+    });
+  }
+  function currentGroup(){
+    var es = eligible(T());
+    if(!es.length) return null;
+    return es.filter(function(e){return e.key===activeKey;})[0] || es[0];
+  }
+  function candidates(){
+    var g = currentGroup();
+    if(!g) return [];
+    return g.idx.filter(function(i){ return !T().courses[i].group; });
+  }
+  function shortName(n){ return n.replace(/^.*年级\s*/,'').replace(/\s*班$/,''); }
+  function defaultName(){
+    if(selected.length < 2) return '';
+    var t = T();
+    return t.courses[selected[0]].cls.replace(/\d+\s*班$/,'') + selected.map(function(i){return shortName(t.courses[i].cls);}).join('、') + ' 班合班';
+  }
+  function groupName(){ return customName || defaultName(); }
+
+  /* ---------- 主界面表格渲染 ---------- */
+  function renderTable(){
+    $('tbody').innerHTML = TEACHERS.map(function(t){
+      var gs = GROUPS[t.id] || [];
+      var mergedIdx = {};
+      gs.forEach(function(g){ g.members.forEach(function(i){ mergedIdx[i] = g; }); });
+      var done = {};
+      var lines = '';
+      t.courses.forEach(function(c,i){
+        if(done[i]) return;
+        if(c.group){
+          var g = gs.filter(function(x){return x.id===c.group;})[0];
+          if(g){
+            g.members.forEach(function(j){ done[j] = true; });
+            lines += '<div class="li merged"><span class="dot"></span>'+esc(c.sub)+' · '+esc(g.name)+' · '+c.per+' 节</div>';
+          }
+        }else{
+          done[i] = true;
+          lines += '<div class="li"><span class="dot"></span>'+esc(c.sub)+' · '+esc(c.cls)+' · '+c.per+' 节</div>';
+        }
+      });
+      var isOpen = !!expanded[t.id];
+      var mergeMark = '';
+      if(gs.length){
+        var gnames = gs.map(function(x){ return x.name; }).join('、');
+        mergeMark = '<span class="rowmerge"><span class="chipm num">'+gs.length+' 组合班</span>'+
+          '<span class="clses" title="'+esc(gnames)+'">'+esc(gnames)+'</span></span>';
+      }
+      return '<div class="trow" data-teacher="'+t.id+'">'+
+        '<div class="tname">'+esc(t.name)+'</div>'+
+        '<div class="tinfo"><div class="n num">'+t.courses.length+' 项任课</div><div class="s">'+esc(t.sub)+mergeMark+'</div></div>'+
+        '<div class="tweek"><button class="exp" data-exp="'+t.id+'">'+(isOpen?'收起':'展开')+(isOpen?SVG.up:SVG.down)+'</button><span class="num">'+t.weekly+' 节</span></div>'+
+        '<div class="op"><button class="iconbtn" data-more="'+t.id+'" aria-label="'+esc(t.name)+' 更多操作">'+SVG.more+'</button></div>'+
+        (isOpen ? '<div class="detail">'+lines+'</div>' : '')+
+      '</div>';
+    }).join('');
+  }
+
+  /* ---------- ⋯ 菜单 ---------- */
+  function openMenu(tid, anchor){
+    menuTeacher = tid;
+    var es = eligible(TEACHERS.filter(function(t){return t.id===tid;})[0]);
+    var n = 0;
+    es.forEach(function(e){ n += e.idx.filter(function(i){ return !TEACHERS.filter(function(t){return t.id===tid;})[0].courses[i].group; }).length; });
+    $('menuBadge').textContent = n;
+    var r = anchor.getBoundingClientRect();
+    var m = $('rowMenu');
+    m.classList.add('on');
+    var w = 150, h = m.offsetHeight;
+    var left = Math.max(8, r.right - w);
+    var top = r.bottom + 4;
+    if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+    m.style.left = left+'px'; m.style.top = top+'px';
+  }
+  function closeMenu(){ $('rowMenu').classList.remove('on'); menuTeacher = null; }
+
+  $('tbody').addEventListener('click', function(e){
+    var more = e.target.closest('[data-more]');
+    var exp = e.target.closest('[data-exp]');
+    if(more){ e.stopPropagation(); openMenu(more.getAttribute('data-more'), more); return; }
+    if(exp){
+      var id = exp.getAttribute('data-exp');
+      expanded[id] = !expanded[id];
+      renderTable();
+    }
+  });
+
+  $('rowMenu').addEventListener('click', function(e){
+    var b = e.target.closest('[data-act]');
+    if(!b) return;
+    var act = b.getAttribute('data-act');
+    var tid = menuTeacher;
+    closeMenu();
+    if(act === '合班'){
+      activeTeacher = tid || activeTeacher;
+      activeKey = null; selected = []; customName = ''; loading = false;
+      switchTab('new'); openDrawer(); renderAll();
+    }else{
+      toast('「'+act+'」仍保留在 ⋯ 菜单中，本原型只演示合班流程');
+    }
+  });
+  document.addEventListener('click', function(e){
+    if($('rowMenu').classList.contains('on') && !e.target.closest('.menu') && !e.target.closest('[data-more]')) closeMenu();
+  });
+
+  /* ---------- 抽屉渲染 ---------- */
+  function renderHeader(){
+    if(tab === 'all'){
+      $('drawerTitle').textContent = '全部合班课';
+      $('dsub').textContent = '按教师汇总本学期已设置的合班课';
+      $('sourceTrail').innerHTML = '<span>教师任课</span><span class="s-arrow">›</span><span class="cur">合班课汇总</span>';
+      $('ctxBar').style.display = 'none';
+      $('groupPick').style.display = 'none';
+      $('groupPick').classList.remove('on');
+      return;
+    }
+    $('ctxBar').style.display = '';
+    $('groupPick').style.display = '';
+    $('dsub').textContent = '候选班级来自该教师展开后的任课明细';
+    var t = T(), g = currentGroup();
+    $('drawerTitle').textContent = '合班 · ' + t.name;
+    $('sourceTrail').innerHTML =
+      '<span>教师任课</span><span class="s-arrow">›</span><span>'+esc(t.name)+'</span>'+
+      '<span class="s-arrow">›</span><span class="from">⋯ 更多操作</span>'+
+      '<span class="s-arrow">›</span><span class="cur">合班</span>';
+    var cells = [
+      ['任课教师', t.name, false],
+      ['科目', g ? g.sub : t.sub, false],
+      ['周模式', g ? g.week : '不分单双周', false],
+      ['每周节数', g ? (g.per + ' 节') : '—', true]
+    ];
+    $('ctxBar').innerHTML = cells.map(function(c){
+      return '<div class="ctxitem"><div class="k">'+c[0]+'</div><div class="v'+(c[2]?' blue num':'')+'">'+esc(c[1])+'</div></div>';
+    }).join('');
+    var es = eligible(t);
+    var gp = $('groupPick');
+    if(es.length > 1){
+      gp.classList.add('on');
+      gp.innerHTML = '<span class="lab">这位教师有 '+es.length+' 组任课条件，先选择要合并的一组：</span>' +
+        es.map(function(e){
+          var free = e.idx.filter(function(i){return !t.courses[i].group;}).length;
+          return '<button class="gchip'+((activeKey||es[0].key)===e.key?' on':'')+'" data-key="'+esc(e.key)+'">'+esc(e.sub)+' · '+e.per+' 节（'+free+' 个班可合并）</button>';
+        }).join('');
+    }else{
+      gp.classList.remove('on'); gp.innerHTML = '';
+    }
+  }
+  $('groupPick').addEventListener('click', function(e){
+    var b = e.target.closest('[data-key]');
+    if(!b) return;
+    activeKey = b.getAttribute('data-key');
+    selected = []; customName = '';
+    renderAll();
+  });
+
+  function renderPick(){
+    renderHeader();
+    var t = T(), box = $('pickList');
+    if(loading){
+      var h = '';
+      for(var i=0;i<4;i++) h += '<div class="skrow"><div class="sk"></div><div class="sk" style="width:'+(56+i*7)+'%"></div><div class="sk" style="width:28px;margin-left:auto"></div></div>';
+      box.innerHTML = h; $('candCount').textContent = '读取中…'; $('btnAll').disabled = true;
+    }else{
+      var q = ($('filter').value || '').trim();
+      var ids = candidates().filter(function(i){ return !q || t.courses[i].cls.indexOf(q) >= 0; });
+      $('candCount').textContent = candidates().length + ' 个';
+      $('btnAll').disabled = ids.length === 0;
+      if(!ids.length){
+        box.innerHTML = '<div class="listempty">没有可合并的班级<div style="margin-top:4px;font-size:11px">'+
+          (candidates().length ? '换个关键词试试' : '该组班级都在已有合班组中，或条件一致的班级不足 2 个')+'</div></div>';
+      }else{
+        box.innerHTML = ids.map(function(i){
+          var c = t.courses[i], on = selected.indexOf(i) >= 0;
+          return '<div class="pickrow'+(on?' sel':'')+'" data-idx="'+i+'" role="checkbox" aria-checked="'+on+'" tabindex="0">'+
+            '<span class="cb">'+SVG.check+'</span><span class="pn">'+esc(c.cls)+'</span>'+
+            '<span class="pv num">每周 '+c.per+' 节</span></div>';
+        }).join('');
+      }
+    }
+    renderLocked(); renderPreview(); renderFoot(); renderManage(); renderTable();
+  }
+
+  function renderLocked(){
+    var gs = groups(), box = $('lockedList');
+    if(!gs.length){ box.innerHTML = '<div class="listempty" style="border:1px dashed var(--line);border-radius:var(--r-ctl)">暂无合班组</div>'; return; }
+    box.innerHTML = gs.map(function(g){
+      return '<div class="grouprow"><div class="g1"><b>'+esc(g.name)+'</b><span class="pill num">'+g.members.length+' 个班</span>'+
+        '<span class="op"><button class="btn-link" data-split="'+g.id+'">拆分</button></span></div>'+
+        '<div class="g2">'+esc(T().name)+' · 每周 '+T().courses[g.members[0]].per+' 节 · '+esc(T().courses[g.members[0]].week)+'</div></div>';
+    }).join('') + '<div class="inlinewarn">'+SVG.info+'<span>这些班级已属于其他合班组，需先拆分才能重新组合。</span></div>';
+  }
+
+  function renderPreview(){
+    var pv = $('preview'), t = T(), g = currentGroup();
+    if(loading){
+      pv.innerHTML = '<div class="pv-title">合并预览</div><div class="sk" style="width:40%;margin-bottom:14px"></div><div class="sk" style="height:32px;margin-bottom:14px"></div><div class="sk" style="width:70%;margin-bottom:10px"></div><div class="sk" style="height:70px"></div>';
+      return;
+    }
+    var head = '<div class="pv-title">合并预览 <span class="live"><i></i>实时</span></div>';
+    if(!g){
+      pv.innerHTML = head + '<div class="pv-empty"><div class="ic">'+SVG.users+'</div><div class="t1">暂无可合并的任课</div><div class="t2">这位教师的任课安排中，<br>没有 2 个以上「教师 / 科目 / 周模式 / 节数」完全一致的班级。</div></div>';
+      return;
+    }
+    var n = selected.length;
+    if(n === 0){
+      pv.innerHTML = head + '<div class="pv-empty"><div class="ic">'+SVG.users+'</div><div class="t1">还没有选班级</div><div class="t2">从左侧勾选至少 2 个班级，<br>这里会显示合并后的课表效果。</div></div>';
+      return;
+    }
+    if(n === 1){
+      pv.innerHTML = head + '<div class="pv-empty"><div class="ic">'+SVG.users+'</div><div class="t1">已选 '+esc(t.courses[selected[0]].cls)+'</div><div class="t2">再选 1 个班级即可组成合班组。</div></div>'+
+        '<div class="note warn">'+SVG.info+'<span>合班至少需要 2 个班级。当前只有 1 个，暂不能确认。</span></div>';
+      return;
+    }
+    var members = selected.map(function(i){
+      return '<span class="member">'+esc(t.courses[i].cls)+'<button data-remove="'+i+'" aria-label="移除">×</button></span>';
+    }).join('');
+    var chips = selected.map(function(i){ return '<em>'+esc(t.courses[i].cls)+'</em>'; }).join('<span>+</span>');
+    pv.innerHTML = head +
+      '<div class="field"><label for="gname">合班组名称</label><input id="gname" value="'+esc(groupName())+'"><div class="help">用于课表与任课明细显示，可随时修改。</div></div>'+
+      '<div class="field"><label>参与班级 <span class="num">('+n+' 个)</span></label><div class="members">'+members+'</div></div>'+
+      '<div class="field" style="margin-bottom:6px"><label>课表上的样子</label><div class="timetable">'+
+        '<div class="tt-top">周三 · 第 3 节 · 1 个课程块</div><div class="tt-main">'+
+        '<div class="s">'+esc(g.sub)+'</div><div class="c">'+chips+'</div>'+
+        '<div class="t">'+esc(t.name)+' · 普通教室 · 每周 '+g.per+' 节</div></div></div></div>'+
+      '<div class="note">'+SVG.info+'<span>两个班在同一节课一起上课，<b>课时数不叠加</b>：合并前每班 '+g.per+' 节，合并后仍是每周 '+g.per+' 节。</span></div>'+
+      '<div class="checks"><div class="cap">合并条件校验</div>'+
+        '<div class="check">'+SVG.tick+'同一任课教师：'+esc(t.name)+'</div>'+
+        '<div class="check">'+SVG.tick+'同一科目：'+esc(g.sub)+'</div>'+
+        '<div class="check">'+SVG.tick+'周模式一致：'+esc(g.week)+'</div>'+
+        '<div class="check">'+SVG.tick+'每周节数一致：'+g.per+' 节</div></div>';
+  }
+
+  function renderFoot(){
+    var n = selected.length, s = $('footStatus'), b = $('btnConfirm'), g = currentGroup();
+    if(tab === 'all'){
+      var st = globalStats();
+      s.innerHTML = '<div class="l1">共 <span class="num">'+st.groups+'</span> 组合班课 · <span class="num">'+st.classes+'</span> 个班级</div>'+
+        '<div class="l2">涉及 <span class="num">'+st.teachers+'</span> 位教师；拆分请进入对应教师的「已有合班组」</div>';
+      b.disabled = true; return;
+    }
+    if(loading){ s.innerHTML = '<div class="l1">正在读取可合并班级…</div><div class="l2">按教师、科目、周模式与节数筛选</div>'; b.disabled = true; return; }
+    if(tab === 'manage'){
+      s.innerHTML = '<div class="l1">已有 <span class="num">'+groups().length+'</span> 个合班组</div><div class="l2">可在此拆分，或切到「新建合班」继续组合</div>';
+      b.disabled = true; return;
+    }
+    if(!g){ s.innerHTML = '<div class="l1">暂无可合并的班级</div><div class="l2 warn">该教师没有条件完全一致的 2 个以上班级</div>'; }
+    else if(n === 0){ s.innerHTML = '<div class="l1">已选 <span class="num">0</span> 个班级</div><div class="l2 warn">至少选择 2 个班级才能合班</div>'; }
+    else if(n === 1){ s.innerHTML = '<div class="l1">已选 <span class="num">1</span> 个班级</div><div class="l2 warn">再选 1 个班级即可合班</div>'; }
+    else{ s.innerHTML = '<div class="l1"><span class="ok">'+SVG.tick+'</span> 已选 <span class="num">'+n+'</span> 个班级，条件全部满足</div><div class="l2">合并后共 1 个上课单位，每周 '+g.per+' 节</div>'; }
+    b.disabled = n < 2 || !g;
+    b.title = n < 2 ? '至少选择 2 个班级' : '';
+  }
+
+  function renderManage(){
+    $('tabCount').textContent = groups().length;
+    var pane = $('paneManage'), t = T(), gs = groups();
+    if(!gs.length){
+      pane.innerHTML = '<div class="pv-empty" style="border:1px dashed var(--line);border-radius:var(--r-card)"><div class="ic">'+SVG.users+'</div>还没有合班组<div class="t2">切到「新建合班」，勾选至少 2 个班级即可创建</div></div>';
+      return;
+    }
+    pane.innerHTML = '<div class="panehead"><h3>当前合班组</h3><span class="n num">'+gs.length+' 组</span></div>'+
+      gs.map(function(g){
+        return '<div class="card" style="border:1px solid var(--line);border-radius:var(--r-card);padding:14px 16px;margin-bottom:10px">'+
+          '<div style="display:flex;align-items:center;gap:8px"><b style="font-size:13px">'+esc(g.name)+'</b>'+
+          '<span style="font-size:10px;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-border);border-radius:999px;padding:0 7px;line-height:16px">'+g.members.length+' 个班</span>'+
+          '<button class="btn-link" data-split="'+g.id+'" style="margin-left:auto">拆分</button></div>'+
+          '<div style="font-size:11px;color:var(--text-3);margin-top:4px">'+esc(t.name)+' · '+esc(t.courses[g.members[0]].sub)+' · 每周 '+t.courses[g.members[0]].per+' 节 · '+esc(t.courses[g.members[0]].week)+'</div>'+
+          '<div class="members" style="margin-top:10px">'+g.members.map(function(i){return '<span class="member">'+esc(t.courses[i].cls)+'</span>';}).join('')+'</div>'+
+          '<div style="font-size:11px;color:var(--text-3);margin-top:10px;padding-top:9px;border-top:1px solid var(--line-soft)">课表上合并为 1 个课程块，课时数不叠加</div></div>';
+      }).join('') + '<div class="note">'+SVG.info+'<span>拆分后，这些班级会立刻回到「可合并的班级」列表，可重新组合。</span></div>';
+  }
+
+  /* ---------- 全局合班课汇总（主界面可见性） ---------- */
+  function globalStats(){
+    var gs=0, cs=0, ts=0;
+    TEACHERS.forEach(function(t){
+      var g = GROUPS[t.id] || [];
+      if(g.length){ ts++; gs += g.length; g.forEach(function(x){ cs += x.members.length; }); }
+    });
+    return {groups:gs, classes:cs, teachers:ts};
+  }
+  function renderMergeBar(){
+    var st = globalStats(), bar = $('mergeBar');
+    if(!st.groups){ bar.style.display='none'; bar.innerHTML=''; return; }
+    bar.style.display='flex';
+    bar.innerHTML =
+      '<span class="ic"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5.5" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><path d="M1.5 13c0-2.2 1.8-3.5 4-3.5s4 1.3 4 3.5M9 9.8c2.4-.2 5.5.8 5.5 3.2"/></svg></span>'+
+      '<div class="tx">已设置 <b class="num">'+st.groups+'</b> 组合班课 · 涉及 <b class="num">'+st.classes+'</b> 个班级、<b class="num">'+st.teachers+'</b> 位教师</div>'+
+      '<button class="go" id="btnAllView">查看全部 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>';
+  }
+  function renderAllView(){
+    var st = globalStats();
+    $('allCount').textContent = st.groups;
+    var pane = $('paneAll');
+    var rows = TEACHERS.filter(function(t){ return (GROUPS[t.id]||[]).length; });
+    if(!rows.length){
+      pane.innerHTML = '<div class="pv-empty" style="border:1px dashed var(--line);border-radius:var(--r-card)"><div class="ic">'+SVG.users+'</div>还没有合班课<div class="t2">在教师行尾 ⋯ →「合班」中创建的合班组会汇总到这里</div></div>';
+      return;
+    }
+    pane.innerHTML = '<div class="panehead"><h3>全校合班课</h3><span class="n num">'+st.groups+' 组 · '+st.classes+' 个班 · '+st.teachers+' 位教师</span></div>'+
+      rows.map(function(t){
+        var gs = GROUPS[t.id] || [];
+        return '<div class="allcard"><div class="allcard-h"><b>'+esc(t.name)+'</b><span class="pill num">'+gs.length+' 组</span></div>'+
+          gs.map(function(g){
+            var c0 = t.courses[g.members[0]];
+            return '<div class="grouprow"><div class="g1"><b>'+esc(g.name)+'</b>'+
+              '<span class="pill num">'+g.members.length+' 个班</span>'+
+              '<span class="op"><button class="btn-link" data-goto="'+t.id+'">查看该教师</button></span></div>'+
+              '<div class="g2">'+esc(c0.sub)+' · 每周 '+c0.per+' 节 · '+esc(c0.week)+'</div>'+
+              '<div class="members" style="margin-top:8px">'+g.members.map(function(i){return '<span class="member">'+esc(t.courses[i].cls)+'</span>';}).join('')+'</div></div>';
+          }).join('')+'</div>';
+      }).join('')+
+      '<div class="note">'+SVG.info+'<span>这里只做汇总查看。拆分与继续合并请点「查看该教师」，回到该教师自己的合班流程。</span></div>';
+  }
+  function renderAll(){ renderPick(); renderMergeBar(); renderAllView(); }
+
+  /* ---------- 抽屉交互 ---------- */
+  function toggle(i){
+    var k = selected.indexOf(i);
+    if(k >= 0) selected.splice(k,1); else selected.push(i);
+    if(selected.length < 2) customName = '';
+    renderAll();
+  }
+  $('pickList').addEventListener('click', function(e){
+    if(loading) return;
+    var row = e.target.closest('.pickrow');
+    if(row) toggle(+row.getAttribute('data-idx'));
+  });
+  $('pickList').addEventListener('keydown', function(e){
+    if((e.key===' '||e.key==='Enter') && e.target.classList.contains('pickrow')){
+      e.preventDefault(); if(!loading) toggle(+e.target.getAttribute('data-idx'));
+    }
+  });
+  $('preview').addEventListener('click', function(e){
+    var b = e.target.closest('[data-remove]');
+    if(b) toggle(+b.getAttribute('data-remove'));
+  });
+  $('preview').addEventListener('input', function(e){ if(e.target.id==='gname') customName = e.target.value.trim(); });
+  $('filter').addEventListener('input', renderPick);
+  $('btnAll').addEventListener('click', function(){
+    if(loading) return;
+    var ids = candidates();
+    selected = (selected.length === ids.length && ids.length) ? [] : ids.slice();
+    if(selected.length < 2) customName = '';
+    renderAll();
+  });
+  $('dbody').addEventListener('click', function(e){
+    var go = e.target.closest('[data-goto]');
+    if(go){
+      activeTeacher = go.getAttribute('data-goto');
+      activeKey = null; selected = []; customName = '';
+      switchTab('manage'); renderAll();
+      return;
+    }
+    var sp = e.target.closest('[data-split]');
+    if(!sp) return;
+    var gid = sp.getAttribute('data-split'), g = groups().filter(function(x){return x.id===gid;})[0];
+    if(!g) return;
+    g.members.forEach(function(i){ T().courses[i].group = null; });
+    setGroups(groups().filter(function(x){return x.id!==gid;}));
+    toast('已拆分「'+g.name+'」，'+g.members.length+' 个班级可重新组合');
+    renderAll();
+  });
+  $('btnJump').addEventListener('click', function(){ switchTab('manage'); });
+
+  function doMerge(){
+    if(selected.length < 2 || loading || !currentGroup()) return false;
+    var t = T(), nm = customName || defaultName();
+    var g = {id:'g'+Date.now(), name:nm, key:currentGroup().key, members:selected.slice()};
+    setGroups(groups().concat([g]));
+    selected.forEach(function(i){ t.courses[i].group = g.id; });
+    var count = selected.length;
+    selected = []; customName = '';
+    expanded[activeTeacher] = true;   // 合班后自动展开该教师，让结果回到任课明细里可见
+    toast('已合并 '+count+' 个班级：'+nm);
+    switchTab('manage'); renderAll();
+    return true;
+  }
+  $('btnConfirm').addEventListener('click', doMerge);
+
+  function switchTab(t){
+    tab = t;
+    document.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-tab')===t); });
+    $('paneNew').style.display = t==='new' ? '' : 'none';
+    $('paneManage').style.display = t==='manage' ? '' : 'none';
+    $('paneAll').style.display = t==='all' ? '' : 'none';
+    $('btnConfirm').style.display = t==='new' ? '' : 'none';
+    $('btnCancel').textContent = t==='new' ? '取消' : '关闭';
+    renderAll();
+  }
+  document.querySelectorAll('.tab').forEach(function(x){
+    x.addEventListener('click', function(){ switchTab(x.getAttribute('data-tab')); });
+  });
+
+  function openDrawer(){ $('scrim').classList.add('on'); $('drawer').classList.add('on'); closeMenu(); }
+  function closeDrawer(){ $('scrim').classList.remove('on'); $('drawer').classList.remove('on'); }
+  $('btnClose').addEventListener('click', closeDrawer);
+  $('scrim').addEventListener('click', closeDrawer);
+  $('btnCancel').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){
+      if($('rowMenu').classList.contains('on')) closeMenu();
+      else if($('drawer').classList.contains('on')) closeDrawer();
+    }
+    if(e.key==='Enter' && $('drawer').classList.contains('on') && document.activeElement &&
+       document.activeElement.tagName!=='BUTTON' && !$('btnConfirm').disabled && tab==='new') $('btnConfirm').click();
+  });
+
+  var toastTimer;
+  function toast(msg){
+    $('toastText').textContent = msg; $('toast').classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ $('toast').classList.remove('on'); }, 2800);
+  }
+
+  /* ---------- 评审工具条 ---------- */
+  function setState(s){
+    document.querySelectorAll('.review [data-state]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-state')===s); });
+    loading = (s==='loading');
+    var ids = candidates();
+    if(s==='init'){ selected=[]; customName=''; }
+    if(s==='one'){ selected=ids.slice(0,1); customName=''; }
+    if(s==='two'){ selected=ids.slice(0,2); customName=''; }
+    if(s==='success'){
+      selected=ids.slice(0,2); customName=''; loading=false;
+      openDrawer();
+      if(doMerge()) toast('已合并 2 个班级，任课明细中已显示为 1 条合班条目');
+    }else{
+      switchTab('new'); openDrawer();
+    }
+    renderAll();
+  }
+  document.querySelectorAll('.review [data-state]').forEach(function(b){
+    b.addEventListener('click', function(){ setState(b.getAttribute('data-state')); });
+  });
+  $('btnEntry').addEventListener('click', function(){
+    closeDrawer();
+    var btn = document.querySelector('[data-more="t6"]');
+    if(btn) openMenu('t6', btn);
+    toast('合班入口：教师行尾 ⋯ →「合班」');
+  });
+  $('mergeBar').addEventListener('click', function(e){
+    if(e.target.closest('#btnAllView')){ switchTab('all'); openDrawer(); }
+  });
+  $('btnSummary').addEventListener('click', function(){ switchTab('all'); openDrawer(); });
+  $('btnTheme').addEventListener('click', function(){
+    var warm = document.documentElement.getAttribute('data-theme')==='warm';
+    if(warm) document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme','warm');
+    $('btnTheme').classList.toggle('on', !warm);
+  });
+  $('btnNotes').addEventListener('click', function(){ $('notes').classList.toggle('on'); $('btnNotes').classList.toggle('on'); });
+  $('notesClose').addEventListener('click', function(){ $('notes').classList.remove('on'); $('btnNotes').classList.remove('on'); });
+
+  renderAll();
+  openDrawer();
+})();
+</script>
+</body>
+</html>

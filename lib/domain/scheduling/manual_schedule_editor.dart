@@ -43,6 +43,14 @@ class ManualScheduleEditor {
         if (!check.ready)
           ScheduleBlocker(code: check.code, message: check.message),
     ];
+    if (schedulingProblem.hasInconsistentCombinedMeetings(items)) {
+      blockers.add(
+        const ScheduleBlocker(
+          code: 'combinedMeeting',
+          message: '合班及其单双周配对课程未同步，请先预览并确认课表协调。',
+        ),
+      );
+    }
     final groups = <String, List<ScheduleItem>>{};
     for (final item in items) {
       groups.putIfAbsent(_groupKey(item), () => []).add(item);
@@ -745,28 +753,7 @@ List<ScheduleBlocker> _newHardRequirementBlockers(
   SchedulingProblem problem,
   List<ScheduleItem> before,
   List<ScheduleItem> after,
-) {
-  final existing = {
-    for (final blocker in evaluator.unmetHardRequirements(problem, before))
-      _blockerIdentity(blocker): blocker,
-  };
-  return evaluator.unmetHardRequirements(problem, after).where((blocker) {
-    final previous = existing[_blockerIdentity(blocker)];
-    if (previous == null) return true;
-    final beforeCount = _placedCount(previous);
-    final afterCount = _placedCount(blocker);
-    return beforeCount != null &&
-        afterCount != null &&
-        afterCount < beforeCount;
-  }).toList();
-}
-
-String _blockerIdentity(ScheduleBlocker blocker) =>
-    '${blocker.code}:${blocker.conditionId}:${blocker.position?.cellKey}:${blocker.message.replaceAll(RegExp(r'已排 \d+ 节'), '已排 * 节')}';
-
-int? _placedCount(ScheduleBlocker blocker) => int.tryParse(
-  RegExp(r'已排 (\d+) 节').firstMatch(blocker.message)?.group(1) ?? '',
-);
+) => evaluator.newHardRequirementBlockers(problem, before, after);
 
 String _groupKey(ScheduleItem item) =>
     item.meetingId == null ? 'item:${item.id}' : 'meeting:${item.meetingId}';

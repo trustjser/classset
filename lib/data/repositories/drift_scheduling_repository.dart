@@ -16,6 +16,7 @@ import 'package:class_set/domain/models/subject.dart' as domain;
 import 'package:class_set/domain/models/teacher_assignment.dart' as domain;
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart' as domain;
 import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
+import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:drift/drift.dart';
 
 /// Persistence boundary for scheduling. Existing school data is converted to
@@ -182,14 +183,35 @@ class DriftSchedulingRepository {
   Future<domain.SchedulingSnapshot?> loadPendingSchedulingBaseline(
     String termId,
   ) async {
-    final row = await (_database.select(
+    var row = await (_database.select(
       _database.scheduleReconciliationBaselines,
     )..where((entry) => entry.termId.equals(termId))).getSingleOrNull();
+    if (row == null) {
+      final snapshot = await loadSchedulingSnapshot(termId);
+      if (!_requiresCombinedReconciliation(snapshot)) return null;
+      // 仅记录旧课表供预览；确认前不改动任何课节或用户设置。
+      await _database.transaction(() async {
+        final current = await loadSchedulingSnapshot(termId);
+        if (_requiresCombinedReconciliation(current)) {
+          await captureReconciliationBaselineIfNeeded(termId);
+        }
+      });
+      row = await (_database.select(
+        _database.scheduleReconciliationBaselines,
+      )..where((entry) => entry.termId.equals(termId))).getSingleOrNull();
+    }
     if (row == null) return null;
     return domain.SchedulingSnapshot.fromJson(
       (jsonDecode(row.snapshotJson) as Map).cast<String, Object?>(),
     );
   }
+
+  bool _requiresCombinedReconciliation(domain.SchedulingSnapshot snapshot) =>
+      snapshot.combinedGroups.isNotEmpty &&
+      snapshot.existingItems.isNotEmpty &&
+      const ProblemBuilder()
+          .build(snapshot.copyWith(locks: const []))
+          .hasInconsistentCombinedMeetings(snapshot.existingItems);
 
   // Only discard the baseline when every scheduling input and the timetable
   // still match it. Solver preferences that do not impose hard rules may vary.
@@ -214,7 +236,8 @@ class DriftSchedulingRepository {
       return jsonEncode(data);
     }
 
-    if (signature(baseline) == signature(current)) {
+    if (signature(baseline) == signature(current) &&
+        !_requiresCombinedReconciliation(current)) {
       await (_database.delete(
         _database.scheduleReconciliationBaselines,
       )..where((row) => row.termId.equals(termId))).go();
