@@ -1,7 +1,7 @@
 
 /wiki-doc/
 .workbuddy
-docs
+docs/crystal-scheduling-analysis
 .DS_Store
 node_modules
 .dart_tool/

@@ -18,7 +18,6 @@ class _TeacherList extends StatelessWidget {
     required this.onAssignUnassigned,
     required this.onTransferAssignment,
     required this.onCombineAssignments,
-    required this.onSeparateCombinedGroup,
   });
 
   static const _minTableWidth = 600.0;
@@ -54,7 +53,6 @@ class _TeacherList extends StatelessWidget {
   onTransferAssignment;
   final Future<void> Function(Teacher, List<TeacherAssignment>)
   onCombineAssignments;
-  final Future<void> Function(String groupId) onSeparateCombinedGroup;
 
   @override
   Widget build(
@@ -219,8 +217,7 @@ class _TeacherList extends StatelessWidget {
             members
                 .map(
                   (assignment) =>
-                      classById[assignment.classId]?.name ??
-                      assignment.classId,
+                      classById[assignment.classId]?.name ?? assignment.classId,
                 )
                 .toList(growable: false),
           ),
@@ -243,11 +240,6 @@ class _TeacherList extends StatelessWidget {
         AppMenuItem(
           label: '合班',
           onPressed: () => onCombineAssignments(teacher, own),
-        ),
-      for (final entry in combinedGroups.entries)
-        AppMenuItem(
-          label: '拆分 ${entry.value.length} 班',
-          onPressed: () => onSeparateCombinedGroup(entry.key),
         ),
       AppMenuItem(label: '教师预排', onPressed: () => onEditPreset(teacher)),
       AppMenuItem(label: '编辑教师', onPressed: () => onEditTeacher(teacher)),

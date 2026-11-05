@@ -825,8 +825,7 @@ class DriftSchedulingRepository {
           .where((item) => item.id == oldItem.id)
           .firstOrNull;
       if (replacement == null ||
-          jsonEncode(replacement.position?.toJson()) !=
-              jsonEncode(oldItem.position?.toJson())) {
+          replacement.position?.cellKey != oldItem.position?.cellKey) {
         throw StateError('结果移动了受锁保护的课节');
       }
     }

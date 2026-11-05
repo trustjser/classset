@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>排课偏好与规则 · 抽屉（暖色 Notion）</title>
+<!--
+  设计稿说明（不进界面）
+  ------------------------------------------------------------------
+  1. 合并两个居中弹窗为一个右侧贴边抽屉：「排课偏好」+「排课规则与锁定」。
+     现状两个弹窗会互相叠层，用户要在两者间来回切换；合并后一次配置完成，
+     且左侧课表保持可见，调规则 / 锁定范围时可直接对照。
+  2. 沿用 design/export_excel_drawer_v2.html 的抽屉骨架（头部 / 滚动内容 / 固定底栏）。
+  3. 配色：暖色 Notion，以 design/DESIGN.md 与 design/Notion-design.md 为准——
+     画布 #F6F5F4、暖白表面、whisper 描边、Notion 蓝 #0075DE 作唯一强调，无渐变。
+     形状沿用课集既有圆角体系（卡片 12 / 控件 9），不套用 Notion 的药丸按钮，
+     避免与现有 TDesign 控件形态冲突。
+  4. 排课策略的四个字段与当前值照抄「排课偏好」弹窗截图；
+     上一版的「快速 / 均衡 / 精细」Radio 是未确认的业务假设，本版已删除。
+     下拉里的其余候选值为演示占位，需按实际求解器枚举校准。
+  5. 原规则弹窗「孤立数字 11」+ 教师互斥重复两条，与「2 条」不一致，
+     收敛为：禁止相邻 + 教师互斥。
+  6. [data-theme="cool"] 保留上一版冷调 TDesign token 供对比，仅换变量不动结构。
+  7. 静态 HTML 原型仅演示当前页面会话状态，不代表已接入 Flutter 或持久化。
+-->
+<style>
+:root{
+  /* ===== 契约 token：暖色 Notion（默认） ===== */
+  --brand:#0075DE;
+  --brand-hover:#0068C8;
+  --brand-active:#0059AD;
+  --brand-soft:#E8F1FC;
+  --brand-soft-2:#F7F4EF;
+  --success:#2BA471;
+  --success-soft:#E7F4EE;
+  --warning:#C98A2B;
+  --warning-soft:#FBF2E2;
+  --danger:#D54941;
+  --danger-soft:#FBECEA;
+  --canvas:#F6F5F4;          /* 暖白画布 */
+  --surface:#FFFFFF;
+  --surface-2:#FAF8F5;       /* 暖浅底 / hover */
+  --surface-3:#FCFBF9;
+  --border:#E7E2DA;          /* whisper 描边 */
+  --border-strong:#DAD3C7;
+  --text-1:#1A1A1A;          /* 近黑，非纯黑 */
+  --text-2:#615D59;          /* 说明文字，对比度 ≥ 4.5:1 */
+  --text-3:#9C968C;          /* 仅占位 / 序号 / 禁用 */
+  --mask:rgba(38,33,26,.38);
+  --r-card:12px;
+  --r-ctl:9px;
+  --r-chip:999px;
+  --shadow-1:0 1px 2px rgba(38,33,26,.04);
+  --shadow-2:0 2px 8px rgba(38,33,26,.08);
+  --shadow-drawer:-12px 0 32px -8px rgba(38,33,26,.16);
+  --font:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --drawer-w:480px;
+  /* 科目色：暖调粉彩 */
+  --c-chinese:#EDF2FA; --c-chinese-ink:#2F63A8;
+  --c-math:#E7F2EA;    --c-math-ink:#2E7D57;
+  --c-labor:#FBF0DC;   --c-labor-ink:#A9761F;
+  --c-moral:#F1ECF7;   --c-moral-ink:#6B55A8;
+  --c-activity:#E9F2E8; --c-activity-ink:#4C7A48;
+  --c-art:#EDF2E4;      --c-art-ink:#6B7A32;
+}
+/* 可选：上一版冷调 TDesign，仅供对比；<html lang="zh-CN" data-theme="cool"> */
+[data-theme="cool"]{
+  --brand:#0052D9; --brand-hover:#266FE8; --brand-active:#00359B;
+  --brand-soft:#EBF1FF; --brand-soft-2:#F5F8FF;
+  --canvas:#F4F6FA; --surface-2:#F7F8FA; --surface-3:#FCFDFE;
+  --border:#E6E9F0; --border-strong:#D8DDE7;
+  --text-1:#1F2329; --text-2:#5A606B; --text-3:#868C97;
+  --mask:rgba(31,35,41,.38);
+  --shadow-drawer:-16px 0 40px -12px rgba(31,35,41,.22);
+  --r-card:10px; --r-ctl:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--font);font-size:14px;line-height:1.6;color:var(--text-1);background:var(--canvas);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select{font-family:var(--font);font-size:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:var(--r-ctl)}
+button:disabled{opacity:.45;cursor:not-allowed}
+svg{display:block;flex-shrink:0}
+.num{font-variant-numeric:tabular-nums}
+
+/* ================= 底屏：排课与课表（语境示意） ================= */
+.app{display:flex;height:100vh;overflow:hidden;filter:saturate(.97)}
+.sidebar{width:216px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px}
+.logo{display:flex;align-items:center;gap:10px;padding:2px 8px 16px}
+.logo-mark{width:34px;height:34px;border-radius:var(--r-card);background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.logo-name{font-size:15px;font-weight:700;line-height:1.2}
+.logo-sub{font-size:10px;letter-spacing:.14em;color:var(--text-3);font-weight:600}
+.school-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-ctl);padding:8px 10px;margin-bottom:16px}
+.school-name{font-size:13px;font-weight:600}
+.school-term{font-size:11.5px;color:var(--text-3)}
+.nav-sec{margin-bottom:14px}
+.nav-title{font-size:11px;color:var(--text-3);font-weight:600;padding:0 10px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 10px;border-radius:var(--r-ctl);font-size:13.5px;color:var(--text-2);text-align:left}
+.nav-item svg{width:15px;height:15px;opacity:.75}
+.nav-item:hover{background:var(--surface-2);color:var(--text-1)}
+.nav-item.active{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.nav-item.active svg{opacity:1}
+.nav-badge{margin-left:auto;font-size:10.5px;color:var(--text-3)}
+.sidebar-foot{margin-top:auto;background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 10px;font-size:11.5px;color:var(--text-2)}
+.sidebar-foot b{display:block;font-size:12px;color:var(--text-1)}
+.dot-ok{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--success);margin-right:5px}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{height:52px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border)}
+.topbar-title{font-size:15px;font-weight:600}
+.term-pill{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--border-strong);border-radius:var(--r-chip);font-size:12.5px;background:var(--surface)}
+.term-pill svg{width:12px;height:12px;color:var(--text-3)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.icon-btn{width:30px;height:30px;border-radius:var(--r-ctl);display:flex;align-items:center;justify-content:center;color:var(--text-2)}
+.icon-btn:hover{background:var(--surface-2)}
+.icon-btn svg{width:16px;height:16px}
+.content{flex:1;overflow:auto;padding:20px 24px 32px}
+.page-head{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.tabs{display:flex;gap:2px}
+.tab{position:relative;height:38px;padding:0 14px;font-size:14px;color:var(--text-2)}
+.tab.active{color:var(--text-1);font-weight:600}
+.tab.active::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--brand)}
+.tabs-rule{height:1px;background:var(--border);margin-bottom:16px;margin-top:-15px}
+.btn-primary{display:flex;align-items:center;gap:7px;height:34px;padding:0 16px;margin-left:auto;border-radius:var(--r-ctl);background:var(--brand);color:#fff;font-size:13.5px;font-weight:600;box-shadow:var(--shadow-1)}
+.btn-primary:hover{background:var(--brand-hover)}
+.btn-primary svg{width:15px;height:15px}
+.toolbar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:8px 12px;box-shadow:var(--shadow-1);margin-bottom:16px;flex-wrap:wrap}
+.tb-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.select{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px solid var(--border-strong);border-radius:var(--r-ctl);font-size:13px}
+.select-label{color:var(--text-3);font-size:12px}
+.select svg{width:12px;height:12px;color:var(--text-3)}
+.tbtn{display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:var(--r-ctl);font-size:13px;color:var(--text-2);transition:background .12s,color .12s}
+.tbtn svg{width:15px;height:15px}
+.tbtn:hover{background:var(--surface-2);color:var(--text-1)}
+.tbtn.active{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.body-grid{display:grid;grid-template-columns:1fr 264px;gap:16px;align-items:start}
+.panel,.rail-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:16px 18px;box-shadow:var(--shadow-1)}
+.panel-head{display:flex;align-items:baseline;gap:10px}
+.panel-title{font-size:15px;font-weight:700}
+.panel-sub{font-size:12.5px;color:var(--text-3)}
+.panel-count{margin-left:auto;font-size:12.5px;color:var(--text-3)}
+.panel-count b{color:var(--text-1);font-weight:600}
+.timetable{display:grid;grid-template-columns:88px repeat(5,1fr);gap:6px;margin-top:12px}
+.tt-head{height:30px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:var(--text-2)}
+.tt-head:first-child{color:var(--text-3);font-weight:500;font-size:12px}
+.tt-period{display:flex;flex-direction:column;justify-content:center;gap:2px;padding-left:2px}
+.tt-period .ampm{font-size:12px;font-weight:600}
+.tt-period .no{font-size:11px;color:var(--text-3)}
+.course{border-radius:var(--r-ctl);padding:7px 9px;min-height:50px;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.course .subj{font-size:13px;font-weight:600;line-height:1.35}
+.course .meta{font-size:11px;opacity:.78;line-height:1.35}
+.course.empty{border:1.5px dashed var(--border);background:transparent}
+.c-chinese{background:var(--c-chinese);color:var(--c-chinese-ink)}
+.c-math{background:var(--c-math);color:var(--c-math-ink)}
+.c-labor{background:var(--c-labor);color:var(--c-labor-ink)}
+.c-moral{background:var(--c-moral);color:var(--c-moral-ink)}
+.c-activity{background:var(--c-activity);color:var(--c-activity-ink)}
+.c-art{background:var(--c-art);color:var(--c-art-ink)}
+.lunch{grid-column:1/-1;height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-3);background:var(--surface-2);border-radius:6px;letter-spacing:.1em}
+.rail{display:flex;flex-direction:column;gap:14px}
+.rail-head{display:flex;align-items:center;margin-bottom:10px}
+.rail-title{font-size:14px;font-weight:700}
+.badge{margin-left:auto;height:22px;padding:0 9px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--border);font-size:11.5px;color:var(--text-2);display:flex;align-items:center}
+.link-btn{margin-left:auto;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--border-strong);font-size:12px;color:var(--text-2);background:var(--surface)}
+.link-btn:hover{background:var(--surface-2);color:var(--text-1)}
+.pending{display:flex;flex-direction:column;gap:8px}
+.pending-card{border-radius:var(--r-ctl);padding:9px 10px;border:1px solid transparent}
+.pending-card b{display:block;font-size:12.5px;font-weight:600}
+.pending-card span{font-size:11px;line-height:17px;opacity:.8}
+.pending-card.purple{background:#F3EDFA;border-color:#E3D5F2}
+.pending-card.purple b{color:#6B55A8}
+.pending-card.purple span{color:#7C6A99}
+.pending-card.orange{background:#FCF1E5;border-color:#F0DCC0}
+.pending-card.orange b{color:#A9761F}
+.pending-card.orange span{color:#98794F}
+.rail-acts{display:flex;gap:8px;margin-top:10px}
+.rail-acts button{flex:1;height:30px;border-radius:6px;font-size:12px}
+.rail-acts .solid{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.rail-acts .plain{border:1px solid var(--border-strong);color:var(--text-2)}
+.check-body{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--text-2)}
+.check-ico{width:28px;height:28px;border-radius:50%;background:var(--success-soft);color:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ================= 遮罩 + 抽屉 ================= */
+.mask{position:fixed;inset:0;background:var(--mask);display:flex;justify-content:flex-end;z-index:20;animation:fadeIn .18s ease-out}
+.mask.hidden{display:none}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.drawer{
+  width:var(--drawer-w);height:100%;background:var(--surface);
+  box-shadow:var(--shadow-drawer);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;animation:slideIn .24s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes slideIn{from{transform:translateX(56px);opacity:.55}to{transform:none;opacity:1}}
+
+/* ---- 头部 ---- */
+.dr-head{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:flex-start;flex-shrink:0;background:var(--surface)}
+.dr-head .ic{width:40px;height:40px;border-radius:var(--r-card);flex-shrink:0;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center}
+.dr-head .tt{flex:1;min-width:0}
+.dr-head h1{font-size:17px;font-weight:600;line-height:26px;letter-spacing:.2px}
+.dr-head .sub{font-size:12.5px;color:var(--text-2);margin-top:3px;line-height:20px}
+.dr-close{width:32px;height:32px;border-radius:var(--r-ctl);color:var(--text-3);display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+.dr-close:hover{background:var(--surface-2);color:var(--text-1)}
+.dr-close:active{background:var(--border)}
+
+/* ---- 滚动内容 ---- */
+.dr-body{flex:1;overflow-y:auto;padding:4px 24px 24px}
+.dr-body::-webkit-scrollbar{width:8px}
+.dr-body::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+.dr-body::-webkit-scrollbar-track{background:transparent}
+.sec{padding-top:16px}
+.sec + .sec{margin-top:16px;border-top:1px solid var(--border)}
+.sec-head{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.sec-title{font-size:14.5px;font-weight:600}
+.sec-count{height:20px;padding:0 8px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--border);font-size:11.5px;color:var(--text-2);display:flex;align-items:center}
+.sec-desc{font-size:12.5px;color:var(--text-2);line-height:20px;margin-bottom:12px}
+.subhead{font-size:12.5px;font-weight:600;color:var(--text-1);margin:12px 0 8px}
+.subhead:first-of-type{margin-top:0}
+
+/* ---- 排课策略：两列下拉 ---- */
+.strategy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sfield{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sfield > label{font-size:12px;color:var(--text-2)}
+.sel-wrap{position:relative}
+.sel-wrap select{
+  appearance:none;-webkit-appearance:none;width:100%;height:34px;
+  padding:0 30px 0 10px;border:1px solid var(--border-strong);border-radius:var(--r-ctl);
+  background:var(--surface);font-size:13px;color:var(--text-1);cursor:pointer;
+  transition:border-color .12s,background .12s;
+}
+.sel-wrap select:hover{border-color:#CFC7B9;background:var(--surface-3)}
+.sel-wrap select:active{border-color:var(--brand)}
+.sel-wrap svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:12px;height:12px;color:var(--text-3);pointer-events:none}
+
+/* ---- 附加约束：两列复选框 ---- */
+.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.chk{display:flex;align-items:center;gap:9px;min-height:32px;padding:5px 10px;border:1px solid transparent;border-radius:var(--r-ctl);background:var(--surface-2);font-size:12.5px;cursor:pointer;transition:background .12s,border-color .12s}
+.chk:hover{background:var(--brand-soft-2);border-color:var(--border)}
+.chk:active{background:var(--border)}
+.chk input{position:absolute;opacity:0;width:0;height:0}
+.chk-box{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border-strong);background:var(--surface);display:block;position:relative;flex-shrink:0;transition:border-color .12s,background .12s}
+.chk:hover .chk-box{border-color:var(--brand)}
+.chk input:checked + .chk-box{background:var(--brand);border-color:var(--brand)}
+.chk input:checked + .chk-box::after{content:"";position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.chk input:focus-visible + .chk-box{outline:2px solid var(--brand);outline-offset:2px}
+.chk input:checked ~ .chk-text{font-weight:600}
+
+/* ---- 硬条件列表 ---- */
+.rule-list{display:flex;flex-direction:column;gap:6px}
+.rule{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border);border-radius:var(--r-card);padding:9px 12px;background:var(--surface);transition:border-color .12s,box-shadow .12s}
+.rule:hover{border-color:var(--border-strong);box-shadow:var(--shadow-1)}
+.rule .no{width:20px;height:20px;border-radius:6px;background:var(--surface-2);color:var(--text-3);font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.rule .info{flex:1;min-width:0}
+.rule .tag{display:inline-block;font-size:11.5px;font-weight:500;color:var(--brand);background:var(--brand-soft);border-radius:5px;padding:1px 7px;line-height:19px}
+.rule .val{font-size:13.5px;line-height:22px;margin-top:3px;word-break:break-all}
+.rule .acts{display:flex;gap:2px;flex-shrink:0}
+.mini-btn{width:28px;height:28px;border-radius:6px;color:var(--text-3);display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+.mini-btn:hover{background:var(--surface-2);color:var(--text-1)}
+.mini-btn.danger:hover{background:var(--danger-soft);color:var(--danger)}
+.mini-btn:active{background:var(--border)}
+.add-row{width:100%;height:36px;margin-top:8px;border:1px dashed var(--border-strong);border-radius:var(--r-ctl);color:var(--brand);font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .12s,border-color .12s}
+.add-row:hover{background:var(--brand-soft-2);border-color:var(--brand)}
+.add-row:active{background:var(--brand-soft)}
+.add-row svg{width:14px;height:14px}
+.empty-state{border:1px dashed var(--border-strong);border-radius:var(--r-card);background:var(--surface-3);padding:20px 16px;text-align:center;color:var(--text-3);font-size:12.5px;line-height:20px}
+.empty-state svg{width:22px;height:22px;margin:0 auto 8px;color:var(--text-3);opacity:.7}
+.empty-state[hidden]{display:none}
+
+/* 内联添加面板 */
+.inline-form{margin-top:10px;border:1px solid var(--border-strong);border-radius:var(--r-card);background:var(--surface-3);padding:12px;display:flex;flex-direction:column;gap:10px}
+.inline-form[hidden]{display:none}
+.inline-form .row{display:flex;gap:8px}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.field label{font-size:11.5px;color:var(--text-2)}
+.field input,.field select{height:32px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);padding:0 9px;font-size:13px;color:var(--text-1);width:100%}
+.field input:hover,.field select:hover{border-color:#CFC7B9}
+.form-acts{display:flex;gap:8px;justify-content:flex-end}
+.mini-btn-text{height:30px;padding:0 12px;border-radius:6px;font-size:12.5px;color:var(--text-2)}
+.mini-btn-text:hover{background:var(--surface-2);color:var(--text-1)}
+.mini-btn-solid{height:30px;padding:0 12px;border-radius:6px;font-size:12.5px;background:var(--brand);color:#fff;font-weight:500}
+.mini-btn-solid:hover:not(:disabled){background:var(--brand-hover)}
+.mini-btn-solid:active:not(:disabled){background:var(--brand-active)}
+
+/* ---- 锁定范围 ---- */
+.lock-list{display:flex;flex-direction:column;gap:8px}
+.lock-item{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--r-ctl);padding:9px 10px;background:var(--surface)}
+.lock-item:hover{border-color:var(--border-strong);background:var(--surface-3)}
+.lock-item .lk{width:26px;height:26px;border-radius:6px;background:var(--warning-soft);color:var(--warning);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lock-item .name{font-size:13px;flex:1}
+.lock-item .name small{display:block;font-size:11.5px;color:var(--text-3);line-height:17px}
+
+/* ---- 底部操作区 ---- */
+.dr-foot{padding:12px 24px;border-top:1px solid var(--border);background:var(--surface-3);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+.dr-foot .hint{font-size:12px;color:var(--text-2);line-height:18px}
+.dr-foot .hint b{font-weight:600;color:var(--text-1)}
+.dirty-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--warning);margin-right:5px;vertical-align:2px}
+.acts{display:flex;gap:10px;flex-shrink:0}
+.btn{height:34px;padding:0 16px;border-radius:var(--r-ctl);font-size:13.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .12s,border-color .12s,transform .08s}
+.btn-sec{background:var(--surface);border:1px solid var(--border-strong);color:var(--text-1)}
+.btn-sec:hover{background:var(--surface-2);border-color:#CFC7B9}
+.btn-sec:active{background:var(--border)}
+.btn-pri{background:var(--brand);border:1px solid var(--brand);color:#fff;font-weight:500}
+.btn-pri:hover{background:var(--brand-hover)}
+.btn-pri:active{background:var(--brand-active);transform:translateY(1px)}
+
+/* ---- 轻量反馈 ---- */
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,16px);background:var(--text-1);color:#fff;font-size:13px;padding:10px 16px;border-radius:var(--r-ctl);box-shadow:var(--shadow-2);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:40;display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ================= 断点 ================= */
+/* 1200px：右栏让位，抽屉收窄，主课表仍可见 */
+@media (max-width:1199px){
+  :root{--drawer-w:420px}
+  .body-grid{grid-template-columns:1fr}
+  .rail{display:none}
+  .dr-head,.dr-body,.dr-foot{padding-left:20px;padding-right:20px}
+}
+/* 768px：侧栏收起，两列字段转单列，抽屉占满宽度 */
+@media (max-width:767px){
+  :root{--drawer-w:100%}
+  .sidebar{display:none}
+  .content{padding:16px}
+  .toolbar .tbtn span{display:none}
+  .strategy-grid,.check-grid{grid-template-columns:1fr}
+  .dr-foot{flex-direction:column;align-items:stretch}
+  .dr-foot .acts{justify-content:flex-end}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 底屏：排课与课表 ==================== -->
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">课</div>
+      <div><div class="logo-name">课集</div><div class="logo-sub">CLASSSET</div></div>
+    </div>
+    <div class="school-card">
+      <div class="school-name">未命名学校</div>
+      <div class="school-term">2026 学年 · 秋季学期</div>
+    </div>
+    <div class="nav-sec">
+      <div class="nav-title">排课准备</div>
+      <button class="nav-item">工作台</button>
+      <button class="nav-item">学期与日历</button>
+      <button class="nav-item">班级与学段</button>
+      <button class="nav-item">作息设置<span class="nav-badge">分享中</span></button>
+    </div>
+    <div class="nav-sec">
+      <div class="nav-title">排课与课表</div>
+      <button class="nav-item">科目节数</button>
+      <button class="nav-item">教师任课</button>
+      <button class="nav-item active">排课与课表</button>
+      <button class="nav-item">调代课</button>
+    </div>
+    <div class="nav-sec">
+      <div class="nav-title">更多</div>
+      <button class="nav-item">公共场室</button>
+    </div>
+    <div class="sidebar-foot"><b><span class="dot-ok"></span>本地数据 · 离线可用</b>最近保存 18:21</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-2)" stroke-width="1.4"><path d="M6 3L2.5 8 6 13M10 3l3.5 5L10 13"/></svg>
+      <span class="topbar-title">排课与课表</span>
+      <button class="term-pill">2026 学年 · 秋季学期
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg>
+      </button>
+      <div class="topbar-right">
+        <button class="icon-btn" title="外观"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg></button>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="page-head">
+        <nav class="tabs">
+          <button class="tab active">班级课程表</button>
+          <button class="tab">教师课程表</button>
+          <button class="tab">总课程表</button>
+          <button class="tab">场室课程表</button>
+        </nav>
+        <button class="btn-primary">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.4 4.1 4.1 1.4-4.1 1.4L8 12.5 6.6 8.4 2.5 7l4.1-1.4L8 1.5zM13 10.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z"/></svg>
+          自动排课
+        </button>
+      </div>
+      <div class="tabs-rule"></div>
+
+      <div class="toolbar">
+        <div class="select"><span class="select-label">班级</span><span>小学部 · 一年级 1 班</span>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg>
+        </div>
+        <div class="tb-sep"></div>
+        <button class="tbtn" id="openDrawer"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4.5h8M4 8h8M4 11.5h5"/></svg><span>规则</span></button>
+        <button class="tbtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg><span>锁定</span></button>
+        <button class="tbtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 3L3 6.5 6.5 10"/><path d="M3 6.5h6a4 4 0 0 1 0 8H7"/></svg><span>撤销</span></button>
+        <div class="tb-sep"></div>
+        <button class="tbtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5v7.5M5 7.5l3 3 3-3"/><path d="M3 12.5h10"/></svg><span>导出 / 打印</span></button>
+      </div>
+
+      <div class="body-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <span class="panel-title">课表安排</span>
+            <span class="panel-sub">班级课程表 · 单双周合并</span>
+            <span class="panel-count"><b class="num">13</b> 节课</span>
+          </div>
+          <div class="timetable">
+            <div class="tt-head">节次</div><div class="tt-head">周一</div><div class="tt-head">周二</div><div class="tt-head">周三</div><div class="tt-head">周四</div><div class="tt-head">周五</div>
+
+            <div class="tt-period"><span class="ampm">上午</span><span class="no">第 1 节 · 08:00</span></div>
+            <div class="course c-chinese"><span class="subj">语文</span><span class="meta">语文教师 1</span></div>
+            <div class="course c-math"><span class="subj">数学</span><span class="meta">数学教师 4</span></div>
+            <div class="course c-labor"><span class="subj">劳动</span><span class="meta">劳动教师 12</span></div>
+            <div class="course empty"></div>
+            <div class="course empty"></div>
+
+            <div class="tt-period"><span class="ampm">上午</span><span class="no">第 2 节 · 08:50</span></div>
+            <div class="course c-chinese"><span class="subj">语文</span><span class="meta">语文教师 1</span></div>
+            <div class="course c-math"><span class="subj">数学</span><span class="meta">数学教师 4</span></div>
+            <div class="course c-moral"><span class="subj">道德与法治</span><span class="meta">道法教师 3</span></div>
+            <div class="course empty"></div>
+            <div class="course empty"></div>
+
+            <div class="tt-period"><span class="ampm">上午</span><span class="no">第 3 节 · 09:50</span></div>
+            <div class="course c-math"><span class="subj">数学</span><span class="meta">数学教师 4</span></div>
+            <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+
+            <div class="lunch">午 休 · 12:00 – 14:00</div>
+
+            <div class="tt-period"><span class="ampm">下午</span><span class="no">第 1 节 · 14:00</span></div>
+            <div class="course c-chinese"><span class="subj">语文</span><span class="meta">语文教师 1</span></div>
+            <div class="course c-math"><span class="subj">数学</span><span class="meta">数学教师 4</span></div>
+            <div class="course c-activity"><span class="subj">综合实践活动</span><span class="meta">综合实践活动教师 13</span></div>
+            <div class="course c-art"><span class="subj">美术</span><span class="meta">美术教师 11</span></div>
+            <div class="course c-chinese"><span class="subj">语文</span><span class="meta">语文教师 1</span></div>
+
+            <div class="tt-period"><span class="ampm">下午</span><span class="no">第 2 节 · 14:50</span></div>
+            <div class="course c-chinese"><span class="subj">语文</span><span class="meta">语文教师 1</span></div>
+            <div class="course empty"></div><div class="course empty"></div><div class="course empty"></div><div class="course empty"></div>
+          </div>
+        </section>
+
+        <aside class="rail">
+          <div class="rail-card">
+            <div class="rail-head"><span class="rail-title">暂放区</span><span class="badge num">2 节</span></div>
+            <div class="pending">
+              <div class="pending-card purple"><b>双周 · 体育 · 一年级 4 班</b><span>体育与健康教师 8 · 上次自动排课：科目预设禁止此位置</span></div>
+              <div class="pending-card orange"><b>单周 · 体育与健康 · 一年级 4 班</b><span>体育与健康教师 8 · 上次自动排课：科目预设禁止此位置</span></div>
+            </div>
+            <div class="rail-acts"><button class="solid">一键放入</button><button class="plain">查看未排课程报告</button></div>
+          </div>
+          <div class="rail-card">
+            <div class="rail-head"><span class="rail-title">检测结果</span><button class="link-btn">重新检测</button></div>
+            <div class="check-body">
+              <span class="check-ico"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-6.5"/></svg></span>
+              点击检测，核对整张课表
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ==================== 遮罩 + 抽屉 ==================== -->
+<div class="mask" id="mask">
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <!-- 头部 -->
+    <header class="dr-head">
+      <span class="ic">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14"/><circle cx="7" cy="5.5" r="2" fill="#fff"/><circle cx="13" cy="10" r="2" fill="#fff"/><circle cx="8.5" cy="14.5" r="2" fill="#fff"/>
+        </svg>
+      </span>
+      <div class="tt">
+        <h1 id="drawerTitle">排课偏好与规则</h1>
+        <div class="sub">设置求解策略、约束与锁定范围，左侧课表可直接对照。</div>
+      </div>
+      <button class="dr-close" id="btnClose" aria-label="关闭抽屉">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+      </button>
+    </header>
+
+    <!-- 内容 -->
+    <div class="dr-body" id="drBody">
+
+      <!-- ① 排课偏好（原「排课偏好」弹窗整段并入） -->
+      <section class="sec" id="prefs">
+        <div class="sec-head"><span class="sec-title">排课偏好</span></div>
+        <div class="sec-desc">设置排课时的求解策略和需要遵守的约束。</div>
+
+        <div class="subhead">排课策略</div>
+        <div class="strategy-grid">
+          <div class="sfield">
+            <label for="prefStrength">求解强度</label>
+            <div class="sel-wrap">
+              <select id="prefStrength"><option>高强度</option><option>标准</option><option>快速</option></select>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg>
+            </div>
+          </div>
+          <div class="sfield">
+            <label for="prefProgress">同级同科进度</label>
+            <div class="sel-wrap">
+              <select id="prefProgress"><option>尽量同步</option><option>严格同步</option><option>不限制</option></select>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg>
+            </div>
+          </div>
+          <div class="sfield">
+            <label for="prefTeacher">教师日分布</label>
+            <div class="sel-wrap">
+              <select id="prefTeacher"><option>不限制</option><option>尽量均衡</option><option>每天上限</option></select>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg>
+            </div>
+          </div>
+          <div class="sfield">
+            <label for="prefLinked">连堂偏好</label>
+            <div class="sel-wrap">
+              <select id="prefLinked"><option>尽量不连堂</option><option>不限制</option><option>尽量连堂</option></select>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6.5l4 4 4-4"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="subhead">附加约束</div>
+        <div class="check-grid">
+          <label class="chk">
+            <input type="checkbox"><span class="chk-box"></span><span class="chk-text">保护午间休息</span>
+          </label>
+          <label class="chk">
+            <input type="checkbox" checked><span class="chk-box"></span><span class="chk-text">检查教学进度一致性</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- ② 自定义硬条件 -->
+      <section class="sec">
+        <div class="sec-head"><span class="sec-title">自定义硬条件</span><span class="sec-count num" id="ruleCount">2 条</span></div>
+        <div class="sec-desc">自动排课必须满足这些条件，条件过多时可能排不满课表。</div>
+
+        <div class="rule-list" id="ruleList">
+          <div class="rule">
+            <span class="no num">1</span>
+            <div class="info"><span class="tag">禁止相邻</span><div class="val">数学 / 语文</div></div>
+            <div class="acts">
+              <button class="mini-btn" aria-label="编辑第 1 条硬条件" title="编辑">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3-7.5 7.5-3 .8.8-3 7.5-7.5z"/></svg>
+              </button>
+              <button class="mini-btn danger" data-act="del-rule" aria-label="删除第 1 条硬条件" title="删除">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h9M6 4.5V3h4v1.5M5 4.5l.6 9h4.8l.6-9M7 7v4M9 7v4"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="rule">
+            <span class="no num">2</span>
+            <div class="info"><span class="tag">教师互斥</span><div class="val">语文教师 11 / 劳动教师 25</div></div>
+            <div class="acts">
+              <button class="mini-btn" aria-label="编辑第 2 条硬条件" title="编辑">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3-7.5 7.5-3 .8.8-3 7.5-7.5z"/></svg>
+              </button>
+              <button class="mini-btn danger" data-act="del-rule" aria-label="删除第 2 条硬条件" title="删除">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h9M6 4.5V3h4v1.5M5 4.5l.6 9h4.8l.6-9M7 7v4M9 7v4"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" id="ruleEmpty" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 9h10M7 12.5h6"/></svg>
+          还没有自定义硬条件<br>添加后，自动排课会优先满足这些约束
+        </div>
+
+        <button class="add-row" id="btnAddRule">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          添加硬条件
+        </button>
+
+        <div class="inline-form" id="ruleForm" hidden>
+          <div class="row">
+            <div class="field">
+              <label for="ruleType">条件类型</label>
+              <select id="ruleType">
+                <option value="">选择类型</option>
+                <option>禁止相邻</option><option>教师互斥</option><option>指定节次不排</option><option>同天不重复</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="ruleValue">适用对象</label>
+              <input id="ruleValue" type="text" placeholder="如 数学 / 语文">
+            </div>
+          </div>
+          <div class="form-acts">
+            <button class="mini-btn-text" id="btnRuleCancel">取消</button>
+            <button class="mini-btn-solid" id="btnRuleSave" disabled>添加</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ③ 锁定已有课表 -->
+      <section class="sec">
+        <div class="sec-head"><span class="sec-title">锁定已有课表</span><span class="sec-count num" id="lockCount">1 个范围</span></div>
+        <div class="sec-desc">锁定范围内的课程在自动排课时保持原位，不会被移动或覆盖。</div>
+
+        <div class="lock-list" id="lockList">
+          <div class="lock-item">
+            <span class="lk">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>
+            </span>
+            <span class="name">班级 · 一年级 2 班<small>该班整周课表保持不变</small></span>
+            <button class="mini-btn danger" data-act="del-lock" aria-label="移除锁定范围 一年级 2 班" title="移除">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="empty-state" id="lockEmpty" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4.5" y="10" width="15" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0"/></svg>
+          还没有锁定范围<br>添加后，自动排课会保留这些课程
+        </div>
+
+        <button class="add-row" id="btnAddLock">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          添加锁定
+        </button>
+
+        <div class="inline-form" id="lockForm" hidden>
+          <div class="row">
+            <div class="field">
+              <label for="lockScope">范围类型</label>
+              <select id="lockScope"><option>班级</option><option>年级</option><option>学段</option><option>全校</option></select>
+            </div>
+            <div class="field">
+              <label for="lockName">范围名称</label>
+              <select id="lockName"><option>一年级 1 班</option><option>一年级 3 班</option><option>二年级 2 班</option><option>三年级 4 班</option></select>
+            </div>
+          </div>
+          <div class="form-acts">
+            <button class="mini-btn-text" id="btnLockCancel">取消</button>
+            <button class="mini-btn-solid" id="btnLockSave">添加</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 底部固定操作区 -->
+    <footer class="dr-foot">
+      <span class="hint" id="footHint"><b class="num">2</b> 条硬条件 · <b class="num">1</b> 个锁定范围<br>修改在点击「保存」后生效</span>
+      <div class="acts">
+        <button class="btn btn-sec" id="btnCancel">取消</button>
+        <button class="btn btn-pri" id="btnDone">保存</button>
+      </div>
+    </footer>
+  </aside>
+</div>
+
+<div class="toast" id="toast" role="status">
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-6.5"/></svg>
+  <span id="toastText">已保存排课偏好与规则</span>
+</div>
+
+<script>
+(function(){
+  var mask = document.getElementById('mask');
+  var openBtn = document.getElementById('openDrawer');
+  var body = document.getElementById('drBody');
+  // 只保存列表与偏好控件的初始状态：取消时局部还原，避免整块替换 DOM 导致监听器失效
+  var initialRules = document.getElementById('ruleList').innerHTML;
+  var initialLocks = document.getElementById('lockList').innerHTML;
+  var prefControls = Array.prototype.slice.call(
+    document.querySelectorAll('#prefs select, #prefs input[type="checkbox"]'));
+  var initialPrefs = prefControls.map(function(el){
+    return el.type === 'checkbox' ? el.checked : el.value;
+  });
+  var dirty = false;
+  var toast = document.getElementById('toast');
+  var toastText = document.getElementById('toastText');
+  var toastTimer;
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function showToast(text){
+    toastText.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+  }
+  function setDirty(v){ dirty = v; sync(); }
+  function restorePrefs(){
+    prefControls.forEach(function(el,i){
+      if(el.type === 'checkbox') el.checked = initialPrefs[i];
+      else el.value = initialPrefs[i];
+    });
+  }
+
+  function openDrawer(){
+    mask.classList.remove('hidden');
+    openBtn.classList.add('active');
+    document.getElementById('btnClose').focus();
+  }
+  function closeDrawer(){
+    mask.classList.add('hidden');
+    openBtn.classList.remove('active');
+    openBtn.focus();
+  }
+  openBtn.addEventListener('click', openDrawer);
+  document.getElementById('btnClose').addEventListener('click', closeDrawer);
+  document.getElementById('btnCancel').addEventListener('click', function(){
+    document.getElementById('ruleList').innerHTML = initialRules;
+    document.getElementById('lockList').innerHTML = initialLocks;
+    restorePrefs();
+    toggle('none', false);
+    ruleType.value = ''; ruleValue.value = ''; validateRule();
+    dirty = false; sync();
+    closeDrawer();
+  });
+  mask.addEventListener('click', function(e){ if(e.target === mask) closeDrawer(); });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && !mask.classList.contains('hidden')) closeDrawer();
+  });
+  document.getElementById('btnDone').addEventListener('click', function(){
+    dirty = false; sync();
+    closeDrawer();
+    showToast('已保存排课偏好与规则');
+  });
+
+  /* 任一偏好控件变化 / 列表增删 → 标记未保存 */
+  body.addEventListener('change', function(){ if(!dirty) setDirty(true); });
+  body.addEventListener('input', function(){ if(!dirty) setDirty(true); });
+
+  /* 计数 / 空态 / 底部摘要联动 */
+  function sync(){
+    var rules = document.querySelectorAll('#ruleList .rule').length;
+    var locks = document.querySelectorAll('#lockList .lock-item').length;
+    document.getElementById('ruleCount').textContent = rules + ' 条';
+    document.getElementById('lockCount').textContent = locks + ' 个范围';
+    document.getElementById('ruleEmpty').hidden = rules !== 0;
+    document.getElementById('lockEmpty').hidden = locks !== 0;
+    document.getElementById('footHint').innerHTML =
+      '<b class="num">' + rules + '</b> 条硬条件 · <b class="num">' + locks + '</b> 个锁定范围<br>'
+      + (dirty ? '<span class="dirty-dot"></span>有未保存的修改' : '修改在点击「保存」后生效');
+    document.querySelectorAll('#ruleList .rule .no').forEach(function(n,i){ n.textContent = i+1; });
+  }
+
+  /* 删除硬条件 / 锁定范围（事件委托，重渲染后仍有效） */
+  body.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-act]');
+    if(!btn) return;
+    if(btn.dataset.act === 'del-rule'){ btn.closest('.rule').remove(); setDirty(true); }
+    if(btn.dataset.act === 'del-lock'){ btn.closest('.lock-item').remove(); setDirty(true); }
+  });
+
+  /* 展开 / 收起内联表单 */
+  function toggle(formId, show){
+    document.getElementById('ruleForm').hidden = !(formId === 'ruleForm' && show);
+    document.getElementById('lockForm').hidden = !(formId === 'lockForm' && show);
+  }
+  document.getElementById('btnAddRule').addEventListener('click', function(){ toggle('ruleForm', document.getElementById('ruleForm').hidden); });
+  document.getElementById('btnAddLock').addEventListener('click', function(){ toggle('lockForm', document.getElementById('lockForm').hidden); });
+  document.getElementById('btnRuleCancel').addEventListener('click', function(){ toggle('ruleForm', false); });
+  document.getElementById('btnLockCancel').addEventListener('click', function(){ toggle('lockForm', false); });
+
+  /* 添加硬条件：类型 + 对象都填了才允许提交（disabled 态演示） */
+  var ruleType = document.getElementById('ruleType');
+  var ruleValue = document.getElementById('ruleValue');
+  var btnRuleSave = document.getElementById('btnRuleSave');
+  function validateRule(){ btnRuleSave.disabled = !(ruleType.value && ruleValue.value.trim()); }
+  ruleType.addEventListener('change', validateRule);
+  ruleValue.addEventListener('input', validateRule);
+  btnRuleSave.addEventListener('click', function(){
+    var html = '<div class="rule">'
+      + '<span class="no num">0</span>'
+      + '<div class="info"><span class="tag">' + esc(ruleType.value) + '</span><div class="val">' + esc(ruleValue.value.trim()) + '</div></div>'
+      + '<div class="acts">'
+      + '<button class="mini-btn" aria-label="编辑硬条件" title="编辑"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3-7.5 7.5-3 .8.8-3 7.5-7.5z"/></svg></button>'
+      + '<button class="mini-btn danger" data-act="del-rule" aria-label="删除硬条件" title="删除"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h9M6 4.5V3h4v1.5M5 4.5l.6 9h4.8l.6-9M7 7v4M9 7v4"/></svg></button>'
+      + '</div></div>';
+    document.getElementById('ruleList').insertAdjacentHTML('beforeend', html);
+    ruleType.value = ''; ruleValue.value = ''; validateRule();
+    toggle('ruleForm', false);
+    setDirty(true);
+  });
+
+  /* 添加锁定范围 */
+  document.getElementById('btnLockSave').addEventListener('click', function(){
+    var scope = document.getElementById('lockScope').value;
+    var name = document.getElementById('lockName').value;
+    var html = '<div class="lock-item">'
+      + '<span class="lk"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg></span>'
+      + '<span class="name">' + esc(scope) + ' · ' + esc(name) + '<small>该范围整周课表保持不变</small></span>'
+      + '<button class="mini-btn danger" data-act="del-lock" aria-label="移除锁定范围" title="移除"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>'
+      + '</div>';
+    document.getElementById('lockList').insertAdjacentHTML('beforeend', html);
+    toggle('lockForm', false);
+    setDirty(true);
+  });
+
+  sync();
+})();
+</script>
+</body>
+</html>

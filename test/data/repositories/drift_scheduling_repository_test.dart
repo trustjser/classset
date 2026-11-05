@@ -316,6 +316,154 @@ void main() {
     );
   });
 
+  test('锁定班级的课程仍在原课表格时允许自动排课提交', () async {
+    final database = db.AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final school = DriftSchoolRepository(database);
+    final scheduling = DriftSchedulingRepository(database, school);
+    const termId = 'term-locked-commit';
+    const classId = 'class-locked';
+    const assignmentId = 'assignment-locked';
+    const subjectId = 'subject-locked';
+    const teacherId = 'teacher-locked';
+
+    await school.saveTerm(
+      AcademicTerm(
+        id: termId,
+        title: '2026 秋季',
+        academicYear: '2026-2027',
+        semesterLabel: '秋季学期',
+        firstTeachingWeekStart: DateTime(2026, 9, 1),
+        teachingWeekCount: 20,
+        createdAt: DateTime(2026, 8, 1),
+      ),
+    );
+    final stage = (await school.watchStages(termId).first).first;
+    await school.saveGrade(
+      GradeGroup(
+        id: 'grade-locked',
+        stageId: stage.id,
+        name: '一年级',
+        sortOrder: 0,
+      ),
+    );
+    await school.saveClass(
+      const ClassGroup(
+        id: classId,
+        gradeId: 'grade-locked',
+        name: '一班',
+        sortOrder: 0,
+      ),
+    );
+    await school.saveRoutine(
+      StageRoutine(
+        stageId: stage.id,
+        teachingWeekdays: {1},
+        overrides: const [],
+        periodTypes: const [
+          LessonPeriodType(
+            id: 'morning',
+            name: '上午',
+            defaultLessonCount: 1,
+            sortOrder: 0,
+            lessonTimes: [
+              LessonTime(
+                lessonIndex: 1,
+                label: '第一节',
+                startMinute: 480,
+                endMinute: 520,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await school.saveSubjects([
+      const Subject(
+        id: subjectId,
+        termId: termId,
+        name: '数学',
+        shortName: '数',
+        sortOrder: 0,
+      ),
+    ]);
+    await school.saveTeachers([
+      const Teacher(id: teacherId, name: '教师', shortName: '师', sortOrder: 0),
+    ]);
+    await database.customStatement(
+      'INSERT INTO subject_requirements '
+      '(id, subject_id, grade_id, week_mode, lesson_count) '
+      'VALUES (?, ?, ?, ?, ?)',
+      ['requirement-locked', subjectId, 'grade-locked', 'weekly', 1],
+    );
+    await school.addTeacherAssignments(
+      termId: termId,
+      assignments: [
+        const TeacherAssignment(
+          id: assignmentId,
+          termId: termId,
+          teacherId: teacherId,
+          classId: classId,
+          subjectId: subjectId,
+          weekMode: WeekMode.weekly,
+          lessonCount: 1,
+        ),
+      ],
+    );
+    await database.customStatement(
+      'INSERT INTO schedule_items '
+      '(id, term_id, assignment_id, class_id, teacher_id, subject_id, week_mode, '
+      'stage_id, weekday, period_type_id, lesson_index) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        'item-locked',
+        termId,
+        assignmentId,
+        classId,
+        teacherId,
+        subjectId,
+        'weekly',
+        stage.id,
+        1,
+        'morning',
+        1,
+      ],
+    );
+    await scheduling.setScheduleLock(
+      const ScheduleLock(
+        termId: termId,
+        scope: ScheduleLockScope.schoolClass,
+        targetId: classId,
+      ),
+      enabled: true,
+    );
+
+    final snapshot = await scheduling.loadSchedulingSnapshot(termId);
+    final problem = const ProblemBuilder().build(
+      snapshot,
+      selectedClassIds: {classId},
+    );
+    final run = const CourseScheduler().solve(
+      problem,
+      config: const ScheduleRunConfig(
+        selectedClassIds: {classId},
+        seed: 1,
+        strength: ScheduleStrength.fast,
+      ),
+    );
+
+    expect(run.items.single.position?.cellKey, '${stage.id}:1:morning:1');
+    await scheduling.commitScheduleRun(run, selectedClassIds: {classId});
+    expect(
+      (await scheduling.loadSchedulingSnapshot(termId))
+          .existingItems
+          .single
+          .position
+          ?.cellKey,
+      '${stage.id}:1:morning:1',
+    );
+  });
+
   test('需求与任课经过求解、手工暂放及恢复后可重新读取课表', () async {
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);

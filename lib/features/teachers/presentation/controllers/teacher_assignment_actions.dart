@@ -299,10 +299,6 @@ extension _TeacherAssignmentActions on _TeachersPageState {
     );
   }
 
-  Future<void> _separateCombinedGroup(String groupId) async {
-    await _performSeparate(groupId);
-  }
-
   Future<void> _assignUnassigned(
     Teacher teacher,
     TeacherAssignmentMatrixCourse course,

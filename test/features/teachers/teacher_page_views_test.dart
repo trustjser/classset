@@ -809,6 +809,92 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('教师任课更多菜单不展示合班拆分操作', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _mountTeacherPage(
+      tester,
+      classes: const [
+        ClassBrief(
+          stageId: 'primary',
+          gradeId: 'grade-1',
+          id: 'class-1',
+          name: '一年级 1 班',
+        ),
+        ClassBrief(
+          stageId: 'primary',
+          gradeId: 'grade-1',
+          id: 'class-2',
+          name: '一年级 2 班',
+        ),
+        ClassBrief(
+          stageId: 'primary',
+          gradeId: 'grade-1',
+          id: 'class-3',
+          name: '一年级 3 班',
+        ),
+        ClassBrief(
+          stageId: 'primary',
+          gradeId: 'grade-1',
+          id: 'class-4',
+          name: '一年级 4 班',
+        ),
+      ],
+      assignments: const [
+        TeacherAssignment(
+          id: 'assignment-1',
+          termId: _termId,
+          teacherId: 'teacher-1',
+          classId: 'class-1',
+          subjectId: 'math',
+          weekMode: WeekMode.weekly,
+          lessonCount: 2,
+          combinedLessonGroupId: 'combined-1',
+        ),
+        TeacherAssignment(
+          id: 'assignment-2',
+          termId: _termId,
+          teacherId: 'teacher-1',
+          classId: 'class-2',
+          subjectId: 'math',
+          weekMode: WeekMode.weekly,
+          lessonCount: 2,
+          combinedLessonGroupId: 'combined-1',
+        ),
+        TeacherAssignment(
+          id: 'assignment-3',
+          termId: _termId,
+          teacherId: 'teacher-1',
+          classId: 'class-3',
+          subjectId: 'math',
+          weekMode: WeekMode.weekly,
+          lessonCount: 2,
+          combinedLessonGroupId: 'combined-2',
+        ),
+        TeacherAssignment(
+          id: 'assignment-4',
+          termId: _termId,
+          teacherId: 'teacher-1',
+          classId: 'class-4',
+          subjectId: 'math',
+          weekMode: WeekMode.weekly,
+          lessonCount: 2,
+          combinedLessonGroupId: 'combined-2',
+        ),
+      ],
+    );
+    await tester.tap(find.byKey(const ValueKey('teacher-view-tab-teacher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('teacher-row-more-teacher-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('拆分 2 班'), findsNothing);
+    expect(find.text('教师预排'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('教师任课更多菜单可进入预排并切换到教师分组', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;

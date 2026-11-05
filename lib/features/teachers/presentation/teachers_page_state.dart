@@ -350,7 +350,6 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                       onAssignUnassigned: _assignUnassigned,
                       onTransferAssignment: _transferAssignment,
                       onCombineAssignments: _combineAssignments,
-                      onSeparateCombinedGroup: _separateCombinedGroup,
                     ),
                   )
                 : _ClassMatrix(
