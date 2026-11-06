@@ -623,9 +623,9 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
   }
 
   Future<void> _showRulesDialog(SchedulingController controller) async {
-    await showAppDialog<void>(
+    await showAppDrawer<void>(
       context: context,
-      builder: (dialogContext) => Consumer(
+      builder: (drawerContext) => Consumer(
         builder: (context, ref, _) {
           final schedulingState = ref.watch(
             schedulingControllerProvider(widget.termId),
@@ -633,38 +633,11 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
           final snapshot =
               schedulingState.currentSnapshot ?? schedulingState.snapshot;
           if (snapshot == null) return const SizedBox.shrink();
-          return AppDialog(
-            maxWidth: 720,
-            title: AppDialogTitle(
-              title: '排课规则与锁定',
-              onClose: () => Navigator.pop(dialogContext),
-            ),
-            content: Column(
-              children: [
-                _RulePanel(
-                  snapshot: snapshot,
-                  enabled: true,
-                  onSave: (conditions, preferences) =>
-                      controller.saveConfiguration(
-                        conditions: conditions,
-                        preferences: preferences,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                _LockPanel(
-                  snapshot: snapshot,
-                  enabled: schedulingState.pendingBaseline == null,
-                  onSet: (lock, enabled) =>
-                      controller.setLock(lock, enabled: enabled),
-                ),
-              ],
-            ),
-            actions: [
-              AppPrimaryButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('完成'),
-              ),
-            ],
+          return _RulesDrawer(
+            snapshot: snapshot,
+            controller: controller,
+            lockEnabled: schedulingState.pendingBaseline == null,
+            onClose: () => Navigator.pop(drawerContext),
           );
         },
       ),
@@ -875,6 +848,743 @@ Set<String> _stageClassIds(SchedulingSnapshot snapshot, String stageId) {
       .toSet();
 }
 
+/// 右侧抽屉：把原先两个叠层的居中弹窗（排课偏好 / 排课规则与锁定）
+/// 合并为「排课偏好 → 自定义硬条件 → 锁定已有课表」三段。
+///
+/// 按设计稿采用草稿态：三段共用一份本地 [SchedulingSnapshot] 副本，
+/// 所有改动只更新草稿，点「保存」才一次性提交；「取消」/ 关闭 / Esc /
+/// 点遮罩均丢弃草稿。_RulePanel 与 _LockPanel 已是受控组件，只需把它们的
+/// onSave / onSet 从落库改为更新草稿。
+class _RulesDrawer extends StatefulWidget {
+  const _RulesDrawer({
+    required this.snapshot,
+    required this.controller,
+    required this.lockEnabled,
+    required this.onClose,
+  });
+
+  final SchedulingSnapshot snapshot;
+  final SchedulingController controller;
+  final bool lockEnabled;
+  final VoidCallback onClose;
+
+  @override
+  State<_RulesDrawer> createState() => _RulesDrawerState();
+}
+
+/// [ScheduleLock] 未实现 ==，用稳定 key 做草稿与已保存状态的增删 diff。
+String _lockKey(ScheduleLock lock) =>
+    '${lock.termId}|${lock.scope.name}|${lock.targetId}';
+
+class _RulesDrawerState extends State<_RulesDrawer> {
+  late SchedulingSnapshot _draft;
+  bool _dirty = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.snapshot;
+  }
+
+  void _update(SchedulingSnapshot next) {
+    if (_saving) return;
+    setState(() {
+      _draft = next;
+      _dirty = true;
+    });
+  }
+
+  void _setLock(ScheduleLock lock, bool enabled) {
+    final key = _lockKey(lock);
+    final current = _draft.locks;
+    final exists = current.any((item) => _lockKey(item) == key);
+    if (exists == enabled) return;
+    final next = enabled
+        ? [...current, lock]
+        : current.where((item) => _lockKey(item) != key).toList();
+    _update(_draft.copyWith(locks: next));
+  }
+
+  Future<void> _commit() async {
+    if (_saving) return;
+    // 没有改动时直接关闭，避免一次无意义的写库与 refresh。
+    if (!_dirty) {
+      widget.onClose();
+      return;
+    }
+    setState(() => _saving = true);
+    // 先取快照：saveConfiguration 会触发 refresh，之后 widget.snapshot 可能已变。
+    final originalLocks = widget.snapshot.locks;
+    try {
+      await widget.controller.saveConfiguration(
+        conditions: _draft.conditions,
+        preferences: _draft.preferences,
+      );
+      final originalKeys = originalLocks.map(_lockKey).toSet();
+      final draftKeys = _draft.locks.map(_lockKey).toSet();
+      for (final lock in originalLocks) {
+        if (!draftKeys.contains(_lockKey(lock))) {
+          await widget.controller.setLock(lock, enabled: false);
+        }
+      }
+      for (final lock in _draft.locks) {
+        if (!originalKeys.contains(_lockKey(lock))) {
+          await widget.controller.setLock(lock, enabled: true);
+        }
+      }
+      if (!mounted) return;
+      widget.onClose();
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('保存排课偏好与规则失败：$error')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return AppDrawerSurface(
+      title: '排课偏好与规则',
+      subtitle: '设置求解策略、约束与锁定范围，左侧课表可直接对照。',
+      onClose: widget.onClose,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _DrawerSection(
+            title: '排课偏好',
+            description: '设置排课时的求解策略和需要遵守的约束。',
+            child: _PreferencesFields(
+              preferences: _draft.preferences,
+              onChanged: (next) => _update(_draft.copyWith(preferences: next)),
+            ),
+          ),
+          const _SectionDivider(),
+          _DrawerSection(
+            title: '自定义硬条件',
+            count: '${_draft.conditions.length} 条',
+            description: '自动排课必须满足这些条件，条件过多时可能排不满课表。',
+            child: _RulePanel(
+              snapshot: _draft,
+              enabled: !_saving,
+              onSave: (conditions, preferences) async => _update(
+                _draft.copyWith(
+                  conditions: conditions,
+                  preferences: preferences,
+                ),
+              ),
+            ),
+          ),
+          const _SectionDivider(),
+          _DrawerSection(
+            title: '锁定已有课表',
+            count: '${_draft.locks.length} 个范围',
+            description: '锁定范围内的课程在自动排课时保持原位，不会被移动或覆盖。',
+            child: _LockPanel(
+              snapshot: _draft,
+              enabled: widget.lockEnabled && !_saving,
+              onSet: (lock, enabled) async => _setLock(lock, enabled),
+            ),
+          ),
+        ],
+      ),
+      footer: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '自定义硬条件 ${_draft.conditions.length} 条 · '
+                  '锁定范围 ${_draft.locks.length} 个',
+                  style: TextStyle(
+                    color: colors.inkSecondary,
+                    fontSize: 12,
+                    height: 18 / 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (_dirty) ...[
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: colors.warning,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(
+                      child: Text(
+                        _dirty ? '有未保存的修改' : '修改在点击「保存」后生效',
+                        style: TextStyle(
+                          color: _dirty ? colors.warning : colors.inkSecondary,
+                          fontSize: 12,
+                          height: 18 / 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          AppSecondaryButton(
+            onPressed: _saving ? null : widget.onClose,
+            child: const Text('取消'),
+          ),
+          const SizedBox(width: 10),
+          AppPrimaryButton(
+            onPressed: _saving ? null : () => unawaited(_commit()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ===== 抽屉视觉组件：与 design/schedule_rules_drawer_redesign.html 对齐 =====
+
+/// 去掉「类型 · 」前缀，供条件卡片显示对象值（如「数学 / 语文」）。
+String _conditionValue(
+  ScheduleCondition condition,
+  SchedulingSnapshot snapshot,
+) {
+  final label = _conditionLabel(condition, snapshot);
+  final prefix = '${_conditionTypeLabel(condition.type)} · ';
+  return label.startsWith(prefix) ? label.substring(prefix.length) : label;
+}
+
+class _DrawerSection extends StatelessWidget {
+  const _DrawerSection({
+    required this.title,
+    required this.description,
+    required this.child,
+    this.count,
+  });
+
+  final String title;
+  final String description;
+  final String? count;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: colors.ink,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (count != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.canvas,
+                  border: Border.all(color: colors.border),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  count!,
+                  style: TextStyle(color: colors.inkSecondary, fontSize: 11.5),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          description,
+          style: TextStyle(
+            color: colors.inkSecondary,
+            fontSize: 12.5,
+            height: 20 / 12.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        child,
+      ],
+    );
+  }
+}
+
+class _SectionDivider extends StatelessWidget {
+  const _SectionDivider();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    child: Container(height: 1, color: context.appColors.border),
+  );
+}
+
+class _DrawerSubhead extends StatelessWidget {
+  const _DrawerSubhead(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: TextStyle(
+        color: context.appColors.ink,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+}
+
+/// 设计稿的方形圆角复选框（Forui AppCheckbox 为圆形勾，形态不同）。
+class _DrawerCheckbox extends StatelessWidget {
+  const _DrawerCheckbox({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Semantics(
+      checked: value,
+      child: GestureDetector(
+        onTap: () => onChanged(!value),
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: colors.canvas,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: value ? colors.blue : colors.surface,
+                  border: Border.all(
+                    color: value ? colors.blue : colors.border,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: value
+                    ? const Icon(Icons.check, size: 12, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.ink,
+                    fontSize: 12.5,
+                    fontWeight: value ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 设计稿的整行虚线「+ 添加」按钮。
+class _DashedAddButton extends StatelessWidget {
+  const _DashedAddButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final active = onPressed != null;
+    return Semantics(
+      button: true,
+      enabled: active,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: CustomPaint(
+            painter: _DashedBorderPainter(color: colors.border, radius: 9),
+            child: Container(
+              height: 36,
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.add,
+                    size: 14,
+                    color: active ? colors.blue : colors.muted,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: active ? colors.blue : colors.muted,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+      );
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    const dash = 5.0;
+    const gap = 4.0;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = distance + dash > metric.length
+            ? metric.length
+            : distance + dash;
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter old) =>
+      old.color != color || old.radius != radius;
+}
+
+class _DrawerEmptyState extends StatelessWidget {
+  const _DrawerEmptyState({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return CustomPaint(
+      painter: _DashedBorderPainter(color: colors.border, radius: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          children: [
+            Icon(icon, size: 22, color: colors.muted),
+            const SizedBox(height: 8),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.muted,
+                fontSize: 12.5,
+                height: 20 / 12.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RuleCard extends StatelessWidget {
+  const _RuleCard({
+    required this.index,
+    required this.condition,
+    required this.snapshot,
+    required this.enabled,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final int index;
+  final ScheduleCondition condition;
+  final SchedulingSnapshot snapshot;
+  final bool enabled;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colors.canvas,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '$index',
+              style: TextStyle(color: colors.muted, fontSize: 11),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.selectedBlue,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    _conditionTypeLabel(condition.type),
+                    style: TextStyle(
+                      color: colors.blue,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _conditionValue(condition, snapshot),
+                  style: TextStyle(
+                    color: colors.ink,
+                    fontSize: 13.5,
+                    height: 22 / 13.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppIconButton(
+            tooltip: '编辑条件',
+            icon: Icons.edit_outlined,
+            onPressed: onEdit,
+          ),
+          AppIconButton(
+            tooltip: '删除条件',
+            icon: Icons.delete_outline,
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LockCard extends StatelessWidget {
+  const _LockCard({
+    required this.name,
+    required this.enabled,
+    required this.onRemove,
+  });
+
+  final String name;
+  final bool enabled;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colors.warningSurface,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(Icons.lock_outline, size: 14, color: colors.warning),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: TextStyle(fontSize: 13, color: colors.ink)),
+                Text(
+                  '该范围整周课表保持不变',
+                  style: TextStyle(fontSize: 11.5, color: colors.muted),
+                ),
+              ],
+            ),
+          ),
+          AppIconButton(
+            tooltip: '移除锁定',
+            icon: Icons.close,
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 排课偏好字段：标题/说明/分区线由外层 _DrawerSection 统一提供。
+class _PreferencesFields extends StatelessWidget {
+  const _PreferencesFields({
+    required this.preferences,
+    required this.onChanged,
+  });
+
+  final SchedulePreferences preferences;
+  final ValueChanged<SchedulePreferences> onChanged;
+
+  void _update({
+    ScheduleStrength? strength,
+    ProgressConsistency? progressConsistency,
+    TeacherDistribution? teacherDistribution,
+    ConsecutiveMode? consecutiveMode,
+    bool? protectLunchBreak,
+    bool? checkProgressConsistency,
+  }) => onChanged(
+    SchedulePreferences(
+      strength: strength ?? preferences.strength,
+      progressConsistency:
+          progressConsistency ?? preferences.progressConsistency,
+      teacherDistribution:
+          teacherDistribution ?? preferences.teacherDistribution,
+      consecutiveMode: consecutiveMode ?? preferences.consecutiveMode,
+      protectLunchBreak: protectLunchBreak ?? preferences.protectLunchBreak,
+      checkProgressConsistency:
+          checkProgressConsistency ?? preferences.checkProgressConsistency,
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const _DrawerSubhead('排课策略'),
+      _DialogGrid(
+        twoColumnBreakpoint: 320,
+        children: [
+          _choice<ScheduleStrength>(
+            '求解强度',
+            preferences.strength,
+            ScheduleStrength.values,
+            _strengthLabel,
+            (value) => _update(strength: value),
+          ),
+          _choice<ProgressConsistency>(
+            '同级同科进度',
+            preferences.progressConsistency,
+            ProgressConsistency.values,
+            (value) => value == ProgressConsistency.require ? '必须同步' : '尽量同步',
+            (value) => _update(progressConsistency: value),
+          ),
+          _choice<TeacherDistribution>(
+            '教师日分布',
+            preferences.teacherDistribution,
+            TeacherDistribution.values,
+            (value) => switch (value) {
+              TeacherDistribution.indifferent => '不限制',
+              TeacherDistribution.spread => '尽量分散',
+              TeacherDistribution.concentrate => '尽量集中',
+            },
+            (value) => _update(teacherDistribution: value),
+          ),
+          _choice<ConsecutiveMode>(
+            '连堂偏好',
+            preferences.consecutiveMode,
+            ConsecutiveMode.values,
+            (value) => switch (value) {
+              ConsecutiveMode.preferSeparate => '尽量不连堂',
+              ConsecutiveMode.requireSeparate => '禁止连堂',
+              ConsecutiveMode.preferTogether => '尽量连堂',
+            },
+            (value) => _update(consecutiveMode: value),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      const _DrawerSubhead('附加约束'),
+      _DialogGrid(
+        twoColumnBreakpoint: 320,
+        children: [
+          _DrawerCheckbox(
+            label: '保护午间休息',
+            value: preferences.protectLunchBreak,
+            onChanged: (value) => _update(protectLunchBreak: value),
+          ),
+          _DrawerCheckbox(
+            label: '检查教学进度一致性',
+            value: preferences.checkProgressConsistency,
+            onChanged: (value) => _update(checkProgressConsistency: value),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
 class _DialogDescription extends StatelessWidget {
   const _DialogDescription(this.text);
   final String text;
@@ -906,14 +1616,17 @@ class _DialogInset extends StatelessWidget {
 }
 
 class _DialogGrid extends StatelessWidget {
-  const _DialogGrid({required this.children});
+  const _DialogGrid({required this.children, this.twoColumnBreakpoint = 480});
   final List<Widget> children;
+
+  /// 抽屉内可用宽度更窄，允许调用方下调两列阈值。
+  final double twoColumnBreakpoint;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       const gap = 16.0;
-      final width = constraints.maxWidth >= 480
+      final width = constraints.maxWidth >= twoColumnBreakpoint
           ? (constraints.maxWidth - gap) / 2
           : constraints.maxWidth;
       return Wrap(
@@ -1272,79 +1985,57 @@ class _RulePanel extends StatelessWidget {
   onSave;
 
   @override
-  Widget build(BuildContext context) => AppSectionPanel(
-    title: '规则与偏好',
-    trailing: AppGhostButton(
-      onPressed: enabled ? () => unawaited(_showPreferences(context)) : null,
-      child: const Text('调整偏好'),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '强度：${_strengthLabel(snapshot.preferences.strength)}  ·  '
-          '自定义硬条件：${snapshot.conditions.length} 条',
-        ),
-        const SizedBox(height: 8),
-        for (final condition in snapshot.conditions)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        condition.name?.isNotEmpty == true
-                            ? condition.name!
-                            : _conditionLabel(condition, snapshot),
-                      ),
-                      Text(
-                        _conditionLabel(condition, snapshot),
-                        style: TextStyle(
-                          color: context.appColors.inkSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                AppIconButton(
-                  tooltip: '编辑条件',
-                  icon: Icons.edit_outlined,
-                  onPressed: enabled
-                      ? () =>
-                            unawaited(_showConditionEditor(context, condition))
-                      : null,
-                ),
-                AppIconButton(
-                  tooltip: '删除条件',
-                  icon: Icons.delete_outline,
-                  onPressed: !enabled
-                      ? null
-                      : () => unawaited(
-                          _save(
-                            context,
-                            snapshot.conditions
-                                .where((item) => item.id != condition.id)
-                                .toList(),
-                            snapshot.preferences,
-                          ),
-                        ),
-                ),
-              ],
-            ),
-          ),
-        AppSecondaryButton(
-          onPressed: enabled
-              ? () => unawaited(_showConditionEditor(context))
-              : null,
-          child: const Text('添加硬条件'),
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (snapshot.conditions.isEmpty)
+        const _DrawerEmptyState(
+          icon: Icons.rule_outlined,
+          text: '还没有自定义硬条件\n添加后，自动排课会优先满足这些约束',
+        )
+      else
+        ..._conditionCards(context),
+      _DashedAddButton(
+        label: '添加硬条件',
+        onPressed: enabled
+            ? () => unawaited(_showConditionEditor(context))
+            : null,
+      ),
+    ],
   );
+
+  List<Widget> _conditionCards(BuildContext context) {
+    final cards = <Widget>[];
+    for (var i = 0; i < snapshot.conditions.length; i++) {
+      final condition = snapshot.conditions[i];
+      cards.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: _RuleCard(
+            index: i + 1,
+            condition: condition,
+            snapshot: snapshot,
+            enabled: enabled,
+            onEdit: enabled
+                ? () => unawaited(_showConditionEditor(context, condition))
+                : null,
+            onDelete: enabled
+                ? () => unawaited(
+                    _save(
+                      context,
+                      snapshot.conditions
+                          .where((item) => item.id != condition.id)
+                          .toList(),
+                      snapshot.preferences,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+      );
+    }
+    return cards;
+  }
 
   Future<void> _save(
     BuildContext context,
@@ -1358,123 +2049,6 @@ class _RulePanel extends StatelessWidget {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('保存规则失败：$error')));
       }
-    }
-  }
-
-  Future<void> _showPreferences(BuildContext context) async {
-    var strength = snapshot.preferences.strength;
-    var progress = snapshot.preferences.progressConsistency;
-    var distribution = snapshot.preferences.teacherDistribution;
-    var consecutive = snapshot.preferences.consecutiveMode;
-    var lunch = snapshot.preferences.protectLunchBreak;
-    var checkProgress = snapshot.preferences.checkProgressConsistency;
-    final value = await showAppDialog<SchedulePreferences>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => AppDialog(
-          maxWidth: 620,
-          title: AppDialogTitle(
-            title: '排课偏好',
-            onClose: () => Navigator.pop(dialogContext),
-          ),
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _DialogDescription('设置排课时的求解策略和需要遵守的约束。'),
-              const SizedBox(height: 20),
-              _DialogSection(
-                title: '排课策略',
-                child: _DialogGrid(
-                  children: [
-                    _choice<ScheduleStrength>(
-                      '求解强度',
-                      strength,
-                      ScheduleStrength.values,
-                      _strengthLabel,
-                      (next) => update(() => strength = next),
-                    ),
-                    _choice<ProgressConsistency>(
-                      '同级同科进度',
-                      progress,
-                      ProgressConsistency.values,
-                      (value) => value == ProgressConsistency.require
-                          ? '必须同步'
-                          : '尽量同步',
-                      (next) => update(() => progress = next),
-                    ),
-                    _choice<TeacherDistribution>(
-                      '教师日分布',
-                      distribution,
-                      TeacherDistribution.values,
-                      (value) => switch (value) {
-                        TeacherDistribution.indifferent => '不限制',
-                        TeacherDistribution.spread => '尽量分散',
-                        TeacherDistribution.concentrate => '尽量集中',
-                      },
-                      (next) => update(() => distribution = next),
-                    ),
-                    _choice<ConsecutiveMode>(
-                      '连堂偏好',
-                      consecutive,
-                      ConsecutiveMode.values,
-                      (value) => switch (value) {
-                        ConsecutiveMode.preferSeparate => '尽量不连堂',
-                        ConsecutiveMode.requireSeparate => '禁止连堂',
-                        ConsecutiveMode.preferTogether => '尽量连堂',
-                      },
-                      (next) => update(() => consecutive = next),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              _DialogSection(
-                title: '附加约束',
-                child: _DialogInset(
-                  child: _DialogGrid(
-                    children: [
-                      AppCheckbox(
-                        label: const Text('保护午间休息'),
-                        value: lunch,
-                        onChanged: (value) => update(() => lunch = value),
-                      ),
-                      AppCheckbox(
-                        label: const Text('检查教学进度一致性'),
-                        value: checkProgress,
-                        onChanged: (value) =>
-                            update(() => checkProgress = value),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            AppSecondaryButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            AppPrimaryButton(
-              onPressed: () => Navigator.pop(
-                dialogContext,
-                SchedulePreferences(
-                  strength: strength,
-                  progressConsistency: progress,
-                  teacherDistribution: distribution,
-                  consecutiveMode: consecutive,
-                  protectLunchBreak: lunch,
-                  checkProgressConsistency: checkProgress,
-                ),
-              ),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (value != null && context.mounted) {
-      await _save(context, snapshot.conditions, value);
     }
   }
 
@@ -1768,27 +2342,31 @@ class _LockPanel extends StatelessWidget {
   final Future<void> Function(ScheduleLock, bool) onSet;
 
   @override
-  Widget build(BuildContext context) => AppSectionPanel(
-    title: '锁定已有课表',
-    trailing: AppGhostButton(
-      onPressed: enabled ? () => unawaited(_showAdd(context)) : null,
-      child: const Text('添加锁定'),
-    ),
-    child: snapshot.locks.isEmpty
-        ? const Text('尚无锁定。锁定班级或教师后，其已有课程在重新排课时固定位置。')
-        : Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final lock in snapshot.locks)
-                AppActionPill(
-                  onPressed: enabled
-                      ? () => unawaited(_set(context, lock, false))
-                      : null,
-                  child: Text('${_lockName(snapshot, lock)}  ×'),
-                ),
-            ],
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (snapshot.locks.isEmpty)
+        const _DrawerEmptyState(
+          icon: Icons.lock_outline,
+          text: '还没有锁定范围\n添加后，自动排课会保留这些课程',
+        )
+      else
+        for (final lock in snapshot.locks)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _LockCard(
+              name: _lockName(snapshot, lock),
+              enabled: enabled,
+              onRemove: enabled
+                  ? () => unawaited(_set(context, lock, false))
+                  : null,
+            ),
           ),
+      _DashedAddButton(
+        label: '添加锁定',
+        onPressed: enabled ? () => unawaited(_showAdd(context)) : null,
+      ),
+    ],
   );
 
   Future<void> _set(BuildContext context, ScheduleLock lock, bool value) async {
@@ -2132,11 +2710,11 @@ String _conditionLabel(ScheduleCondition value, SchedulingSnapshot snapshot) {
 String _lockName(SchedulingSnapshot snapshot, ScheduleLock lock) {
   if (lock.scope == ScheduleLockScope.schoolClass) {
     for (final item in snapshot.classes) {
-      if (item.id == lock.targetId) return '班级 ${item.name}';
+      if (item.id == lock.targetId) return '班级 · ${item.name}';
     }
   } else {
     for (final item in snapshot.teachers) {
-      if (item.id == lock.targetId) return '教师 ${item.displayName}';
+      if (item.id == lock.targetId) return '教师 · ${item.displayName}';
     }
   }
   return lock.targetId;

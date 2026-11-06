@@ -123,8 +123,11 @@ void main() {
     expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
     await tester.tap(find.text('规则'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('强度：高强度'), findsOneWidget);
-    await tester.tap(find.text('完成'));
+    // 规则弹窗已改为右侧抽屉，排课偏好内联展示，不再是二级弹窗。
+    expect(find.text('排课偏好与规则'), findsOneWidget);
+    expect(find.text('排课策略'), findsOneWidget);
+    expect(find.text('附加约束'), findsOneWidget);
+    await tester.tap(find.text('取消').last);
     await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('schedule-reconciliation-open')),
@@ -252,12 +255,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('规则'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('调整偏好'));
-    await tester.pumpAndSettle();
+    // 偏好已并入抽屉首段，三段分区应在同一浮层内可见。
+    expect(find.text('排课偏好与规则'), findsOneWidget);
+    expect(find.byType(AppDrawerSurface), findsOneWidget);
     expect(find.text('排课策略'), findsOneWidget);
     expect(find.text('附加约束'), findsOneWidget);
+    expect(find.text('自定义硬条件'), findsOneWidget);
+    expect(find.text('锁定已有课表'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('取消').last);
+    await tester.ensureVisible(find.text('添加硬条件'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('添加硬条件'));
     await tester.pumpAndSettle();
@@ -441,11 +447,17 @@ void main() {
     );
     await tester.tap(find.text('添加').last);
     await tester.pumpAndSettle();
+    // 草稿态：编辑弹窗只更新抽屉草稿，点「保存」才提交到 controller。
+    expect(find.text('有未保存的修改'), findsOneWidget);
+    await tester.tap(find.text('保存').last);
+    await tester.pumpAndSettle();
     final saved = (container.read(
       schedulingControllerProvider('t').notifier,
     ) as _ReadyController).savedConditions!.single;
     expect(saved.targetId, 'private_subject_2');
     expect(saved.periodTypeId, 'private_middle_am');
+    await tester.tap(find.text('规则'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('添加硬条件'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('指定时段节数'));
@@ -553,6 +565,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('规则'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('添加锁定'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('添加锁定'));
     await tester.pumpAndSettle();
     expect(find.text('选择要锁定的班级或教师，重新排课时将保留已有课程位置。'), findsOneWidget);
@@ -577,12 +591,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('锁定').last);
     await tester.pumpAndSettle();
+    // 草稿态：添加锁定先进草稿，点「保存」才提交。
+    expect(find.text('有未保存的修改'), findsOneWidget);
+    await tester.tap(find.text('保存').last);
+    await tester.pumpAndSettle();
     final controller = container.read(
       schedulingControllerProvider('t').notifier,
     ) as _ReadyController;
     expect(controller.savedLock?.targetId, 'private_class_2');
     expect(controller.savedLock?.scope, ScheduleLockScope.schoolClass);
+    // 重新打开抽屉，继续窄窗口下的第二次添加。
+    await tester.tap(find.text('规则'));
+    await tester.pumpAndSettle();
     tester.view.physicalSize = const Size(640, 650);
+    await tester.pumpAndSettle();
+    // 窄窗口下抽屉内容需要滚动才能操作末段按钮。
+    await tester.ensureVisible(find.text('添加锁定'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('添加锁定'));
     await tester.pumpAndSettle();
@@ -606,6 +630,8 @@ void main() {
     await tester.tap(find.text('王老师（初中）'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('锁定').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存').last);
     await tester.pumpAndSettle();
     expect(controller.savedLock?.targetId, 'private_teacher_2');
     expect(controller.savedLock?.scope, ScheduleLockScope.teacher);

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as forui_material;
 
@@ -1058,6 +1059,173 @@ Future<T?> showAppDialog<T>({
   ),
   builder: (context, style, animation) => builder(context),
 );
+
+/// 右侧贴边抽屉：基于 Forui [showFSheet]（side: FLayout.rtl，全高）。
+///
+/// - 宽度按窗口分档：>=1200 用 [width]，768–1199 用 420，<768 铺满。
+/// - 关闭拖拽（draggable: false），避免表单抽屉被误拖关闭。
+/// - Forui 的 Sheet 只负责定位和滑入动画，白底、描边、阴影与固定底栏
+///   由 [AppDrawerSurface] 绘制，视觉与设计稿一致且不受组件默认样式影响。
+Future<T?> showAppDrawer<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  double width = 480,
+  bool barrierDismissible = true,
+}) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  final drawerWidth = screenWidth < 768
+      ? screenWidth
+      : screenWidth < 1200
+      ? 420.0
+      : width;
+  return showFSheet<T>(
+    context: context,
+    useRootNavigator: true,
+    side: FLayout.rtl,
+    draggable: false,
+    mainAxisMaxRatio: null,
+    barrierDismissible: barrierDismissible,
+    constraints: BoxConstraints(minWidth: drawerWidth, maxWidth: drawerWidth),
+    style: .delta(
+      barrierFilter: (context, animation) => ui.ColorFilter.mode(
+        Color.lerp(
+          Colors.transparent,
+          context.appColors.dialogBarrier,
+          animation,
+        )!,
+        ui.BlendMode.srcOver,
+      ),
+    ),
+    builder: builder,
+  );
+}
+
+/// 抽屉外壳：头部 / 可滚动内容 / 固定底部操作区。
+///
+/// 内部包透明 Material 与 DefaultTextStyle，保证 InkWell 系组件和 Text
+/// 在浮层（无 Material 祖先）中可用，同 [AppDialog] 的处理。
+class AppDrawerSurface extends StatelessWidget {
+  const AppDrawerSurface({
+    required this.title,
+    required this.subtitle,
+    required this.body,
+    required this.footer,
+    required this.onClose,
+    this.icon = Icons.tune_rounded,
+    super.key,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget body;
+  final Widget footer;
+  final VoidCallback onClose;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return CallbackShortcuts(
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): onClose},
+      child: Focus(
+        autofocus: true,
+        child: SizedBox.expand(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(left: BorderSide(color: colors.border)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A000000),
+                  offset: Offset(-12, 0),
+                  blurRadius: 32,
+                ),
+              ],
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: DefaultTextStyle(
+                style: TextStyle(
+                  color: colors.ink,
+                  fontSize: 13.5,
+                  height: 1.6,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: colors.selectedBlue,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(icon, size: 20, color: colors.blue),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    color: colors.ink,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                    height: 26 / 17,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  subtitle,
+                                  style: TextStyle(
+                                    color: colors.inkSecondary,
+                                    fontSize: 12.5,
+                                    height: 20 / 12.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          AppIconButton(
+                            icon: Icons.close,
+                            tooltip: '关闭',
+                            onPressed: onClose,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(height: 1, color: colors.border),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+                        child: body,
+                      ),
+                    ),
+                    Divider(height: 1, color: colors.border),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      child: footer,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class AppDialogTitle extends StatelessWidget {
   const AppDialogTitle({required this.title, required this.onClose, super.key});
