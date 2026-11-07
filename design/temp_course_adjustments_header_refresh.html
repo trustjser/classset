@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>课集 ClassSet · 调代课顶部信息架构优化</title>
+<!--
+  ─────────────────────────────────────────────────────────────
+  调代课 · 顶部优化对照稿
+  · 基线：截图中的实际界面（4 条横向信息带），未改动侧栏与课表内容
+  · 只重组顶部信息架构；侧栏、学科色、课表数据 1:1 还原，便于对照
+  · 顶部评审条可切换「优化前 / 优化后」、开启「分组标注」
+  · 主色 #0052D9；可把 --blue 整体换成 #0075DE 一键切换备选主题
+  · 互斥选项沿用项目规范：TDesign Radio（16px 圆环 + 8px 内点），
+    未改用分段控件 / chip
+  · 静态原型，状态仅保存在当前页面会话，未接入 Flutter
+  ─────────────────────────────────────────────────────────────
+-->
+<style>
+:root{
+  color-scheme:light;
+  --blue:#0052D9; --blue-hover:#0043B4; --blue-soft:#ECF2FE; --blue-border:#B9D0F7;
+  --ink:#1B1D21; --ink-2:#5C6069; --muted:#9499A2; --disabled:#B9BDC5;
+  --border:#E5E7EB; --border-2:#EFF1F4; --hover:#F4F6F9;
+  --canvas:#F7F8FA; --surface:#FFFFFF; --side:#FBFBFC;
+  --side-w:178px; --ctrl-h:32px; --pad:24px;
+  --radius:8px; --radius-sm:5px;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",Inter,sans-serif;
+  /* 学科色 */
+  --c-cn:#D9652B; --c-cn-bg:#FDEEE5;
+  --c-ma:#2E9E83; --c-ma-bg:#E4F3EF;
+  --c-mo:#3E9E7E; --c-mo-bg:#E4F3EF;
+  --c-sc:#7C5CD6; --c-sc-bg:#F0EAFC;
+  --c-pe:#8B5CD6; --c-pe-bg:#F2EAFB;
+  --c-ar:#4B9A55; --c-ar-bg:#E9F4E7;
+  --c-la:#8B5CD6; --c-la-bg:#F2EAFB;
+  --c-mu:#C4569C; --c-mu-bg:#FCEAF5;
+  --c-pr:#5A9440; --c-pr-bg:#ECF4E4;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#ECEEF1;font-family:var(--font);color:var(--ink);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:3px}
+.hidden{display:none !important}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.sm{width:14px;height:14px}
+
+/* ══ 评审工具条（窗口外） ═══════════════════════════════ */
+.review{max-width:1180px;margin:18px auto 0;padding:12px 16px;background:#fff;border:1px solid #DFE2E7;border-radius:10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(20,30,50,.04)}
+.review h1{font-size:14px;margin:0;font-weight:650;letter-spacing:.1px}
+.review .sub{font-size:12px;color:var(--ink-2);margin-right:auto}
+.seg{display:flex;background:#F1F3F6;border-radius:7px;padding:3px;gap:2px}
+.seg button{font-size:12px;padding:6px 14px;border-radius:5px;color:var(--ink-2);white-space:nowrap}
+.seg button.on{background:#fff;color:var(--blue);font-weight:650;box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.review label{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.review input[type=checkbox]{accent-color:var(--blue);width:14px;height:14px}
+.link-btn{font-size:12px;color:var(--blue);text-decoration:underline;text-underline-offset:3px}
+.metric{font-size:11.5px;color:var(--ink-2);background:#F6F8FB;border:1px solid var(--border-2);border-radius:6px;padding:6px 10px;white-space:nowrap}
+.metric b{color:var(--blue);font-weight:650}
+.notes{max-width:1180px;margin:10px auto 0;background:#fff;border:1px solid #DFE2E7;border-radius:10px;padding:16px 20px;font-size:12.5px;line-height:1.75;color:var(--ink-2);box-shadow:0 2px 10px rgba(20,30,50,.04)}
+.notes h2{font-size:13px;color:var(--ink);margin:0 0 8px}
+.notes table{border-collapse:collapse;width:100%;font-size:12.5px}
+.notes th,.notes td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border-2);vertical-align:top}
+.notes th{color:var(--ink);font-weight:600;background:#FAFBFC;white-space:nowrap}
+.notes td:first-child{white-space:nowrap;color:var(--ink)}
+.notes code{background:#F2F4F7;border-radius:3px;padding:1px 5px;font-size:11.5px;color:#B0481F}
+
+/* ══ 应用外框 ═════════════════════════════════════════ */
+.app{max-width:1180px;margin:18px auto 40px;background:var(--surface);border:1px solid #DADDE2;border-radius:10px;overflow:hidden;box-shadow:0 18px 50px rgba(28,36,52,.13),0 2px 8px rgba(28,36,52,.05)}
+.titlebar{height:28px;background:#F5F6F7;border-bottom:1px solid #E7E9EC;display:flex;align-items:center;padding:0 12px;position:relative}
+.traffic{display:flex;gap:7px}
+.traffic i{width:10px;height:10px;border-radius:50%;display:block}
+.traffic i:nth-child(1){background:#FF5F57}.traffic i:nth-child(2){background:#FEBC2E}.traffic i:nth-child(3){background:#28C840}
+.win-title{position:absolute;left:50%;transform:translateX(-50%);font-size:11.5px;color:#6B6F76}
+.app-body{display:flex;height:700px}
+
+/* ══ 侧栏 ═════════════════════════════════════════════ */
+.sidebar{width:var(--side-w);flex:none;background:var(--side);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 10px 12px}
+.brand{display:flex;align-items:center;gap:9px;padding:2px 6px 14px}
+.brand-logo{width:30px;height:30px;border-radius:8px;background:var(--blue);color:#fff;display:grid;place-items:center}
+.brand-logo svg{width:17px;height:17px}
+.brand-name{font-size:14px;font-weight:650;line-height:1.15}
+.brand-en{font-size:9px;color:var(--muted);letter-spacing:1.1px;margin-top:2px}
+.school{display:flex;align-items:center;gap:8px;padding:8px 8px 14px;border-bottom:1px solid var(--border-2);margin-bottom:8px}
+.school-badge{width:26px;height:26px;border-radius:6px;background:#EDEFF3;color:#7B818B;font-size:12px;display:grid;place-items:center;flex:none}
+.school-name{font-size:12.5px;font-weight:600;line-height:1.3}
+.school-term{font-size:10.5px;color:var(--muted);margin-top:2px}
+.nav-group{margin-top:6px}
+.nav-title{font-size:10.5px;color:var(--muted);padding:8px 10px 5px;letter-spacing:.3px}
+.nav-item{display:flex;align-items:center;gap:10px;height:31px;padding:0 10px;border-radius:6px;font-size:12.5px;color:#44484F;cursor:pointer}
+.nav-item svg{width:15px;height:15px;color:#8A9099}
+.nav-item:hover{background:#F0F2F5}
+.nav-item.active{background:var(--blue-soft);color:var(--blue);font-weight:600}
+.nav-item.active svg{color:var(--blue)}
+.nav-item .aside{font-size:10px;color:var(--muted);margin-left:auto;font-weight:400}
+.side-foot{margin-top:auto;padding:10px 8px 0;border-top:1px solid var(--border-2);font-size:10.5px;color:var(--muted);line-height:1.7}
+.side-foot .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#2BA471;margin-right:5px;vertical-align:1px}
+.side-foot b{color:#5C6069;font-weight:600}
+
+/* ══ 主区 ═════════════════════════════════════════════ */
+.main{flex:1;min-width:0;background:var(--canvas);display:flex;flex-direction:column;overflow:auto}
+.page-head{height:60px;flex:none;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 var(--pad);gap:16px}
+.ph-left,.ph-right{display:flex;align-items:center;gap:10px;min-width:0}
+.icon-btn{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;color:#6C717A;flex:none}
+.icon-btn:hover{background:var(--hover);color:var(--ink)}
+.icon-btn.sm{width:26px;height:26px}
+.crumb{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.crumb-sep{color:#C9CDD3;font-size:12px}
+.page-head h1{font-size:18px;font-weight:650;margin:0;letter-spacing:.2px;white-space:nowrap}
+.term-context{font-size:12px;color:var(--ink-2);display:inline-flex;align-items:center;gap:4px;padding:4px 6px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.term-context:hover{background:var(--hover)}
+.term-context svg{width:12px;height:12px;color:var(--muted)}
+.head-sep{width:1px;height:18px;background:var(--border);flex:none;margin:0 2px}
+
+/* ── 统一工具条（优化后） ─────────────────────────────── */
+.toolbar{min-height:48px;flex:none;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 var(--pad);flex-wrap:wrap}
+.tb-group{display:flex;align-items:center;gap:8px;min-height:var(--ctrl-h);position:relative}
+.tb-group.right{margin-left:auto}
+.tb-divider{width:1px;height:20px;background:var(--border);flex:none}
+.tb-spacer{flex:1;min-width:8px}
+.tabs{gap:16px;align-self:stretch}
+.tab{height:48px;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);border-bottom:2px solid transparent;white-space:nowrap;padding:0 1px}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--blue);font-weight:650;border-bottom-color:var(--blue)}
+.badge{font-size:10.5px;color:var(--muted);background:#F0F1F4;border-radius:9px;padding:1px 6px;font-weight:500}
+.tab.active .badge{color:var(--blue);background:var(--blue-soft)}
+
+/* 单选框：16px 圆环 + 8px 内点 */
+.radio{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap;user-select:none}
+.radio input{position:absolute;opacity:0;width:1px;height:1px}
+.radio .ring{width:16px;height:16px;border-radius:50%;border:1.5px solid #C4C8CF;background:#fff;display:grid;place-items:center;flex:none;transition:.15s}
+.radio .ring::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--blue);transform:scale(0);transition:.15s}
+.radio input:checked + .ring{border-color:var(--blue)}
+.radio input:checked + .ring::after{transform:scale(1)}
+.radio input:focus-visible + .ring{box-shadow:0 0 0 3px rgba(0,82,217,.18)}
+.radio input:checked ~ .lbl{color:var(--ink);font-weight:550}
+.radio:hover .ring{border-color:var(--blue)}
+
+.select,.btn-outline,.text-btn{height:var(--ctrl-h);display:inline-flex;align-items:center;gap:6px;border-radius:var(--radius-sm);font-size:12.5px;white-space:nowrap}
+.select{border:1px solid var(--border);background:#fff;padding:0 9px;color:var(--ink);min-width:112px;justify-content:space-between}
+.select:hover{border-color:#C9CDD4;background:#FCFDFE}
+.select svg{width:12px;height:12px;color:var(--muted)}
+.select[disabled]{color:var(--disabled);background:#F7F8FA;cursor:not-allowed}
+.btn-outline{border:1px solid var(--border);background:#fff;padding:0 11px;color:var(--ink-2)}
+.btn-outline:hover{border-color:var(--blue-border);color:var(--blue);background:#FAFCFF}
+.text-btn{padding:0 6px;color:var(--ink-2)}
+.text-btn:hover{color:var(--blue);background:var(--blue-soft);border-radius:4px}
+.week-nav{display:flex;align-items:center;gap:2px;height:var(--ctrl-h)}
+.week-label{font-size:12.5px;color:var(--ink);font-weight:550;padding:0 4px;white-space:nowrap}
+.week-date{font-weight:400;color:var(--ink-2);margin-left:3px}
+.pop-menu{position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 12px 30px rgba(20,28,44,.14);padding:5px;z-index:20}
+.pop-menu.left{right:auto;left:0}
+.pop-menu button{display:block;width:100%;text-align:left;font-size:12.5px;padding:8px 10px;border-radius:5px;color:var(--ink-2)}
+.pop-menu button:hover{background:var(--hover);color:var(--ink)}
+.pop-menu button.on{color:var(--blue);background:var(--blue-soft);font-weight:600}
+.wrap{position:relative}
+
+/* ── 优化前的三条带 ─────────────────────────────────── */
+.legacy-strip{display:none;flex:none}
+.legacy-row{min-height:44px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 var(--pad);gap:14px;flex-wrap:wrap}
+.legacy-row.tabs-row{background:#FCFDFE}
+.legacy-row.filter-row{min-height:40px;background:var(--canvas)}
+.legacy-left,.legacy-right{display:flex;align-items:center;gap:12px;min-width:0}
+.legacy-row .tab{height:44px}
+.legacy-row .select{min-width:100px}
+.legacy-row .week-label{font-size:12px;font-weight:400}
+.legacy-row .week-nav{gap:1px}
+
+/* ── 分组标注（评审辅助） ───────────────────────────── */
+.annotate .tb-group[data-label]::before{content:attr(data-label);position:absolute;top:-19px;left:-6px;font-size:9.5px;color:#B0481F;background:#FFF3E9;border:1px solid #F4D5BB;border-radius:3px;padding:1px 5px;white-space:nowrap;line-height:1.4;z-index:5;pointer-events:none}
+.annotate .tb-group[data-label]{outline:1px dashed #E9A874;outline-offset:4px;border-radius:3px}
+.annotate .toolbar{padding-top:20px}
+.annotate .page-head{box-shadow:inset 0 0 0 1px #BFD2F5}
+
+/* ── 内容卡 ─────────────────────────────────────────── */
+.content{padding:16px var(--pad) 24px;flex:1;min-height:0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.card-head{min-height:44px;display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border-2);position:relative}
+.card-head h2{font-size:13.5px;font-weight:650;margin:0;white-space:nowrap}
+.ch-sub{font-size:11.5px;color:var(--muted);border-left:1px solid var(--border);padding-left:10px}
+.tip{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.tip .info{width:13px;height:13px;color:#A9AEB7}
+.tip button{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;color:#B4B9C1;font-size:14px;line-height:1}
+.tip button:hover{background:var(--hover);color:var(--ink-2)}
+/* 优化前：提示语游离在卡片头中间 */
+.legacy .tip{position:absolute;left:50%;transform:translateX(-50%);margin-left:0}
+.legacy .ch-sub{display:none}
+
+/* ── 课表 ───────────────────────────────────────────── */
+.grid{display:grid;grid-template-columns:66px repeat(5,minmax(0,1fr));background:#fff}
+.gh{padding:9px 6px;text-align:center;font-size:12px;color:var(--ink-2);border-bottom:1px solid var(--border-2);border-left:1px solid var(--border-2);white-space:nowrap}
+.gh:first-child{border-left:0;background:#FCFCFD}
+.gh.today{color:var(--blue);font-weight:650}
+.gh .today-tag{font-size:10px;margin-left:3px;font-weight:500}
+.gh .d{font-size:11px;color:var(--muted);margin-left:3px;font-weight:400}
+.gt{border-bottom:1px solid var(--border-2);padding:8px 4px;text-align:center;font-size:10.5px;color:var(--muted);line-height:1.45;display:flex;flex-direction:column;justify-content:center;background:#FCFCFD}
+.gt b{font-size:11.5px;color:var(--ink-2);font-weight:550}
+.cell{border-bottom:1px solid var(--border-2);border-left:1px solid var(--border-2);min-height:62px;padding:3px;display:flex}
+.cell:last-child{border-right:0}
+.lesson{flex:1;border-radius:4px;padding:6px 8px;border-left:3px solid var(--lc);background:var(--lbg);min-width:0;cursor:pointer;transition:.12s}
+.lesson:hover{filter:brightness(.975);box-shadow:0 1px 5px rgba(20,30,50,.09)}
+.lesson .n{font-size:12.5px;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lesson .t{font-size:10.5px;color:#6E737C;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty-cell{flex:1;display:grid;place-items:center;font-size:11.5px;color:#B4B9C1}
+.empty-cell:hover{background:#FAFBFC;color:var(--blue);cursor:pointer;border-radius:4px}
+
+/* 调整记录空态 */
+.records-empty{padding:64px 20px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.9}
+.records-empty .ic{width:38px;height:38px;border-radius:10px;background:#F3F5F8;display:grid;place-items:center;margin:0 auto 12px;color:#AEB3BB}
+.records-empty b{display:block;color:var(--ink-2);font-size:13px;font-weight:600;margin-bottom:4px}
+
+/* Toast */
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(10px);background:#22262E;color:#fff;font-size:12.5px;padding:9px 16px;border-radius:7px;opacity:0;pointer-events:none;transition:.2s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:900px){
+  .app-body{height:auto}.sidebar{display:none}
+  .toolbar{gap:8px}.tb-divider,.tb-spacer{display:none}.tb-group.right{margin-left:auto}
+  .week-date{display:none}.crumb,.crumb-sep,.term-context{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- 图标库 -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M6 8h1M6 12h1"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17l9 5 9-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 012-2h12v18H6a2 2 0 01-2-2V5z"/><path d="M8 7h7M8 11h7"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0112 0v1M16 5.5a3 3 0 010 5.5M18 20v-1a5 5 0 00-2-4"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V4a1 1 0 011-1h9v18M5 21h13M15 12h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13l3-8h12l3 8v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM3 13h5l1 2h6l1-2h5"/></symbol>
+  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 016.5 4H19v14H6.5A2.5 2.5 0 004 20.5v-14z" fill="currentColor" stroke="none"/><path d="M8 9h7M8 13h5" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></symbol>
+</svg>
+
+<!-- ══ 评审工具条 ══════════════════════════════════════ -->
+<div class="review">
+  <h1>调代课 · 顶部信息架构优化</h1>
+  <div class="sub">侧栏与课表 1:1 还原，只重组顶部</div>
+  <div class="seg" role="group" aria-label="对照模式">
+    <button id="btnBefore">优化前</button>
+    <button id="btnAfter" class="on">优化后</button>
+  </div>
+  <label><input type="checkbox" id="chkAnnotate"> 显示分组标注</label>
+  <button class="link-btn" id="btnNotes">改动说明 ▾</button>
+  <div class="metric" id="metric">4 条信息带 → <b>2 条</b> · 4 个右对齐块 → <b>1 个</b></div>
+</div>
+<div class="notes hidden" id="notes">
+  <h2>问题与改动</h2>
+  <table>
+    <tr><th>问题</th><th>原因</th><th>改动</th></tr>
+    <tr><td>顶部碎成 4 条带</td><td>页面头 / Tab+周导航 / 视图筛选 / 卡片头各占一行，每行各有左右对齐块</td><td>压成「页面头 + 统一工具条」2 条；卡片头并入表格卡，不再做独立横条</td></tr>
+    <tr><td>右端 4 处对齐</td><td>主题图标、周导航、本周/导出、操作提示各贴一次右边，视线呈锯齿</td><td>右侧只保留一个对齐块：时间范围 + 操作；主题图标收进页面头</td></tr>
+    <tr><td>语义与视觉不同层</td><td>Tab、视图切换、周导航本属同一层「上下文筛选」，却被拆到两行且左右混排</td><td>按 <code>页面模式 → 查看维度 → 时间范围 → 操作</code> 从左到右归为 4 组，组间 1px 竖线</td></tr>
+    <tr><td>标题太弱、学期重复</td><td>「调代课」与小字同级；侧栏已有「2026 学年·秋季学期」，顶栏再做一次下拉框</td><td>标题升到 18px/650 并加面包屑；学期降级为 12px 灰字纯文本，去掉下拉框外观</td></tr>
+    <tr><td>控件形态混排</td><td>下划线 Tab、radio、下拉框、文字按钮、图标按钮高度不一</td><td>全部对齐 <code>32px</code> 控件基线、同一水平中线；互斥项沿用 TDesign Radio（16px 圆环 + 8px 内点）</td></tr>
+    <tr><td>一次性提示常驻</td><td>「点击任意课格发起调整…」长期占卡片头一行，与「调整记录 0 条」语义重复</td><td>降为 12px 灰字并加 ⓘ 与可关闭 ×；关闭后卡片头只留标题</td></tr>
+    <tr><td>蓝色分散</td><td>激活 Tab、Radio、本周、今天列头、导出都在抢注意力</td><td>蓝色只给：激活 Tab 下划线、选中 Radio、今天列头；「本周」改文字按钮，导出改描边按钮</td></tr>
+  </table>
+</div>
+
+<!-- ══ 应用 ══════════════════════════════════════════ -->
+<div class="app" id="app">
+  <div class="titlebar">
+    <div class="traffic"><i></i><i></i><i></i></div>
+    <div class="win-title">课集</div>
+  </div>
+  <div class="app-body">
+
+    <!-- 侧栏 -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo"><svg class="i"><use href="#i-logo"/></svg></div>
+        <div><div class="brand-name">课集</div><div class="brand-en">CLASSSET</div></div>
+      </div>
+      <div class="school">
+        <div class="school-badge">校</div>
+        <div><div class="school-name">未命名学校</div><div class="school-term">2026 学年 · 秋季学期</div></div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-title">排课准备</div>
+        <div class="nav-item"><svg class="i"><use href="#i-grid"/></svg>工作台</div>
+        <div class="nav-item"><svg class="i"><use href="#i-cal"/></svg>学期与日历</div>
+        <div class="nav-item"><svg class="i"><use href="#i-layers"/></svg>班级与学段</div>
+        <div class="nav-item"><svg class="i"><use href="#i-clock"/></svg>作息设置<span class="aside">分步 6</span></div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-title">排课与课表</div>
+        <div class="nav-item"><svg class="i"><use href="#i-book"/></svg>科目节数</div>
+        <div class="nav-item"><svg class="i"><use href="#i-users"/></svg>教师任课</div>
+        <div class="nav-item"><svg class="i"><use href="#i-table"/></svg>排课与课表</div>
+        <div class="nav-item active"><svg class="i"><use href="#i-swap"/></svg>调代课</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-title">更多</div>
+        <div class="nav-item"><svg class="i"><use href="#i-door"/></svg>公共场室</div>
+      </div>
+      <div class="side-foot">
+        <div><b><span class="dot"></span>本地数据 · 离线可用</b></div>
+        <div>数据存储在本地设备</div>
+        <div>最近保存 22:44</div>
+      </div>
+    </aside>
+
+    <!-- 主区 -->
+    <main class="main">
+
+      <!-- ① 页面头 -->
+      <header class="page-head">
+        <div class="ph-left">
+          <button class="icon-btn" title="收起侧栏" onclick="toast('收起侧栏')"><svg class="i"><use href="#i-panel"/></svg></button>
+          <span class="crumb">排课与课表</span><span class="crumb-sep">/</span>
+          <h1>调代课</h1>
+          <span class="head-sep"></span>
+          <span class="term-context" title="切换学期" onclick="toast('切换学期（与侧栏共用同一上下文，不再重复下拉框）')">2026 学年 · 秋季学期 <svg class="i"><use href="#i-chev-d"/></svg></span>
+        </div>
+        <div class="ph-right">
+          <button class="icon-btn" title="显示设置" onclick="toast('显示设置')"><svg class="i"><use href="#i-sun"/></svg></button>
+          <button class="icon-btn" id="moreBtn" title="更多"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+      </header>
+
+      <!-- ② 统一工具条（优化后） -->
+      <div class="toolbar" id="modernBar">
+        <div class="tb-group tabs" data-label="① 页面模式">
+          <button class="tab active" data-tab="schedule">实际课表</button>
+          <button class="tab" data-tab="records">调整记录 <span class="badge" id="recCount">0</span></button>
+        </div>
+        <span class="tb-divider"></span>
+        <div class="tb-group" data-label="② 查看维度">
+          <label class="radio"><input type="radio" name="view" value="class" checked><span class="ring"></span><span class="lbl">班级视图</span></label>
+          <label class="radio"><input type="radio" name="view" value="teacher"><span class="ring"></span><span class="lbl">教师视图</span></label>
+          <div class="wrap">
+            <button class="select" id="scopeBtn" aria-haspopup="true">一年级 1 班 <svg class="i"><use href="#i-chev-d"/></svg></button>
+            <div class="pop-menu left hidden" id="scopeMenu"></div>
+          </div>
+        </div>
+        <div class="tb-spacer"></div>
+        <div class="tb-group right" data-label="③ 时间范围">
+          <div class="week-nav">
+            <button class="icon-btn sm" onclick="shiftWeek(-1)" title="上一周"><svg class="i sm"><use href="#i-chev-l"/></svg></button>
+            <span class="week-label" id="weekLabel">第10教学周 · 双周 <span class="week-date">11/03–11/09</span></span>
+            <button class="icon-btn sm" onclick="shiftWeek(1)" title="下一周"><svg class="i sm"><use href="#i-chev-r"/></svg></button>
+          </div>
+          <button class="text-btn" onclick="resetWeek()">本周</button>
+        </div>
+        <span class="tb-divider"></span>
+        <div class="tb-group" data-label="④ 操作">
+          <div class="wrap">
+            <button class="btn-outline" id="exportBtn" aria-haspopup="true">导出 <svg class="i sm"><use href="#i-chev-d"/></svg></button>
+            <div class="pop-menu hidden" id="exportMenu">
+              <button onclick="pickExport('导出本周课表')">导出本周课表</button>
+              <button onclick="pickExport('导出调整记录')">导出调整记录</button>
+              <button onclick="pickExport('导出为 Excel')">导出为 Excel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 优化前：三条横带 -->
+      <div class="legacy-strip" id="legacyStrip">
+        <div class="legacy-row tabs-row">
+          <div class="legacy-left">
+            <button class="tab active">实际课表</button>
+            <button class="tab">调整记录 <span class="badge">0 条</span></button>
+          </div>
+          <div class="legacy-right">
+            <div class="week-nav">
+              <button class="icon-btn sm"><svg class="i sm"><use href="#i-chev-l"/></svg></button>
+              <span class="week-label">第10教学周 · 双周 11/03–11/09</span>
+              <button class="icon-btn sm"><svg class="i sm"><use href="#i-chev-r"/></svg></button>
+            </div>
+            <button class="text-btn" style="color:var(--blue)">本周</button>
+            <button class="btn-outline">导出 <svg class="i sm"><use href="#i-chev-d"/></svg></button>
+          </div>
+        </div>
+        <div class="legacy-row filter-row">
+          <div class="legacy-left">
+            <label class="radio"><input type="radio" name="lview" checked><span class="ring"></span><span class="lbl">班级视图</span></label>
+            <label class="radio"><input type="radio" name="lview"><span class="ring"></span><span class="lbl">教师视图</span></label>
+            <button class="select">一年级 1 班 <svg class="i"><use href="#i-chev-d"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 内容 -->
+      <div class="content">
+        <section class="card" id="cardSchedule">
+          <div class="card-head">
+            <h2>本周课表</h2><span class="ch-sub">一年级 1 班 · 双周</span>
+            <div class="tip" id="tip"><svg class="i info"><use href="#i-info"/></svg><span>点击任意课格发起调整；已生效的变更会标记在课格中。</span><button title="不再提示" onclick="document.getElementById('tip').classList.add('hidden')">×</button></div>
+          </div>
+          <div class="grid" id="grid"></div>
+        </section>
+        <section class="card hidden" id="cardRecords">
+          <div class="card-head"><h2>调整记录</h2><span class="ch-sub">本周 · 0 条</span></div>
+          <div class="records-empty">
+            <div class="ic"><svg class="i" style="width:20px;height:20px"><use href="#i-inbox"/></svg></div>
+            <b>还没有调整记录</b>
+            在实际课表中点击任意课格即可发起调代课
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── 课表数据（1:1 还原截图） ───────────────────────── */
+const DAYS = [
+  {n:'周二', d:'11/03'}, {n:'周三', d:'11/04'}, {n:'周四', d:'11/05'},
+  {n:'周五', d:'11/06', today:true}, {n:'周一', d:'11/09'}
+];
+const PERIODS = [
+  {p:'上午', n:'第 1 节', t:'08:00'}, {p:'上午', n:'第 2 节', t:'08:50'},
+  {p:'上午', n:'第 3 节', t:'09:50'}, {p:'上午', n:'第 4 节', t:'10:40'},
+  {p:'下午', n:'第 1 节', t:'14:00'}, {p:'下午', n:'第 2 节', t:'14:50'}
+];
+const C = {
+  cn:['语文','--c-cn','--c-cn-bg'], ma:['数学','--c-ma','--c-ma-bg'],
+  mo:['道德与法治','--c-mo','--c-mo-bg'], sc:['科学','--c-sc','--c-sc-bg'],
+  pe:['体育','--c-pe','--c-pe-bg'], ar:['美术','--c-ar','--c-ar-bg'],
+  la:['劳动','--c-la','--c-la-bg'], mu:['音乐','--c-mu','--c-mu-bg'],
+  pr:['综合实践活动','--c-pr','--c-pr-bg']
+};
+const L = (k, t) => ({k, t});
+const DATA = [
+  [L('mo','道德与法治教师 6'), L('sc','科学教师 7'), L('mo','道德与法治教师 6'), L('cn','语文教师 1'), L('ma','数学教师 4')],
+  [L('pe','体育与健康教师 9'), L('ma','数学教师 4'), L('ar','美术教师 11'), L('pe','体育与健康教师 9'), L('la','劳动教师 12')],
+  [L('cn','语文教师 1'), L('ma','数学教师 4'), L('cn','语文教师 1'), L('cn','语文教师 1'), L('cn','语文教师 1')],
+  [L('mu','音乐教师 10'), L('ma','数学教师 4'), L('pe','体育与健康教师 9'), L('cn','语文教师 1'), L('mu','音乐教师 10')],
+  [L('cn','语文教师 1'), L('pe','体育与健康教师 9'), L('ar','美术教师 11'), L('pr','综合实践活动教师 13'), L('cn','语文教师 1')],
+  [null, null, null, null, L('ma','数学教师 4')]
+];
+function renderGrid(){
+  let h = '<div class="gh"></div>';
+  DAYS.forEach(d => h += `<div class="gh${d.today?' today':''}">${d.n} <span class="d">${d.d}</span>${d.today?'<span class="today-tag">今天</span>':''}</div>`);
+  PERIODS.forEach((p, r) => {
+    h += `<div class="gt"><span>${p.p}</span><b>${p.n}</b><span>${p.t}</span></div>`;
+    DATA[r].forEach(ls => {
+      if(!ls){ h += '<div class="cell"><div class="empty-cell" onclick="toast(\'空课位：可发起代课\')">空课位</div></div>'; return; }
+      const [name, c, bg] = C[ls.k];
+      h += `<div class="cell"><div class="lesson" style="--lc:var(${c});--lbg:var(${bg})" onclick="toast('${name} · ${ls.t}：发起调整')"><div class="n">${name}</div><div class="t">${ls.t}</div></div></div>`;
+    });
+  });
+  document.getElementById('grid').innerHTML = h;
+}
+renderGrid();
+
+/* ── 对照模式 ───────────────────────────────────────── */
+const app = document.getElementById('app');
+function setMode(m){
+  const before = m === 'before';
+  app.classList.toggle('legacy', before);
+  document.getElementById('btnBefore').classList.toggle('on', before);
+  document.getElementById('btnAfter').classList.toggle('on', !before);
+  document.getElementById('metric').innerHTML = before
+    ? '优化前：<b>4</b> 条信息带 · <b>4</b> 个右对齐块 · 控件高度不一'
+    : '4 条信息带 → <b>2 条</b> · 4 个右对齐块 → <b>1 个</b>';
+  const chk = document.getElementById('chkAnnotate');
+  chk.disabled = before;
+  app.classList.toggle('annotate', !before && chk.checked);
+}
+document.getElementById('btnBefore').onclick = () => setMode('before');
+document.getElementById('btnAfter').onclick  = () => setMode('after');
+document.getElementById('chkAnnotate').onchange = e => app.classList.toggle('annotate', e.target.checked);
+document.getElementById('btnNotes').onclick = () => {
+  const n = document.getElementById('notes');
+  n.classList.toggle('hidden');
+  document.getElementById('btnNotes').textContent = n.classList.contains('hidden') ? '改动说明 ▾' : '收起说明 ▴';
+};
+/* 优化前：顶栏退化为截图里的小标题 + 学期下拉框外观 */
+const legacyStyle = document.createElement('style');
+legacyStyle.textContent = `
+  .legacy .page-head{height:44px}
+  .legacy .crumb,.legacy .crumb-sep,.legacy .head-sep{display:none}
+  .legacy .page-head h1{font-size:13px;font-weight:400;color:var(--ink-2)}
+  .legacy .term-context{border:1px solid var(--border);background:#fff;padding:4px 9px;border-radius:5px;color:var(--ink);font-size:12px}
+  .legacy .term-context:hover{background:#fff;border-color:#C9CDD4}
+  .legacy #moreBtn{display:none}
+  .legacy .toolbar{display:none}
+  .legacy .legacy-strip{display:block}
+  .legacy .card-head{justify-content:flex-start}
+`;
+document.head.appendChild(legacyStyle);
+
+/* ── 交互 ───────────────────────────────────────────── */
+let week = 10;
+function weekText(){
+  const odd = week % 2 === 1;
+  const start = 3 + (week - 10) * 7;
+  const s = new Date(2026, 10, start), e = new Date(2026, 10, start + 6);
+  const f = d => String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+  document.getElementById('weekLabel').innerHTML =
+    `第${week}教学周 · ${odd?'单':'双'}周 <span class="week-date">${f(s)}–${f(e)}</span>`;
+}
+function shiftWeek(d){ week = Math.max(1, week + d); weekText(); toast(`已切换到第 ${week} 教学周`); }
+function resetWeek(){ week = 10; weekText(); toast('已回到本周'); }
+
+const scopes = ['一年级 1 班','一年级 2 班','二年级 1 班','三年级 1 班'];
+const teachers = ['语文教师 1','数学教师 4','科学教师 7'];
+function fillScope(){
+  const isTeacher = document.querySelector('input[name=view]:checked').value === 'teacher';
+  const list = isTeacher ? teachers : scopes;
+  const cur = document.getElementById('scopeBtn').textContent.trim();
+  document.getElementById('scopeMenu').innerHTML = list.map(x =>
+    `<button class="${x===cur?'on':''}" onclick="pickScope('${x}')">${x}</button>`).join('');
+}
+function pickScope(v){
+  document.getElementById('scopeBtn').innerHTML = v + ' <svg class="i"><use href="#i-chev-d"/></svg>';
+  document.getElementById('scopeMenu').classList.add('hidden');
+  document.querySelector('.ch-sub').textContent = v + ' · 双周';
+  fillScope(); toast('已切换：' + v);
+}
+fillScope();
+document.getElementById('scopeBtn').onclick = e => {
+  e.stopPropagation();
+  document.getElementById('scopeMenu').classList.toggle('hidden');
+  document.getElementById('exportMenu').classList.add('hidden');
+};
+document.getElementById('exportBtn').onclick = e => {
+  e.stopPropagation();
+  document.getElementById('exportMenu').classList.toggle('hidden');
+  document.getElementById('scopeMenu').classList.add('hidden');
+};
+function pickExport(v){ document.getElementById('exportMenu').classList.add('hidden'); toast(v); }
+document.addEventListener('click', () => {
+  document.getElementById('exportMenu').classList.add('hidden');
+  document.getElementById('scopeMenu').classList.add('hidden');
+});
+document.querySelectorAll('input[name=view]').forEach(r => r.onchange = () => {
+  const isTeacher = document.querySelector('input[name=view]:checked').value === 'teacher';
+  pickScope(isTeacher ? teachers[0] : scopes[0]);
+  toast(isTeacher ? '已切换到教师视图' : '已切换到班级视图');
+});
+document.querySelectorAll('.tab[data-tab]').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x === t));
+  const sch = t.dataset.tab === 'schedule';
+  document.getElementById('cardSchedule').classList.toggle('hidden', !sch);
+  document.getElementById('cardRecords').classList.toggle('hidden', sch);
+});
+document.getElementById('moreBtn').onclick = () => toast('更多操作');
+
+let toastTimer;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    document.getElementById('exportMenu').classList.add('hidden');
+    document.getElementById('scopeMenu').classList.add('hidden');
+  }
+});
+weekText();
+</script>
+</body>
+</html>

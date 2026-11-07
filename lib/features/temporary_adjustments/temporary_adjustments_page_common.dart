@@ -199,7 +199,23 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
 
   // ---------------------------------------------------------------- 工具栏
 
-  Widget _tabsSegment(TemporaryTimetableState state, {bool showCount = true}) {
+  /// 统一工具条的分组竖线：1px × 20px，与 32px 控件共用中线。
+  /// 用比卡片描边略深的 _borderStrong，否则 1px 线在白底上几乎看不见。
+  Widget _toolbarDivider() => Container(
+    width: 1,
+    height: 20,
+    margin: const EdgeInsets.symmetric(horizontal: 8),
+    color: _borderStrong,
+  );
+
+  /// [tabHeight] 让同一组 Tab 既能放进 38px 的记录工具条，
+  /// 也能撑满 48px 的统一工具条；[compactCount] 用纯数字徽标。
+  Widget _tabsSegment(
+    TemporaryTimetableState state, {
+    bool showCount = true,
+    double tabHeight = 38,
+    bool compactCount = false,
+  }) {
     final colors = context.appColors;
     final visibleCount = _filteredRecords(state).length;
     return Row(
@@ -218,6 +234,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
             _recordClass = _teacherView ? null : _classId;
             _recordTeacher = _teacherView ? _viewTeacherId : null;
           }),
+          height: tabHeight,
         ),
         _pageTabButton(
           '调整记录',
@@ -243,7 +260,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    '$visibleCount 条',
+                    compactCount ? '$visibleCount' : '$visibleCount 条',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -252,6 +269,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
                   ),
                 )
               : null,
+          height: tabHeight,
         ),
       ],
     );
@@ -262,13 +280,14 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     required bool active,
     required VoidCallback onTap,
     Widget? trailing,
+    double height = 38,
   }) {
     final colors = context.appColors;
     return InkWell(
       onTap: onTap,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
       child: Container(
-        height: 38,
+        height: height,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           border: Border(
@@ -509,6 +528,8 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     TemporaryTimetableState state,
     DateTime start, {
     bool compact = false,
+    // 统一工具条的中等宽度档：省掉日期区间，保证四组能排在同一行。
+    bool hideDateRange = false,
   }) {
     final colors = context.appColors;
     final week = _week ?? 0;
@@ -518,9 +539,10 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
             compact ||
             (constraints.maxWidth.isFinite && constraints.maxWidth < 760);
         final showDateRange =
-            !compactLayout ||
-            !constraints.maxWidth.isFinite ||
-            constraints.maxWidth >= 360;
+            !hideDateRange &&
+            (!compactLayout ||
+                !constraints.maxWidth.isFinite ||
+                constraints.maxWidth >= 360);
         final weekLabel = compactLayout
             ? '第${week + 1}教学周'
             : '第${week + 1}教学周 · ${state.snapshot.term.weekCycleLabel(week + 1)}';
@@ -579,14 +601,16 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
                         color: colors.ink,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      dateRange,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: colors.muted),
-                    ),
+                    if (showDateRange) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        dateRange,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: colors.muted),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -609,6 +633,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
             ),
             _textButton(
               '本周',
+              color: colors.inkSecondary,
               onTap: () => _changeWeek(
                 (state.snapshot.term.teachingWeekOf(DateTime.now()) ?? 1) - 1,
               ),
@@ -728,62 +753,89 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     );
   }
 
+  /// 统一工具条（对应 design/temp_course_adjustments_header_refresh.html）：
+  /// 原先「Tab + 周导航」与「视图筛选」是两条横带、右端各自对齐；
+  /// 现合并为一条 48px 工具条，按 页面模式 → 查看维度 → 时间范围 → 操作
+  /// 从左到右分四组，组间 1px 竖线，右侧只保留一个对齐块。
+  /// 窄屏回退为多行，避免四组挤在一行溢出。
   Widget _scheduleToolbar(TemporaryTimetableState state, DateTime start) {
+    final colors = context.appColors;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 880;
-        final scopeControls = [
-          _viewSegment(),
-          _teacherView
-              ? _teacherSelect(state, width: wide ? 148 : 132)
-              : _classSelect(state, width: wide ? 148 : 132),
-        ];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              height: 38,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: context.appColors.border),
+        final width = constraints.maxWidth;
+        final singleRow = width >= 820;
+        final fullWeek = width >= 1060;
+        if (!singleRow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: colors.border)),
+                ),
+                child: Row(
+                  children: [
+                    _tabsSegment(state),
+                    const Spacer(),
+                    _exportMenuButton(),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
-                  _tabsSegment(state),
-                  const Spacer(),
-                  if (wide) ...[
-                    _weekNav(state, start),
-                    const SizedBox(width: 10),
-                  ],
-                  _exportMenuButton(),
-                ],
-              ),
-            ),
-            if (!wide) ...[
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
-                child: _weekNav(
-                  state,
-                  start,
-                  compact: constraints.maxWidth < 760,
-                ),
+                child: _weekNav(state, start, compact: width < 760),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _viewSegment(),
+                  _teacherView
+                      ? _teacherSelect(state, width: 132)
+                      : _classSelect(state, width: 132),
+                ],
               ),
             ],
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: scopeControls,
-            ),
-          ],
+          );
+        }
+        return Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(bottom: BorderSide(color: colors.border)),
+          ),
+          child: Row(
+            children: [
+              // ① 页面模式
+              _tabsSegment(state, tabHeight: 48, compactCount: true),
+              _toolbarDivider(),
+              // ② 查看维度
+              _viewSegment(),
+              const SizedBox(width: 8),
+              _teacherView
+                  ? _teacherSelect(state, width: fullWeek ? 148 : 120)
+                  : _classSelect(state, width: fullWeek ? 148 : 120),
+              const Spacer(),
+              // ③ 时间范围：中等宽度档省掉日期区间，保证单行放得下
+              _weekNav(state, start, hideDateRange: !fullWeek),
+              _toolbarDivider(),
+              // ④ 操作
+              _exportMenuButton(),
+            ],
+          ),
         );
       },
     );
   }
 
+  /// 调整记录页复用与实际课表页同构的 48px 统一工具条：
+  /// ① 页面模式（Tab） → ② 数据范围（记录筛选，窄屏可在同一白底块内换行）
+  /// → ③ 操作（显示已取消 + 导出，右侧唯一对齐块）。
+  /// 筛选控件、文案与交互保持原样，只重排层级，避免 Tab 与六个筛选器挤在一行。
   Widget _recordsToolbar(TemporaryTimetableState state) {
     final colors = context.appColors;
     final filters = [
@@ -866,46 +918,36 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
           onTap: () => setState(() => _recordDates = null),
           fontSize: 12.5,
         ),
-      _showCancelledToggle(),
     ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 1050;
-        final filterRow = Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: filters,
-        );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              height: 38,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: context.appColors.border),
-                ),
-              ),
-              child: wide
-                  ? Row(
-                      children: [
-                        _tabsSegment(state),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: filterRow,
-                          ),
-                        ),
-                      ],
-                    )
-                  : _tabsSegment(state),
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // ① 页面模式：与实际课表页完全同构
+          _tabsSegment(state, tabHeight: 48, compactCount: true),
+          _toolbarDivider(),
+          // ② 数据范围：筛选条件；窄屏在同一白底工具条内自动换行，
+          //    不再散成第二条无背景的横带
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: filters,
             ),
-            if (!wide) ...[const SizedBox(height: 10), filterRow],
-          ],
-        );
-      },
+          ),
+          _toolbarDivider(),
+          // ③ 操作：右侧唯一对齐块
+          _showCancelledToggle(),
+          const SizedBox(width: 8),
+          _exportMenuButton(),
+        ],
+      ),
     );
   }
 
