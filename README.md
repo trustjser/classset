@@ -42,6 +42,31 @@ Windows 和 Linux 可分别使用 `flutter run -d windows` 与 `flutter run -d l
 flutter test
 ```
 
+## 持续构建（GitHub Actions）
+
+工作流见 [.github/workflows/build.yml](.github/workflows/build.yml)，固定 Flutter 3.47.2，不需要开发者 ID、证书或任何额外 Secrets。
+
+| 触发方式 | 行为 |
+| --- | --- |
+| PR 到 main | 静态分析 + 测试观测，不构建安装包 |
+| push 到 main / 手动触发 | 上述校验 + 构建 macOS / Windows / Linux 三平台 Release，产物上传为 Actions 附件（保留 30 天） |
+| 打 `v*` 标签 | 上述构建 + 自动创建 GitHub Release 并附上三个包 |
+
+发版示例：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+产物均为**未签名**构建（macOS 使用工程里既有的 ad-hoc 签名，未公证），分发时需注意：
+
+- macOS：解压 `class_set-macos.zip` 得到「课集.app」。首次打开若被 Gatekeeper 拦截，执行 `xattr -dr com.apple.quarantine /path/to/课集.app`，或右键选择「打开」。CI 使用 `macos-latest`（当前为 macOS 26 / arm64），因此该包**仅支持 Apple Silicon**；需要 Intel Mac 版本时，把 `build.yml` 中 macOS 的 `os` 改为 `macos-26-intel` 再构建，或在 matrix 中增加一个条目。
+- Windows：SmartScreen 会提示「未知发布者」，选择「更多信息 → 仍要运行」。
+- Linux：解压 `class_set-linux-x64.tar.gz` 后运行 `./bundle/class_set`。
+
+> 当前仓库有 39 个既有 analyze warning 和 62 个失败测试。CI 中分析器忽略 warning（error 仍会阻塞），测试为非阻塞观测步骤；修复完成后请移除 `build.yml` 里的这两处降级。
+
 ## 开发辅助
 
 - `tools/capture_window.sh [应用进程名] [输出路径]`：只截取应用主窗口，不截取屏幕上其他内容（默认截取 class_set 窗口）。
