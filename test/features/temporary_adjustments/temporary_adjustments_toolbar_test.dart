@@ -176,4 +176,66 @@ void main() {
     expect(tester.takeException(), isNull, reason: '调整记录页头部布局溢出');
     await tester.pumpAndSettle();
   });
+
+  testWidgets('窄屏未选中课次时课表撑满可用高度', (tester) async {
+    tester.view.physicalSize = const Size(900, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schoolRepositoryProvider.overrideWithValue(_Repository(_state())),
+        ],
+        child: _wrap(const TemporaryAdjustmentsPage(termId: 't')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final gridPanel = find.byKey(
+      const ValueKey('temporary-adjustments-grid-panel'),
+    );
+    expect(gridPanel, findsOneWidget);
+    // 旧逻辑把课表固定为 SizedBox(height: 420)，下方留白且内部出现垂直滚动条。
+    expect(
+      tester.getRect(gridPanel).height,
+      greaterThan(480),
+      reason: '课表卡片应撑满 Expanded 区域，而不是固定 420',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('调整记录页窄屏筛选整宽一行，不挤成阶梯', (tester) async {
+    tester.view.physicalSize = const Size(900, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schoolRepositoryProvider.overrideWithValue(_Repository(_state())),
+        ],
+        child: _wrap(const TemporaryAdjustmentsPage(termId: 't')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('调整记录'));
+    await tester.pumpAndSettle();
+
+    // 班级下拉在班级视图下显示具体班级名，这里只断言 hint 固定的四项。
+    const filterLabels = ['全部类型', '全部状态', '全部教师', '全部日期'];
+    for (final label in filterLabels) {
+      expect(find.text(label), findsOneWidget, reason: '$label 筛选器缺失');
+    }
+    final centers = filterLabels
+        .map((label) => tester.getCenter(find.text(label)).dy)
+        .toList();
+    for (final dy in centers) {
+      expect(
+        (dy - centers.first).abs(),
+        lessThan(12),
+        reason: '窄屏下筛选器应整宽排在同一行，而不是挤成阶梯状两行',
+      );
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+  });
 }

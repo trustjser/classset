@@ -212,17 +212,25 @@ class _TemporaryAdjustmentsPageState
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       if (constraints.maxWidth < 1040) {
-                        // 窄屏只保留一个「页面级」纵向滚动源：
+                        if (_source == null) {
+                          // 未选中源课次时没有调整面板，课表直接撑满可用高度。
+                          // 旧逻辑固定 420 会让下方留白、课表内部却出现垂直滚动条。
+                          return _timetablePanel(
+                            _teacherView
+                                ? _teacherGrid(state, start)
+                                : _grid(state, start),
+                            expandChild: true,
+                          );
+                        }
+                        // 有调整面板时仍需一个页面级纵向滚动源：
                         // 面板按内容自然撑高（不再内部滚动抢手势），
                         // 课表给固定高度，在其内部横向 / 纵向滚动。
                         return SingleChildScrollView(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (_source != null) ...[
-                                _panel(state, scrollBody: false),
-                                const SizedBox(height: 14),
-                              ],
+                              _panel(state, scrollBody: false),
+                              const SizedBox(height: 14),
                               SizedBox(
                                 height: 420,
                                 child: _timetablePanel(

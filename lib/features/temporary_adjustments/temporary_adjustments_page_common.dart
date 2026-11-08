@@ -199,12 +199,22 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
 
   // ---------------------------------------------------------------- 工具栏
 
+  /// 工具条与内容卡片同款圆角表面（AppTheme.cardRadius + 卡片阴影），
+  /// 内部 12px 水平留白让 Tab 文字与下方「本周课表」标题对齐。
+  /// 窄屏换行也始终留在这同一张卡片里，不再散成多条通栏横带。
+  Widget _toolbarShell({required Widget child}) => AppSurface(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: child,
+    ),
+  );
+
   /// 统一工具条的分组竖线：1px × 20px，与 32px 控件共用中线。
   /// 用比卡片描边略深的 _borderStrong，否则 1px 线在白底上几乎看不见。
   Widget _toolbarDivider() => Container(
     width: 1,
     height: 20,
-    margin: const EdgeInsets.symmetric(horizontal: 8),
+    margin: const EdgeInsets.symmetric(horizontal: 5),
     color: _borderStrong,
   );
 
@@ -288,7 +298,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
       borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
       child: Container(
         height: height,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -353,7 +363,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
             _recordTeacher = null;
           }),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 10),
         option(
           '教师视图',
           _teacherView,
@@ -648,7 +658,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     final colors = context.appColors;
     final shell = Container(
       height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(10),
@@ -754,81 +764,70 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
   }
 
   /// 统一工具条（对应 design/temp_course_adjustments_header_refresh.html）：
-  /// 原先「Tab + 周导航」与「视图筛选」是两条横带、右端各自对齐；
-  /// 现合并为一条 48px 工具条，按 页面模式 → 查看维度 → 时间范围 → 操作
-  /// 从左到右分四组，组间 1px 竖线，右侧只保留一个对齐块。
-  /// 窄屏回退为多行，避免四组挤在一行溢出。
+  /// 与内容卡片同款圆角表面，按 页面模式 → 查看维度 → 时间范围 → 操作
+  /// 从左到右分四组，组间 1px 竖线，右侧只留一个对齐块。
+  /// 窄屏时中间两组在同一张卡片内用 Wrap 换行，不再散成三条通栏横带。
   Widget _scheduleToolbar(TemporaryTimetableState state, DateTime start) {
-    final colors = context.appColors;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final singleRow = width >= 820;
-        final fullWeek = width >= 1060;
-        if (!singleRow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                height: 38,
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: colors.border)),
-                ),
-                child: Row(
+    return _toolbarShell(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final singleRow = width >= 820;
+          final fullWeek = width >= 1060;
+          if (!singleRow) {
+            // 极窄窗口不能把中间组塞进 Expanded：Wrap 会把子 Row 压到
+            // 几十像素并导致内部溢出。改为整宽两行，但仍留在同一张圆角卡片里。
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
                   children: [
-                    _tabsSegment(state),
+                    _tabsSegment(state, tabHeight: 48, compactCount: true),
                     const Spacer(),
                     _exportMenuButton(),
                   ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _weekNav(state, start, compact: width < 760),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  _viewSegment(),
-                  _teacherView
-                      ? _teacherSelect(state, width: 132)
-                      : _classSelect(state, width: 132),
-                ],
-              ),
-            ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _viewSegment(),
+                    _teacherView
+                        ? _teacherSelect(state, width: 112)
+                        : _classSelect(state, width: 112),
+                    _weekNav(state, start, hideDateRange: true),
+                  ],
+                ),
+              ],
+            );
+          }
+          return SizedBox(
+            height: 48,
+            child: Row(
+              children: [
+                // ① 页面模式
+                _tabsSegment(state, tabHeight: 48, compactCount: true),
+                _toolbarDivider(),
+                // ② 查看维度
+                _viewSegment(),
+                const SizedBox(width: 6),
+                _teacherView
+                    ? _teacherSelect(state, width: fullWeek ? 148 : 108)
+                    : _classSelect(state, width: fullWeek ? 148 : 108),
+                const Spacer(),
+                // ③ 时间范围：中等宽度档省掉日期区间，保证单行放得下
+                _weekNav(state, start, hideDateRange: !fullWeek),
+                _toolbarDivider(),
+                // ④ 操作
+                _exportMenuButton(),
+              ],
+            ),
           );
-        }
-        return Container(
-          height: 48,
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(bottom: BorderSide(color: colors.border)),
-          ),
-          child: Row(
-            children: [
-              // ① 页面模式
-              _tabsSegment(state, tabHeight: 48, compactCount: true),
-              _toolbarDivider(),
-              // ② 查看维度
-              _viewSegment(),
-              const SizedBox(width: 8),
-              _teacherView
-                  ? _teacherSelect(state, width: fullWeek ? 148 : 120)
-                  : _classSelect(state, width: fullWeek ? 148 : 120),
-              const Spacer(),
-              // ③ 时间范围：中等宽度档省掉日期区间，保证单行放得下
-              _weekNav(state, start, hideDateRange: !fullWeek),
-              _toolbarDivider(),
-              // ④ 操作
-              _exportMenuButton(),
-            ],
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 
@@ -919,34 +918,64 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
           fontSize: 12.5,
         ),
     ];
-    return Container(
-      constraints: const BoxConstraints(minHeight: 48),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // ① 页面模式：与实际课表页完全同构
-          _tabsSegment(state, tabHeight: 48, compactCount: true),
-          _toolbarDivider(),
-          // ② 数据范围：筛选条件；窄屏在同一白底工具条内自动换行，
-          //    不再散成第二条无背景的横带
-          Expanded(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: filters,
-            ),
-          ),
-          _toolbarDivider(),
-          // ③ 操作：右侧唯一对齐块
-          _showCancelledToggle(),
-          const SizedBox(width: 8),
-          _exportMenuButton(),
-        ],
+    return _toolbarShell(
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // 筛选控件一行约需 620px，加上 Tab(≈180)、两条竖线(≈26)、
+            // 右侧操作块(≈200)，真正能单行排完至少要 ≈1020px。
+            // 低于这个宽度时 Expanded 会把筛选 Wrap 压成阶梯状两行，
+            // 更窄时甚至只剩几十像素导致子 Row 溢出；改为整宽两行：
+            // 行1 Tab + 操作，行2 筛选器（Wrap 自适应），仍在同一张圆角卡片内。
+            if (constraints.maxWidth < 1020) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      _tabsSegment(state, tabHeight: 48, compactCount: true),
+                      const Spacer(),
+                      _showCancelledToggle(),
+                      const SizedBox(width: 8),
+                      _exportMenuButton(),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: filters,
+                  ),
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // ① 页面模式：与实际课表页完全同构
+                _tabsSegment(state, tabHeight: 48, compactCount: true),
+                _toolbarDivider(),
+                // ② 数据范围：筛选条件，窄一点时在同一张卡片内换行
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: filters,
+                  ),
+                ),
+                _toolbarDivider(),
+                // ③ 操作：右侧唯一对齐块
+                _showCancelledToggle(),
+                const SizedBox(width: 8),
+                _exportMenuButton(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
