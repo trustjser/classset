@@ -253,6 +253,30 @@ void main() {
           .every((post) => post.periodTypeId == 'service'),
       isTrue,
     );
+    tester.view.physicalSize = const Size(1440, 1000);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按班级'));
+    await tester.pumpAndSettle();
+    expect(find.text('班级'), findsOneWidget);
+    expect(find.text('本周 5 节'), findsNWidgets(2));
+    await tester.tap(find.byKey(const ValueKey('duty-day-7')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('duty-class-c2-evening-2,3')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('duty-class-c3-evening-2,3')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('按教师'));
+    await tester.pumpAndSettle();
+    expect(find.text('教师'), findsOneWidget);
+    expect(find.text('待安排教师'), findsOneWidget);
+    await tester.tap(find.text('整周网格'));
+    await tester.pumpAndSettle();
+    expect(find.text('星期'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('周日作息支持一班一岗和实际合班，草稿可保存并重开', (tester) async {
@@ -328,7 +352,7 @@ void main() {
     await open();
     expect(find.text('张老师'), findsOneWidget);
     expect(find.text('待安排'), findsOneWidget);
-    expect(find.text('带班周表'), findsOneWidget);
+    expect(find.text('整周网格'), findsOneWidget);
     await tester.tap(find.text('待安排 1'));
     await tester.pumpAndSettle();
     expect(find.text('张老师'), findsNothing);
@@ -339,7 +363,33 @@ void main() {
 
     await tester.tap(find.text('候选教师 · 1'));
     await tester.pumpAndSettle();
+    expect(tester.getSize(find.text('全选搜索结果')).height, lessThan(30));
+    await tester.enterText(find.byType(AppTextFormField), '语文组');
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(f.FItem, '张老师'), findsNothing);
+    expect(find.widgetWithText(f.FItem, '李老师'), findsOneWidget);
+    await tester.enterText(find.byType(AppTextFormField), '');
+    await tester.pumpAndSettle();
     final liRow = find.widgetWithText(f.FItem, '李老师');
+    await tester.tap(find.descendant(of: liRow, matching: find.text('设置')));
+    await tester.pumpAndSettle();
+    final limit = find.widgetWithText(AppTextFormField, '每周带班上限');
+    await tester.enterText(limit, '-1');
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<AppPrimaryButton>(find.widgetWithText(AppPrimaryButton, '应用'))
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(limit, '4');
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<AppPrimaryButton>(find.widgetWithText(AppPrimaryButton, '应用'))
+          .onPressed,
+      isNotNull,
+    );
     final liCheckbox = find.descendant(
       of: liRow,
       matching: find.byType(AppCheckbox),
@@ -405,7 +455,7 @@ void main() {
     expect(group?.lessonIndices, [2]);
     tester.view.physicalSize = const Size(390, 900);
     await tester.pumpAndSettle();
-    expect(find.text('带班周表'), findsOneWidget);
+    expect(find.text('整周网格'), findsOneWidget);
     // Resolve the real database projection outside the widget test's fake clock.
     repository.previewFixture = await tester.runAsync(
       () => repository.previewSupervisionPublish(
@@ -420,6 +470,12 @@ void main() {
     expect(find.text('岗位变更'), findsOneWidget);
     expect(find.text('变更前'), findsWidgets);
     expect(find.text('变更后'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('duty-preview-filter-update')));
+    await tester.pumpAndSettle();
+    expect(find.text('该类型暂无变更。'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('duty-preview-filter-all')));
+    await tester.pumpAndSettle();
+
     final confirm = tester.widget<AppPrimaryButton>(
       find.widgetWithText(AppPrimaryButton, '确认生效'),
     );
@@ -430,8 +486,9 @@ void main() {
 
 class _Repository extends DriftSchoolRepository {
   @override
-  Stream<List<TeacherGroup>> watchTeacherGroups(String termId) =>
-      Stream.value(const []);
+  Stream<List<TeacherGroup>> watchTeacherGroups(String termId) => Stream.value(
+    const [TeacherGroup(id: 'group', termId: 't', name: '语文组', sortOrder: 0)],
+  );
 
   _Repository(super.database);
 
@@ -459,6 +516,13 @@ class _Repository extends DriftSchoolRepository {
       SchedulingSnapshot(
         term: _term,
         inputFingerprint: 'snapshot',
+        teacherGroupMembers: const [
+          TeacherGroupMember(
+            id: 'member',
+            groupId: 'group',
+            teacherId: 'second',
+          ),
+        ],
         freeSlots: [
           for (var index = 1; index <= 2; index++)
             FreeSlot(

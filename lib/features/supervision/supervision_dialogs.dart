@@ -248,32 +248,186 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
   late final _teachers = {...widget.draft.teacherIds};
   late final _rules = {...widget.draft.rules};
   String _query = '';
+  String? _expandedTeacher;
+  final _limits = <String, TextEditingController>{};
+
+  bool _invalidLimit(String text) =>
+      text.trim().isNotEmpty &&
+      (int.tryParse(text.trim()) == null || int.parse(text.trim()) < 0);
+  bool get _hasInvalidLimits =>
+      _limits.values.any((controller) => _invalidLimit(controller.text));
+
+  @override
+  void dispose() {
+    for (final controller in _limits.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _editRule(Teacher teacher) async {
+    final changed = await showAppDialog<SupervisionTeacherRule>(
+      context: context,
+      builder: (_) => _TeacherRuleDialog(
+        teacher: teacher,
+        snapshot: widget.snapshot,
+        rule: _rules[teacher.id],
+      ),
+    );
+    if (mounted && changed != null) {
+      setState(() {
+        _rules[teacher.id] = changed;
+        _limits[teacher.id]?.text = changed.maxLessons?.toString() ?? '';
+      });
+    }
+  }
+
+  Widget _quickRule(Teacher teacher) {
+    final controller = _limits.putIfAbsent(
+      teacher.id,
+      () => TextEditingController(
+        text: _rules[teacher.id]?.maxLessons?.toString(),
+      ),
+    );
+    final field = AppTextFormField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(labelText: '每周带班上限', hintText: '留空不限'),
+      onChanged: (text) => setState(() {
+        if (!_invalidLimit(text)) {
+          final rule = _rules[teacher.id];
+          _rules[teacher.id] = SupervisionTeacherRule(
+            maxLessons: int.tryParse(text.trim()),
+            maxDays: rule?.maxDays,
+            unavailable: rule?.unavailable ?? const [],
+          );
+        }
+      }),
+    );
+    final forbidden = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('带班禁排与天数上限', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        _DutyOutlineButton(
+          onPressed: () => _editRule(teacher),
+          child: Text(
+            '编辑禁排 · ${_rules[teacher.id]?.unavailable.length ?? 0} 格',
+          ),
+        ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 4, 8, 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: context.appColors.canvas,
+          border: Border.all(color: context.appColors.border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) => constraints.maxWidth >= 460
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: field),
+                          const SizedBox(width: 16),
+                          Expanded(child: forbidden),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          field,
+                          const SizedBox(height: 12),
+                          forbidden,
+                        ],
+                      ),
+              ),
+              if (_invalidLimit(controller.text))
+                Text(
+                  '带班上限需填非负整数。',
+                  style: TextStyle(color: context.appColors.destructive),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final groupNames = {
+      for (final group in widget.groups) group.id: group.name,
+    };
+    List<String> groupsFor(String id) => widget.snapshot.teacherGroupMembers
+        .where((member) => member.teacherId == id)
+        .map((member) => groupNames[member.groupId])
+        .whereType<String>()
+        .toList();
     final teachers = widget.snapshot.teachers
-        .where((teacher) => teacher.searchText.contains(_query))
+        .where(
+          (teacher) =>
+              teacher.searchText.toLowerCase().contains(_query) ||
+              groupsFor(teacher.id)
+                  .any((group) => group.toLowerCase().contains(_query)),
+        )
         .toList();
     return AppDialog(
-      title: const Text('候选教师和带班规则'),
+      title: const Text('候选教师与带班规则'),
+      maxWidth: 720,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('从教师组添加会选中组内当前成员。带班禁排和上限只用于带班。'),
+          Text(
+            '勾选的教师进入带班候选。带班禁排与每周上限仅用于带班，不影响课表。',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: context.appColors.inkSecondary),
+          ),
+          const SizedBox(height: 12),
           AppTextFormField(
-            decoration: const InputDecoration(labelText: '搜索教师姓名'),
-            onChanged: (text) => setState(() => _query = text.trim()),
+            decoration: const InputDecoration(
+              hintText: '搜索教师姓名或教师组',
+              prefixIcon: Icon(Icons.search, size: 16),
+            ),
+            onChanged: (text) =>
+                setState(() => _query = text.trim().toLowerCase()),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                AppCheckbox(
+                  value:
+                      teachers.isNotEmpty &&
+                      teachers.every(
+                        (teacher) => _teachers.contains(teacher.id),
+                      ),
+                  onChanged: (value) => setState(() {
+                    final ids = teachers.map((teacher) => teacher.id);
+                    value ? _teachers.addAll(ids) : _teachers.removeAll(ids);
+                  }),
+                ),
+                const SizedBox(width: 8),
+                const Text('全选搜索结果'),
+                const Spacer(),
+                Text(
+                  '已选 ${_teachers.length} 人',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
           Wrap(
             spacing: 8,
             runSpacing: 4,
             children: [
-              AppGhostButton(
-                onPressed: () => setState(
-                  () => _teachers.addAll(teachers.map((teacher) => teacher.id)),
-                ),
-                child: const Text('全选搜索结果'),
-              ),
               for (final group in widget.groups)
                 AppGhostButton(
                   child: Text('+ ${group.name}'),
@@ -288,50 +442,53 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
             ],
           ),
           SizedBox(
-            height: 300,
+            height: MediaQuery.sizeOf(context).height < 700 ? 240 : 360,
             child: ListView.builder(
               itemCount: teachers.length,
               itemBuilder: (context, index) {
                 final teacher = teachers[index];
                 final rule = _rules[teacher.id];
-                return f.FItem(
-                  prefix: AppCheckbox(
-                    value: _teachers.contains(teacher.id),
-                    onChanged: (value) => setState(() {
-                      value
-                          ? _teachers.add(teacher.id)
-                          : _teachers.remove(teacher.id);
-                    }),
-                  ),
-                  selected: _teachers.contains(teacher.id),
-                  onPress: () => setState(() {
-                    _teachers.contains(teacher.id)
-                        ? _teachers.remove(teacher.id)
-                        : _teachers.add(teacher.id);
-                  }),
-                  title: Text(teacher.displayName),
-                  subtitle: rule == null
-                      ? null
-                      : Text(
-                          '${rule.maxLessons ?? '不限'} 节 / ${rule.maxDays ?? '不限'} 天 · ${rule.unavailable.length} 格禁排',
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    f.FItem(
+                      style: _dutyListStyle(context),
+                      prefix: AppCheckbox(
+                        value: _teachers.contains(teacher.id),
+                        onChanged: (value) => setState(() {
+                          value
+                              ? _teachers.add(teacher.id)
+                              : _teachers.remove(teacher.id);
+                        }),
+                      ),
+                      onPress: () => setState(() {
+                        _teachers.contains(teacher.id)
+                            ? _teachers.remove(teacher.id)
+                            : _teachers.add(teacher.id);
+                      }),
+                      title: Text(teacher.displayName),
+                      subtitle: Text(
+                        [
+                          ...groupsFor(teacher.id),
+                          rule == null
+                              ? '未设置规则'
+                              : '${rule.maxLessons ?? '不限'} 节 / ${rule.maxDays ?? '不限'} 天 · ${rule.unavailable.length} 格禁排',
+                        ].join(' · '),
+                      ),
+                      suffix: _DutyOutlineButton(
+                        onPressed: () => setState(
+                          () =>
+                              _expandedTeacher = _expandedTeacher == teacher.id
+                              ? null
+                              : teacher.id,
                         ),
-                  suffix: AppGhostButton(
-                    onPressed: () async {
-                      final changed =
-                          await showAppDialog<SupervisionTeacherRule>(
-                            context: context,
-                            builder: (_) => _TeacherRuleDialog(
-                              teacher: teacher,
-                              snapshot: widget.snapshot,
-                              rule: rule,
-                            ),
-                          );
-                      if (mounted && changed != null) {
-                        setState(() => _rules[teacher.id] = changed);
-                      }
-                    },
-                    child: const Text('设置'),
-                  ),
+                        child: Text(
+                          _expandedTeacher == teacher.id ? '收起' : '设置',
+                        ),
+                      ),
+                    ),
+                    if (_expandedTeacher == teacher.id) _quickRule(teacher),
+                  ],
                 );
               },
             ),
@@ -339,15 +496,22 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
         ],
       ),
       actions: [
+        if (_hasInvalidLimits)
+          Text(
+            '请先修正带班上限。',
+            style: TextStyle(color: context.appColors.destructive),
+          ),
         AppGhostButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
         AppPrimaryButton(
-          onPressed: () => Navigator.pop(
-            context,
-            widget.draft.copyWith(teacherIds: _teachers, rules: _rules),
-          ),
+          onPressed: _hasInvalidLimits
+              ? null
+              : () => Navigator.pop(
+                  context,
+                  widget.draft.copyWith(teacherIds: _teachers, rules: _rules),
+                ),
           child: const Text('应用'),
         ),
       ],
@@ -542,26 +706,32 @@ class _PublishDialogState extends State<_PublishDialog> {
           : null;
       return AppDialog(
         title: Text(widget.repair ? '预览带班与课表协调' : '预览带班方案'),
-        maxWidth: 680,
+        maxWidth: 920,
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.repair)
               Text('生效日期 · ${_dateLabel(_selected)}')
             else
-              AppSelectField<DateTime>(
-                value: _selected,
-                label: '生效日期',
-                items: {
-                  for (final date in widget.dates) _dateLabel(date): date,
-                },
-                onChanged: (date) {
-                  if (date == null || date == _selected) return;
-                  setState(() {
-                    _selected = date;
-                    _future = widget.load(date);
-                  });
-                },
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: 320,
+                  child: AppSelectField<DateTime>(
+                    value: _selected,
+                    label: '生效日期',
+                    items: {
+                      for (final date in widget.dates) _dateLabel(date): date,
+                    },
+                    onChanged: (date) {
+                      if (date == null || date == _selected) return;
+                      setState(() {
+                        _selected = date;
+                        _future = widget.load(date);
+                      });
+                    },
+                  ),
+                ),
               ),
             const SizedBox(height: 12),
             if (state.connectionState != ConnectionState.done)
@@ -589,11 +759,26 @@ class _PublishDialogState extends State<_PublishDialog> {
   );
 }
 
-class _PreviewDiff extends StatelessWidget {
+class _PreviewDiff extends StatefulWidget {
   const _PreviewDiff({required this.snapshot, required this.preview});
 
   final SchedulingSnapshot snapshot;
   final SupervisionPreview preview;
+
+  @override
+  State<_PreviewDiff> createState() => _PreviewDiffState();
+}
+
+class _PreviewDiffState extends State<_PreviewDiff> {
+  String _filter = 'all';
+  SchedulingSnapshot get snapshot => widget.snapshot;
+  SupervisionPreview get preview => widget.preview;
+
+  @override
+  void didUpdateWidget(covariant _PreviewDiff oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preview != widget.preview) _filter = 'all';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -624,11 +809,13 @@ class _PreviewDiff extends StatelessWidget {
               if (post.location.isNotEmpty) post.location,
             ].join(' · '),
           ].join('\n');
-    final lines = <(String?, String?)>[];
+    final lines = <(String?, String?, SupervisionPost)>[];
     for (final id in {...oldPosts.keys, ...newPosts.keys}) {
       final oldLine = describe(oldPosts[id], before?.assignments[id]);
       final newLine = describe(newPosts[id], after.assignments[id]);
-      if (oldLine != newLine) lines.add((oldLine, newLine));
+      if (oldLine != newLine) {
+        lines.add((oldLine, newLine, newPosts[id] ?? oldPosts[id]!));
+      }
     }
     Map<String, int> loads(SupervisionDraft? draft) {
       final result = <String, int>{};
@@ -645,6 +832,14 @@ class _PreviewDiff extends StatelessWidget {
       return result;
     }
 
+    String type((String?, String?, SupervisionPost) line) => line.$1 == null
+        ? 'add'
+        : line.$2 == null
+        ? 'remove'
+        : 'update';
+    final shown = lines
+        .where((line) => _filter == 'all' || type(line) == _filter)
+        .toList();
     final oldLoads = loads(before);
     final newLoads = loads(after);
     return Column(
@@ -653,19 +848,34 @@ class _PreviewDiff extends StatelessWidget {
         if (preview.replacedFutureDate case final date?)
           Text('本次确认将替换原定 ${_dateLabel(date)} 生效的带班方案。'),
         Text('岗位变更', style: Theme.of(context).textTheme.titleSmall),
-        if (lines.isEmpty)
-          const Text('岗位安排无变化。')
-        else ...[
-          Text(
-            '新增 ${lines.where((line) => line.$1 == null).length} · '
-            '调整 ${lines.where((line) => line.$1 != null && line.$2 != null).length} · '
-            '移除 ${lines.where((line) => line.$2 == null).length}',
-            style: Theme.of(context).textTheme.bodySmall,
+        const SizedBox(height: 8),
+        _DutySegments<String>(
+          items: {
+            'all': '全部 ${lines.length}',
+            'add': '新增 ${lines.where((line) => type(line) == 'add').length}',
+            'update':
+                '调整 ${lines.where((line) => type(line) == 'update').length}',
+            'remove':
+                '停排 ${lines.where((line) => type(line) == 'remove').length}',
+          },
+          value: _filter,
+          itemKey: (type) => ValueKey('duty-preview-filter-$type'),
+          onChanged: (type) => setState(() => _filter = type),
+        ),
+        const SizedBox(height: 12),
+        if (shown.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(lines.isEmpty ? '岗位安排无变化。' : '该类型暂无变更。'),
           ),
-          const SizedBox(height: 8),
-          for (final (oldLine, newLine) in lines)
-            _PreviewChange(before: oldLine, after: newLine),
-        ],
+        for (final line in shown)
+          _PreviewChange(
+            before: line.$1,
+            after: line.$2,
+            type: type(line),
+            contextLabel:
+                '${_weekdays[line.$3.weekday - 1]} · ${_slotLabel(snapshot, line.$3)}\n${line.$3.groupName.isEmpty ? line.$3.classIds.map((id) => classes[id] ?? id).join('、') : line.$3.groupName}',
+          ),
         for (final id in {...oldLoads.keys, ...newLoads.keys})
           if (oldLoads[id] != newLoads[id])
             Text(
@@ -689,24 +899,68 @@ class _PreviewDiff extends StatelessWidget {
 }
 
 class _PreviewChange extends StatelessWidget {
-  const _PreviewChange({required this.before, required this.after});
-
+  const _PreviewChange({
+    required this.before,
+    required this.after,
+    required this.type,
+    required this.contextLabel,
+  });
   final String? before;
   final String? after;
+  final String type;
+  final String contextLabel;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final theme = Theme.of(context).textTheme;
+    final badge = Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: type == 'add'
+              ? colors.successSurface
+              : type == 'remove'
+              ? colors.destructiveSurface
+              : colors.warningSurface,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          type == 'add'
+              ? '新增'
+              : type == 'remove'
+              ? '停排'
+              : '调整',
+          style: theme.bodySmall?.copyWith(
+            color: type == 'add'
+                ? colors.success
+                : type == 'remove'
+                ? colors.destructive
+                : colors.warning,
+          ),
+        ),
+      ),
+    );
     Widget field(String label, String? value) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: theme.labelMedium?.copyWith(color: colors.inkSecondary),
+          style: theme.bodySmall?.copyWith(fontSize: 11, color: colors.muted),
         ),
-        const SizedBox(height: 4),
-        Text(value ?? '—', style: theme.bodyMedium),
+        const SizedBox(height: 3),
+        Text(
+          value?.split('\n').first ?? '—',
+          style: theme.bodyMedium?.copyWith(
+            fontSize: 13,
+            color: label == '变更前'
+                ? colors.inkSecondary
+                : type == 'remove'
+                ? colors.destructive
+                : colors.ink,
+          ),
+        ),
       ],
     );
     return DecoratedBox(
@@ -714,25 +968,52 @@ class _PreviewChange extends StatelessWidget {
         border: Border(top: BorderSide(color: colors.border)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: LayoutBuilder(
-          builder: (context, constraints) => constraints.maxWidth >= 450
-              ? Row(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 620) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 64, child: badge),
+                  SizedBox(
+                    width: 180,
+                    child: Text(contextLabel, style: theme.bodySmall),
+                  ),
+                  Expanded(child: field('变更前', before)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 15,
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward,
+                      size: 15,
+                      color: colors.muted,
+                    ),
+                  ),
+                  Expanded(child: field('变更后', after)),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: field('变更前', before)),
-                    const SizedBox(width: 16),
-                    Expanded(child: field('变更后', after)),
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    field('变更前', before),
-                    const SizedBox(height: 6),
-                    field('变更后', after),
+                    badge,
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(contextLabel, style: theme.bodySmall)),
                   ],
                 ),
+                const SizedBox(height: 8),
+                field('变更前', before),
+                const SizedBox(height: 6),
+                field('变更后', after),
+              ],
+            );
+          },
         ),
       ),
     );

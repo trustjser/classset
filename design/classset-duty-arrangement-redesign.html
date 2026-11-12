@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>课集 · 带班安排（重设计稿）</title>
+<!--
+  自检报告：
+  - PC 交互四态：按钮/单元格/列表行均有 hover + focus-visible + active；禁用态见「智能补齐」示例与矩阵「正课」格
+  - 空态：「待安排」Tab 无数据时给出空态文案；矩阵「选择」格为可选态
+  - 对比度：正文 ≥ AA；层级 ≤3；间距 4/8 倍数；圆角两种（卡片14 / 控件10）
+  - 无外网字体与图片依赖；无 lorem ipsum；数据为真实感演示数据
+  - 静态原型：仅保存当前页面会话中的演示状态
+-->
+<style>
+:root{
+  --canvas:#F6F5F4;
+  --surface:#FFFFFF;
+  --accent:#0075DE;
+  --accent-soft:#E8F1FC;
+  --text:#1A1A1A;
+  --text-2:#615D59;
+  --text-3:#A39E98;
+  --border:rgba(0,0,0,.08);
+  --border-strong:rgba(0,0,0,.14);
+  --success:#2BA471;
+  --success-soft:#E6F4EE;
+  --warning:#C98A2B;
+  --warning-soft:#F8F0E2;
+  --danger:#D54941;
+  --danger-soft:#FBEAE9;
+  --r-card:14px;
+  --r-ctl:10px;
+  --shadow-pop:0 8px 24px rgba(0,0,0,.14), 0 2px 6px rgba(0,0,0,.06);
+  --font:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--canvas);color:var(--text);font-size:13px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:6px}
+input,select{font-family:inherit;font-size:13px;color:var(--text)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:8px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- 应用框架 ---------- */
+.app{display:grid;grid-template-columns:232px 1fr;grid-template-rows:56px 1fr;height:100vh;min-width:1100px}
+.topbar{grid-column:1/3;display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.crumb{display:flex;align-items:center;gap:8px;font-weight:600}
+.crumb .sep{color:var(--text-3);font-weight:400}
+.icon-btn{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-2)}
+.icon-btn:hover{background:var(--accent-soft);color:var(--accent)}
+.term-select{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-ctl);background:var(--surface);color:var(--text-2)}
+.term-select:hover{border-color:var(--border-strong)}
+.topbar .spacer{flex:1}
+
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 14px}
+.brand .logo{width:34px;height:34px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.brand .name{font-weight:700;font-size:15px;line-height:1.2}
+.brand .en{font-size:10px;letter-spacing:.12em;color:var(--text-3)}
+.school-card{display:flex;gap:8px;align-items:center;padding:8px 10px;margin-bottom:10px;border-radius:var(--r-ctl);background:var(--canvas)}
+.school-card .badge{width:26px;height:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.school-card .n{font-weight:600;font-size:13px;line-height:1.3}
+.school-card .s{font-size:11px;color:var(--text-3)}
+.nav-group{margin-top:10px}
+.nav-title{font-size:11px;color:var(--text-3);padding:0 10px 6px;display:flex;justify-content:space-between}
+.nav-title .cnt{color:var(--text-3)}
+.nav-item{display:flex;align-items:center;gap:9px;width:100%;height:34px;padding:0 10px;border-radius:9px;color:var(--text-2);font-size:13px;text-align:left}
+.nav-item svg{flex:none}
+.nav-item:hover{background:var(--canvas);color:var(--text)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.sidebar .foot{margin-top:auto;padding:10px;border-radius:var(--r-ctl);background:var(--canvas);font-size:11px;color:var(--text-2);line-height:1.5}
+.foot .dot-ok{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success);margin-right:5px}
+
+/* ---------- 主内容 ---------- */
+.main{overflow-y:auto;display:flex;flex-direction:column}
+.page-head{display:flex;align-items:flex-start;gap:16px;padding:24px 28px 8px}
+.page-head h1{font-size:22px;font-weight:700;line-height:1.3}
+.page-head .sub{color:var(--text-2);font-size:13px;margin-top:2px}
+.page-head .spacer{flex:1}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:var(--r-ctl);font-size:13px;font-weight:500;transition:background .12s,border-color .12s,color .12s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#0066c4}
+.btn-primary:active{background:#005cb5}
+.btn-outline{background:var(--surface);border:1px solid var(--border-strong);color:var(--text)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.btn-ghost{color:var(--text-2)}
+.btn-ghost:hover{background:var(--canvas);color:var(--text)}
+.btn-text{color:var(--accent);font-weight:500;padding:0 6px}
+.btn-text:hover{text-decoration:underline}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+.toolbar{display:flex;align-items:center;gap:10px;padding:12px 28px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--canvas);border-radius:var(--r-ctl);padding:3px}
+.seg button{height:26px;padding:0 12px;border-radius:8px;font-size:12.5px;color:var(--text-2)}
+.seg button.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.toolbar .meta{color:var(--text-2);font-size:12.5px}
+.toolbar .spacer{flex:1}
+.legend{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--text-2)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:1px}
+
+.grid-card{margin:4px 28px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);overflow:auto;flex:1;min-height:380px}
+.grid{display:grid;grid-template-columns:150px repeat(5,minmax(180px,1fr));min-width:1000px}
+.g-head{position:sticky;top:0;z-index:3;background:#FAF9F8;border-bottom:1px solid var(--border);padding:9px 12px;font-weight:600;font-size:12.5px;color:var(--text-2)}
+.g-head.day{text-align:center;color:var(--text)}
+.g-corner{position:sticky;left:0;z-index:4}
+.g-slot{position:sticky;left:0;z-index:2;background:#FAF9F8;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px 12px}
+.g-slot .t{font-weight:600;font-size:13px}
+.g-slot .time{font-size:11.5px;color:var(--text-3)}
+.g-slot .stage{display:inline-block;margin-top:4px;font-size:10.5px;color:var(--text-2);background:var(--canvas);border-radius:6px;padding:0 6px}
+.cell{border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:9px 10px 9px 12px;position:relative;min-height:64px;background:var(--surface)}
+.cell:hover{background:#FBFBFA}
+.cell::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--dot,#C9C5C0)}
+.cell .cls{font-weight:600;font-size:13px;line-height:1.45}
+.cell .tch{font-size:12px;color:var(--text-2)}
+.cell .acts{position:absolute;top:6px;right:6px;display:none;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.cell:hover .acts{display:inline-flex}
+.acts button{width:24px;height:22px;border-radius:6px;font-size:11px;color:var(--text-2)}
+.acts button:hover{background:var(--accent-soft);color:var(--accent)}
+.cell.empty{background:transparent;border:1px dashed var(--border-strong);border-radius:10px;margin:6px;min-height:52px;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:12px}
+.cell.empty:hover{color:var(--accent);border-color:var(--accent);cursor:pointer}
+
+.action-bar{display:flex;align-items:center;gap:10px;padding:12px 28px 20px}
+.progress{display:flex;align-items:center;gap:10px;color:var(--text-2);font-size:12.5px}
+.progress .bar{width:160px;height:6px;border-radius:3px;background:var(--canvas);overflow:hidden}
+.progress .bar i{display:block;height:100%;width:100%;background:var(--success);border-radius:3px}
+.action-bar .spacer{flex:1}
+.divider-v{width:1px;height:20px;background:var(--border)}
+
+/* ---------- 弹窗 ---------- */
+.overlay{position:fixed;inset:0;background:rgba(26,26,26,.4);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:56px 24px}
+.overlay.show{display:flex}
+.dialog{background:var(--surface);border-radius:16px;box-shadow:var(--shadow-pop);width:640px;max-width:100%;max-height:calc(100vh - 112px);display:flex;flex-direction:column}
+.dialog.wide{width:960px}
+.dlg-head{padding:18px 22px 0}
+.dlg-head h2{font-size:16px;font-weight:700}
+.dlg-head .desc{color:var(--text-2);font-size:12.5px;margin-top:4px}
+.dlg-body{padding:14px 22px;overflow-y:auto;flex:1}
+.dlg-foot{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border)}
+.dlg-foot .spacer{flex:1}
+
+/* 候选教师 */
+.search-box{display:flex;align-items:center;gap:8px;height:34px;border:1px solid var(--border-strong);border-radius:var(--r-ctl);padding:0 10px;background:var(--surface)}
+.search-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search-box input{border:none;outline:none;flex:1;background:none}
+.select-all-row{display:flex;align-items:center;gap:8px;padding:10px 2px 6px;color:var(--text-2);font-size:12.5px}
+.t-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px}
+.t-row:hover{background:var(--canvas)}
+.t-row .nm{font-weight:500;width:120px}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:11px;background:var(--canvas);color:var(--text-2)}
+.tag.blue{background:var(--accent-soft);color:var(--accent)}
+.tag.green{background:var(--success-soft);color:var(--success)}
+.tag.warn{background:var(--warning-soft);color:var(--warning)}
+.t-row .rule{flex:1;color:var(--text-3);font-size:12px}
+.t-row .btn-mini{height:26px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;font-size:12px;background:var(--surface)}
+.t-row .btn-mini:hover{border-color:var(--accent);color:var(--accent)}
+.rule-edit{display:none;grid-template-columns:1fr 1fr;gap:12px;margin:2px 0 10px 36px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#FBFBFA}
+.rule-edit.open{display:grid}
+.rule-edit label{font-size:12px;color:var(--text-2);display:block;margin-bottom:4px}
+.rule-edit input,.rule-edit select{width:100%;height:30px;border:1px solid var(--border-strong);border-radius:8px;padding:0 8px;background:var(--surface)}
+.ck{width:16px;height:16px;accent-color:var(--accent);flex:none}
+
+/* 预览确认 */
+.eff-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.eff-row .lab{color:var(--text-2)}
+.eff-row input[type=date]{height:30px;border:1px solid var(--border-strong);border-radius:8px;padding:0 8px;background:var(--surface)}
+.chg-filters{display:flex;gap:8px;margin-bottom:10px}
+.chg-filters button{height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--border-strong);font-size:12px;color:var(--text-2);background:var(--surface)}
+.chg-filters button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.chg-table{width:100%;border-collapse:collapse}
+.chg-table th{text-align:left;font-weight:500;font-size:11.5px;color:var(--text-3);padding:6px 8px;border-bottom:1px solid var(--border)}
+.chg-table td{padding:8px;border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:top}
+.chg-table tr:hover td{background:var(--canvas)}
+.chg-table .old{color:var(--text-3)}
+.chg-table .arrow{color:var(--text-3);padding:0 4px}
+.empty-state{padding:36px 0;text-align:center;color:var(--text-3)}
+
+/* 创建岗位 */
+.create-grid{display:grid;grid-template-columns:280px 1fr;gap:20px;min-height:380px}
+.panel-t{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.panel-t b{font-size:13.5px}
+.panel-t .cnt{color:var(--text-3);font-size:12px;font-weight:400}
+.panel-t .ops{margin-left:auto;display:flex;gap:8px}
+.tree{border:1px solid var(--border);border-radius:12px;padding:8px;max-height:380px;overflow:auto}
+.tree-row{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px}
+.tree-row:hover{background:var(--canvas)}
+.tree-row .n{flex:1}
+.tree-row .c{color:var(--text-3);font-size:11.5px}
+.tree-row.lvl{font-weight:600}
+.tree-row.child{margin-left:22px}
+.mx{border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:380px}
+.mx table{border-collapse:collapse;width:100%;min-width:520px}
+.mx th{background:#FAF9F8;font-size:11.5px;color:var(--text-2);font-weight:500;padding:7px 6px;border-bottom:1px solid var(--border);position:sticky;top:0}
+.mx td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);text-align:center;padding:0;height:38px;font-size:12px}
+.mx td:last-child{border-right:none}
+.mx .slot-cell{background:#FAF9F8;font-size:11.5px;color:var(--text-2);min-width:96px}
+.mx .slot-cell b{display:block;color:var(--text);font-size:12px}
+.st{display:inline-flex;align-items:center;justify-content:center;width:calc(100% - 8px);height:calc(100% - 8px);border-radius:8px;margin:4px;font-size:12px}
+.st.regular{background:var(--canvas);color:var(--text-3);cursor:not-allowed}
+.st.pick{color:var(--text-3);background:var(--surface);border:1px dashed var(--border-strong);cursor:pointer}
+.st.pick:hover{border-color:var(--accent);color:var(--accent)}
+.st.picked{background:var(--accent-soft);color:var(--accent);font-weight:600;cursor:pointer;border:1px solid var(--accent)}
+.mx-legend{display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--text-2)}
+.opt-card{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--border);border-radius:12px;margin-top:10px}
+.opt-card .sw{flex:none;width:36px;height:20px;border-radius:999px;background:#D8D5D1;position:relative;transition:background .15s;border:none}
+.opt-card .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.opt-card .sw.on{background:var(--accent)}
+.opt-card .sw.on::after{left:18px}
+.opt-card b{font-size:13px}
+.opt-card p{color:var(--text-2);font-size:12px;margin-top:2px}
+.create-foot-stat{color:var(--text-2);font-size:12.5px}
+.create-foot-stat b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <button class="icon-btn" title="收起侧栏" aria-label="收起侧栏">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+    <div class="crumb">带班安排 <span class="sep">/</span></div>
+    <button class="term-select">2026 学年 · 秋学期
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+    </button>
+    <div class="spacer"></div>
+    <button class="icon-btn" title="外观" aria-label="外观">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>
+    </button>
+  </header>
+
+  <!-- 侧栏 -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">课</div>
+      <div><div class="name">课集</div><div class="en">CLASSSET</div></div>
+    </div>
+    <div class="school-card">
+      <div class="badge">校</div>
+      <div><div class="n">未命名学校</div><div class="s">2026 学年 · 秋学期</div></div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">排课准备</div>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>工作台</button>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>学期与日历</button>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13.5V7l6-4.5L14 7v6.5h-4.5v-4h-3v4z"/></svg>班级与学段</button>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12M6 6v8"/></svg>作息设置<span style="margin-left:auto;font-size:11px">分学段</span></button>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">排课与调整</div>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2v12M3 2h8l-1.5 2.5L11 7H3"/></svg>科目节数</button>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5" r="2.5"/><path d="M3 14c.5-3 2.5-4.5 5-4.5s4.5 1.5 5 4.5"/></svg>教师任课</button>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 1.5v3M11 1.5v3M2 6.5h12"/></svg>排课与课表</button>
+      <button class="nav-item active"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2 14 5 8 8 2 5z"/><path d="M4 6.5v4c0 1 2 2 4 2s4-1 4-2v-4"/></svg>带班安排</button>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 8h9M8 4.5 11.5 8 8 11.5M12 2h2v12h-2"/></svg>调代课</button>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">更多</div>
+      <button class="nav-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 14V4l5-2v12zM9 6.5l5-2V14H9z"/></svg>公共场室</button>
+    </div>
+
+    <div class="foot"><span class="dot-ok"></span>本地数据 · 离线可用<br>最近保存 10:08</div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <h1>带班安排</h1>
+        <div class="sub">为课后时段安排带班教师，与课表协调后生效</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="openDlg('dlg-create')">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 1.5v9M1.5 6h9"/></svg>
+        创建岗位
+      </button>
+    </div>
+
+    <div class="toolbar">
+      <div class="seg" role="tablist" aria-label="岗位筛选">
+        <button class="on" role="tab" id="tab-all" onclick="switchTab('all')">全部岗位</button>
+        <button role="tab" id="tab-todo" onclick="switchTab('todo')">待安排 <span id="todo-cnt" style="font-weight:400">0</span></button>
+      </div>
+      <span class="divider-v"></span>
+      <span class="meta">带班周期</span>
+      <button class="term-select">编辑草稿
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+      </button>
+      <span class="meta">视角</span>
+      <div class="seg" role="tablist" aria-label="视角切换">
+        <button class="on" id="vw-week" role="tab" onclick="switchView('week')">整周网格</button>
+        <button id="vw-class" role="tab" onclick="switchView('class')">按班级</button>
+        <button id="vw-teacher" role="tab" onclick="switchView('teacher')">按教师</button>
+      </div>
+      <span id="day-chips" style="display:none;align-items:center;gap:10px">
+        <span class="divider-v"></span>
+        <span class="meta">星期</span>
+        <div class="seg" id="day-seg"></div>
+      </span>
+      <div class="spacer"></div>
+      <div class="legend" id="legend">
+        <span><i style="background:#0075DE"></i>晚自习</span>
+        <span><i style="background:#2BA471"></i>课后服务</span>
+        <span><i style="background:#C98A2B"></i>社团活动</span>
+      </div>
+      <span class="divider-v"></span>
+      <button class="btn btn-outline" onclick="openDlg('dlg-candidates')">候选教师 · 152</button>
+      <button class="btn btn-outline" title="按候选教师与带班规则自动填充待安排岗位">智能补齐</button>
+    </div>
+
+    <!-- 网格 -->
+    <div class="grid-card">
+      <div class="grid" id="grid">
+        <div class="g-head g-corner">节次 / 时间</div>
+        <div class="g-head day">周一</div>
+        <div class="g-head day">周二</div>
+        <div class="g-head day">周三</div>
+        <div class="g-head day">周四</div>
+        <div class="g-head day">周五</div>
+      </div>
+      <div class="grid" id="grid-class" style="display:none"></div>
+      <div class="grid" id="grid-teacher" style="display:none"></div>
+      <div class="empty-state" id="todo-empty" style="display:none">没有待安排岗位，全部已安排。</div>
+    </div>
+
+    <div class="action-bar">
+      <div class="progress">
+        <span class="bar"><i></i></span>
+        <span><b style="color:var(--text)">240 / 240</b> 个岗位已安排</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost">保存草稿</button>
+      <span class="divider-v"></span>
+      <button class="btn btn-outline">修正带班并协调</button>
+      <button class="btn btn-primary" onclick="openDlg('dlg-preview')">预览并确认</button>
+    </div>
+  </main>
+</div>
+
+<!-- ═══════ 弹窗 1：候选教师和带班规则 ═══════ -->
+<div class="overlay" id="dlg-candidates" role="dialog" aria-modal="true" aria-labelledby="dlg-candidates-t">
+  <div class="dialog">
+    <div class="dlg-head">
+      <h2 id="dlg-candidates-t">候选教师与带班规则</h2>
+      <p class="desc">勾选的教师进入带班候选。带班禁排与每周上限仅用于带班，不影响课表。</p>
+    </div>
+    <div class="dlg-body">
+      <div class="search-box">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3)"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+        <input placeholder="搜索教师姓名或教研组" oninput="filterTeachers(this.value)">
+      </div>
+      <div class="select-all-row">
+        <input type="checkbox" class="ck" checked onchange="toggleAll(this.checked)"> 全选搜索结果
+        <span style="margin-left:auto">已选 <b id="sel-cnt" style="color:var(--text)">7</b> 人</span>
+      </div>
+      <div id="t-list"></div>
+    </div>
+    <div class="dlg-foot">
+      <span class="meta" style="color:var(--text-2);font-size:12px">规则会随勾选一起保存，稍后可再调整</span>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" onclick="closeDlg('dlg-candidates')">取消</button>
+      <button class="btn btn-primary" onclick="closeDlg('dlg-candidates')">应用</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ 弹窗 2：预览并确认 ═══════ -->
+<div class="overlay" id="dlg-preview" role="dialog" aria-modal="true" aria-labelledby="dlg-preview-t">
+  <div class="dialog wide">
+    <div class="dlg-head">
+      <h2 id="dlg-preview-t">预览带班与课表协调</h2>
+      <p class="desc">确认后将替换当前草稿，并与课表冲突项自动协调。</p>
+    </div>
+    <div class="dlg-body">
+      <div class="eff-row">
+        <span class="lab">生效日期</span>
+        <input type="date" value="2026-11-12">
+        <span class="lab" style="color:var(--text-3)">将替换原定 2026-11-16 生效的带班方案</span>
+      </div>
+      <div class="chg-filters" id="chg-filters">
+        <button class="on" data-f="all">全部 10</button>
+        <button data-f="add" style="color:var(--success)">新增 8</button>
+        <button data-f="mod" style="color:var(--warning)">调整 1</button>
+        <button data-f="stop" style="color:var(--danger)">停排 1</button>
+      </div>
+      <table class="chg-table">
+        <thead><tr><th style="width:64px">类型</th><th style="width:190px">时间与班级</th><th>带班变更</th></tr></thead>
+        <tbody id="chg-body"></tbody>
+      </table>
+      <div class="empty-state" id="chg-empty" style="display:none">该类型暂无变更。</div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn btn-ghost" onclick="closeDlg('dlg-preview')">返回草稿</button>
+      <div class="spacer"></div>
+      <button class="btn btn-primary">确认并协调</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ 弹窗 3：创建带班岗位 ═══════ -->
+<div class="overlay" id="dlg-create" role="dialog" aria-modal="true" aria-labelledby="dlg-create-t">
+  <div class="dialog wide">
+    <div class="dlg-head">
+      <h2 id="dlg-create-t">创建带班岗位</h2>
+      <p class="desc">先选班级范围，再从作息中勾选课节；正课与不上课不可选。</p>
+    </div>
+    <div class="dlg-body">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <span style="color:var(--text-2)">活动类型</span>
+        <button class="term-select">课后服务
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+        </button>
+      </div>
+      <div class="create-grid">
+        <div>
+          <div class="panel-t"><b>班级范围</b><span class="cnt" id="cls-cnt">已选 6 个班级</span></div>
+          <div class="tree">
+            <div class="tree-row lvl"><input type="radio" class="ck" name="scope" onclick="event.preventDefault()"><span class="n">小学部</span><span class="c">0/35</span>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3)"><path d="M3 4.5 6 8l3-3.5"/></svg></div>
+            <div class="tree-row lvl"><input type="checkbox" class="ck" checked onchange="treeCount()"><span class="n">七年级</span><span class="c">6/6</span>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3);transform:rotate(180deg)"><path d="M3 4.5 6 8l3-3.5"/></svg></div>
+            <div class="tree-row child"><input type="checkbox" class="ck" checked onchange="treeCount()"><span class="n">七年级 1 班</span></div>
+            <div class="tree-row child"><input type="checkbox" class="ck" checked onchange="treeCount()"><span class="n">七年级 2 班</span></div>
+            <div class="tree-row child"><input type="checkbox" class="ck" checked onchange="treeCount()"><span class="n">七年级 3 班</span></div>
+            <div class="tree-row child"><input type="checkbox" class="ck" checked onchange="treeCount()"><span class="n">七年级 4 班</span></div>
+            <div class="tree-row child"><input type="checkbox" class="ck" checked onchange="treeCount()"><span class="n">七年级 5 班</span></div>
+            <div class="tree-row child"><input type="checkbox" class="ck" checked onchange="treeCount()"><span class="n">七年级 6 班</span></div>
+            <div class="tree-row lvl"><input type="checkbox" class="ck" onchange="treeCount()"><span class="n">二年级</span><span class="c">0/6</span>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3)"><path d="M3 4.5 6 8l3-3.5"/></svg></div>
+          </div>
+        </div>
+        <div>
+          <div class="panel-t"><b>作息课节 · 小学部</b><span class="cnt" id="mx-cnt">已选 0 个课节</span>
+            <div class="ops">
+              <button class="btn-text" onclick="mxAll(true)">全选课节</button>
+              <button class="btn-text" style="color:var(--text-2)" onclick="mxAll(false)">清空</button>
+            </div>
+          </div>
+          <div class="mx">
+            <table id="mx-table"></table>
+          </div>
+          <div class="mx-legend">
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:4px;background:var(--canvas);vertical-align:-1px;margin-right:4px"></i>正课（不可选）</span>
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:4px;border:1px dashed var(--border-strong);vertical-align:-1px;margin-right:4px"></i>可选课节</span>
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:4px;background:var(--accent-soft);border:1px solid var(--accent);vertical-align:-1px;margin-right:4px"></i>已选</span>
+          </div>
+
+          <div style="margin-top:16px;font-weight:600">排班方式</div>
+          <div class="opt-card">
+            <button class="sw" role="switch" aria-checked="false" onclick="this.classList.toggle('on');this.setAttribute('aria-checked',this.classList.contains('on'))"></button>
+            <div><b>连续节次由同一老师负责</b><p>只合并同一天、同一时段内相邻的已选课节，减少频繁换人。</p></div>
+          </div>
+          <div class="opt-card">
+            <button class="sw on" role="switch" aria-checked="true" onclick="this.classList.toggle('on');this.setAttribute('aria-checked',this.classList.contains('on'))"></button>
+            <div><b>实际合班</b><p>所选班级集中到同一地点，由同一名老师统一负责。</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <span class="create-foot-stat" id="create-stat">将创建 <b>0</b> 个岗位 · <b>0</b> 个课节</span>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" onclick="closeDlg('dlg-create')">取消</button>
+      <button class="btn btn-primary" id="create-ok" disabled onclick="closeDlg('dlg-create')">添加岗位</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- 岗位数据源（三个视图共用） ---------- */
+const days=['周一','周二','周三','周四','周五'];
+const slots=[
+  {t:'第 1 节',time:'19:00 – 19:45',stage:'初中部'},
+  {t:'第 2 节',time:'19:55 – 20:40',stage:'初中部'},
+  {t:'第 3 节',time:'20:50 – 21:35',stage:'初中部'},
+  {t:'第 4 节',time:'21:45 – 22:30',stage:'初中部'},
+  {t:'第 5 节',time:'19:00 – 19:45',stage:'小学部'},
+  {t:'第 6 节',time:'19:55 – 20:40',stage:'小学部'},
+];
+const subjects=['语文教师','数学教师','英语教师','物理教师','道德与法治教师','生物教师','地理教师','历史教师'];
+const grades=['七年级','八年级'];
+const ACT={wz:'#0075DE',fw:'#2BA471'};
+let todoCount=0;
+const jobs=[];
+slots.forEach((s,r)=>days.forEach((d,c)=>{
+  if(r===2&&c===4){todoCount++;return;} /* 演示一个待安排格 */
+  const g=grades[(r+c)%2], n=((r*5+c)*3)%8+1;
+  const sub=subjects[(r*3+c)%subjects.length];
+  jobs.push({day:c,slot:r,cls:`${g} ${n} 班`,tch:`${sub} ${((r+c)*7+3)%20+1}`,act:r>=4?'fw':'wz'});
+}));
+
+function makeCell(j,listMode){
+  const cell=document.createElement('div');
+  if(!j){
+    if(listMode){ /* 列表视角下空格=该时段无岗位，非待安排 */
+      cell.className='cell';cell.style.cssText='display:flex;align-items:center;color:var(--text-3)';cell.textContent='—';
+    }else{
+      cell.className='cell empty';cell.textContent='＋ 待安排';cell.tabIndex=0;
+    }
+    return cell;
+  }
+  cell.className='cell';
+  cell.style.setProperty('--dot',ACT[j.act]);
+  cell.innerHTML=`<div class="cls">${j.cls}</div><div class="tch">${j.tch}</div>
+    <div class="acts"><button title="更换教师">换</button><button title="清空岗位">清</button></div>`;
+  return cell;
+}
+
+/* ---------- 整周视图 ---------- */
+const grid=document.getElementById('grid');
+slots.forEach((s,r)=>{
+  const slot=document.createElement('div');
+  slot.className='g-slot';
+  slot.innerHTML=`<div class="t">${s.t}</div><div class="time">${s.time}</div><span class="stage">${s.stage}</span>`;
+  grid.appendChild(slot);
+  days.forEach((d,c)=>{
+    grid.appendChild(makeCell(jobs.find(x=>x.day===c&&x.slot===r)));
+  });
+});
+document.getElementById('todo-cnt').textContent=todoCount;
+
+/* ---------- 视角切换：按班级 / 按教师 ---------- */
+let curView='week', curDay=0;
+const gradeOrder=a=>grades.indexOf(a.split(' ')[0]);
+const numIn=s=>parseInt(s.match(/\d+/g).pop());
+const classList=[...new Set(jobs.map(j=>j.cls))].sort((a,b)=>gradeOrder(a)-gradeOrder(b)||numIn(a)-numIn(b));
+const subjOrder=a=>subjects.indexOf(a.replace(/ \d+$/,''));
+const teacherList=[...new Set(jobs.map(j=>j.tch))].sort((a,b)=>subjOrder(a)-subjOrder(b)||numIn(a)-numIn(b));
+
+function renderListGrid(container,mode){
+  container.innerHTML='';
+  container.style.gridTemplateColumns=`200px repeat(${slots.length},minmax(150px,1fr))`;
+  container.style.minWidth='1100px';
+  const head=document.createElement('div');
+  head.className='g-head g-corner';
+  head.innerHTML=(mode==='class'?'班级':'教师')+`<div style="font-weight:400;font-size:11px;color:var(--text-3)">${days[curDay]} · 按节次</div>`;
+  container.appendChild(head);
+  slots.forEach(s=>{
+    const h=document.createElement('div');
+    h.className='g-head day';
+    h.innerHTML=`${s.t}<div style="font-weight:400;font-size:10.5px;color:var(--text-3)">${s.time}</div>`;
+    container.appendChild(h);
+  });
+  const items=mode==='class'
+    ?classList.map(cls=>({key:cls,rows:jobs.filter(j=>j.cls===cls)}))
+    :teacherList.map(tch=>({key:tch,rows:jobs.filter(j=>j.tch===tch)}));
+  items.forEach(it=>{
+    const rh=document.createElement('div');
+    rh.className='g-slot';
+    rh.innerHTML=`<div class="t">${it.key}</div><div class="time">本周 ${it.rows.length} 节</div>`;
+    container.appendChild(rh);
+    slots.forEach((s,r)=>{
+      container.appendChild(makeCell(it.rows.find(x=>x.slot===r&&x.day===curDay),true));
+    });
+  });
+}
+
+/* 星期 chips */
+const daySeg=document.getElementById('day-seg');
+days.forEach((d,i)=>{
+  const b=document.createElement('button');
+  b.textContent=d;
+  if(i===0)b.classList.add('on');
+  b.onclick=()=>{
+    curDay=i;
+    daySeg.querySelectorAll('button').forEach((x,xi)=>x.classList.toggle('on',xi===i));
+    renderListGrid(document.getElementById('grid-class'),'class');
+    renderListGrid(document.getElementById('grid-teacher'),'teacher');
+    applyTabFilter();
+  };
+  daySeg.appendChild(b);
+});
+
+function switchView(k){
+  curView=k;
+  document.getElementById('vw-week').classList.toggle('on',k==='week');
+  document.getElementById('vw-class').classList.toggle('on',k==='class');
+  document.getElementById('vw-teacher').classList.toggle('on',k==='teacher');
+  document.getElementById('grid').style.display=k==='week'?'':'none';
+  document.getElementById('grid-class').style.display=k==='class'?'':'none';
+  document.getElementById('grid-teacher').style.display=k==='teacher'?'':'none';
+  document.getElementById('day-chips').style.display=k==='week'?'none':'inline-flex';
+  if(k!=='week')renderListGrid(document.getElementById(k==='class'?'grid-class':'grid-teacher'),k);
+  applyTabFilter();
+}
+
+function switchTab(k){
+  document.getElementById('tab-all').classList.toggle('on',k==='all');
+  document.getElementById('tab-todo').classList.toggle('on',k==='todo');
+  applyTabFilter();
+  const empty=k==='todo'&&todoCount===0;
+  document.getElementById('todo-empty').style.display=empty?'block':'none';
+}
+function applyTabFilter(){
+  const todoMode=document.getElementById('tab-todo').classList.contains('on');
+  const container=curView==='week'
+    ?document.getElementById('grid')
+    :document.getElementById(curView==='class'?'grid-class':'grid-teacher');
+  container.querySelectorAll('.cell').forEach(el=>{
+    el.style.visibility=(todoMode&&!el.classList.contains('empty'))?'hidden':'visible';
+  });
+}
+
+/* ---------- 候选教师 ---------- */
+const teachers=[
+  {n:'语文教师 1',g:'语文组',rule:'每周 ≤ 4 节 · 2 个禁排时段'},
+  {n:'语文教师 2',g:'语文组',rule:'未设置规则'},
+  {n:'语文教师 3',g:'语文组',rule:'每周 ≤ 4 节'},
+  {n:'数学教师 4',g:'数学组',rule:'无禁排 · 每周 ≤ 3 节'},
+  {n:'数学教师 5',g:'数学组',rule:'未设置规则'},
+  {n:'道德与法治教师 6',g:'道法组',rule:'每周 ≤ 2 节'},
+  {n:'科学教师 7',g:'科学组',rule:'未设置规则'},
+  {n:'英语教师 8',g:'英语组',rule:'每周 ≤ 4 节 · 1 个禁排时段'},
+  {n:'物理教师 9',g:'物理组',rule:'未设置规则'},
+];
+let selCnt=7;
+const tList=document.getElementById('t-list');
+teachers.forEach((t,i)=>{
+  const checked=i<7;
+  const row=document.createElement('div');
+  row.innerHTML=`
+    <div class="t-row">
+      <input type="checkbox" class="ck" ${checked?'checked':''} onchange="sel(this)">
+      <span class="nm">${t.n}</span>
+      <span class="tag">${t.g}</span>
+      <span class="rule">${t.rule}</span>
+      <button class="btn-mini" onclick="toggleRule(this)">设置</button>
+    </div>
+    <div class="rule-edit">
+      <div><label>每周带班上限</label><input type="number" value="4" min="0"></div>
+      <div><label>带班禁排（节次）</label><select><option>不限制</option><option>晚上第 1–2 节</option><option>晚上第 3–4 节</option></select></div>
+    </div>`;
+  tList.appendChild(row);
+});
+function toggleRule(btn){
+  const panel=btn.closest('.t-row').nextElementSibling;
+  panel.classList.toggle('open');
+  btn.textContent=panel.classList.contains('open')?'收起':'设置';
+}
+function sel(ck){selCnt+=ck.checked?1:-1;document.getElementById('sel-cnt').textContent=selCnt;}
+function toggleAll(v){document.querySelectorAll('#t-list .t-row input').forEach(c=>{c.checked=v});selCnt=v?teachers.length:0;document.getElementById('sel-cnt').textContent=selCnt;}
+function filterTeachers(q){
+  document.querySelectorAll('#t-list .t-row').forEach(r=>{r.style.display=r.textContent.includes(q)?'':'none'});
+}
+
+/* ---------- 预览变更 ---------- */
+const changes=[
+  {f:'add',slot:'周一 · 晚上第 1 节',cls:'七年级 1 班',old:'—',nw:'晚自习 · 语文教师 1'},
+  {f:'add',slot:'周一 · 晚上第 2 节',cls:'七年级 2 班',old:'—',nw:'晚自习 · 数学教师 4'},
+  {f:'add',slot:'周二 · 晚上第 1 节',cls:'七年级 3 班',old:'—',nw:'晚自习 · 英语教师 8'},
+  {f:'mod',slot:'周二 · 晚上第 2 节',cls:'七年级 4 班',old:'晚自习 · 语文教师 2',nw:'晚自习 · 道德与法治教师 6'},
+  {f:'add',slot:'周三 · 晚上第 1 节',cls:'七年级 5 班',old:'—',nw:'晚自习 · 物理教师 9'},
+  {f:'add',slot:'周三 · 晚上第 2 节',cls:'七年级 6 班',old:'—',nw:'晚自习 · 数学教师 5'},
+  {f:'stop',slot:'周四 · 晚上第 1 节',cls:'八年级 1 班',old:'晚自习 · 语文教师 3',nw:'停排'},
+  {f:'add',slot:'周四 · 晚上第 2 节',cls:'八年级 2 班',old:'—',nw:'晚自习 · 英语教师 8'},
+  {f:'add',slot:'周五 · 晚上第 1 节',cls:'八年级 3 班',old:'—',nw:'晚自习 · 科学教师 7'},
+  {f:'add',slot:'周五 · 晚上第 2 节',cls:'八年级 4 班',old:'—',nw:'晚自习 · 语文教师 1'},
+];
+const TYPE={add:['新增','green'],mod:['调整','warn'],stop:['停排','tag-warn-d']};
+const chgBody=document.getElementById('chg-body');
+changes.forEach(c=>{
+  const cls=c.f==='stop'?'tag warn':(c.f==='mod'?'tag warn':'tag green');
+  const label=c.f==='add'?'新增':(c.f==='mod'?'调整':'停排');
+  const tr=document.createElement('tr');
+  tr.dataset.f=c.f;
+  tr.innerHTML=`<td><span class="${cls}">${label}</span></td>
+    <td><div style="font-weight:500">${c.slot}</div><div style="color:var(--text-2)">${c.cls}</div></td>
+    <td><span class="old">${c.old}</span><span class="arrow">→</span><span style="font-weight:500;${c.f==='stop'?'color:var(--danger)':''}">${c.nw}</span></td>`;
+  chgBody.appendChild(tr);
+});
+document.getElementById('chg-filters').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  document.querySelectorAll('#chg-filters button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  const f=b.dataset.f;let shown=0;
+  chgBody.querySelectorAll('tr').forEach(tr=>{
+    const show=f==='all'||tr.dataset.f===f;
+    tr.style.display=show?'':'none';if(show)shown++;
+  });
+  document.getElementById('chg-empty').style.display=shown?'none':'block';
+});
+
+/* ---------- 创建岗位矩阵 ---------- */
+const mxDays=['周一','周二','周三','周四','周五'];
+const mxRows=[
+  {t:'第 1 节',time:'08:00 – 08:40'},
+  {t:'第 2 节',time:'08:50 – 09:30'},
+  {t:'第 3 节',time:'09:50 – 10:30'},
+  {t:'第 4 节',time:'10:40 – 11:20'},
+  {t:'第 5 节',time:'14:00 – 14:40'},
+  {t:'第 6 节',time:'14:50 – 15:30'},
+  {t:'第 7 节',time:'15:50 – 16:30'},
+  {t:'第 8 节',time:'16:40 – 17:20'},
+];
+const picked=new Set();
+const mxTable=document.getElementById('mx-table');
+(function buildMx(){
+  const thead=document.createElement('tr');
+  thead.innerHTML='<th style="text-align:left;padding-left:10px">节次 / 时间</th>'+mxDays.map(d=>`<th>${d}</th>`).join('');
+  mxTable.appendChild(thead);
+  mxRows.forEach((r,ri)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="slot-cell" style="text-align:left;padding-left:10px"><b>${r.t}</b>${r.time}</td>`;
+    mxDays.forEach((d,ci)=>{
+      const td=document.createElement('td');
+      const regular=ri<5; /* 前 5 节为正课，演示不可选 */
+      if(regular){td.innerHTML='<span class="st regular">正课</span>';}
+      else{
+        const key=ri+'-'+ci;
+        td.innerHTML=`<span class="st pick" data-key="${key}" tabindex="0" role="checkbox" aria-checked="false">选择</span>`;
+      }
+      tr.appendChild(td);
+    });
+    mxTable.appendChild(tr);
+  });
+  mxTable.addEventListener('click',e=>{
+    const st=e.target.closest('.st.pick');if(!st)return;
+    togglePick(st);
+  });
+  mxTable.addEventListener('keydown',e=>{
+    if(e.key!==' '&&e.key!=='Enter')return;
+    const st=e.target.closest('.st.pick');if(!st)return;
+    e.preventDefault();togglePick(st);
+  });
+})();
+function togglePick(st){
+  const key=st.dataset.key;
+  if(picked.has(key)){picked.delete(key);st.className='st pick';st.textContent='选择';st.setAttribute('aria-checked','false');}
+  else{picked.add(key);st.className='st picked';st.textContent='已选';st.setAttribute('aria-checked','true');}
+  updateCreateStat();
+}
+function mxAll(v){
+  document.querySelectorAll('.st.pick,.st.picked').forEach(st=>{
+    if(v&&!picked.has(st.dataset.key))togglePick(st);
+    if(!v&&picked.has(st.dataset.key))togglePick(st);
+  });
+}
+function updateCreateStat(){
+  const slotsN=picked.size, clsN=document.querySelectorAll('.tree .child input:checked').length;
+  const jobs=slotsN*clsN;
+  document.getElementById('mx-cnt').textContent=`已选 ${slotsN} 个课节`;
+  document.getElementById('create-stat').innerHTML=`将创建 <b>${jobs}</b> 个岗位 · <b>${slotsN}</b> 个课节`;
+  document.getElementById('create-ok').disabled=jobs===0;
+}
+function treeCount(){
+  const n=document.querySelectorAll('.tree .child input:checked').length;
+  document.getElementById('cls-cnt').textContent=`已选 ${n} 个班级`;
+  updateCreateStat();
+}
+
+/* ---------- 弹窗开关 ---------- */
+function openDlg(id){document.getElementById(id).classList.add('show')}
+function closeDlg(id){document.getElementById(id).classList.remove('show')}
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('show')});
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')document.querySelectorAll('.overlay.show').forEach(o=>o.classList.remove('show'));
+});
+</script>
+</body>
+</html>

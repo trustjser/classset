@@ -301,26 +301,91 @@ class _PostDialogState extends State<_PostDialog> {
     final count =
         (_merged ? (_classes.isEmpty ? 0 : 1) : _classes.length) *
         _blocks.length;
+    Widget options() => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 16),
+        Text('排班方式', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        _DutyOption(
+          child: f.FSwitch(
+            label: const Text('连续节次由同一老师负责'),
+            description: Text(
+              '只合并同一天、同一时段内相邻的已选课节，减少频繁换人。',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: context.appColors.inkSecondary),
+            ),
+            value: _continuous,
+            onChange: (value) => setState(() => _continuous = value),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _DutyOption(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              f.FSwitch(
+                label: const Text('实际合班'),
+                description: Text(
+                  '所选班级集中到同一地点，由同一名老师统一负责。',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: context.appColors.inkSecondary),
+                ),
+                value: _merged,
+                onChange: (value) => setState(() => _merged = value),
+              ),
+              if (_merged) ...[
+                const SizedBox(height: 10),
+                AppTextFormField(
+                  controller: _groupName,
+                  decoration: const InputDecoration(labelText: '活动组名称'),
+                ),
+                const SizedBox(height: 8),
+                AppTextFormField(
+                  controller: _location,
+                  decoration: const InputDecoration(labelText: '活动地点'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
     return AppDialog(
-      title: const Text('创建带班岗位'),
-      maxWidth: 1080,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('创建带班岗位'),
+          const SizedBox(height: 4),
+          Text(
+            '先选班级范围，再从作息中勾选课节；正课、无课与不上课不可选。',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: context.appColors.inkSecondary),
+          ),
+        ],
+      ),
+      maxWidth: 1000,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: 280,
-              child: AppSelectField<SupervisionKind>(
-                value: _kind,
-                label: '活动类型',
-                hint: '选择活动类型',
-                items: {
-                  for (final kind in SupervisionKind.values) kind.label: kind,
-                },
-                onChanged: (kind) => setState(() => _kind = kind ?? _kind),
+          Wrap(
+            spacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text('活动类型'),
+              SizedBox(
+                width: 200,
+                child: AppSelectField<SupervisionKind>(
+                  compact: true,
+                  value: _kind,
+                  hint: '选择活动类型',
+                  items: {
+                    for (final kind in SupervisionKind.values) kind.label: kind,
+                  },
+                  onChanged: (kind) => setState(() => _kind = kind ?? _kind),
+                ),
               ),
-            ),
+            ],
           ),
           if (_kind == SupervisionKind.custom) ...[
             const SizedBox(height: 8),
@@ -329,53 +394,30 @@ class _PostDialogState extends State<_PostDialog> {
               decoration: const InputDecoration(labelText: '活动名称'),
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 800;
+              final wide = constraints.maxWidth >= 780;
               final scope = _scopeTree(scrollable: wide);
-              final grid = _routineGrid();
+              final editor = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [_routineGrid(), options()],
+              );
               return wide
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(width: 236, child: scope),
-                        const SizedBox(width: 16),
-                        Expanded(child: grid),
+                        SizedBox(width: 260, child: scope),
+                        const SizedBox(width: 20),
+                        Expanded(child: editor),
                       ],
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [scope, const SizedBox(height: 16), grid],
+                      children: [scope, const SizedBox(height: 16), editor],
                     );
             },
           ),
-          const SizedBox(height: 16),
-          f.FSwitch(
-            label: const Text('连续节次由同一老师负责'),
-            description: const Text('只合并同一天、同一时段内相邻的已选课节。'),
-            value: _continuous,
-            onChange: (value) => setState(() => _continuous = value),
-          ),
-          const SizedBox(height: 12),
-          f.FSwitch(
-            label: const Text('实际合班'),
-            description: const Text('所选班级集中到同一地点，由同一名老师负责。'),
-            value: _merged,
-            onChange: (value) => setState(() => _merged = value),
-          ),
-          if (_merged) ...[
-            const SizedBox(height: 10),
-            AppTextFormField(
-              controller: _groupName,
-              decoration: const InputDecoration(labelText: '活动组名称'),
-            ),
-            const SizedBox(height: 8),
-            AppTextFormField(
-              controller: _location,
-              decoration: const InputDecoration(labelText: '活动地点'),
-            ),
-          ],
           if (_errors.isNotEmpty) ...[
             const SizedBox(height: 10),
             for (final error in _errors)
@@ -395,7 +437,10 @@ class _PostDialogState extends State<_PostDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        AppPrimaryButton(onPressed: _submit, child: const Text('添加岗位')),
+        AppPrimaryButton(
+          onPressed: count == 0 ? null : _submit,
+          child: const Text('添加岗位'),
+        ),
       ],
     );
   }
@@ -498,7 +543,7 @@ class _PostDialogState extends State<_PostDialog> {
       padding: EdgeInsets.only(left: indent),
       child: f.FItem(
         key: ValueKey('post-scope-$id'),
-        selected: all,
+        style: _dutyListStyle(context),
         onPress: () => _toggleScope(stageId, ids),
         prefix: AppCheckbox(
           value: all,
@@ -724,6 +769,34 @@ class _PostDialogState extends State<_PostDialog> {
               );
             },
           ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final (label, color) in [
+              ('不可选', context.appColors.border),
+              ('可选课节', context.appColors.surface),
+              ('已选', context.appColors.selectedBlue),
+            ])
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: color,
+                      border: Border.all(color: context.appColors.border),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(label, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -852,5 +925,18 @@ class _PostGridCell extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+class _DutyOption extends StatelessWidget {
+  const _DutyOption({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      border: Border.all(color: context.appColors.border),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(padding: const EdgeInsets.all(12), child: child),
   );
 }
