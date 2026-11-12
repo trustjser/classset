@@ -8,6 +8,7 @@ import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/teacher.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/actual_timetable.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -91,6 +92,75 @@ void main() {
       DateTime(2026, 9, 21),
     ]);
     expect(occurrences.first.item.id, 'lesson');
+  });
+
+  test('日期带班按周日补课来源展开并整岗替换', () {
+    final date = DateTime(2026, 9, 13);
+    const post = SupervisionPost(
+      id: 'duty',
+      kind: SupervisionKind.morningStudy,
+      name: '晨读',
+      stageId: 'stage',
+      weekday: 1,
+      periodTypeId: 'am',
+      lessonIndices: [1, 2],
+      classIds: ['class'],
+    );
+    final version = SupervisionVersion(
+      termId: 'term',
+      effectiveDate: DateTime(2026, 9, 7),
+      draft: const SupervisionDraft(
+        termId: 'term',
+        posts: [post],
+        teacherIds: {'teacher', 'substitute'},
+        assignments: {'duty': 'teacher'},
+      ),
+      occurrences: [
+        for (final index in post.lessonIndices)
+          SupervisionOccurrence(
+            post: post,
+            teacherId: 'teacher',
+            teacherName: '张老师',
+            position: SchedulePosition(
+              stageId: 'stage',
+              weekday: 1,
+              periodTypeId: 'am',
+              lessonIndex: index,
+            ),
+            classNames: const ['一班'],
+          ),
+      ],
+    );
+    final occurrences = const ActualTimetable().expandSupervision(
+      snapshot,
+      [
+        CalendarException(
+          id: 'holiday',
+          termId: 'term',
+          date: DateTime(2026, 9, 7),
+          kind: CalendarExceptionKind.holiday,
+          makeupWeekday: null,
+          note: '',
+        ),
+        CalendarException(
+          id: 'makeup',
+          termId: 'term',
+          date: date,
+          kind: CalendarExceptionKind.makeup,
+          makeupWeekday: 1,
+          makeupForDate: DateTime(2026, 9, 7),
+          note: '',
+        ),
+      ],
+      [version],
+    );
+    expect(occurrences.first.date, date);
+    expect(occurrences.first.occurrences, hasLength(2));
+    expect(
+      occurrences.first.withTeacher('substitute', '李老师').teacherId,
+      'substitute',
+    );
+    expect(version.occurrences.first.teacherId, 'teacher');
   });
 
   test('移课预览不会修改常规课表，并可在确认后投影到目标日期', () {
@@ -183,21 +253,57 @@ void main() {
 
   test('补课日与同周原教学日是不同自然日，不产生虚假冲突', () {
     final original = snapshot.existingItems.single;
-    final other = ScheduleItem(id: 'other-slot', termId: original.termId, assignmentId: 'other',
-      classId: original.classId, teacherId: 'another', subjectId: original.subjectId,
-      weekMode: WeekMode.weekly, position: const SchedulePosition(stageId: 'stage', weekday: 1,
-        periodTypeId: 'am', lessonIndex: 2));
-    final withOther = SchedulingSnapshot(term: snapshot.term, inputFingerprint: 'makeup',
-      grades: snapshot.grades, classes: snapshot.classes, routines: snapshot.routines,
-      existingItems: [original, other]);
-    final makeup = CalendarException(id: 'makeup', termId: 'term', date: DateTime(2026, 9, 13),
-      kind: CalendarExceptionKind.makeup, makeupWeekday: 1, makeupForDate: DateTime(2026, 9, 7), note: '');
+    final other = ScheduleItem(
+      id: 'other-slot',
+      termId: original.termId,
+      assignmentId: 'other',
+      classId: original.classId,
+      teacherId: 'another',
+      subjectId: original.subjectId,
+      weekMode: WeekMode.weekly,
+      position: const SchedulePosition(
+        stageId: 'stage',
+        weekday: 1,
+        periodTypeId: 'am',
+        lessonIndex: 2,
+      ),
+    );
+    final withOther = SchedulingSnapshot(
+      term: snapshot.term,
+      inputFingerprint: 'makeup',
+      grades: snapshot.grades,
+      classes: snapshot.classes,
+      routines: snapshot.routines,
+      existingItems: [original, other],
+    );
+    final makeup = CalendarException(
+      id: 'makeup',
+      termId: 'term',
+      date: DateTime(2026, 9, 13),
+      kind: CalendarExceptionKind.makeup,
+      makeupWeekday: 1,
+      makeupForDate: DateTime(2026, 9, 7),
+      note: '',
+    );
     final engine = const ActualTimetable();
-    final lessons = engine.expand(withOther, [makeup]).where((lesson) => lesson.date != DateTime(2026, 9, 13)).toList();
+    final lessons = engine
+        .expand(withOther, [makeup])
+        .where((lesson) => lesson.date != DateTime(2026, 9, 13))
+        .toList();
     final source = lessons.firstWhere((lesson) => lesson.item.id == 'lesson');
-    final preview = engine.previewMove(snapshot: withOther, lessons: lessons, exceptions: [makeup],
-      sourceKey: source.key, targetDate: DateTime(2026, 9, 13), targetPosition: const SchedulePosition(
-        stageId: 'stage', weekday: 1, periodTypeId: 'am', lessonIndex: 2));
+    final preview = engine.previewMove(
+      snapshot: withOther,
+      lessons: lessons,
+      exceptions: [makeup],
+      sourceKey: source.key,
+      targetDate: DateTime(2026, 9, 13),
+      targetPosition: const SchedulePosition(
+        stageId: 'stage',
+        weekday: 1,
+        periodTypeId: 'am',
+        lessonIndex: 2,
+      ),
+    );
     expect(preview.errors, isEmpty);
     expect(preview.changes, hasLength(1));
   });
@@ -486,25 +592,66 @@ void main() {
 
   test('跨周范围移课按原始课次定位，不会再次选中刚移入的课', () {
     final original = snapshot.existingItems.single;
-    final weekly = ScheduleItem(id: original.id, termId: original.termId, assignmentId: original.assignmentId,
-      classId: original.classId, teacherId: original.teacherId, subjectId: original.subjectId,
-      weekMode: WeekMode.weekly, position: original.position);
-    final repeated = SchedulingSnapshot(term: snapshot.term, inputFingerprint: 'weekly', grades: snapshot.grades,
-      classes: snapshot.classes, routines: snapshot.routines, existingItems: [weekly]);
+    final weekly = ScheduleItem(
+      id: original.id,
+      termId: original.termId,
+      assignmentId: original.assignmentId,
+      classId: original.classId,
+      teacherId: original.teacherId,
+      subjectId: original.subjectId,
+      weekMode: WeekMode.weekly,
+      position: original.position,
+    );
+    final repeated = SchedulingSnapshot(
+      term: snapshot.term,
+      inputFingerprint: 'weekly',
+      grades: snapshot.grades,
+      classes: snapshot.classes,
+      routines: snapshot.routines,
+      existingItems: [weekly],
+    );
     final engine = const ActualTimetable();
     final lessons = engine.expand(repeated, const []);
-    final state = TemporaryTimetableState(snapshot: repeated, exceptions: const [], records: const [],
-      lessons: lessons, revision: 'v', reconciliationPending: false);
-    final move = TemporaryMoveRequest(sourceKey: lessons.first.key, targetDate: DateTime(2026, 9, 14),
-      targetPosition: const SchedulePosition(stageId: 'stage', weekday: 1, periodTypeId: 'am', lessonIndex: 2),
-      rangeStart: DateTime(2026, 9, 7), rangeEnd: DateTime(2026, 10, 4), excludedDates: {DateTime(2026, 9, 28)});
+    final state = TemporaryTimetableState(
+      snapshot: repeated,
+      exceptions: const [],
+      records: const [],
+      lessons: lessons,
+      revision: 'v',
+      reconciliationPending: false,
+    );
+    final move = TemporaryMoveRequest(
+      sourceKey: lessons.first.key,
+      targetDate: DateTime(2026, 9, 14),
+      targetPosition: const SchedulePosition(
+        stageId: 'stage',
+        weekday: 1,
+        periodTypeId: 'am',
+        lessonIndex: 2,
+      ),
+      rangeStart: DateTime(2026, 9, 7),
+      rangeEnd: DateTime(2026, 10, 4),
+      excludedDates: {DateTime(2026, 9, 28)},
+    );
     final preview = state.previewMove(move);
     expect(preview.errors, isEmpty);
-    expect(preview.changes.map((change) => change.before.key).toSet().length, 3);
-    expect(preview.changes.map((change) => change.before.date).toList(),
-      [DateTime(2026, 9, 7), DateTime(2026, 9, 14), DateTime(2026, 9, 21)]);
-    final swap = state.previewSwap(TemporarySwapRequest(firstKey: lessons[0].key, secondKey: lessons[1].key,
-      rangeStart: DateTime(2026, 9, 7), rangeEnd: DateTime(2026, 9, 27)));
+    expect(
+      preview.changes.map((change) => change.before.key).toSet().length,
+      3,
+    );
+    expect(preview.changes.map((change) => change.before.date).toList(), [
+      DateTime(2026, 9, 7),
+      DateTime(2026, 9, 14),
+      DateTime(2026, 9, 21),
+    ]);
+    final swap = state.previewSwap(
+      TemporarySwapRequest(
+        firstKey: lessons[0].key,
+        secondKey: lessons[1].key,
+        rangeStart: DateTime(2026, 9, 7),
+        rangeEnd: DateTime(2026, 9, 27),
+      ),
+    );
     expect(swap.errors, isNotEmpty);
   });
 

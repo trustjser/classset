@@ -8,6 +8,7 @@ import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/features/classes/classes_page.dart';
 import 'package:class_set/features/routines/routine_page.dart';
 import 'package:class_set/features/scheduling/scheduling_page.dart';
+import 'package:class_set/features/supervision/supervision_page.dart';
 import 'package:class_set/features/temporary_adjustments/temporary_adjustments_page.dart';
 import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
@@ -29,6 +30,7 @@ enum AppSection {
   subjects,
   teachers,
   scheduling,
+  supervision,
   temporaryAdjustments,
   publicRooms,
 }
@@ -171,6 +173,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
   bool _sidebarExpanded = true;
   Future<void> _pendingTermSave = Future<void>.value();
   bool _navigationPending = false;
+  SupervisionSeed? _supervisionSeed;
 
   String? _currentDraftPageKey() {
     final termId = ref.read(activeTermIdProvider);
@@ -178,6 +181,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
     return switch (ref.read(selectedSectionProvider)) {
       AppSection.routines => 'routines:$termId',
       AppSection.subjects => 'subjects:$termId',
+      AppSection.supervision => 'supervision:$termId',
       _ => null,
     };
   }
@@ -216,13 +220,17 @@ class _AppShellState extends ConsumerState<_AppShell> {
     return guard.saveFor(pageKey);
   }
 
-  Future<void> _requestSection(AppSection section) async {
+  Future<void> _requestSection(
+    AppSection section, {
+    SupervisionSeed? supervisionSeed,
+  }) async {
     if (_navigationPending || section == ref.read(selectedSectionProvider)) {
       return;
     }
     _navigationPending = true;
     try {
       if (await _canLeaveCurrentPage() && mounted) {
+        _supervisionSeed = supervisionSeed;
         ref.read(selectedSectionProvider.notifier).state = section;
       }
     } finally {
@@ -235,6 +243,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
     _navigationPending = true;
     try {
       if (await _canLeaveCurrentPage() && mounted) {
+        _supervisionSeed = null;
         ref.read(activeTermIdProvider.notifier).state = termId;
       }
     } finally {
@@ -293,6 +302,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
             AppSection.subjects => '科目节数',
             AppSection.teachers => '教师任课',
             AppSection.scheduling => '排课与课表',
+            AppSection.supervision => '带班安排',
             AppSection.temporaryAdjustments => '调代课',
             AppSection.publicRooms => '公共场室',
           };
@@ -359,7 +369,15 @@ class _AppShellState extends ConsumerState<_AppShell> {
                             AppSection.routines =>
                               activeTermId == null
                                   ? const _ChooseTermMessage()
-                                  : RoutinePage(termId: activeTermId),
+                                  : RoutinePage(
+                                      termId: activeTermId,
+                                      onArrangeSupervision: (seed) => unawaited(
+                                        _requestSection(
+                                          AppSection.supervision,
+                                          supervisionSeed: seed,
+                                        ),
+                                      ),
+                                    ),
                             AppSection.subjects =>
                               activeTermId == null
                                   ? const _ChooseTermMessage()
@@ -372,6 +390,13 @@ class _AppShellState extends ConsumerState<_AppShell> {
                               activeTermId == null
                                   ? const _ChooseTermMessage()
                                   : SchedulingPage(termId: activeTermId),
+                            AppSection.supervision =>
+                              activeTermId == null
+                                  ? const _ChooseTermMessage()
+                                  : SupervisionPage(
+                                      termId: activeTermId,
+                                      seed: _supervisionSeed,
+                                    ),
                             AppSection.temporaryAdjustments =>
                               activeTermId == null
                                   ? const _ChooseTermMessage()
@@ -539,6 +564,13 @@ class _Sidebar extends ConsumerWidget {
                       isCompact: compactContents,
                       isSelected: section == AppSection.scheduling,
                       onTap: () => onNavigate(AppSection.scheduling),
+                    ),
+                    _NavItem(
+                      label: '带班安排',
+                      icon: Icons.groups_outlined,
+                      isCompact: compactContents,
+                      isSelected: section == AppSection.supervision,
+                      onTap: () => onNavigate(AppSection.supervision),
                     ),
                     _NavItem(
                       label: '调代课',

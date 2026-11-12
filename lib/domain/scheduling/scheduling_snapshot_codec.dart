@@ -1,4 +1,5 @@
 import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/calendar_exception.dart';
 import 'package:class_set/domain/models/combined_lesson_group.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/public_room.dart';
@@ -12,6 +13,7 @@ import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/domain/models/subject_parallel_limit.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/models/teacher_group.dart';
@@ -245,6 +247,30 @@ Map<String, Object?> schedulingSnapshotToJson(SchedulingSnapshot s) => {
       {'termId': row.termId, 'scope': row.scope.name, 'targetId': row.targetId},
   ],
   'existingItems': _sorted(s.existingItems, (e) => e.id, (e) => e.toJson()),
+  'supervision': [for (final item in s.supervision) item.toJson()],
+  'supervisionWeekModes': {
+    for (final key in s.supervisionWeekModes.keys.toList()..sort())
+      key:
+          s.supervisionWeekModes[key]!.map((mode) => mode.storageValue).toList()
+            ..sort(),
+  },
+  if (s.supervisionCalendar case final exceptions?)
+    'supervisionCalendar': _sorted(
+      exceptions,
+      (row) => row.id,
+      (row) => {
+        'id': row.id,
+        'termId': row.termId,
+        'date': row.date.toIso8601String(),
+        'kind': row.kind.storageValue,
+        'makeupWeekday': row.makeupWeekday,
+        'makeupForDate': row.makeupForDate?.toIso8601String(),
+        'note': row.note,
+      },
+    ),
+  'visibleSupervision': [
+    for (final item in s.visibleSupervision) item.toJson(),
+  ],
   'rooms': _sorted(
     s.rooms,
     (e) => e.id,
@@ -563,6 +589,36 @@ SchedulingSnapshot schedulingSnapshotFromJson(Map<String, Object?> json) {
       ),
     ),
     existingItems: _rows(json, 'existingItems', ScheduleItem.fromJson),
+    supervision: _rows(json, 'supervision', SupervisionOccurrence.fromJson),
+    supervisionWeekModes: {
+      for (final entry
+          in (json['supervisionWeekModes'] as Map<String, Object?>? ??
+                  const <String, Object?>{})
+              .entries)
+        entry.key: (entry.value as List)
+            .map((mode) => WeekMode.fromStorage(mode as String))
+            .toSet(),
+    },
+    supervisionCalendar: json.containsKey('supervisionCalendar')
+        ? _rows(
+            json,
+            'supervisionCalendar',
+            (row) => CalendarException(
+              id: row['id'] as String,
+              termId: row['termId'] as String,
+              date: DateTime.parse(row['date'] as String),
+              kind: CalendarExceptionKind.fromStorage(row['kind'] as String),
+              makeupWeekday: row['makeupWeekday'] as int?,
+              makeupForDate: _date(row['makeupForDate']),
+              note: row['note'] as String,
+            ),
+          )
+        : null,
+    visibleSupervision: _rows(
+      json,
+      'visibleSupervision',
+      SupervisionOccurrence.fromJson,
+    ),
     rooms: _rows(
       json,
       'rooms',

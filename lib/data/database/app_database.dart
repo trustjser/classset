@@ -654,6 +654,27 @@ class TemporaryCourseAdjustments extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@DataClassName('SupervisionDraftRow')
+class SupervisionDrafts extends Table {
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get payload => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {termId};
+}
+
+@DataClassName('SupervisionPlanVersionRow')
+class SupervisionPlanVersions extends Table {
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get effectiveDate => text()();
+  TextColumn get payload => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {termId, effectiveDate};
+}
+
 @DriftDatabase(
   tables: [
     AcademicTerms,
@@ -690,6 +711,8 @@ class TemporaryCourseAdjustments extends Table {
     ScheduleRunReports,
     ScheduleReconciliationBaselines,
     TemporaryCourseAdjustments,
+    SupervisionDrafts,
+    SupervisionPlanVersions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -698,7 +721,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -803,6 +826,10 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 17) {
         await migrator.createTable(temporaryCourseAdjustments);
+      }
+      if (from < 18) {
+        await migrator.createTable(supervisionDrafts);
+        await migrator.createTable(supervisionPlanVersions);
       }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),

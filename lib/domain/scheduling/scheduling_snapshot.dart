@@ -1,4 +1,5 @@
 import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/calendar_exception.dart';
 import 'package:class_set/domain/models/combined_lesson_group.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/public_room.dart';
@@ -12,6 +13,7 @@ import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 import 'package:class_set/domain/models/subject_parallel_limit.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/models/teacher_group.dart';
@@ -42,6 +44,10 @@ class SchedulingSnapshot {
     this.preferences = const SchedulePreferences(),
     this.locks = const [],
     this.existingItems = const [],
+    this.supervision = const [],
+    this.supervisionWeekModes = const {},
+    this.visibleSupervision = const [],
+    this.supervisionCalendar,
     this.rooms = const [],
     this.roomAssignments = const [],
     this.parallelLimits = const [],
@@ -71,6 +77,10 @@ class SchedulingSnapshot {
   final SchedulePreferences preferences;
   final List<ScheduleLock> locks;
   final List<ScheduleItem> existingItems;
+  final List<SupervisionOccurrence> supervision;
+  final Map<String, Set<WeekMode>> supervisionWeekModes;
+  final List<SupervisionOccurrence> visibleSupervision;
+  final List<CalendarException>? supervisionCalendar;
   final List<PublicRoom> rooms;
   final List<SubjectRoomAssignment> roomAssignments;
   final List<SubjectParallelLimit> parallelLimits;
@@ -82,6 +92,10 @@ class SchedulingSnapshot {
 
   SchedulingSnapshot copyWith({
     List<ScheduleItem>? existingItems,
+    List<SupervisionOccurrence>? supervision,
+    Map<String, Set<WeekMode>>? supervisionWeekModes,
+    List<SupervisionOccurrence>? visibleSupervision,
+    List<CalendarException>? supervisionCalendar,
     List<ScheduleLock>? locks,
     List<TeacherAssignment>? assignments,
     List<ScheduleCondition>? conditions,
@@ -106,6 +120,10 @@ class SchedulingSnapshot {
     preferences: preferences ?? this.preferences,
     locks: locks ?? this.locks,
     existingItems: existingItems ?? this.existingItems,
+    supervision: supervision ?? this.supervision,
+    supervisionWeekModes: supervisionWeekModes ?? this.supervisionWeekModes,
+    visibleSupervision: visibleSupervision ?? this.visibleSupervision,
+    supervisionCalendar: supervisionCalendar ?? this.supervisionCalendar,
     rooms: rooms,
     roomAssignments: roomAssignments,
     parallelLimits: parallelLimits,
@@ -137,3 +155,6 @@ class SchedulingSnapshot {
   factory SchedulingSnapshot.fromJson(Map<String, Object?> json) =>
       schedulingSnapshotFromJson(json);
 }
+
+String supervisionReservationKey(SupervisionOccurrence duty) =>
+    '${duty.post.id}:${duty.position.cellKey}:${duty.teacherId}:${duty.classIds.join(',')}';

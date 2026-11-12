@@ -475,7 +475,22 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
 
   // ---------------------------------------------------------------- 记录列表
 
+  String _recordClassSummary(TemporaryAdjustmentRecord record) =>
+      record.supervisionChange?.before.classNames.join('、') ??
+      (record.changes.isEmpty
+          ? ''
+          : _className(record.changes.first.before.item.classId));
+
   String _recordDateSummary(TemporaryAdjustmentRecord record) {
+    final supervision = record.supervisionChange?.before;
+    if (supervision != null) {
+      final date = supervision.date;
+      final first = supervision.occurrences.first.position;
+      final last = supervision.occurrences.last.position;
+      return '${_dateLabel(date)}（${_weekdayLabel(date)}）'
+          '${_slotLabel(first)}'
+          '${first.lessonIndex == last.lessonIndex ? '' : '–第 ${last.lessonIndex} 节'}';
+    }
     if (record.changes.isEmpty) return '';
     final first = record.changes.first;
     final last = record.changes.last;
@@ -503,6 +518,11 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
   }
 
   String _recordChangeSummary(TemporaryAdjustmentRecord record) {
+    final supervision = record.supervisionChange;
+    if (supervision != null) {
+      return '${supervision.before.post.name} · '
+          '${supervision.before.teacherName} → ${supervision.after.teacherName}';
+    }
     if (record.changes.isEmpty) return '';
     if (record.kind == 'swap') {
       final pairs = [
@@ -653,9 +673,7 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
   Widget _recordRow(TemporaryAdjustmentRecord record) {
     final colors = context.appColors;
     final cancelled = record.cancelledAt != null;
-    final className = record.changes.isEmpty
-        ? ''
-        : _className(record.changes.first.before.item.classId);
+    final className = _recordClassSummary(record);
     final title = Text(
       '$className · ${_recordDateSummary(record)}',
       maxLines: 1,
@@ -768,9 +786,7 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
 
   Future<void> _showRecordDetails(TemporaryAdjustmentRecord record) async {
     final colors = context.appColors;
-    final className = record.changes.isEmpty
-        ? ''
-        : _className(record.changes.first.before.item.classId);
+    final className = _recordClassSummary(record);
     await showAppDialog(
       context: context,
       builder: (dialogContext) => AppDialog(
@@ -790,6 +806,8 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (record.supervisionChange != null)
+                Text(_recordChangeSummary(record)),
               for (final change in record.changes)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -851,6 +869,18 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
       return false;
     }
     if (_recordType != null && record.kind != _recordType) return false;
+    final supervision = record.supervisionChange;
+    if (supervision != null) {
+      final date = supervision.before.date;
+      return (_recordClass == null ||
+              supervision.before.classIds.contains(_recordClass)) &&
+          (_recordTeacher == null ||
+              supervision.before.teacherId == _recordTeacher ||
+              supervision.after.teacherId == _recordTeacher) &&
+          (_recordDates == null ||
+              (!date.isBefore(_recordDates!.start) &&
+                  !date.isAfter(_recordDates!.end)));
+    }
     return record.changes.any(_matchesChange);
   }).toList();
 
@@ -884,28 +914,54 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
     if (range != null && mounted) setState(() => _recordDates = range);
   }
 
-  Future<void> _export(TemporaryExportKind kind) async {
+  Future<void> _export(TemporaryExportKind kind) {
     final state = _data!;
     final title = switch (kind) {
       TemporaryExportKind.teacher => '教师通知',
       TemporaryExportKind.schoolClass => '班级通知',
       TemporaryExportKind.details => '调整明细',
     };
+    return _saveWorkbook(
+      title,
+      () => buildTemporaryAdjustmentWorkbook(
+        state.snapshot,
+        _filteredRecords(state),
+        kind,
+        teacherId: _recordTeacher,
+        classId: _recordClass,
+        includeChange: _matchesChange,
+        includeCancelled: _showCancelled || _recordStatus == 'cancelled',
+      ),
+    );
+  }
+
+  Future<void> _exportActualWeek(DateTime start) {
+    final state = _data!;
+    final teacherId = _teacherView ? _viewTeacherId : null;
+    final classId = _teacherView ? null : _classId;
+    final label = _teacherView ? '教师实际课表' : '班级实际课表';
+    return _saveWorkbook(
+      '$label ${_date(start)}',
+      () => buildActualWeekWorkbook(
+        state,
+        start,
+        teacherId: teacherId,
+        classId: classId,
+      ),
+    );
+  }
+
+  Future<void> _saveWorkbook(
+    String title,
+    List<int> Function() buildWorkbook,
+  ) async {
     try {
       final location = await ref.read(temporaryExportSaveLocationProvider)(
         '$title.xlsx',
       );
       if (location == null) return;
-      final bytes = buildTemporaryAdjustmentWorkbook(
-        state.snapshot,
-        _filteredRecords(state),
-        kind,
-        teacherId: _recordTeacher,
-        includeChange: _matchesChange,
-        includeCancelled: _showCancelled || _recordStatus == 'cancelled',
-      );
       await XFile.fromData(
-        Uint8List.fromList(bytes),
+        Uint8List.fromList(buildWorkbook()),
         name: '$title.xlsx',
         mimeType:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -915,7 +971,7 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
             .showSnackBar(SnackBar(content: Text('$title 已导出')));
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '导出失败：$error');
+      if (mounted) _showTemporaryError('导出失败：$error');
     }
   }
 
@@ -936,9 +992,7 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                     ),
               )
               .toList();
-    final className = record.changes.isEmpty
-        ? ''
-        : _className(record.changes.first.before.item.classId);
+    final className = _recordClassSummary(record);
     final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AppDialog(
@@ -963,6 +1017,8 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                   const Text('此调整已失效，当前没有应用到实际课表。取消后保留历史记录。'),
                   tone: 'amber',
                 )
+              else if (record.supervisionChange case final supervision?)
+                Text('当日带班恢复为 ${supervision.before.teacherName}，保留历史记录。')
               else
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -13,6 +13,7 @@ import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/manual_schedule_editor.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/features/scheduling/scheduling_controller.dart';
@@ -237,6 +238,21 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         _ScheduleView.room => _roomIdFor(snapshot, item) == roomId,
       };
     }).toList();
+    final visibleDuties = snapshot.visibleSupervision.where((duty) {
+      if (_view != _ScheduleView.schoolClass &&
+          stageId != null &&
+          duty.position.stageId != stageId) {
+        return false;
+      }
+      return switch (_view) {
+        _ScheduleView.schoolClass => duty.classIds.contains(classId),
+        _ScheduleView.teacher => duty.teacherId == teacherId,
+        _ScheduleView.all =>
+          _allLayout != _AllScheduleLayout.classes ||
+              duty.position.weekday == _weekday,
+        _ScheduleView.room => false,
+      };
+    }).toList();
     final solving =
         widget.state.status == SchedulingStatus.solving ||
         widget.state.status == SchedulingStatus.committing ||
@@ -307,6 +323,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                                     snapshot: snapshot,
                                     commonPeriods: widget.commonPeriods,
                                     items: visible,
+                                    duties: visibleDuties,
                                     allItems: items,
                                     view: _view,
                                     stageId: _view == _ScheduleView.schoolClass
@@ -809,7 +826,8 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                 children: [
                   AppGhostButton.icon(
                     onPressed:
-                        !widget.state.items.any((item) => item.isPlaced) ||
+                        (!widget.state.items.any((item) => item.isPlaced) &&
+                                snapshot.visibleSupervision.isEmpty) ||
                             widget.state.pendingBaseline != null
                         ? null
                         : () => widget.onExport(
@@ -1000,6 +1018,7 @@ class _TimetableGrid extends StatelessWidget {
     required this.snapshot,
     required this.commonPeriods,
     required this.items,
+    required this.duties,
     required this.allItems,
     required this.view,
     required this.stageId,
@@ -1018,6 +1037,7 @@ class _TimetableGrid extends StatelessWidget {
   final SchedulingSnapshot snapshot;
   final Map<String, List<CommonPeriod>> commonPeriods;
   final List<ScheduleItem> items;
+  final List<SupervisionOccurrence> duties;
   final List<ScheduleItem> allItems;
   final _ScheduleView view;
   final String? stageId;
@@ -1135,6 +1155,10 @@ class _TimetableGrid extends StatelessWidget {
       final key =
           '${position.stageId}:${position.weekday}:${position.periodTypeId}:${position.lessonIndex}';
       itemsByCell.putIfAbsent(key, () => []).add(item);
+    }
+    final dutiesByCell = <String, List<SupervisionOccurrence>>{};
+    for (final duty in duties) {
+      dutiesByCell.putIfAbsent(duty.position.cellKey, () => []).add(duty);
     }
     return Container(
       decoration: _SchedulePalette.panel(context),
@@ -1256,6 +1280,9 @@ class _TimetableGrid extends StatelessWidget {
                                     subjectNames,
                                     teacherNames,
                                     draggedId,
+                                    cellDuties:
+                                        dutiesByCell['${row.stageId}:$day:${row.periodTypeId}:${row.lessonIndex}'] ??
+                                        const [],
                                   ),
                               ],
                             ),
@@ -1357,6 +1384,14 @@ class _TimetableGrid extends StatelessWidget {
       final key =
           '${item.classId}:${position.periodTypeId}:${position.lessonIndex}';
       cells.putIfAbsent(key, () => []).add(item);
+    }
+    final dutiesByClassCell = <String, List<SupervisionOccurrence>>{};
+    for (final duty in duties) {
+      final position = duty.position;
+      for (final id in duty.classIds) {
+        final key = '$id:${position.periodTypeId}:${position.lessonIndex}';
+        dutiesByClassCell.putIfAbsent(key, () => []).add(duty);
+      }
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1558,6 +1593,9 @@ class _TimetableGrid extends StatelessWidget {
                                           else if ((cells['${schoolClass.id}:${column.lesson!.periodTypeId}:${column.lesson!.lessonIndex}'] ??
                                                       const [])
                                                   .isEmpty &&
+                                              !dutiesByClassCell.containsKey(
+                                                '${schoolClass.id}:${column.lesson!.periodTypeId}:${column.lesson!.lessonIndex}',
+                                              ) &&
                                               _freeLabelForClass(
                                                     snapshot,
                                                     schoolClass,
@@ -1595,6 +1633,9 @@ class _TimetableGrid extends StatelessWidget {
                                               subjectNames,
                                               teacherNames,
                                               draggedId,
+                                              cellDuties:
+                                                  dutiesByClassCell['${schoolClass.id}:${column.lesson!.periodTypeId}:${column.lesson!.lessonIndex}'] ??
+                                                  const [],
                                               classOverviewCell: true,
                                               targetClassId: schoolClass.id,
                                             ),
@@ -1745,17 +1786,30 @@ class _TimetableGrid extends StatelessWidget {
     Map<String, String> subjectNames,
     Map<String, String> teacherNames,
     String? draggedId, {
+    List<SupervisionOccurrence> cellDuties = const [],
     bool classOverviewCell = false,
     String? targetClassId,
   }) {
-    Widget content() => _lessonCell(
-      context,
-      cellItems,
-      classNames,
-      subjectNames,
-      teacherNames,
-      classOverviewCell: classOverviewCell,
-    );
+    Widget content() {
+      final lessons = _lessonCell(
+        context,
+        cellItems,
+        classNames,
+        subjectNames,
+        teacherNames,
+        classOverviewCell: classOverviewCell,
+      );
+      if (cellDuties.isEmpty) return lessons;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (cellItems.isNotEmpty) lessons,
+          for (final duty in cellDuties)
+            _supervisionCell(context, duty, classNames, teacherNames),
+        ],
+      );
+    }
+
     if (!editable) return content();
     return DragTarget<String>(
       onWillAcceptWithDetails: (details) {
@@ -1832,6 +1886,34 @@ class _TimetableGrid extends StatelessWidget {
           child: content(),
         );
       },
+    );
+  }
+
+  Widget _supervisionCell(
+    BuildContext context,
+    SupervisionOccurrence duty,
+    Map<String, String> classNames,
+    Map<String, String> teacherNames,
+  ) {
+    final teacher = teacherNames[duty.teacherId] ?? duty.teacherName;
+    final classes = duty.classIds.map((id) => classNames[id] ?? id).join('、');
+    final detail = switch (view) {
+      _ScheduleView.teacher => classes,
+      _ScheduleView.all => '$classes · $teacher',
+      _ => teacher,
+    };
+    return Padding(
+      padding: const EdgeInsets.all(3),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 54),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: context.appColors.tableHeader,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: _lessonSummary(duty.post.name, detail, context.appColors.ink),
+      ),
     );
   }
 

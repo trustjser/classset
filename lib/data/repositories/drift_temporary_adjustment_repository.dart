@@ -4,6 +4,8 @@ import 'dart:isolate';
 import 'package:class_set/data/database/app_database.dart'
     hide CalendarException;
 import 'package:class_set/data/repositories/school_repository.dart';
+import 'package:class_set/data/repositories/drift_supervision_repository.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/actual_timetable.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/domain/scheduling/temporary_preview_worker.dart';
@@ -14,10 +16,12 @@ typedef _ProjectionInput = ({
   SchedulingSnapshot snapshot,
   List<CalendarException> exceptions,
   List<TemporaryAdjustmentRecord> records,
+  List<SupervisionVersion> supervisionVersions,
 });
 typedef _ProjectionResult = ({
   List<ActualLesson> lessons,
   List<TemporaryAdjustmentRecord> records,
+  List<ActualSupervision> supervisions,
 });
 
 Future<_ProjectionResult> _projectAsync(_ProjectionInput input) =>
@@ -28,8 +32,43 @@ _ProjectionResult _project(_ProjectionInput input) {
     input.snapshot,
     input.exceptions,
   );
+  final engine = const ActualTimetable();
+  final supervisions = engine.expandSupervision(
+    input.snapshot,
+    input.exceptions,
+    input.supervisionVersions,
+  );
   final records = <TemporaryAdjustmentRecord>[];
   for (final record in input.records) {
+    final supervisionChange = record.supervisionChange;
+    if (supervisionChange != null) {
+      if (record.cancelledAt != null) {
+        records.add(record);
+        continue;
+      }
+      final before = supervisionChange.before;
+      final after = supervisionChange.after;
+      final index = supervisions.indexWhere((row) => row.key == before.key);
+      final current = index == -1 ? null : supervisions[index];
+      final preview = engine.previewSupervisionSubstitute(
+        snapshot: input.snapshot,
+        lessons: lessons,
+        supervisions: supervisions,
+        versions: input.supervisionVersions,
+        request: TemporarySupervisionSubstituteRequest(
+          date: before.date,
+          postId: before.postId,
+          teacherId: after.teacherId,
+        ),
+      );
+      final valid =
+          current != null &&
+          current.sameAssignment(before) &&
+          (preview.change?.after.sameAssignment(after) ?? false);
+      if (valid) supervisions[index] = preview.change!.after;
+      records.add(record.withAttention(!valid));
+      continue;
+    }
     final changes = record.changes;
     var invalid =
         changes.map((change) => change.before.key).toSet().length !=
@@ -124,7 +163,8 @@ _ProjectionResult _project(_ProjectionInput input) {
 
         if (preview == null ||
             preview.errors.isNotEmpty ||
-            canonical(preview.changes) != canonical(changes)) {
+            canonical(preview.changes) != canonical(changes) ||
+            engine.checkSupervisionChanges(supervisions, changes).isNotEmpty) {
           invalid = true;
         }
       } else if (changes.isEmpty) {
@@ -134,7 +174,7 @@ _ProjectionResult _project(_ProjectionInput input) {
     }
     records.add(record.withAttention(invalid));
   }
-  return (lessons: lessons, records: records);
+  return (lessons: lessons, records: records, supervisions: supervisions);
 }
 
 Future<void> _validateCancellationAsync(
@@ -148,6 +188,20 @@ void _validateCancellation(
   TemporaryAdjustmentRecord record,
   int index,
 ) {
+  final supervisionChange = record.supervisionChange;
+  if (supervisionChange != null) {
+    if (record.needsAttention) return;
+    final before = supervisionChange.before;
+    final conflict = actualSupervisionConflict(
+      state.snapshot,
+      state.lessons,
+      state.supervisions,
+      before,
+      before.teacherId,
+    );
+    if (conflict != null) throw StateError('恢复原带班教师存在冲突：$conflict');
+    return;
+  }
   final keys = record.changes.map((change) => change.before.key).toSet();
   if (state.records
       .skip(index + 1)
@@ -201,6 +255,13 @@ void _validateCancellation(
       for (final change in record.changes)
         ActualLessonChange(before: change.after, after: change.before),
     ];
+    final supervisionErrors = engine.checkSupervisionChanges(
+      state.supervisions,
+      reverse,
+    );
+    if (supervisionErrors.isNotEmpty) {
+      throw StateError('恢复原课次存在冲突：${supervisionErrors.join('；')}');
+    }
     final hardCheck = engine.checkChanges(
       state.snapshot,
       state.lessons,
@@ -236,79 +297,101 @@ class DriftTemporaryAdjustmentRepository {
   final SchoolRepository _school;
   static int _idCounter = 0;
 
-  Future<TemporaryTimetableState> load(String termId) =>
-      _database.transaction(() async {
-        final current = await _school.loadSchedulingSnapshot(termId);
-        final exceptions = await _school.watchCalendarExceptions(termId).first;
-        final pending = await _school.loadPendingSchedulingBaseline(termId);
-        final snapshot = pending ?? current;
-        final rows =
-            await (_database.select(_database.temporaryCourseAdjustments)
-                  ..where((row) => row.termId.equals(termId))
-                  ..orderBy([
-                    (row) => OrderingTerm.asc(row.createdAt),
-                    (row) => OrderingTerm.asc(row.id),
-                  ]))
-                .get();
-        final revision = jsonEncode([
-          current.inputFingerprint,
-          pending?.inputFingerprint,
-          for (final e in exceptions)
-            [
-              e.id,
-              e.date.toIso8601String(),
-              e.kind.storageValue,
-              e.makeupWeekday,
-              e.makeupForDate?.toIso8601String(),
-              e.note,
-            ],
-          for (final row in rows)
-            [
-              row.id,
-              row.kind,
-              row.changesJson,
-              row.reason,
-              row.createdAt.toIso8601String(),
-              row.cancelledAt?.toIso8601String(),
-            ],
-        ]);
-        final parsedRecords = [
-          for (final row in rows)
-            TemporaryAdjustmentRecord(
-              id: row.id,
-              kind: row.kind,
-              reason: row.reason,
-              createdAt: row.createdAt,
-              cancelledAt: row.cancelledAt,
-              changes: (jsonDecode(row.changesJson) as List)
-                  .map(
-                    (value) => ActualLessonChange.fromJson(
-                      (value as Map).cast<String, Object?>(),
-                    ),
-                  )
-                  .toList(),
-            ),
-        ];
-        final input = (
-          snapshot: snapshot,
-          exceptions: exceptions,
-          records: parsedRecords,
-        );
-        final projection =
-            snapshot.existingItems.length * snapshot.term.teachingWeekCount >
-                    2000 ||
-                rows.length > 10
-            ? await _projectAsync(input)
-            : _project(input);
-        return TemporaryTimetableState(
-          snapshot: snapshot,
-          exceptions: exceptions,
-          records: projection.records,
-          lessons: projection.lessons,
-          revision: revision,
-          reconciliationPending: pending != null,
-        );
-      });
+  Future<TemporaryTimetableState> load(
+    String termId, {
+    List<SupervisionVersion>? supervisionVersions,
+    SchedulingSnapshot? candidateSnapshot,
+  }) => _database.transaction(() async {
+    final current = await _school.loadSchedulingSnapshot(termId);
+    final liveExceptions = await _school.watchCalendarExceptions(termId).first;
+    final pending = await _school.loadPendingSchedulingBaseline(termId);
+    final protectedBaseline =
+        candidateSnapshot == null && supervisionVersions == null ? pending : null;
+    final exceptions = protectedBaseline?.supervisionCalendar ?? liveExceptions;
+    final snapshot = (candidateSnapshot ?? protectedBaseline ?? current).copyWith(
+      supervision: const [],
+    );
+    final versions =
+        supervisionVersions ??
+        await DriftSupervisionRepository(_database).loadVersions(termId);
+    final rows =
+        await (_database.select(_database.temporaryCourseAdjustments)
+              ..where((row) => row.termId.equals(termId))
+              ..orderBy([
+                (row) => OrderingTerm.asc(row.createdAt),
+                (row) => OrderingTerm.asc(row.id),
+              ]))
+            .get();
+    final revision = jsonEncode([
+      current.inputFingerprint,
+      pending?.inputFingerprint,
+      for (final version in versions) version.toJson(),
+      for (final e in liveExceptions)
+        [
+          e.id,
+          e.date.toIso8601String(),
+          e.kind.storageValue,
+          e.makeupWeekday,
+          e.makeupForDate?.toIso8601String(),
+          e.note,
+        ],
+      for (final row in rows)
+        [
+          row.id,
+          row.kind,
+          row.changesJson,
+          row.reason,
+          row.createdAt.toIso8601String(),
+          row.cancelledAt?.toIso8601String(),
+        ],
+    ]);
+    final parsedRecords = [
+      for (final row in rows)
+        TemporaryAdjustmentRecord(
+          id: row.id,
+          kind: row.kind,
+          reason: row.reason,
+          createdAt: row.createdAt,
+          cancelledAt: row.cancelledAt,
+          supervisionChange: row.kind == supervisionSubstitutionKind
+              ? ActualSupervisionChange.fromJson(
+                  (jsonDecode(row.changesJson) as Map).cast<String, Object?>(),
+                )
+              : null,
+          changes: row.kind == supervisionSubstitutionKind
+              ? const []
+              : (jsonDecode(row.changesJson) as List)
+                    .map(
+                      (value) => ActualLessonChange.fromJson(
+                        (value as Map).cast<String, Object?>(),
+                      ),
+                    )
+                    .toList(),
+        ),
+    ];
+    final input = (
+      snapshot: snapshot,
+      exceptions: exceptions,
+      records: parsedRecords,
+      supervisionVersions: versions,
+    );
+    final projection =
+        snapshot.existingItems.length * snapshot.term.teachingWeekCount >
+                2000 ||
+            rows.length > 10
+        ? await _projectAsync(input)
+        : _project(input);
+    return TemporaryTimetableState(
+      snapshot: snapshot,
+      exceptions: exceptions,
+      records: projection.records,
+      lessons: projection.lessons,
+      revision: revision,
+      reconciliationPending: pending != null,
+      supervisions: projection.supervisions,
+      supervisionVersions: versions,
+    );
+  });
 
   Future<void> commitMove({
     required String termId,
@@ -374,6 +457,33 @@ class DriftTemporaryAdjustmentRepository {
         );
   });
 
+  Future<void> commitSupervisionSubstitute({
+    required String termId,
+    required TemporarySupervisionSubstituteRequest request,
+    required String expectedRevision,
+  }) => _database.transaction(() async {
+    final state = await load(termId);
+    if (state.revision != expectedRevision) {
+      throw StateError('课表或调整记录已改变，请刷新预览');
+    }
+    final preview = state.previewSupervisionSubstitute(request);
+    final change = preview.change;
+    if (change == null) throw StateError(preview.errors.join('；'));
+    final now = DateTime.now();
+    await _database
+        .into(_database.temporaryCourseAdjustments)
+        .insert(
+          TemporaryCourseAdjustmentsCompanion.insert(
+            id: 'temporary_${now.microsecondsSinceEpoch}_${_idCounter++}',
+            termId: termId,
+            kind: supervisionSubstitutionKind,
+            changesJson: jsonEncode(change.toJson()),
+            reason: Value(request.reason.trim()),
+            createdAt: now,
+          ),
+        );
+  });
+
   Future<void> commitSwap({
     required String termId,
     required TemporarySwapRequest request,
@@ -413,12 +523,16 @@ class DriftTemporaryAdjustmentRepository {
   }) => _database.transaction(() async {
     final state = await load(termId);
     if (state.revision != expectedRevision) throw StateError('课表或调整记录已改变，请刷新');
-    if (state.reconciliationPending) throw StateError('请先完成课表协调');
     final index = state.records.indexWhere((r) => r.id == adjustmentId);
     if (index < 0 || state.records[index].cancelledAt != null) {
       throw StateError('调整记录不存在或已取消');
     }
     final record = state.records[index];
+    if (state.reconciliationPending &&
+        state.snapshot.supervisionCalendar == null &&
+        record.supervisionChange == null) {
+      throw StateError('请先完成课表协调');
+    }
     if (state.lessons.length > 2000 || record.changes.length > 10) {
       await _validateCancellationAsync(state, record, index);
     } else {

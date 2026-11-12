@@ -12,6 +12,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/routine_grid.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
+import 'package:class_set/features/supervision/supervision_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart' as f;
@@ -38,9 +39,14 @@ const _routineThreeColumnLayoutBreakpoint = 1120.0;
 }
 
 class RoutinePage extends ConsumerStatefulWidget {
-  const RoutinePage({required this.termId, super.key});
+  const RoutinePage({
+    required this.termId,
+    this.onArrangeSupervision,
+    super.key,
+  });
 
   final String termId;
+  final ValueChanged<SupervisionSeed>? onArrangeSupervision;
 
   @override
   ConsumerState<RoutinePage> createState() => _RoutinePageState();
@@ -95,6 +101,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
                   termId: widget.termId,
                   stage: selectedStage,
                   stages: items,
+                  onArrangeSupervision: widget.onArrangeSupervision,
                   onSelectStage: (stageId) =>
                       setState(() => _selectedStageId = stageId),
                 );
@@ -200,12 +207,14 @@ class _RoutineEditor extends ConsumerStatefulWidget {
     required this.stage,
     required this.stages,
     required this.onSelectStage,
+    required this.onArrangeSupervision,
   });
 
   final String termId;
   final SchoolStage stage;
   final List<SchoolStage> stages;
   final ValueChanged<String> onSelectStage;
+  final ValueChanged<SupervisionSeed>? onArrangeSupervision;
 
   @override
   ConsumerState<_RoutineEditor> createState() => _RoutineEditorState();
@@ -1799,6 +1808,18 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     onCellTap: _toggleMarker,
     onSetMarkerLabel: _setMarkerLabel,
     onCustomLabel: _promptCustomLabel,
+    onArrangeSupervision: widget.onArrangeSupervision == null
+        ? null
+        : (period, weekday, lessonIndex) => widget.onArrangeSupervision!(
+            SupervisionSeed(
+              stageId: widget.stage.id,
+              scope: _scope.scope,
+              scopeId: _scope.scopeId,
+              weekday: weekday,
+              periodTypeId: period.id,
+              lessonIndex: lessonIndex,
+            ),
+          ),
     onAddCommonPeriod: (period, weekday, lessonIndex) =>
         _insertCommonPeriod(afterLessonId: '${period.id}_$lessonIndex'),
   );
@@ -2320,6 +2341,7 @@ class _FreeSlotMatrix extends StatelessWidget {
     required this.onSetMarkerLabel,
     required this.onCustomLabel,
     required this.onAddCommonPeriod,
+    required this.onArrangeSupervision,
   });
 
   final List<_GridItem> items;
@@ -2333,6 +2355,7 @@ class _FreeSlotMatrix extends StatelessWidget {
   onSetMarkerLabel;
   final Future<void> Function(_PeriodDraft, int, int, String) onCustomLabel;
   final Future<void> Function(_PeriodDraft, int, int) onAddCommonPeriod;
+  final void Function(_PeriodDraft, int, int)? onArrangeSupervision;
 
   @override
   Widget build(BuildContext context) {
@@ -2442,6 +2465,9 @@ class _FreeSlotMatrix extends StatelessWidget {
                 onCustomLabel(period, weekday, row.lessonIndex, row.label),
             onAddCommonPeriod: () =>
                 onAddCommonPeriod(period, weekday, row.lessonIndex),
+            onArrangeSupervision: onArrangeSupervision == null
+                ? null
+                : () => onArrangeSupervision!(period, weekday, row.lessonIndex),
           ),
       ],
     );
@@ -2550,6 +2576,7 @@ class _MatrixCell extends StatelessWidget {
     required this.onSetMarkerLabel,
     required this.onCustomLabel,
     required this.onAddCommonPeriod,
+    required this.onArrangeSupervision,
   });
 
   final double width;
@@ -2561,6 +2588,7 @@ class _MatrixCell extends StatelessWidget {
   final ValueChanged<String> onSetMarkerLabel;
   final VoidCallback onCustomLabel;
   final VoidCallback onAddCommonPeriod;
+  final VoidCallback? onArrangeSupervision;
 
   static const _shortcuts = {
     FreeSlotLabels.noClass: 'N',
@@ -2660,6 +2688,16 @@ class _MatrixCell extends StatelessWidget {
                 },
               ),
             ),
+            if (onArrangeSupervision case final arrange?)
+              AppMenuTile(
+                item: AppMenuItem(
+                  label: '安排带班',
+                  onPressed: () {
+                    unawaited(controller.hide());
+                    arrange();
+                  },
+                ),
+              ),
             AppMenuTile(
               item: AppMenuItem(
                 label: '添加公共时段',

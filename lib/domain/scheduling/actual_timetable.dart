@@ -8,6 +8,7 @@ import 'package:class_set/domain/models/schedule_position.dart';
 import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/subject_room_assignment.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/constraint_evaluator.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
@@ -112,6 +113,167 @@ class TemporarySwapRequest {
   final Set<DateTime> excludedDates;
 }
 
+const supervisionSubstitutionKind = 'supervision-substitute';
+
+class ActualSupervision {
+  const ActualSupervision({
+    required this.date,
+    required this.occurrences,
+    required this.teacherId,
+    required this.teacherName,
+    this.templateWeek,
+    this.eligibleTeacherIds = const {},
+  });
+
+  final DateTime date;
+  final List<SupervisionOccurrence> occurrences;
+  final String teacherId;
+  final String teacherName;
+  final int? templateWeek;
+  final Set<String> eligibleTeacherIds;
+
+  String get postId => occurrences.first.post.id;
+  SupervisionPost get post => occurrences.first.post;
+  List<String> get classIds => post.classIds;
+  List<String> get classNames => occurrences.first.classNames;
+  String get key => '${date.toIso8601String().substring(0, 10)}:$postId';
+
+  ActualSupervision withTeacher(String id, String name) => ActualSupervision(
+    date: date,
+    occurrences: occurrences,
+    teacherId: id,
+    teacherName: name,
+    templateWeek: templateWeek,
+    eligibleTeacherIds: eligibleTeacherIds,
+  );
+
+  Map<String, Object?> toJson() => {
+    'date': date.toIso8601String().substring(0, 10),
+    'occurrences': [for (final row in occurrences) row.toJson()],
+    'teacherId': teacherId,
+    'teacherName': teacherName,
+  };
+
+  factory ActualSupervision.fromJson(Map<String, Object?> json) =>
+      ActualSupervision(
+        date: DateTime.parse(json['date'] as String),
+        occurrences: [
+          for (final row in json['occurrences'] as List)
+            SupervisionOccurrence.fromJson(
+              (row as Map).cast<String, Object?>(),
+            ),
+        ],
+        teacherId: json['teacherId'] as String,
+        teacherName: json['teacherName'] as String,
+      );
+
+  bool sameAssignment(ActualSupervision other) =>
+      key == other.key &&
+      teacherId == other.teacherId &&
+      classIds.toSet().length == other.classIds.toSet().length &&
+      classIds.toSet().containsAll(other.classIds) &&
+      occurrences.length == other.occurrences.length &&
+      occurrences.every(
+        (row) => other.occurrences.any(
+          (next) =>
+              next.position.sameCell(row.position) &&
+              next.startMinute == row.startMinute &&
+              next.endMinute == row.endMinute,
+        ),
+      );
+}
+
+class TemporarySupervisionSubstituteRequest {
+  const TemporarySupervisionSubstituteRequest({
+    required this.date,
+    required this.postId,
+    required this.teacherId,
+    this.reason = '',
+  });
+
+  final DateTime date;
+  final String postId;
+  final String teacherId;
+  final String reason;
+
+  String get key => '${date.toIso8601String().substring(0, 10)}:$postId';
+}
+
+class ActualSupervisionChange {
+  const ActualSupervisionChange({required this.before, required this.after});
+
+  final ActualSupervision before;
+  final ActualSupervision after;
+
+  Map<String, Object?> toJson() => {
+    'before': before.toJson(),
+    'after': after.toJson(),
+  };
+
+  factory ActualSupervisionChange.fromJson(Map<String, Object?> json) =>
+      ActualSupervisionChange(
+        before: ActualSupervision.fromJson(
+          (json['before'] as Map).cast<String, Object?>(),
+        ),
+        after: ActualSupervision.fromJson(
+          (json['after'] as Map).cast<String, Object?>(),
+        ),
+      );
+}
+
+typedef SupervisionSubstitutePreview = ({
+  ActualSupervisionChange? change,
+  List<String> errors,
+});
+
+bool _positionsConflictOnDate(SchedulePosition a, SchedulePosition b) {
+  if (a.hasClockTime && b.hasClockTime) {
+    return a.startMinute! < b.endMinute! && b.startMinute! < a.endMinute!;
+  }
+  return a.stageId != b.stageId ||
+      (a.periodTypeId == b.periodTypeId && a.lessonIndex == b.lessonIndex);
+}
+
+/// Detect shared resources on an actual day, regardless of source weekdays.
+String? actualSupervisionConflict(
+  SchedulingSnapshot snapshot,
+  Iterable<ActualLesson> lessons,
+  Iterable<ActualSupervision> supervisions,
+  ActualSupervision supervision,
+  String teacherId,
+) {
+  for (final lesson in lessons.where((row) => row.date == supervision.date)) {
+    final position = lesson.item.position;
+    final teacherConflict = lesson.item.teacherId == teacherId;
+    final classConflict = supervision.classIds.contains(lesson.item.classId);
+    if (position == null || (!teacherConflict && !classConflict)) continue;
+    if (supervision.occurrences.any(
+      (row) => _positionsConflictOnDate(row.position, position),
+    )) {
+      final subject = snapshot.subjects
+          .where((subject) => subject.id == lesson.item.subjectId)
+          .firstOrNull;
+      return '与${teacherConflict ? '教师' : '班级'}的${subject?.name ?? '正课'}时间冲突';
+    }
+  }
+  for (final other in supervisions.where(
+    (row) => row.date == supervision.date && row.key != supervision.key,
+  )) {
+    if (other.teacherId != teacherId &&
+        !other.classIds.any(supervision.classIds.contains)) {
+      continue;
+    }
+    if (supervision.occurrences.any(
+      (row) => other.occurrences.any(
+        (next) => _positionsConflictOnDate(row.position, next.position),
+      ),
+    )) {
+      return '与「${other.post.name}」带班时间冲突';
+    }
+  }
+  return null;
+}
+
 class TemporaryAdjustmentRecord {
   const TemporaryAdjustmentRecord({
     required this.id,
@@ -121,6 +283,7 @@ class TemporaryAdjustmentRecord {
     required this.createdAt,
     this.cancelledAt,
     this.needsAttention = false,
+    this.supervisionChange,
   });
   final String id;
   final String kind;
@@ -129,6 +292,7 @@ class TemporaryAdjustmentRecord {
   final DateTime createdAt;
   final DateTime? cancelledAt;
   final bool needsAttention;
+  final ActualSupervisionChange? supervisionChange;
 
   TemporaryAdjustmentRecord withAttention(bool value) =>
       TemporaryAdjustmentRecord(
@@ -139,6 +303,7 @@ class TemporaryAdjustmentRecord {
         createdAt: createdAt,
         cancelledAt: cancelledAt,
         needsAttention: value,
+        supervisionChange: supervisionChange,
       );
 }
 
@@ -150,6 +315,8 @@ class TemporaryTimetableState {
     required this.lessons,
     required this.revision,
     required this.reconciliationPending,
+    this.supervisions = const [],
+    this.supervisionVersions = const [],
   });
   final SchedulingSnapshot snapshot;
   final List<CalendarException> exceptions;
@@ -157,6 +324,30 @@ class TemporaryTimetableState {
   final List<ActualLesson> lessons;
   final String revision;
   final bool reconciliationPending;
+  final List<ActualSupervision> supervisions;
+  final List<SupervisionVersion> supervisionVersions;
+
+  SupervisionSubstitutePreview previewSupervisionSubstitute(
+    TemporarySupervisionSubstituteRequest request,
+  ) {
+    if (reconciliationPending) {
+      return (change: null, errors: ['请先完成课表协调']);
+    }
+    if (records.any(
+      (record) =>
+          record.cancelledAt == null &&
+          record.supervisionChange?.before.key == request.key,
+    )) {
+      return (change: null, errors: ['该岗位已有替班记录，请先撤销']);
+    }
+    return const ActualTimetable().previewSupervisionSubstitute(
+      snapshot: snapshot,
+      lessons: lessons,
+      supervisions: supervisions,
+      versions: supervisionVersions,
+      request: request,
+    );
+  }
 
   ActualLesson? _originalOccurrence(ActualLesson anchor, DateTime date) {
     final offset = date.difference(anchor.date).inDays;
@@ -476,6 +667,13 @@ class TemporaryTimetableState {
   }
 
   ActualChangePreview _guardInvalid(ActualChangePreview preview) {
+    final supervisionErrors = const ActualTimetable().checkSupervisionChanges(
+      supervisions,
+      preview.changes,
+    );
+    if (supervisionErrors.isNotEmpty) {
+      return ActualChangePreview(changes: const [], errors: supervisionErrors);
+    }
     for (final invalid in records.where(
       (record) => record.needsAttention && record.cancelledAt == null,
     )) {
@@ -530,6 +728,115 @@ class ActualChangePreview {
 /// 根据教学周和日历例外将常规课表展开为实际课次。
 class ActualTimetable {
   const ActualTimetable();
+
+  SupervisionSubstitutePreview previewSupervisionSubstitute({
+    required SchedulingSnapshot snapshot,
+    required List<ActualLesson> lessons,
+    required List<ActualSupervision> supervisions,
+    required List<SupervisionVersion> versions,
+    required TemporarySupervisionSubstituteRequest request,
+  }) {
+    final source = supervisions
+        .where((row) => row.key == request.key)
+        .firstOrNull;
+    final teacher = snapshot.teachers
+        .where((row) => row.id == request.teacherId)
+        .firstOrNull;
+    if (source == null || teacher == null) {
+      return (change: null, errors: ['带班岗位或替班教师不存在']);
+    }
+    if (source.teacherId == teacher.id) {
+      return (change: null, errors: ['请选择不同的教师']);
+    }
+    final version = SupervisionVersion.forDate(versions, source.date);
+    if (version == null || !version.draft.teacherIds.contains(teacher.id)) {
+      return (change: null, errors: ['教师不在该方案的候选范围']);
+    }
+    final unavailable =
+        version.draft.rules[teacher.id]?.unavailable ?? const [];
+    if (source.occurrences.any(
+      (row) => unavailable.any((slot) => slot.sameCell(row.position)),
+    )) {
+      return (change: null, errors: ['教师在该节次禁排带班']);
+    }
+    final conflict = actualSupervisionConflict(
+      snapshot,
+      lessons,
+      supervisions,
+      source,
+      teacher.id,
+    );
+    if (conflict != null) return (change: null, errors: [conflict]);
+    return (
+      change: ActualSupervisionChange(
+        before: source,
+        after: source.withTeacher(teacher.id, teacher.displayName),
+      ),
+      errors: const [],
+    );
+  }
+
+  List<String> checkSupervisionChanges(
+    List<ActualSupervision> supervisions,
+    List<ActualLessonChange> changes,
+  ) {
+    final errors = <String>{};
+    for (final change in changes) {
+      final target = change.after;
+      final position = target.item.position;
+      if (position == null) continue;
+      for (final supervision in supervisions) {
+        if (supervision.date != target.date ||
+            (supervision.teacherId != target.item.teacherId &&
+                !supervision.classIds.contains(target.item.classId))) {
+          continue;
+        }
+        if (supervision.occurrences.any(
+          (row) => _positionsConflictOnDate(row.position, position),
+        )) {
+          errors.add(
+            '${_dateConflictLabel(target.date)}与「${supervision.post.name}」带班冲突',
+          );
+        }
+      }
+    }
+    return errors.toList();
+  }
+
+  List<ActualSupervision> expandSupervision(
+    SchedulingSnapshot snapshot,
+    List<CalendarException> exceptions,
+    List<SupervisionVersion> versions,
+  ) {
+    if (versions.isEmpty) return const [];
+    final result = <ActualSupervision>[];
+    for (final day in _actualDays(snapshot, exceptions)) {
+      final version = SupervisionVersion.forDate(versions, day.date);
+      if (version == null) continue;
+      final byPost = <String, List<SupervisionOccurrence>>{};
+      for (final row in version.occurrences) {
+        if (row.position.weekday == day.weekday) {
+          byPost.putIfAbsent(row.post.id, () => []).add(row);
+        }
+      }
+      for (final rows in byPost.values) {
+        rows.sort(
+          (a, b) => a.position.lessonIndex.compareTo(b.position.lessonIndex),
+        );
+        result.add(
+          ActualSupervision(
+            date: day.date,
+            occurrences: rows,
+            teacherId: rows.first.teacherId,
+            teacherName: rows.first.teacherName,
+            eligibleTeacherIds: version.draft.teacherIds,
+            templateWeek: day.templateWeek,
+          ),
+        );
+      }
+    }
+    return result;
+  }
 
   ActualChangePreview previewSubstitute({
     required SchedulingSnapshot snapshot,
@@ -1292,31 +1599,12 @@ class ActualTimetable {
     SchedulingSnapshot snapshot,
     List<CalendarException> exceptions,
   ) {
-    final start = snapshot.term.firstTeachingWeekStart;
-    if (start == null) return const [];
-    final first = DateTime(start.year, start.month, start.day);
     final problem = const ProblemBuilder().build(snapshot);
-    final exceptionsByDay = {
-      for (final exception in exceptions)
-        DateTime(exception.date.year, exception.date.month, exception.date.day):
-            exception,
-    };
     final result = <ActualLesson>[];
-    for (
-      var offset = 0;
-      offset < snapshot.term.teachingWeekCount * 7;
-      offset++
-    ) {
-      final date = first.add(Duration(days: offset));
-      final exception = exceptionsByDay[date];
-      if (exception?.kind == CalendarExceptionKind.holiday) continue;
-      final templateDate = exception?.makeupForDate ?? date;
-      final templateWeek = snapshot.term.teachingWeekOf(templateDate);
-      if (templateWeek == null) continue;
-      final weekday = exception?.makeupWeekday ?? date.weekday;
+    for (final day in _actualDays(snapshot, exceptions)) {
       for (final item in snapshot.existingItems) {
-        if (item.position?.weekday != weekday ||
-            !occursInWeek(item.weekMode, oddWeek: templateWeek.isOdd)) {
+        if (item.position?.weekday != day.weekday ||
+            !occursInWeek(item.weekMode, oddWeek: day.templateWeek.isOdd)) {
           continue;
         }
         final raw = item.position!;
@@ -1326,9 +1614,40 @@ class ActualTimetable {
                 .where((candidate) => candidate.sameCell(raw))
                 .firstOrNull ??
             raw;
-        result.add(ActualLesson(date: date, item: item.at(position)));
+        result.add(ActualLesson(date: day.date, item: item.at(position)));
       }
     }
     return result;
+  }
+
+  Iterable<({DateTime date, int weekday, int templateWeek})> _actualDays(
+    SchedulingSnapshot snapshot,
+    List<CalendarException> exceptions,
+  ) sync* {
+    final start = snapshot.term.firstTeachingWeekStart;
+    if (start == null) return;
+    final exceptionsByDay = {
+      for (final exception in exceptions)
+        DateTime(exception.date.year, exception.date.month, exception.date.day):
+            exception,
+    };
+    for (
+      var offset = 0;
+      offset < snapshot.term.teachingWeekCount * 7;
+      offset++
+    ) {
+      final date = DateTime(start.year, start.month, start.day + offset);
+      final exception = exceptionsByDay[date];
+      if (exception?.kind == CalendarExceptionKind.holiday) continue;
+      final templateWeek = snapshot.term.teachingWeekOf(
+        exception?.makeupForDate ?? date,
+      );
+      if (templateWeek == null) continue;
+      yield (
+        date: date,
+        weekday: exception?.makeupWeekday ?? date.weekday,
+        templateWeek: templateWeek,
+      );
+    }
   }
 }

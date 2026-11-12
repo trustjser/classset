@@ -180,6 +180,37 @@ class _TemporaryTimetableIndexes {
           .add(lesson.item.classId);
     }
 
+    for (final supervision in state.supervisions) {
+      for (final classId in supervision.classIds) {
+        classesByTeacher
+            .putIfAbsent(supervision.teacherId, () => {})
+            .add(classId);
+      }
+      for (final row in supervision.occurrences) {
+        final date = supervision.date;
+        final position = row.position;
+        for (final classId in supervision.classIds) {
+          supervisionByClassSlot[(
+                classId,
+                date.year,
+                date.month,
+                date.day,
+                position.periodTypeId,
+                position.lessonIndex,
+              )] =
+              supervision;
+        }
+        supervisionByTeacherSlot[(
+              supervision.teacherId,
+              date.year,
+              date.month,
+              date.day,
+              _teacherGridSlotKey(position),
+            )] =
+            supervision;
+      }
+    }
+
     var rank = 0;
     for (final record in state.records.reversed) {
       if (record.cancelledAt == null && !record.needsAttention) {
@@ -199,6 +230,37 @@ class _TemporaryTimetableIndexes {
   late final Map<String, List<SchedulePosition>> positionsByClass;
   final Map<_ClassPositionKey, SchedulePosition> positionsByCell = {};
   final Map<_ClassLessonKey, ActualLesson> lessonsByClassSlot = {};
+  final Map<_ClassLessonKey, ActualSupervision> supervisionByClassSlot = {};
+  final Map<_TeacherLessonKey, ActualSupervision> supervisionByTeacherSlot = {};
+
+  ActualSupervision? classSupervision(
+    String classId,
+    DateTime date,
+    String periodTypeId,
+    int lessonIndex,
+  ) =>
+      supervisionByClassSlot[(
+        classId,
+        date.year,
+        date.month,
+        date.day,
+        periodTypeId,
+        lessonIndex,
+      )];
+
+  ActualSupervision? teacherSupervision(
+    String teacherId,
+    DateTime date,
+    String slotKey,
+  ) =>
+      supervisionByTeacherSlot[(
+        teacherId,
+        date.year,
+        date.month,
+        date.day,
+        slotKey,
+      )];
+
   final Map<_TeacherLessonKey, List<ActualLesson>> teacherLessonsBySlot = {};
   final Map<String, Set<String>> classesByTeacher = {};
   final Map<String, _IndexedRecord> activeRecordByLessonKey = {};

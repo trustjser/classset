@@ -4,6 +4,7 @@ import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/theme/subject_colors.dart';
+import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/schedule_position.dart';
@@ -12,6 +13,7 @@ import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/scheduling/actual_timetable.dart';
@@ -96,6 +98,130 @@ class _Repository implements SchoolRepository {
 }
 
 void main() {
+  testWidgets('实际周表显示周日连续带班并只打开一次替班流程', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final monday = DateTime(2026, 11, 16);
+    final sunday = DateTime(2026, 11, 22);
+    final snapshot = SchedulingSnapshot(
+      term: AcademicTerm(
+        id: 't',
+        title: '带班测试',
+        academicYear: '2026',
+        semesterLabel: '秋',
+        firstTeachingWeekStart: monday,
+        teachingWeekCount: 1,
+        createdAt: monday,
+      ),
+      inputFingerprint: 'x',
+      stages: const [
+        SchoolStage(id: 's', termId: 't', name: '小学', sortOrder: 0),
+      ],
+      grades: const [
+        GradeGroup(id: 'g', stageId: 's', name: '一年级', sortOrder: 0),
+      ],
+      classes: const [
+        ClassGroup(id: 'c', gradeId: 'g', name: '一班', sortOrder: 0),
+      ],
+      routines: const [
+        StageRoutine(
+          stageId: 's',
+          teachingWeekdays: {DateTime.sunday},
+          periodTypes: [
+            LessonPeriodType(
+              id: 'evening',
+              name: '晚间',
+              defaultLessonCount: 2,
+              sortOrder: 0,
+              lessonTimes: [],
+            ),
+          ],
+          overrides: [],
+        ),
+      ],
+      teachers: const [
+        Teacher(id: 'original', name: '李老师', shortName: '李', sortOrder: 0),
+        Teacher(id: 'next', name: '王老师', shortName: '王', sortOrder: 1),
+      ],
+    );
+    const post = SupervisionPost(
+      id: 'post',
+      kind: SupervisionKind.eveningStudy,
+      name: '晚自习',
+      stageId: 's',
+      weekday: DateTime.sunday,
+      periodTypeId: 'evening',
+      lessonIndices: [1, 2],
+      classIds: ['c'],
+    );
+    final duty = ActualSupervision(
+      date: sunday,
+      occurrences: [
+        for (final index in post.lessonIndices)
+          SupervisionOccurrence(
+            post: post,
+            teacherId: 'original',
+            teacherName: '李老师',
+            classNames: const ['一班'],
+            position: SchedulePosition(
+              stageId: 's',
+              weekday: DateTime.sunday,
+              periodTypeId: 'evening',
+              lessonIndex: index,
+            ),
+          ),
+      ],
+      teacherId: 'original',
+      teacherName: '李老师',
+      eligibleTeacherIds: const {'original', 'next'},
+    );
+    final version = SupervisionVersion(
+      termId: 't',
+      effectiveDate: monday,
+      draft: const SupervisionDraft(
+        termId: 't',
+        posts: [post],
+        teacherIds: {'original', 'next'},
+        assignments: {'post': 'original'},
+      ),
+      occurrences: duty.occurrences,
+    );
+    final state = TemporaryTimetableState(
+      snapshot: snapshot,
+      exceptions: const [],
+      records: const [],
+      lessons: const [],
+      revision: 'v',
+      reconciliationPending: false,
+      supervisions: [duty],
+      supervisionVersions: [version],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schoolRepositoryProvider.overrideWithValue(_Repository(state)),
+        ],
+        child: _wrap(const TemporaryAdjustmentsPage(termId: 't')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('周日'), findsOneWidget);
+    expect(find.text('晚自习'), findsOneWidget);
+    expect(find.text('李老师 · 第 1–2 节'), findsOneWidget);
+    await tester.tap(find.text('晚自习'));
+    await tester.pumpAndSettle();
+    expect(find.text('安排带班替班'), findsOneWidget);
+    expect(find.text('原带班教师  李老师 · 共 2 节'), findsOneWidget);
+    await tester.tap(find.byWidgetPredicate(
+      (widget) => widget is AppSelectField<String?> && widget.hint == '选择替班教师',
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('王老师'));
+    await tester.pumpAndSettle();
+    expect(find.text('李老师 → 王老师'), findsOneWidget);
+  });
+
   testWidgets('真实数据库：预览不写入，确认移课并取消后恢复', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;

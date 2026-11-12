@@ -5,9 +5,11 @@ import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/common_period.dart';
+import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/features/routines/routine_page.dart';
+import 'package:class_set/features/supervision/supervision_page.dart';
 
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
@@ -122,6 +124,7 @@ void main() {
   Future<void> pumpPage(
     WidgetTester tester, {
     Size size = const Size(1440, 900),
+    ValueChanged<SupervisionSeed>? onArrangeSupervision,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -136,7 +139,12 @@ void main() {
             data: AppTheme.foruiFor(false),
             child: f.FToaster(child: child!),
           ),
-          home: const Scaffold(body: RoutinePage(termId: 't1')),
+          home: Scaffold(
+            body: RoutinePage(
+              termId: 't1',
+              onArrangeSupervision: onArrangeSupervision,
+            ),
+          ),
         ),
       ),
     );
@@ -594,6 +602,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('右键菜单可将课节标记为课后服务', (tester) async {
+    await pumpPage(tester);
+    await selectJuniorStage(tester);
+    const cellKey = ValueKey('routine-cell-jr_am-3-3');
+    await tester.tap(find.byKey(cellKey), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('课后服务'), findsOneWidget);
+    // Drift reads in the menu callback need the real event loop.
+    await tester.runAsync(() async {
+      await tester.tap(find.text('课后服务'));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(cellKey),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Text && widget.data == '课后服务' && widget.maxLines == 1,
+        ),
+      ),
+      findsOneWidget,
+    );
+    final unsaved = (await tester.runAsync(
+      () => repository.watchFreeSlots('jr').first,
+    ))!;
+    expect(unsaved.any((slot) => slot.label == '课后服务'), isFalse);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
   testWidgets('右键格子可选免任课类型并更新提示条', (tester) async {
     await pumpPage(tester);
     await selectJuniorStage(tester);
@@ -640,6 +678,26 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     // 桌面平台下 Forui 右键菜单才响应 secondary press（变体在用例结束后复位平台）。
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('右键安排带班带入当前学段、范围和作息节次', (tester) async {
+    SupervisionSeed? selected;
+    await pumpPage(tester, onArrangeSupervision: (seed) => selected = seed);
+    await selectJuniorStage(tester);
+    final cell = find.byKey(const ValueKey('routine-cell-jr_night-7-1'));
+    await tester.ensureVisible(cell);
+    await tester.tap(cell, buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('安排带班'));
+    await tester.pumpAndSettle();
+
+    expect(selected?.stageId, 'jr');
+    expect(selected?.scope, FreeSlotScope.stage);
+    expect(selected?.scopeId, 'jr');
+    expect(selected?.weekday, DateTime.sunday);
+    expect(selected?.periodTypeId, 'jr_night');
+    expect(selected?.lessonIndex, 1);
+    expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('勾选上课天后网格新增该列，撤销后恢复', (tester) async {

@@ -47,6 +47,14 @@ class SchedulePosition {
       startMinute == other.startMinute &&
       endMinute == other.endMinute;
 
+  /// Refuse a cross-stage placement when there is no clock to prove that
+  /// the teacher can attend both a lesson and a supervision.
+  bool conflictsWithSupervision(SchedulePosition other) =>
+      weekday == other.weekday &&
+      (sameCell(other) ||
+          overlaps(other) ||
+          (stageId != other.stageId && (!hasClockTime || !other.hasClockTime)));
+
   Map<String, Object?> toJson() => {
     'stageId': stageId,
     'weekday': weekday,

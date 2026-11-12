@@ -147,10 +147,12 @@ class LocalBackupService {
       throw StateError('备份镜像校验失败。');
     }
     final details = await _inspectSqlite(stored.file);
-    final supportsVersion16Migration = details.schemaVersion == 16 &&
-        database.schemaVersion == 17;
+    final canMigrate =
+        (details.schemaVersion == 16 && database.schemaVersion == 17) ||
+        (const {16, 17}.contains(details.schemaVersion) &&
+            database.schemaVersion == 18);
     if (details.schemaVersion != stored.schemaVersion ||
-        (details.schemaVersion != database.schemaVersion && !supportsVersion16Migration)) {
+        (details.schemaVersion != database.schemaVersion && !canMigrate)) {
       throw StateError('备份数据库版本与当前应用不一致。');
     }
   }

@@ -5,6 +5,7 @@ import 'package:class_set/domain/models/schedule_preferences.dart';
 import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/course_scheduler.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
@@ -47,9 +48,60 @@ void main() {
     expect(run.report.unplaced, hasLength(1));
     expect(run.report.unplaced.single.blockers, isNotEmpty);
   });
+
+  test('自动排课避开正式带班占用的班级格', () {
+    const position = SchedulePosition(
+      stageId: 'stage-1',
+      weekday: DateTime.monday,
+      periodTypeId: 'morning',
+      lessonIndex: 1,
+      startMinute: 525,
+      endMinute: 570,
+    );
+    final problem = _problem(
+      slotCount: 2,
+      supervision: const [
+        SupervisionOccurrence(
+          post: SupervisionPost(
+            id: 'duty',
+            kind: SupervisionKind.morningStudy,
+            name: '早自习',
+            stageId: 'stage-1',
+            weekday: DateTime.monday,
+            periodTypeId: 'morning',
+            lessonIndices: [1],
+            classIds: ['class-1'],
+          ),
+          teacherId: 'teacher-2',
+          position: position,
+        ),
+      ],
+    );
+    final run = const CourseScheduler().solve(
+      problem,
+      config: ScheduleRunConfig(
+        selectedClassIds: {'class-1'},
+        seed: 42,
+        strength: ScheduleStrength.fast,
+      ),
+    );
+
+    expect(run.report.placedItems, 1);
+    expect(
+      run.items.where((item) => item.position?.sameCell(position) ?? false),
+      isEmpty,
+    );
+    expect(
+      run.report.unplaced.single.blockers.map((item) => item.code),
+      contains('supervisionClassOccupied'),
+    );
+  });
 }
 
-SchedulingProblem _problem({required int slotCount}) {
+SchedulingProblem _problem({
+  required int slotCount,
+  List<SupervisionOccurrence> supervision = const [],
+}) {
   final term = AcademicTerm(
     id: 'term-1',
     title: '2026 秋季',
@@ -62,6 +114,7 @@ SchedulingProblem _problem({required int slotCount}) {
   final snapshot = SchedulingSnapshot(
     term: term,
     inputFingerprint: 'fixture',
+    supervision: supervision,
     stages: const [
       SchoolStage(id: 'stage-1', termId: 'term-1', name: '小学', sortOrder: 0),
     ],

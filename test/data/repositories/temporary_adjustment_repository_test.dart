@@ -1,20 +1,265 @@
+import 'dart:convert';
+
 import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/schedule_position.dart';
+import 'package:class_set/domain/models/stage_routine.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/models/schedule_preferences.dart';
 import 'package:class_set/domain/models/schedule_run.dart';
 import 'package:class_set/domain/models/school_structure.dart';
-import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
 import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_assignment.dart';
 import 'package:class_set/domain/scheduling/course_scheduler.dart';
 import 'package:class_set/domain/scheduling/actual_timetable.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('周日连续带班整岗替班写入数据库，并与日期代课双向避让', () async {
+    final database = db.AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final school = DriftSchoolRepository(database);
+    final monday = DateTime(2026, 11, 16);
+    final sunday = DateTime(2026, 11, 22);
+    await school.saveTerm(
+      AcademicTerm(
+        id: 'duty-term',
+        title: '带班测试',
+        academicYear: '2026',
+        semesterLabel: '秋季',
+        firstTeachingWeekStart: monday,
+        teachingWeekCount: 3,
+        cycleMode: AcademicTermCycle.everyWeek,
+        createdAt: monday,
+      ),
+    );
+    final stage = (await school.watchStages('duty-term').first).first;
+    await school.saveGrade(
+      GradeGroup(id: 'grade', stageId: stage.id, name: '一年级', sortOrder: 0),
+    );
+    await school.saveClasses(const [
+      ClassGroup(id: 'duty-class', gradeId: 'grade', name: '一班', sortOrder: 0),
+      ClassGroup(
+        id: 'lesson-class',
+        gradeId: 'grade',
+        name: '二班',
+        sortOrder: 1,
+      ),
+    ]);
+    await school.saveRoutine(
+      StageRoutine(
+        stageId: stage.id,
+        teachingWeekdays: const {DateTime.sunday},
+        overrides: const [],
+        periodTypes: const [
+          LessonPeriodType(
+            id: 'evening',
+            name: '晚上',
+            defaultLessonCount: 2,
+            sortOrder: 0,
+            lessonTimes: [
+              LessonTime(
+                lessonIndex: 1,
+                label: '第1节',
+                startMinute: 1080,
+                endMinute: 1110,
+              ),
+              LessonTime(
+                lessonIndex: 2,
+                label: '第2节',
+                startMinute: 1120,
+                endMinute: 1150,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await school.saveTeachers(const [
+      Teacher(id: 'original', name: '原带班老师', shortName: '原', sortOrder: 0),
+      Teacher(id: 'replacement', name: '替班老师', shortName: '替', sortOrder: 1),
+      Teacher(id: 'busy', name: '正课老师', shortName: '课', sortOrder: 2),
+    ]);
+    await school.saveSubjects(const [
+      Subject(
+        id: 'subject',
+        termId: 'duty-term',
+        name: '数学',
+        shortName: '数',
+        sortOrder: 0,
+      ),
+    ]);
+    await database.customStatement(
+      'INSERT INTO subject_requirements (id, subject_id, grade_id, week_mode, lesson_count) VALUES (?, ?, ?, ?, ?)',
+      ['requirement', 'subject', 'grade', 'weekly', 1],
+    );
+    await school.addTeacherAssignments(
+      termId: 'duty-term',
+      assignments: const [
+        TeacherAssignment(
+          id: 'assignment',
+          termId: 'duty-term',
+          teacherId: 'busy',
+          classId: 'lesson-class',
+          subjectId: 'subject',
+          weekMode: WeekMode.weekly,
+          lessonCount: 1,
+        ),
+      ],
+    );
+    await database
+        .into(database.scheduleItems)
+        .insert(
+          db.ScheduleItemsCompanion.insert(
+            id: 'course',
+            termId: 'duty-term',
+            assignmentId: 'assignment',
+            classId: 'lesson-class',
+            teacherId: const Value('busy'),
+            subjectId: 'subject',
+            weekMode: const Value('weekly'),
+            stageId: Value(stage.id),
+            weekday: const Value(DateTime.sunday),
+            periodTypeId: const Value('evening'),
+            lessonIndex: const Value(2),
+          ),
+        );
+    final post = SupervisionPost(
+      id: 'post',
+      kind: SupervisionKind.eveningStudy,
+      name: '晚自习',
+      stageId: stage.id,
+      weekday: DateTime.sunday,
+      periodTypeId: 'evening',
+      lessonIndices: const [1, 2],
+      classIds: const ['duty-class'],
+    );
+    final version = SupervisionVersion(
+      termId: 'duty-term',
+      effectiveDate: monday,
+      draft: SupervisionDraft(
+        termId: 'duty-term',
+        posts: [post],
+        teacherIds: const {'original', 'replacement', 'busy'},
+        assignments: const {'post': 'original'},
+      ),
+      occurrences: [
+        for (final index in post.lessonIndices)
+          SupervisionOccurrence(
+            post: post,
+            teacherId: 'original',
+            teacherName: '原带班老师',
+            classNames: const ['一班'],
+            position: SchedulePosition(
+              stageId: stage.id,
+              weekday: DateTime.sunday,
+              periodTypeId: 'evening',
+              lessonIndex: index,
+            ),
+          ),
+      ],
+    );
+    await database
+        .into(database.supervisionPlanVersions)
+        .insert(
+          db.SupervisionPlanVersionsCompanion.insert(
+            termId: 'duty-term',
+            effectiveDate: '2026-11-16',
+            payload: jsonEncode(version.toJson()),
+          ),
+        );
+
+    const termId = 'duty-term';
+    final before = await school.loadTemporaryTimetable(termId);
+    TemporarySupervisionSubstituteRequest replacement(String id) =>
+        TemporarySupervisionSubstituteRequest(
+          date: sunday,
+          postId: 'post',
+          teacherId: id,
+          reason: '请假',
+        );
+    expect(before.supervisions.first.occurrences, hasLength(2));
+    expect(
+      before.previewSupervisionSubstitute(replacement('busy')).errors.single,
+      contains('数学时间冲突'),
+    );
+    await school.commitTemporarySupervisionSubstitute(
+      termId: termId,
+      request: replacement('replacement'),
+      expectedRevision: before.revision,
+    );
+    final saved = await school.loadTemporaryTimetable(termId);
+    final entry = saved.records.single;
+    expect(entry.kind, supervisionSubstitutionKind);
+    expect(entry.needsAttention, isFalse);
+    expect(entry.supervisionChange!.after.occurrences, hasLength(2));
+    expect(saved.supervisions.first.teacherId, 'replacement');
+    expect(saved.supervisions[1].teacherId, 'original');
+    expect(
+      saved.supervisionVersions.single.occurrences.first.teacherId,
+      'original',
+    );
+    expect(
+      saved.previewSupervisionSubstitute(replacement('busy')).errors.single,
+      contains('已有替班'),
+    );
+    final courseKey = saved.lessons
+        .firstWhere((lesson) => lesson.date == sunday)
+        .key;
+    final conflicting = TemporarySubstituteRequest(
+      sourceKey: courseKey,
+      teacherId: 'replacement',
+    );
+    expect(
+      saved.previewSubstitute(conflicting).errors.single,
+      contains('带班冲突'),
+    );
+    await expectLater(
+      school.commitTemporarySubstitute(
+        termId: termId,
+        request: conflicting,
+        expectedRevision: saved.revision,
+      ),
+      throwsStateError,
+    );
+    await school.commitTemporarySubstitute(
+      termId: termId,
+      request: TemporarySubstituteRequest(
+        sourceKey: courseKey,
+        teacherId: 'original',
+      ),
+      expectedRevision: saved.revision,
+    );
+    var changed = await school.loadTemporaryTimetable(termId);
+    await expectLater(
+      school.cancelTemporaryAdjustment(
+        termId: termId,
+        adjustmentId: entry.id,
+        expectedRevision: changed.revision,
+      ),
+      throwsStateError,
+    );
+    await school.cancelTemporaryAdjustment(
+      termId: termId,
+      adjustmentId: changed.records.last.id,
+      expectedRevision: changed.revision,
+    );
+    changed = await school.loadTemporaryTimetable(termId);
+    await school.cancelTemporaryAdjustment(
+      termId: termId,
+      adjustmentId: entry.id,
+      expectedRevision: changed.revision,
+    );
+    final restored = await school.loadTemporaryTimetable(termId);
+    expect(restored.supervisions.first.teacherId, 'original');
+    expect(restored.records.first.cancelledAt, isNotNull);
+  });
+
   test('确认临时移课后重新读取生效，常规课表不变，取消后恢复', () async {
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);

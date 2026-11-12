@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:class_set/data/backup/local_backup_service.dart';
 import 'package:class_set/data/database/app_database.dart';
+import 'package:class_set/data/repositories/drift_supervision_repository.dart';
+import 'package:class_set/data/repositories/drift_temporary_adjustment_repository.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/domain/models/combined_lesson_group.dart' as domain;
 import 'package:class_set/domain/models/school_structure.dart' as domain;
@@ -14,7 +16,11 @@ import 'package:class_set/domain/models/schedule_preferences.dart' as domain;
 import 'package:class_set/domain/models/schedule_run.dart' as domain;
 import 'package:class_set/domain/models/subject.dart' as domain;
 import 'package:class_set/domain/models/teacher_assignment.dart' as domain;
+import 'package:class_set/domain/models/supervision.dart';
+import 'package:class_set/domain/scheduling/actual_timetable.dart';
+import 'package:class_set/domain/scheduling/constraint_evaluator.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart' as domain;
+import 'package:class_set/domain/scheduling/supervision_validation.dart';
 import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
 import 'package:class_set/domain/scheduling/problem_builder.dart';
 import 'package:drift/drift.dart';
@@ -60,125 +66,259 @@ class DriftSchedulingRepository {
     'schedule_locks',
     'schedule_conditions',
     'schedule_preferences',
+    'supervision_plan_versions',
+    'calendar_exceptions',
+    'temporary_course_adjustments',
   ];
 
-  Future<domain.SchedulingSnapshot> loadSchedulingSnapshot(String termId) =>
-      _database.transaction(() async {
-        final terms = await _source.watchTerms().first;
-        final term = terms.where((item) => item.id == termId).firstOrNull;
-        if (term == null) throw ArgumentError.value(termId, 'termId', '学期不存在');
+  Future<domain.SchedulingSnapshot> loadSchedulingSnapshot(
+    String termId, {
+    List<SupervisionVersion>? supervisionVersions,
+  }) => _database.transaction(() async {
+    final terms = await _source.watchTerms().first;
+    final term = terms.where((item) => item.id == termId).firstOrNull;
+    if (term == null) throw ArgumentError.value(termId, 'termId', '学期不存在');
 
-        final stages = await _source.watchStages(termId).first;
-        final grades = await _source.watchGradesForTerm(termId).first;
-        final gradeIds = grades.map((item) => item.id).toSet();
-        final stageIds = stages.map((item) => item.id).toSet();
-        final classRows = await _database.select(_database.classGroups).get();
-        final classes = classRows
-            .where((row) => gradeIds.contains(row.gradeId))
-            .map(
-              (row) => domain.ClassGroup(
-                id: row.id,
-                gradeId: row.gradeId,
-                name: row.name,
-                sortOrder: row.sortOrder,
-              ),
-            )
-            .toList(growable: false);
-        final classIds = classes.map((item) => item.id).toSet();
+    final stages = await _source.watchStages(termId).first;
+    final grades = await _source.watchGradesForTerm(termId).first;
+    final gradeIds = grades.map((item) => item.id).toSet();
+    final stageIds = stages.map((item) => item.id).toSet();
+    final classRows = await _database.select(_database.classGroups).get();
+    final classes = classRows
+        .where((row) => gradeIds.contains(row.gradeId))
+        .map(
+          (row) => domain.ClassGroup(
+            id: row.id,
+            gradeId: row.gradeId,
+            name: row.name,
+            sortOrder: row.sortOrder,
+          ),
+        )
+        .toList(growable: false);
+    final classIds = classes.map((item) => item.id).toSet();
 
-        final routines = (await _source.watchRoutinesForTerm(termId).first)
-            .values
-            .toList(growable: false);
-        final subjects = await _source.watchSubjectsForTerm(termId).first;
-        final subjectIds = subjects.map((item) => item.id).toSet();
-        final requirements = (await _source.watchAllRequirements().first)
-            .where((item) => gradeIds.contains(item.gradeId))
-            .toList(growable: false);
-        final assignments = await _source.watchTeacherAssignments(termId).first;
-        final teachers = await _source.watchTeachers(termId).first;
-        final freeSlots = await _source.watchFreeSlotsForTerm(termId).first;
-        final subjectPresets = (await _source.watchAllPresets().first)
-            .where(
-              (item) =>
-                  subjectIds.contains(item.subjectId) &&
-                  stageIds.contains(item.stageId),
-            )
-            .toList(growable: false);
-        final teacherPresets = await _source.watchTeacherPresets(termId).first;
-        final teacherGroupPresets = await _source
-            .watchTeacherGroupPresets(termId)
-            .first;
-        final teacherGroupMembers = await _source
-            .watchTeacherGroupMembers(termId)
-            .first;
-        final lessonConstraints =
-            (await _source.watchAllLessonConstraints().first)
-                .where(
-                  (item) =>
-                      subjectIds.contains(item.subjectId) &&
-                      stageIds.contains(item.stageId),
-                )
-                .toList(growable: false);
-        final pairings = (await _source.watchAllPairings().first)
-            .where((item) => classIds.contains(item.classId))
-            .toList(growable: false);
-        final rooms = await _source.watchPublicRooms().first;
-        final roomAssignments = await _source
-            .watchSubjectRoomAssignments(termId)
-            .first;
-        final parallelLimits = await _source
-            .watchSubjectParallelLimits(termId)
-            .first;
+    final routines = (await _source.watchRoutinesForTerm(termId).first).values
+        .toList(growable: false);
+    final subjects = await _source.watchSubjectsForTerm(termId).first;
+    final subjectIds = subjects.map((item) => item.id).toSet();
+    final requirements = (await _source.watchAllRequirements().first)
+        .where((item) => gradeIds.contains(item.gradeId))
+        .toList(growable: false);
+    final assignments = await _source.watchTeacherAssignments(termId).first;
+    final teachers = await _source.watchTeachers(termId).first;
+    final freeSlots = await _source.watchFreeSlotsForTerm(termId).first;
+    final subjectPresets = (await _source.watchAllPresets().first)
+        .where(
+          (item) =>
+              subjectIds.contains(item.subjectId) &&
+              stageIds.contains(item.stageId),
+        )
+        .toList(growable: false);
+    final teacherPresets = await _source.watchTeacherPresets(termId).first;
+    final teacherGroupPresets = await _source
+        .watchTeacherGroupPresets(termId)
+        .first;
+    final teacherGroupMembers = await _source
+        .watchTeacherGroupMembers(termId)
+        .first;
+    final lessonConstraints = (await _source.watchAllLessonConstraints().first)
+        .where(
+          (item) =>
+              subjectIds.contains(item.subjectId) &&
+              stageIds.contains(item.stageId),
+        )
+        .toList(growable: false);
+    final pairings = (await _source.watchAllPairings().first)
+        .where((item) => classIds.contains(item.classId))
+        .toList(growable: false);
+    final rooms = await _source.watchPublicRooms().first;
+    final roomAssignments = await _source
+        .watchSubjectRoomAssignments(termId)
+        .first;
+    final parallelLimits = await _source
+        .watchSubjectParallelLimits(termId)
+        .first;
 
-        final grouped = <String, List<domain.TeacherAssignment>>{};
-        for (final item in assignments) {
-          final groupId = item.combinedLessonGroupId;
-          if (groupId != null) grouped.putIfAbsent(groupId, () => []).add(item);
-        }
-        final combinedGroups = grouped.entries
-            .map((entry) {
-              final first = entry.value.first;
-              return domain.CombinedLessonGroup(
-                id: entry.key,
-                termId: termId,
-                teacherId: first.teacherId,
-                subjectId: first.subjectId,
-                weekMode: first.weekMode,
-                classIds: entry.value
-                    .map((item) => item.classId)
-                    .toList(growable: false),
-              );
-            })
-            .toList(growable: false);
+    final grouped = <String, List<domain.TeacherAssignment>>{};
+    for (final item in assignments) {
+      final groupId = item.combinedLessonGroupId;
+      if (groupId != null) grouped.putIfAbsent(groupId, () => []).add(item);
+    }
+    final combinedGroups = grouped.entries
+        .map((entry) {
+          final first = entry.value.first;
+          return domain.CombinedLessonGroup(
+            id: entry.key,
+            termId: termId,
+            teacherId: first.teacherId,
+            subjectId: first.subjectId,
+            weekMode: first.weekMode,
+            classIds: entry.value
+                .map((item) => item.classId)
+                .toList(growable: false),
+          );
+        })
+        .toList(growable: false);
 
-        return domain.SchedulingSnapshot(
-          term: term,
-          inputFingerprint: await _inputFingerprint(),
-          stages: stages,
-          grades: grades,
-          classes: classes,
-          routines: routines,
-          subjects: subjects,
-          requirements: requirements,
-          teachers: teachers,
-          assignments: assignments,
-          freeSlots: freeSlots,
-          subjectPresets: subjectPresets,
-          teacherPresets: teacherPresets,
-          teacherGroupPresets: teacherGroupPresets,
-          teacherGroupMembers: teacherGroupMembers,
-          lessonConstraints: lessonConstraints,
-          pairings: pairings,
-          rooms: rooms,
-          roomAssignments: roomAssignments,
-          parallelLimits: parallelLimits,
-          combinedGroups: combinedGroups,
-          conditions: await _loadConditions(termId),
-          preferences: await _loadPreferences(termId),
-          locks: await _loadLocks(termId),
-          existingItems: await _loadItems(termId),
-        );
-      });
+    final snapshot = domain.SchedulingSnapshot(
+      term: term,
+      inputFingerprint: await _inputFingerprint(),
+      stages: stages,
+      grades: grades,
+      classes: classes,
+      routines: routines,
+      subjects: subjects,
+      requirements: requirements,
+      teachers: teachers,
+      assignments: assignments,
+      freeSlots: freeSlots,
+      subjectPresets: subjectPresets,
+      teacherPresets: teacherPresets,
+      teacherGroupPresets: teacherGroupPresets,
+      teacherGroupMembers: teacherGroupMembers,
+      lessonConstraints: lessonConstraints,
+      pairings: pairings,
+      rooms: rooms,
+      roomAssignments: roomAssignments,
+      parallelLimits: parallelLimits,
+      combinedGroups: combinedGroups,
+      conditions: await _loadConditions(termId),
+      preferences: await _loadPreferences(termId),
+      locks: await _loadLocks(termId),
+      existingItems: await _loadItems(termId),
+    );
+    final versions =
+        supervisionVersions ??
+        await DriftSupervisionRepository(_database).loadVersions(termId);
+    if (versions.isEmpty) return snapshot;
+
+    final today = _today();
+    final visible = SupervisionVersion.forDate(versions, today);
+    final exceptions = await _source.watchCalendarExceptions(termId).first;
+    final occupied = <String, SupervisionOccurrence>{};
+    final weekModes = <String, Set<domain.WeekMode>>{};
+    for (final actual in const ActualTimetable().expandSupervision(
+      snapshot,
+      exceptions,
+      versions,
+    )) {
+      if (actual.date.isBefore(today)) continue;
+      final mode = switch (actual.templateWeek?.isOdd) {
+        true => domain.WeekMode.odd,
+        false => domain.WeekMode.even,
+        null => domain.WeekMode.weekly,
+      };
+      for (final occurrence in actual.occurrences) {
+        final key = domain.supervisionReservationKey(occurrence);
+        occupied[key] = occurrence;
+        weekModes.putIfAbsent(key, () => {}).add(mode);
+      }
+    }
+    return snapshot.copyWith(
+      supervision: occupied.values.toList(),
+      supervisionWeekModes: weekModes,
+      visibleSupervision: visible?.occurrences ?? const [],
+      supervisionCalendar: exceptions,
+    );
+  });
+
+  Future<List<String>> invalidPublishedSupervision(
+    domain.SchedulingSnapshot snapshot,
+  ) async {
+    final today = _today();
+    final versions = await DriftSupervisionRepository(_database)
+        .loadVersions(snapshot.term.id);
+    final active = SupervisionVersion.forDate(versions, today);
+    const validation = SupervisionValidation();
+    final withoutCourses = snapshot.copyWith(existingItems: const []);
+    return [
+      for (final version in versions)
+        if (version == active || version.effectiveDate.isAfter(today)) ...[
+          ...validation.postErrors(withoutCourses, version.draft),
+          if (version.occurrences.any(
+            (row) => !snapshot.teachers.any(
+              (teacher) => teacher.id == row.teacherId,
+            ),
+          ))
+            '有效带班包含已删除的教师',
+          if (version.occurrences.any(
+            (row) => !validation
+                .positions(snapshot, row.post)
+                .any(
+                  (position) =>
+                      position.sameCell(row.position) &&
+                      position.startMinute == row.position.startMinute &&
+                      position.endMinute == row.position.endMinute,
+                ),
+          ))
+            '有效带班的作息时间已变更',
+        ],
+    ];
+  }
+
+  DateTime _today() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  void _validateSupervisionPlacements(
+    domain.SchedulingSnapshot snapshot,
+    Iterable<domain.ScheduleItem> items,
+  ) {
+    if (snapshot.supervision.isEmpty) return;
+    final problem = const ProblemBuilder().build(snapshot);
+    const evaluator = ConstraintEvaluator();
+    for (final item in items) {
+      final position = item.position;
+      if (position == null) continue;
+      final currentPosition = (problem.positionsByClass[item.classId] ?? [])
+          .where(position.sameCell)
+          .firstOrNull;
+      final issue = evaluator
+          .supervisionBlockers(snapshot, item.at(currentPosition ?? position))
+          .firstOrNull;
+      if (issue != null) throw StateError(issue.message);
+    }
+  }
+
+  Future<void> _validateFutureSupervisionSubstitutions(
+    domain.SchedulingSnapshot candidate,
+  ) async {
+    final termId = candidate.term.id;
+    final rows =
+        await (_database.select(_database.temporaryCourseAdjustments)
+              ..where(
+                (row) =>
+                    row.termId.equals(termId) &
+                    row.kind.equals('supervision-substitute') &
+                    row.cancelledAt.isNull(),
+              )
+              ..limit(1))
+            .get();
+    if (rows.isEmpty) return;
+    final temporary = DriftTemporaryAdjustmentRepository(_database, _source);
+    final today = _today();
+    final previous = await temporary.load(termId);
+    final protectedIds = {
+      for (final record in previous.records)
+        if (record.cancelledAt == null &&
+            !record.needsAttention &&
+            record.supervisionChange?.before.date.isBefore(today) == false)
+          record.id,
+    };
+    if (protectedIds.isEmpty) return;
+    final proposed = await temporary.load(termId, candidateSnapshot: candidate);
+    final conflict = proposed.records
+        .where(
+          (record) => protectedIds.contains(record.id) && record.needsAttention,
+        )
+        .firstOrNull;
+    if (conflict != null) {
+      final change = conflict.supervisionChange!;
+      final date = change.before.date.toIso8601String().substring(0, 10);
+      throw StateError('会使 $date 的「${change.before.post.name}」带班替班失效，请先处理该替班');
+    }
+  }
 
   Future<domain.SchedulingSnapshot?> loadPendingSchedulingBaseline(
     String termId,
@@ -256,8 +396,13 @@ class DriftSchedulingRepository {
               ..where((item) => item.termId.equals(termId))
               ..limit(1))
             .getSingleOrNull();
-    if (firstItem == null) return;
+    if (firstItem == null &&
+        (await DriftSupervisionRepository(_database).loadVersions(termId))
+            .isEmpty) {
+      return;
+    }
     final snapshot = await loadSchedulingSnapshot(termId);
+    if (firstItem == null && snapshot.supervision.isEmpty) return;
     await _database
         .into(_database.scheduleReconciliationBaselines)
         .insert(
@@ -272,13 +417,22 @@ class DriftSchedulingRepository {
   Future<ScheduleCommitResult> commitScheduleReconciliation({
     required String termId,
     required String expectedFingerprint,
+    domain.SchedulingSnapshot? supervisionRepair,
+    Future<void> Function()? commitSupervisionRepair,
   }) async {
     final baseline = await loadPendingSchedulingBaseline(termId);
     if (baseline == null) throw StateError('没有待协调的课表变更');
-    final current = await loadSchedulingSnapshot(termId);
-    if (current.inputFingerprint != expectedFingerprint) {
+    final actual = await loadSchedulingSnapshot(termId);
+    if (actual.inputFingerprint != expectedFingerprint ||
+        (supervisionRepair != null &&
+            supervisionRepair.inputFingerprint != expectedFingerprint)) {
       throw StateError('排课设置已再次变化，请重新生成调整预览');
     }
+    if (supervisionRepair == null &&
+        (await invalidPublishedSupervision(actual)).isNotEmpty) {
+      throw StateError('作息或人员变更影响已生效带班，请先到「带班安排」修正并协调');
+    }
+    final current = supervisionRepair ?? actual;
     final preview = const ScheduleReconciler().preview(baseline, current);
     if (!preview.canApply) {
       throw StateError('任课或作息资料仍有待处理项，请先完成设置');
@@ -297,6 +451,14 @@ class DriftSchedulingRepository {
         _database.scheduleReconciliationBaselines,
       )..where((entry) => entry.termId.equals(termId))).getSingleOrNull();
       if (pending == null) throw StateError('待协调记录已失效，请刷新');
+      _validateSupervisionPlacements(current, preview.items);
+      if (commitSupervisionRepair == null) {
+        await _validateFutureSupervisionSubstitutions(
+          current.copyWith(existingItems: preview.items),
+        );
+      } else {
+        await commitSupervisionRepair();
+      }
       for (final entry in preview.assignmentLessonCounts.entries) {
         if (entry.value == 0) {
           await (_database.delete(_database.teacherAssignments)..where(
@@ -710,6 +872,20 @@ class DriftSchedulingRepository {
 
       if (changed.isEmpty) return;
 
+      final snapshot = await loadSchedulingSnapshot(termId);
+      final changedIds = changed.map((item) => item.id).toSet();
+      _validateSupervisionPlacements(
+        snapshot,
+        changedIds.map((id) => afterById[id]!),
+      );
+      await _validateFutureSupervisionSubstitutions(
+        snapshot.copyWith(
+          existingItems: [
+            for (final item in currentItems) afterById[item.id] ?? item,
+          ],
+        ),
+      );
+
       final locks = await _loadLocks(termId);
       bool isLocked(domain.ScheduleItem item) => locks.any(
         (lock) =>
@@ -845,6 +1021,16 @@ class DriftSchedulingRepository {
       if (await _inputFingerprint() != run.inputFingerprint) {
         throw StateError('排课资料已改变，请重新检查并排课');
       }
+      _validateSupervisionPlacements(currentSnapshot, selectedItems);
+      await _validateFutureSupervisionSubstitutions(
+        currentSnapshot.copyWith(
+          existingItems: [
+            for (final item in currentSnapshot.existingItems)
+              if (!selectedClassIds.contains(item.classId)) item,
+            ...selectedItems,
+          ],
+        ),
+      );
       await (_database.delete(_database.scheduleItems)..where(
             (row) =>
                 row.termId.equals(run.termId) &

@@ -14,6 +14,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
   String _kindLabel(String kind) => switch (kind) {
     'move' => '移课',
     'swap' => '换课',
+    supervisionSubstitutionKind => '带班替班',
     _ => '代课',
   };
 
@@ -654,7 +655,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     );
   }
 
-  Widget _exportMenuButton() {
+  Widget _exportMenuButton({DateTime? weekStart}) {
     final colors = context.appColors;
     final shell = Container(
       height: 32,
@@ -678,6 +679,16 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
         FItemGroup(
           divider: .none,
           children: [
+            if (weekStart != null)
+              AppMenuTile(
+                item: AppMenuItem(
+                  label: '本周实际课表',
+                  onPressed: () {
+                    unawaited(controller.hide());
+                    unawaited(_exportActualWeek(weekStart));
+                  },
+                ),
+              ),
             for (final kind in TemporaryExportKind.values)
               AppMenuTile(
                 item: AppMenuItem(
@@ -785,7 +796,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
                   children: [
                     _tabsSegment(state, tabHeight: 48, compactCount: true),
                     const Spacer(),
-                    _exportMenuButton(),
+                    _exportMenuButton(weekStart: start),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -822,7 +833,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
                 _weekNav(state, start, hideDateRange: !fullWeek),
                 _toolbarDivider(),
                 // ④ 操作
-                _exportMenuButton(),
+                _exportMenuButton(weekStart: start),
               ],
             ),
           );
@@ -839,7 +850,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     final colors = context.appColors;
     final filters = [
       _selectField(
-        width: 112,
+        width: 122,
         hint: '全部类型',
         searchHint: '搜索类型',
         items: const {
@@ -847,6 +858,7 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
           '换课': 'swap',
           '移课': 'move',
           '代课': 'substitute',
+          '带班替班': supervisionSubstitutionKind,
         },
         value: _recordType,
         onChanged: (value) => setState(() => _recordType = value),

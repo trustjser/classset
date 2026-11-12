@@ -32,8 +32,12 @@ class FreeSlot {
   /// 时段内的节次序号（从 1 开始）。
   final int lessonIndex;
 
-  /// 打印文字：无课 / 自习 / 劳动 / 教研活动 / 党团活动 / 自定义名称。
+  /// 打印文字：无课 / 自习 / 课后服务 / 劳动 / 教研活动 / 党团活动 / 自定义名称。
   final String label;
+
+  /// 免任课中，只有「无课」和「不上课」不能安排带班。
+  bool get allowsSupervision =>
+      label != FreeSlotLabels.none && label != FreeSlotLabels.noClass;
 }
 
 enum FreeSlotScope {
@@ -62,6 +66,7 @@ abstract final class FreeSlotLabels {
   static const String noClass = '不上课';
   static const String none = '无课';
   static const String selfStudy = '自习';
+  static const String afterSchool = '课后服务';
   static const String labor = '劳动';
   static const String teachingResearch = '教研活动';
   static const String partyLeague = '党团活动';
@@ -70,6 +75,7 @@ abstract final class FreeSlotLabels {
     noClass,
     none,
     selfStudy,
+    afterSchool,
     labor,
     teachingResearch,
     partyLeague,

@@ -31,6 +31,44 @@ class SchedulePlacementCandidate {
 class ConstraintEvaluator {
   const ConstraintEvaluator();
 
+  List<ScheduleBlocker> supervisionBlockers(
+    SchedulingSnapshot snapshot,
+    ScheduleItem item,
+  ) {
+    final position = item.position;
+    if (position == null) return const [];
+    return [
+      for (final duty in snapshot.supervision.where(
+        (duty) =>
+            snapshot.supervisionWeekModes[supervisionReservationKey(duty)]?.any(
+              (mode) => weekModesOverlap(item.weekMode, mode),
+            ) ??
+            true,
+      ))
+        if (duty.classIds.contains(item.classId) &&
+            (position.sameCell(duty.position) ||
+                position.overlaps(duty.position)))
+          ScheduleBlocker(
+            code: 'supervisionClassOccupied',
+            message: '班级该节次已有带班安排：${duty.post.name}',
+            position: position,
+            relatedIds: [duty.post.id],
+          )
+        else if (item.teacherId == duty.teacherId &&
+            position.conflictsWithSupervision(duty.position))
+          ScheduleBlocker(
+            code: 'supervisionTeacherOccupied',
+            message:
+                position.stageId != duty.position.stageId &&
+                    (!position.hasClockTime || !duty.position.hasClockTime)
+                ? '教师有跨学段带班，请补全节次时间'
+                : '教师该时间已有带班安排：${duty.post.name}',
+            position: position,
+            relatedIds: [duty.post.id],
+          ),
+    ];
+  }
+
   /// 返回调整后新增或进一步恶化的硬性下限缺口。
   List<ScheduleBlocker> newHardRequirementBlockers(
     SchedulingProblem problem,
@@ -95,6 +133,7 @@ class ConstraintEvaluator {
       if (_isFree(snapshot, item.classId, position)) {
         block('freeSlot', '免任课位置不能排正课', item);
       }
+      blockers.addAll(supervisionBlockers(snapshot, item));
       final allowedTypes =
           snapshot.allowedPeriodTypeIdsBySubject[item.subjectId];
       if (allowedTypes != null &&

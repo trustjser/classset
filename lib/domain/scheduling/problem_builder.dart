@@ -147,6 +147,44 @@ class ProblemBuilder {
       }
     }
 
+    final knownTeachers = snapshot.teachers
+        .map((teacher) => teacher.id)
+        .toSet();
+    final invalidDuties = <String>{};
+    for (final duty in snapshot.supervision) {
+      final position = duty.position;
+      final valid =
+          knownTeachers.contains(duty.teacherId) &&
+          duty.classIds.every((classId) {
+            final current = (positionsByClass[classId] ?? const [])
+                .where(position.sameCell)
+                .firstOrNull;
+            if (current == null ||
+                current.startMinute != duty.startMinute ||
+                current.endMinute != duty.endMinute) {
+              return false;
+            }
+            final marker = resolveFreeSlotsForView(
+              snapshot.freeSlots,
+              viewScope: FreeSlotScope.schoolClass,
+              viewScopeId: classId,
+              termId: snapshot.term.id,
+              stageId: position.stageId,
+              weekday: position.weekday,
+              periodTypeId: position.periodTypeId,
+              lessonIndex: position.lessonIndex,
+              classGradeId: snapshot.gradeIdForClass(classId),
+            ).full;
+            return marker == null || marker.allowsSupervision;
+          });
+      if (!valid && invalidDuties.add(duty.post.id)) {
+        issue(
+          'supervisionRepairRequired',
+          '带班「${duty.post.name}」的班级、老师或作息已变化，请先修正带班方案',
+        );
+      }
+    }
+
     final effectiveDemand = <(String, String, WeekMode), int>{};
     for (final schoolClass in snapshot.classes) {
       final rows = snapshot.requirements.where(

@@ -11,6 +11,7 @@ import 'package:class_set/domain/models/schedule_position.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/features/scheduling/schedule_export.dart';
@@ -146,6 +147,47 @@ void main() {
       .whereType<Data>()
       .map((cell) => cell.value.toString())
       .join('|');
+
+  test('带班活动进入班级、教师和学校工作簿', () {
+    const position = SchedulePosition(
+      stageId: 's1',
+      weekday: DateTime.saturday,
+      periodTypeId: 'p1',
+      lessonIndex: 1,
+    );
+    const duty = SupervisionOccurrence(
+      post: SupervisionPost(
+        id: 'after-school',
+        kind: SupervisionKind.afterSchool,
+        name: '阅读托管',
+        stageId: 's1',
+        weekday: DateTime.saturday,
+        periodTypeId: 'p1',
+        lessonIndices: [1],
+        classIds: ['c1'],
+      ),
+      teacherId: 'teacher',
+      position: position,
+    );
+    final workbooks = buildTimetableWorkbooks(
+      snapshot.copyWith(visibleSupervision: const [duty]),
+      const [],
+      schoolName: '测试学校',
+      commonPeriods: common,
+      options: const TimetableExportOptions(),
+    );
+    String workbookText(List<int> data) =>
+        Excel.decodeBytes(data).tables.values.map(text).join('|');
+    final classText = workbookText(workbooks.classWorkbook);
+    final teacherText = workbookText(workbooks.teacherWorkbook);
+    final schoolText = workbookText(workbooks.schoolWorkbook);
+    expect(classText, contains('阅读托管'));
+    expect(classText, contains('李老师'));
+    expect(teacherText, contains('阅读托管'));
+    expect('阅读托管'.allMatches(teacherText), hasLength(1));
+    expect(schoolText, contains('阅读托管'));
+    expect(schoolText, contains('李老师'));
+  });
 
   test('按班、教师、学段分别输出并保留单双周和公共时段', () {
     final output = buildTimetableWorkbooks(

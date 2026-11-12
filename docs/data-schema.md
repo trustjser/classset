@@ -1,4 +1,4 @@
-# 本地数据 Schema v14
+# 本地数据 Schema v18
 
 课集以单个 SQLite 文件保存一所学校的本地资料。应用在启动时打开平台 Application Support 目录下的 `class_set/school.sqlite`。SQLite 是唯一数据源，UI 状态只用于编辑尚未提交的表单。
 
@@ -36,6 +36,11 @@
 | `schedule_preferences` | term ID、强度、进度一致性、教师分布、午休保护、连堂策略 | 学期级排课规则与偏好 |
 | `schedule_run_reports` | stable ID、term ID、创建时间、求解版本、种子、强度、输入指纹、报告 JSON | 一次求解的诊断、暂放原因与复现参数 |
 
+| `schedule_reconciliation_baselines` | term ID、旧排课快照、创建时间 | 待协调期间保留旧课表，带班学期快照含旧日历 |
+| `temporary_course_adjustments` | stable ID、term ID、类型、变更 JSON、原因、创建和撤销时间 | 正课调代沿用课次数组，带班替班使用岗位和自然日的前后状态 |
+| `supervision_drafts` | term ID、带班草稿 JSON | 一学期一份草稿，正文包含格式版本、草稿修订号、岗位、规则和指派 |
+| `supervision_plan_versions` | term ID、生效日、已确认方案 JSON | 学期和生效日唯一，快照保留岗位的来源班、活动、人员名称和时钟 |
+
 ### 范围与级联
 
 - 免任课范围四级：全校（scopeId = 学期 ID，行按学段展开）、学段（scopeId = 学段 ID）、年级（scopeId = 年级 ID）、班级（scopeId = 班级 ID）；渲染时更具体的范围优先。
@@ -47,7 +52,7 @@
 
 ## 迁移
 
-当前 `schemaVersion` 为 14。v2 新增 `calendar_exceptions`、`free_slots`、`common_periods`；v3 增加学期周期；v4 新增科目与需求；v5 新增科目预设与课程配对；v6～v7 增加科目课节约束及连堂字段；v8 新增公共场室、场室分配、同科并发上限；v9～v11 增加教师、任课、分组与教师预设；v12 新增应用设置；v13 将科目归属到学期；v14 新增自动排课的课节、锁定、条件、偏好与运行报告五张表及索引。升级均通过 `AppDatabase.migration.onUpgrade` 显式迁移，不清空数据库。
+当前 `schemaVersion` 为 18。v2 新增 `calendar_exceptions`、`free_slots`、`common_periods`；v3 增加学期周期；v4 新增科目与需求；v5 新增科目预设与课程配对；v6～v7 增加科目课节约束及连堂字段；v8 新增公共场室、场室分配、同科并发上限；v9～v11 增加教师、任课、分组与教师预设；v12 新增应用设置；v13 将科目归属到学期；v14 新增自动排课的课节、锁定、条件、偏好与运行报告五张表及索引。v15 增加课表协调快照，v16 增加公共时段排序，v17 新增临时调代记录。v18 增加带班草稿和有效版本表，旧免任课及调代课数据按原格式读取。升级均通过 `AppDatabase.migration.onUpgrade` 显式迁移，不清空数据库。
 
 科目节数需求按年级整体替换保存（`replaceGradeRequirements`：先删该年级全部需求行再批量插入，一个事务）；删除科目时其名下需求由外键级联清理。节数仅接受非负整数；周模式 weekly/odd/even 中录入数字表示「一个实际出现周」的节数，容量按单双周分别校验。
 

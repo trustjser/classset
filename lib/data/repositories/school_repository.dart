@@ -5,6 +5,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/models/subject_lesson_constraint.dart';
 
 import 'package:class_set/domain/models/public_room.dart';
@@ -37,7 +38,29 @@ class ScheduleCommitResult {
 }
 
 abstract interface class SchoolRepository {
+  Stream<SupervisionDraft?> watchSupervisionDraft(String termId);
+
+  Stream<List<SupervisionVersion>> watchSupervisionVersions(String termId);
+
+  Future<SupervisionDraft> saveSupervisionDraft(
+    SupervisionDraft draft, {
+    required int expectedRevision,
+  });
+
+  Future<SupervisionPreview> previewSupervisionPublish(
+    String termId,
+    DateTime effectiveDate,
+  );
+
+  Future<void> publishSupervision(String termId, SupervisionPreview preview);
+
   Future<TemporaryTimetableState> loadTemporaryTimetable(String termId);
+
+  Future<void> commitTemporarySupervisionSubstitute({
+    required String termId,
+    required TemporarySupervisionSubstituteRequest request,
+    required String expectedRevision,
+  });
 
   Future<void> commitTemporaryMove({
     required String termId,

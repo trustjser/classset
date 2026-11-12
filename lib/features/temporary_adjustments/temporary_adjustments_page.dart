@@ -126,6 +126,27 @@ class _TemporaryAdjustmentsPageState
     }
   }
 
+  void _showTemporaryError(String message) => setState(() => _error = message);
+
+  Future<void> _commitSupervisionReplacement(
+    TemporaryTimetableState state,
+    TemporarySupervisionSubstituteRequest request,
+  ) async {
+    setState(() => _saving = true);
+    try {
+      await ref.read(schoolRepositoryProvider).commitTemporarySupervisionSubstitute(
+        termId: widget.termId,
+        request: request,
+        expectedRevision: state.revision,
+      );
+      await _load();
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '替班失败：$error');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   _TemporaryTimetableIndexes _indexesFor(TemporaryTimetableState state) {
     final current = _timetableIndexes;
     if (current != null && identical(current.state, state)) return current;
@@ -194,7 +215,14 @@ class _TemporaryAdjustmentsPageState
           ],
           if (state.reconciliationPending) ...[
             const SizedBox(height: 10),
-            _hintBox(const Text('课表待协调，完成协调后才能进行临时调整。'), tone: 'amber'),
+            _hintBox(
+              Text(
+                state.snapshot.supervisionCalendar == null
+                    ? '课表待协调，完成协调后才能进行临时调整。'
+                    : '课表待协调。可取消有冲突的已有调整，完成协调后可新增调整。',
+              ),
+              tone: 'amber',
+            ),
           ],
           if (_error != null) ...[
             const SizedBox(height: 10),

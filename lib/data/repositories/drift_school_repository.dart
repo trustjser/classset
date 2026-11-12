@@ -1,6 +1,7 @@
 import 'package:class_set/data/database/app_database.dart';
 import 'package:class_set/data/repositories/drift_temporary_adjustment_repository.dart';
 import 'package:class_set/data/repositories/drift_scheduling_repository.dart';
+import 'package:class_set/data/repositories/drift_supervision_repository.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart' as domain;
 import 'package:class_set/domain/models/calendar_exception.dart' as domain;
@@ -9,6 +10,7 @@ import 'package:class_set/domain/models/free_slot.dart' as domain;
 import 'package:class_set/domain/models/school_structure.dart' as domain;
 import 'package:class_set/domain/models/stage_routine.dart' as domain;
 import 'package:class_set/domain/models/subject.dart' as domain;
+import 'package:class_set/domain/models/supervision.dart' as domain;
 import 'package:class_set/domain/models/subject_lesson_constraint.dart'
     as domain;
 import 'package:class_set/domain/models/public_room.dart' as domain;
@@ -24,6 +26,8 @@ import 'package:class_set/domain/models/schedule_lock.dart' as domain;
 import 'package:class_set/domain/models/schedule_preferences.dart' as domain;
 import 'package:class_set/domain/models/schedule_run.dart' as domain;
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart' as domain;
+import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
+import 'package:class_set/domain/scheduling/supervision_validation.dart';
 import 'package:class_set/domain/scheduling/actual_timetable.dart' as domain;
 import 'package:drift/drift.dart';
 
@@ -35,6 +39,180 @@ class DriftSchoolRepository implements SchoolRepository {
 
   DriftTemporaryAdjustmentRepository get _temporary =>
       DriftTemporaryAdjustmentRepository(_database, this);
+
+  DriftSupervisionRepository get _supervision =>
+      DriftSupervisionRepository(_database);
+
+  @override
+  Stream<domain.SupervisionDraft?> watchSupervisionDraft(String termId) =>
+      _supervision.watchDraft(termId);
+
+  @override
+  Stream<List<domain.SupervisionVersion>> watchSupervisionVersions(
+    String termId,
+  ) => _supervision.watchVersions(termId);
+
+  @override
+  Future<domain.SupervisionDraft> saveSupervisionDraft(
+    domain.SupervisionDraft draft, {
+    required int expectedRevision,
+  }) => _supervision.saveDraft(draft, expectedRevision: expectedRevision);
+
+  Future<domain.TemporaryTimetableState> _projectSupervision(
+    String termId,
+    List<domain.SupervisionVersion> versions,
+  ) => _temporary.load(termId, supervisionVersions: versions);
+
+  Future<
+    ({
+      domain.SchedulingSnapshot? repair,
+      domain.SchedulingSnapshot snapshot,
+      String? repairError,
+      List<String> scheduleChanges,
+    })
+  >
+  _supervisionPublishInputs(String termId, DateTime date) async {
+    final current = await loadSchedulingSnapshot(termId);
+    final baseline = await loadPendingSchedulingBaseline(termId);
+    if (baseline == null) {
+      return (
+        snapshot: current,
+        repair: null,
+        repairError: null,
+        scheduleChanges: const <String>[],
+      );
+    }
+    final issues = await _scheduling.invalidPublishedSupervision(current);
+    if (issues.isEmpty) {
+      return (
+        snapshot: current,
+        repair: null,
+        repairError: '请先在「排课与课表」确认待协调变更',
+        scheduleChanges: const <String>[],
+      );
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (date != today) {
+      return (
+        snapshot: current,
+        repair: null,
+        repairError: '作息或人员变更影响现有带班，请选择「修正带班并协调」',
+        scheduleChanges: const <String>[],
+      );
+    }
+    final draft = await _supervision.watchDraft(termId).first;
+    if (draft == null) throw StateError('请先保存带班草稿');
+    final versions = await _supervision.loadVersions(termId);
+    final repaired = await _scheduling.loadSchedulingSnapshot(
+      termId,
+      supervisionVersions: [
+        ...versions.where((version) => version.effectiveDate.isBefore(today)),
+        domain.SupervisionVersion(
+          termId: termId,
+          effectiveDate: today,
+          draft: draft,
+          occurrences: const SupervisionValidation().occurrences(
+            current,
+            draft,
+          ),
+        ),
+      ],
+    );
+    final result = const ScheduleReconciler().preview(baseline, repaired);
+    return (
+      snapshot: repaired.copyWith(existingItems: result.items),
+      repair: repaired,
+      repairError: result.canApply ? null : '请先补齐待协调的任课或作息资料',
+      scheduleChanges: [
+        if (result.adjustments.isNotEmpty)
+          '正课保留 ${result.keptCount} 节、移动 ${result.movedCount} 节、'
+              '新增 ${result.addedCount} 节、移除 ${result.removedCount} 节、暂放 ${result.unplacedCount} 节',
+        for (final change in result.adjustments)
+          '${change.label}：${change.before} → ${change.after}',
+      ],
+    );
+  }
+
+  @override
+  Future<domain.SupervisionPreview> previewSupervisionPublish(
+    String termId,
+    DateTime effectiveDate,
+  ) => _database.transaction(() async {
+    final inputs = await _supervisionPublishInputs(termId, effectiveDate);
+    return _supervision.previewPublish(
+      termId,
+      effectiveDate,
+      loadSnapshot: (_) async => inputs.snapshot,
+      loadTemporary: (id, versions) => inputs.repair == null
+          ? _projectSupervision(id, versions)
+          : _temporary.load(
+              id,
+              supervisionVersions: versions,
+              candidateSnapshot: inputs.snapshot,
+            ),
+      repair: inputs.repair != null,
+      scheduleChanges: inputs.scheduleChanges,
+      baselineTemporary: _temporary.load,
+      extraError: inputs.repairError,
+    );
+  });
+
+  @override
+  Future<void> publishSupervision(
+    String termId,
+    domain.SupervisionPreview preview,
+  ) async {
+    final inputs = await _supervisionPublishInputs(
+      termId,
+      preview.effectiveDate,
+    );
+    if (inputs.repairError case final String error) throw StateError(error);
+    if (inputs.repair case final repair?) {
+      await _scheduling.commitScheduleReconciliation(
+        termId: termId,
+        expectedFingerprint: repair.inputFingerprint,
+        supervisionRepair: repair,
+        commitSupervisionRepair: () => _supervision.publish(
+          termId,
+          preview,
+          loadSnapshot: (_) async => inputs.snapshot,
+          loadTemporary: (id, versions) => _temporary.load(
+            id,
+            supervisionVersions: versions,
+            candidateSnapshot: inputs.snapshot,
+          ),
+          repair: true,
+          scheduleChanges: inputs.scheduleChanges,
+          baselineTemporary: _temporary.load,
+        ),
+      );
+      return;
+    }
+    await _database.transaction(() async {
+      if (await loadPendingSchedulingBaseline(termId) != null) {
+        throw StateError('课表正在等待协调，请刷新后重试');
+      }
+      await _supervision.publish(
+        termId,
+        preview,
+        loadSnapshot: loadSchedulingSnapshot,
+        loadTemporary: _projectSupervision,
+        baselineTemporary: _temporary.load,
+      );
+    });
+  }
+
+  @override
+  Future<void> commitTemporarySupervisionSubstitute({
+    required String termId,
+    required domain.TemporarySupervisionSubstituteRequest request,
+    required String expectedRevision,
+  }) => _temporary.commitSupervisionSubstitute(
+    termId: termId,
+    request: request,
+    expectedRevision: expectedRevision,
+  );
 
   @override
   Future<domain.TemporaryTimetableState> loadTemporaryTimetable(
@@ -1360,6 +1538,31 @@ class DriftSchoolRepository implements SchoolRepository {
       }
     }
 
+    final versions = await _supervision.loadVersions(termId);
+    if (versions.isNotEmpty) {
+      final before = existing.map(_toDomainException).toList();
+      final after = [
+        ...before.where((item) => !replacingIds.contains(item.id)),
+        ...upserts,
+      ];
+      final snapshot = await loadSchedulingSnapshot(termId);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      Set<String> duties(List<domain.CalendarException> exceptions) => {
+        for (final row in const domain.ActualTimetable().expandSupervision(
+          snapshot,
+          exceptions,
+          versions,
+        ))
+          if (!row.date.isBefore(today)) '${row.key}:${row.templateWeek}',
+      };
+      final previous = duties(before);
+      final next = duties(after);
+      if (previous.length != next.length || !previous.containsAll(next)) {
+        await _scheduling.captureReconciliationBaselineIfNeeded(termId);
+      }
+    }
+
     if (deleteIds.isNotEmpty) {
       await (_database.delete(
             _database.calendarExceptions,
@@ -1388,9 +1591,19 @@ class DriftSchoolRepository implements SchoolRepository {
   });
 
   @override
-  Future<void> deleteCalendarException(String exceptionId) => (_database.delete(
-    _database.calendarExceptions,
-  )..where((row) => row.id.equals(exceptionId))).go();
+  Future<void> deleteCalendarException(String exceptionId) =>
+      _database.transaction(() async {
+        final row = await (_database.select(
+          _database.calendarExceptions,
+        )..where((item) => item.id.equals(exceptionId))).getSingleOrNull();
+        if (row != null) {
+          await saveCalendarExceptions(
+            termId: row.termId,
+            upserts: const [],
+            deleteIds: {exceptionId},
+          );
+        }
+      });
 
   // —— 免任课 ——
 
@@ -2852,24 +3065,41 @@ class DriftSchoolRepository implements SchoolRepository {
   });
 
   @override
-  Future<void> deleteTeacher(String teacherId) =>
-      _database.transaction(() async {
-        final terms =
-            (await (_database.select(
-                  _database.teacherAssignments,
-                )..where((row) => row.teacherId.equals(teacherId))).get())
-                .map((row) => row.termId)
-                .toSet();
-        for (final termId in terms) {
-          await _scheduling.captureReconciliationBaselineIfNeeded(termId);
+  Future<void> deleteTeacher(String teacherId) => _database.transaction(
+    () async {
+      final terms =
+          (await (_database.select(
+                _database.teacherAssignments,
+              )..where((row) => row.teacherId.equals(teacherId))).get())
+              .map((row) => row.termId)
+              .toSet();
+      final publishedTerms =
+          await (_database.selectOnly(
+                _database.supervisionPlanVersions,
+                distinct: true,
+              )..addColumns([_database.supervisionPlanVersions.termId]))
+              .map((row) => row.read(_database.supervisionPlanVersions.termId)!)
+              .get();
+      for (final termId in publishedTerms.where((id) => !terms.contains(id))) {
+        final snapshot = await loadSchedulingSnapshot(termId);
+        if ([
+          ...snapshot.visibleSupervision,
+          ...snapshot.supervision,
+        ].any((entry) => entry.teacherId == teacherId)) {
+          terms.add(termId);
         }
-        await (_database.update(_database.teacherAssignments)
-              ..where((row) => row.teacherId.equals(teacherId)))
-            .write(const TeacherAssignmentsCompanion(teacherId: Value(null)));
-        await (_database.delete(
-          _database.teachers,
-        )..where((row) => row.id.equals(teacherId))).go();
-      });
+      }
+      for (final termId in terms) {
+        await _scheduling.captureReconciliationBaselineIfNeeded(termId);
+      }
+      await (_database.update(_database.teacherAssignments)
+            ..where((row) => row.teacherId.equals(teacherId)))
+          .write(const TeacherAssignmentsCompanion(teacherId: Value(null)));
+      await (_database.delete(
+        _database.teachers,
+      )..where((row) => row.id.equals(teacherId))).go();
+    },
+  );
 
   @override
   Future<int> countTeacherAssignments(String teacherId) async =>

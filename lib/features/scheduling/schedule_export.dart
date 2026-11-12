@@ -6,6 +6,7 @@ import 'package:class_set/domain/models/schedule_item.dart';
 import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/subject.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:excel/excel.dart';
 
@@ -230,6 +231,18 @@ TimetableWorkbooks buildTimetableWorkbooks(
             item.position!.lessonIndex == slot.lessonIndex,
       )
       .toList();
+  List<SupervisionOccurrence> dutiesAtSlot(_ExportSlot slot, int day) =>
+      snapshot.visibleSupervision.where((duty) {
+        final position = duty.position;
+        return position.stageId == slot.stageId &&
+            position.weekday == day &&
+            position.periodTypeId == slot.periodId &&
+            position.lessonIndex == slot.lessonIndex;
+      }).toList();
+  String dutyTeacher(SupervisionOccurrence duty) =>
+      teacherById[duty.teacherId] ?? duty.teacherName;
+  String dutyClasses(SupervisionOccurrence duty) =>
+      duty.classIds.map(displayClassName).join('、');
   String? freeLabel(String classId, _ExportSlot slot, int day) {
     final gradeId = snapshot.gradeIdForClass(classId);
     final matching =
@@ -419,13 +432,20 @@ TimetableWorkbooks buildTimetableWorkbooks(
       for (var d = 0; d < days.length; d++) {
         final day = days[d];
         final courses = atSlot(mine, slot, day);
+        final duties = dutiesAtSlot(
+          slot,
+          day,
+        ).where((duty) => duty.classIds.contains(c.id));
         final label = freeLabel(c.id, slot, day);
         put(
           sheet,
           row,
           d + 1,
-          courses.isNotEmpty
-              ? courses.map(subject).join('\n')
+          courses.isNotEmpty || duties.isNotEmpty
+              ? [
+                  ...courses.map(subject),
+                  ...duties.map((duty) => duty.post.name),
+                ].join('\n')
               : label ?? (available(slot, day) ? '' : '—'),
           classSubjectStyle,
         );
@@ -433,10 +453,10 @@ TimetableWorkbooks buildTimetableWorkbooks(
           sheet,
           row + 1,
           d + 1,
-          courses
-              .map((item) => '${week(item)}${teacherName(item)}')
-              .toSet()
-              .join('\n'),
+          {
+            ...courses.map((item) => '${week(item)}${teacherName(item)}'),
+            ...duties.map(dutyTeacher),
+          }.join('\n'),
           classDetailStyle,
         );
       }
@@ -451,6 +471,8 @@ TimetableWorkbooks buildTimetableWorkbooks(
       ))
         ?snapshot.stageIdForClass(item.classId),
       for (final item in mine) ?snapshot.stageIdForClass(item.classId),
+      for (final duty in snapshot.visibleSupervision)
+        if (duty.teacherId == teacher.id) duty.position.stageId,
     };
     final selectedStages = snapshot.stages
         .where((stage) => stageIds.contains(stage.id))
@@ -548,24 +570,34 @@ TimetableWorkbooks buildTimetableWorkbooks(
         final found = [
           for (final entry in group) ...atSlot(mine, entry, days[d]),
         ];
+        final duties = [
+          for (final entry in group)
+            ...dutiesAtSlot(
+              entry,
+              days[d],
+            ).where((duty) => duty.teacherId == teacher.id),
+        ];
         put(
           sheet,
           row,
           d + 1,
-          found.map(subject).join('\n'),
+          [
+            ...found.map(subject),
+            ...duties.map((duty) => duty.post.name),
+          ].join('\n'),
           teacherSubjectStyle,
         );
         put(
           sheet,
           row + 1,
           d + 1,
-          found
-              .map(
-                (item) =>
-                    '${week(item)}${options.showTeacherStage && selectedStages.length > 1 ? '${stageNames[snapshot.stageIdForClass(item.classId)] ?? ''} · ' : ''}${className(item)}',
-              )
-              .toSet()
-              .join('\n'),
+          {
+            ...found.map(
+              (item) =>
+                  '${week(item)}${options.showTeacherStage && selectedStages.length > 1 ? '${stageNames[snapshot.stageIdForClass(item.classId)] ?? ''} · ' : ''}${className(item)}',
+            ),
+            ...duties.map(dutyClasses),
+          }.join('\n'),
           teacherDetailStyle,
         );
       }
@@ -633,14 +665,24 @@ TimetableWorkbooks buildTimetableWorkbooks(
               day,
             );
             final label = freeLabel(c.id, slot, day);
+            final duties = dutiesAtSlot(
+              slot,
+              day,
+            ).where((duty) => duty.classIds.contains(c.id));
             put(
               sheet,
               row,
               col + 1,
-              found.isNotEmpty
-                  ? found
-                        .map((item) => '${subject(item)}\n${teacherName(item)}')
-                        .join('\n')
+              found.isNotEmpty || duties.isNotEmpty
+                  ? [
+                      ...found.map(
+                        (item) => '${subject(item)}\n${teacherName(item)}',
+                      ),
+                      ...duties.map(
+                        (duty) =>
+                            '${duty.post.name}\n${dutyTeacher(duty)}\n${dutyClasses(duty)}',
+                      ),
+                    ].join('\n')
                   : label ?? (available(slot, day) ? '' : '—'),
               bodyStyle,
             );

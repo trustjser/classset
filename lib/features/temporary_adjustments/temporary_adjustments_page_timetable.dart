@@ -186,7 +186,12 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
         .firstOrNull;
     if (routine == null) return const Center(child: Text('请先设置该班级的作息。'));
     final indexes = _indexesFor(state);
-    final positions = indexes.positionsByClass[classId] ?? const [];
+    final positions = [
+      ...indexes.positionsByClass[classId] ?? const <SchedulePosition>[],
+      for (final supervision in state.supervisions)
+        if (supervision.classIds.contains(classId))
+          for (final row in supervision.occurrences) row.position,
+    ];
     final days = _visibleScheduleDates(state, start, positions);
     final periods = [...routine.periodTypes]
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -200,6 +205,14 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
             .where((p) => p.periodTypeId == period.id && p.lessonIndex == i)
             .firstOrNull;
         rows.add((period.id, i, period.name, position));
+      }
+    }
+    for (final position in positions) {
+      if (!rows.any(
+        (row) =>
+            row.$1 == position.periodTypeId && row.$2 == position.lessonIndex,
+      )) {
+        rows.add((position.periodTypeId, position.lessonIndex, '带班', position));
       }
     }
     return LayoutBuilder(
@@ -261,43 +274,41 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
         if (assignment.teacherId == _viewTeacherId) assignment.classId,
       ...indexes.classesForTeacher(_viewTeacherId!),
     };
-    final days = _visibleScheduleDates(
-      state,
-      start,
-      classIds.expand(
-        (classId) =>
-            indexes.positionsByClass[classId] ?? const <SchedulePosition>[],
-      ),
-    );
+    final positions = [
+      for (final classId in classIds)
+        ...indexes.positionsByClass[classId] ?? const <SchedulePosition>[],
+      for (final supervision in state.supervisions)
+        if (supervision.teacherId == _viewTeacherId)
+          for (final row in supervision.occurrences) row.position,
+    ];
+    final days = _visibleScheduleDates(state, start, positions);
     final slots = <String, ({String label, int sort})>{};
-    for (final classId in classIds) {
-      for (final position
-          in indexes.positionsByClass[classId] ?? const <SchedulePosition>[]) {
-        final routine = state.snapshot.routines
-            .where((r) => r.stageId == position.stageId)
-            .firstOrNull;
-        final period = routine?.periodTypes
-            .where((p) => p.id == position.periodTypeId)
-            .firstOrNull;
-        final stage = state.snapshot.stages
-            .where((s) => s.id == position.stageId)
-            .firstOrNull;
-        slots.putIfAbsent(
-          _teacherGridSlotKey(position),
-          () => (
-            label: position.hasClockTime
-                ? '${timeLabel(position.startMinute!)}\n${timeLabel(position.endMinute!)}'
-                : '${stage?.name ?? ''} ${period?.name ?? ''}\n第 ${position.lessonIndex} 节',
-            sort:
-                position.startMinute ??
-                10000 +
-                    (stage?.sortOrder ?? 0) * 1000 +
-                    (period?.sortOrder ?? 0) * 100 +
-                    position.lessonIndex,
-          ),
-        );
-      }
+    for (final position in positions) {
+      final routine = state.snapshot.routines
+          .where((r) => r.stageId == position.stageId)
+          .firstOrNull;
+      final period = routine?.periodTypes
+          .where((p) => p.id == position.periodTypeId)
+          .firstOrNull;
+      final stage = state.snapshot.stages
+          .where((s) => s.id == position.stageId)
+          .firstOrNull;
+      slots.putIfAbsent(
+        _teacherGridSlotKey(position),
+        () => (
+          label: position.hasClockTime
+              ? '${timeLabel(position.startMinute!)}\n${timeLabel(position.endMinute!)}'
+              : '${stage?.name ?? ''} ${period?.name ?? ''}\n第 ${position.lessonIndex} 节',
+          sort:
+              position.startMinute ??
+              10000 +
+                  (stage?.sortOrder ?? 0) * 1000 +
+                  (period?.sortOrder ?? 0) * 100 +
+                  position.lessonIndex,
+        ),
+      );
     }
+
     final ordered = slots.entries.toList()
       ..sort((a, b) => a.value.sort.compareTo(b.value.sort));
     return LayoutBuilder(
@@ -346,6 +357,18 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                         Expanded(
                           child: Builder(
                             builder: (context) {
+                              final supervision = indexes.teacherSupervision(
+                                _viewTeacherId!,
+                                date,
+                                slot.key,
+                              );
+                              if (supervision != null) {
+                                final first =
+                                    supervision.occurrences.first.position;
+                                return slot.key == _teacherGridSlotKey(first)
+                                    ? _supervisionCell(state, supervision)
+                                    : const SizedBox(height: 81);
+                              }
                               final courses = indexes.teacherLessons(
                                 _viewTeacherId!,
                                 date,
@@ -504,6 +527,158 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
     );
   }
 
+  Widget _supervisionCell(
+    TemporaryTimetableState state,
+    ActualSupervision supervision,
+  ) {
+    final colors = context.appColors;
+    final first = supervision.occurrences.first.position;
+    final last = supervision.occurrences.last.position;
+    final period = first.lessonIndex == last.lessonIndex
+        ? '第 ${first.lessonIndex} 节'
+        : '第 ${first.lessonIndex}–${last.lessonIndex} 节';
+    final replaced = state.records.any(
+      (record) =>
+          record.cancelledAt == null &&
+          !record.needsAttention &&
+          record.supervisionChange?.after.key == supervision.key,
+    );
+    return Container(
+      height: 75,
+      margin: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: colors.selectedBlue,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: state.reconciliationPending || replaced || _source != null
+            ? null
+            : () => _openSupervisionSubstitution(state, supervision),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                supervision.post.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: colors.ink,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '${supervision.teacherName} · $period${replaced ? ' · 已替班' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: colors.inkSecondary),
+              ),
+              if (_teacherView)
+                Text(
+                  supervision.classNames.join('、'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: colors.inkSecondary),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSupervisionSubstitution(
+    TemporaryTimetableState state,
+    ActualSupervision supervision,
+  ) async {
+    String? teacherId;
+    var reason = '';
+    final candidates = {
+      for (final teacher in state.snapshot.teachers)
+        if (teacher.id != supervision.teacherId &&
+            supervision.eligibleTeacherIds.contains(teacher.id))
+          '${teacher.displayName}${state.snapshot.teachers.where((row) => row.displayName == teacher.displayName).length > 1 ? ' · ${teacher.id}' : ''}':
+              teacher.id,
+    };
+    TemporarySupervisionSubstituteRequest request(String id) =>
+        TemporarySupervisionSubstituteRequest(
+          date: supervision.date,
+          postId: supervision.postId,
+          teacherId: id,
+          reason: reason,
+        );
+    final selected = await showAppDialog<TemporarySupervisionSubstituteRequest>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) {
+          final id = teacherId;
+          final preview = id == null
+              ? null
+              : state.previewSupervisionSubstitute(request(id));
+          final canCommit = preview?.change != null;
+          return AppDialog(
+            maxWidth: 500,
+            title: const Text('安排带班替班'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${_date(supervision.date)} · ${supervision.post.name} · ${supervision.classNames.join('、')}',
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '原带班教师  ${supervision.teacherName} · 共 ${supervision.occurrences.length} 节',
+                ),
+                const SizedBox(height: 12),
+                if (candidates.isEmpty)
+                  const Text('该方案没有其他候选教师')
+                else
+                  _selectField(
+                    width: 260,
+                    hint: '选择替班教师',
+                    searchHint: '搜索教师',
+                    items: candidates,
+                    value: teacherId,
+                    onChanged: (value) => update(() => teacherId = value),
+                  ),
+                if (preview?.errors.isNotEmpty ?? false)
+                  _hintBox(Text(preview!.errors.join('；')), tone: 'amber'),
+                if (canCommit)
+                  Text(
+                    '${supervision.teacherName} → ${preview!.change!.after.teacherName}',
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  onChanged: (value) => reason = value,
+                  decoration: const InputDecoration(labelText: '替班原因（选填）'),
+                ),
+              ],
+            ),
+            actions: [
+              AppGhostButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('关闭'),
+              ),
+              AppPrimaryButton(
+                onPressed: canCommit
+                    ? () => Navigator.pop(dialogContext, request(id!))
+                    : null,
+                child: const Text('确认替班'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (!mounted || selected == null) return;
+    await _commitSupervisionReplacement(state, selected);
+  }
+
   Color _slotBackground({required bool filled, bool candidate = false}) {
     if (candidate) {
       return _isDark ? const Color(0xFF20384F) : const Color(0xFFF0F7FF);
@@ -525,6 +700,17 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
     final position = indexes.position(classId, weekday, periodId, index);
     final available =
         exception?.kind != CalendarExceptionKind.holiday && position != null;
+    final supervision = indexes.classSupervision(
+      classId,
+      date,
+      periodId,
+      index,
+    );
+    if (supervision != null) {
+      return index == supervision.occurrences.first.position.lessonIndex
+          ? _supervisionCell(state, supervision)
+          : const SizedBox(height: 81);
+    }
     final course = indexes.classLesson(classId, date, periodId, index);
     final subjectForeground = course == null
         ? null

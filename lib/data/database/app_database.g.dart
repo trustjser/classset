@@ -15349,6 +15349,508 @@ class TemporaryCourseAdjustmentsCompanion
   }
 }
 
+class $SupervisionDraftsTable extends SupervisionDrafts
+    with TableInfo<$SupervisionDraftsTable, SupervisionDraftRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SupervisionDraftsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [termId, payload];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'supervision_drafts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SupervisionDraftRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {termId};
+  @override
+  SupervisionDraftRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SupervisionDraftRow(
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+    );
+  }
+
+  @override
+  $SupervisionDraftsTable createAlias(String alias) {
+    return $SupervisionDraftsTable(attachedDatabase, alias);
+  }
+}
+
+class SupervisionDraftRow extends DataClass
+    implements Insertable<SupervisionDraftRow> {
+  final String termId;
+  final String payload;
+  const SupervisionDraftRow({required this.termId, required this.payload});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['term_id'] = Variable<String>(termId);
+    map['payload'] = Variable<String>(payload);
+    return map;
+  }
+
+  SupervisionDraftsCompanion toCompanion(bool nullToAbsent) {
+    return SupervisionDraftsCompanion(
+      termId: Value(termId),
+      payload: Value(payload),
+    );
+  }
+
+  factory SupervisionDraftRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SupervisionDraftRow(
+      termId: serializer.fromJson<String>(json['termId']),
+      payload: serializer.fromJson<String>(json['payload']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'termId': serializer.toJson<String>(termId),
+      'payload': serializer.toJson<String>(payload),
+    };
+  }
+
+  SupervisionDraftRow copyWith({String? termId, String? payload}) =>
+      SupervisionDraftRow(
+        termId: termId ?? this.termId,
+        payload: payload ?? this.payload,
+      );
+  SupervisionDraftRow copyWithCompanion(SupervisionDraftsCompanion data) {
+    return SupervisionDraftRow(
+      termId: data.termId.present ? data.termId.value : this.termId,
+      payload: data.payload.present ? data.payload.value : this.payload,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SupervisionDraftRow(')
+          ..write('termId: $termId, ')
+          ..write('payload: $payload')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(termId, payload);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SupervisionDraftRow &&
+          other.termId == this.termId &&
+          other.payload == this.payload);
+}
+
+class SupervisionDraftsCompanion extends UpdateCompanion<SupervisionDraftRow> {
+  final Value<String> termId;
+  final Value<String> payload;
+  final Value<int> rowid;
+  const SupervisionDraftsCompanion({
+    this.termId = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SupervisionDraftsCompanion.insert({
+    required String termId,
+    required String payload,
+    this.rowid = const Value.absent(),
+  }) : termId = Value(termId),
+       payload = Value(payload);
+  static Insertable<SupervisionDraftRow> custom({
+    Expression<String>? termId,
+    Expression<String>? payload,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (termId != null) 'term_id': termId,
+      if (payload != null) 'payload': payload,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SupervisionDraftsCompanion copyWith({
+    Value<String>? termId,
+    Value<String>? payload,
+    Value<int>? rowid,
+  }) {
+    return SupervisionDraftsCompanion(
+      termId: termId ?? this.termId,
+      payload: payload ?? this.payload,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SupervisionDraftsCompanion(')
+          ..write('termId: $termId, ')
+          ..write('payload: $payload, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SupervisionPlanVersionsTable extends SupervisionPlanVersions
+    with TableInfo<$SupervisionPlanVersionsTable, SupervisionPlanVersionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SupervisionPlanVersionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _effectiveDateMeta = const VerificationMeta(
+    'effectiveDate',
+  );
+  @override
+  late final GeneratedColumn<String> effectiveDate = GeneratedColumn<String>(
+    'effective_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [termId, effectiveDate, payload];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'supervision_plan_versions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SupervisionPlanVersionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('effective_date')) {
+      context.handle(
+        _effectiveDateMeta,
+        effectiveDate.isAcceptableOrUnknown(
+          data['effective_date']!,
+          _effectiveDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_effectiveDateMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {termId, effectiveDate};
+  @override
+  SupervisionPlanVersionRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SupervisionPlanVersionRow(
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      effectiveDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}effective_date'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+    );
+  }
+
+  @override
+  $SupervisionPlanVersionsTable createAlias(String alias) {
+    return $SupervisionPlanVersionsTable(attachedDatabase, alias);
+  }
+}
+
+class SupervisionPlanVersionRow extends DataClass
+    implements Insertable<SupervisionPlanVersionRow> {
+  final String termId;
+  final String effectiveDate;
+  final String payload;
+  const SupervisionPlanVersionRow({
+    required this.termId,
+    required this.effectiveDate,
+    required this.payload,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['term_id'] = Variable<String>(termId);
+    map['effective_date'] = Variable<String>(effectiveDate);
+    map['payload'] = Variable<String>(payload);
+    return map;
+  }
+
+  SupervisionPlanVersionsCompanion toCompanion(bool nullToAbsent) {
+    return SupervisionPlanVersionsCompanion(
+      termId: Value(termId),
+      effectiveDate: Value(effectiveDate),
+      payload: Value(payload),
+    );
+  }
+
+  factory SupervisionPlanVersionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SupervisionPlanVersionRow(
+      termId: serializer.fromJson<String>(json['termId']),
+      effectiveDate: serializer.fromJson<String>(json['effectiveDate']),
+      payload: serializer.fromJson<String>(json['payload']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'termId': serializer.toJson<String>(termId),
+      'effectiveDate': serializer.toJson<String>(effectiveDate),
+      'payload': serializer.toJson<String>(payload),
+    };
+  }
+
+  SupervisionPlanVersionRow copyWith({
+    String? termId,
+    String? effectiveDate,
+    String? payload,
+  }) => SupervisionPlanVersionRow(
+    termId: termId ?? this.termId,
+    effectiveDate: effectiveDate ?? this.effectiveDate,
+    payload: payload ?? this.payload,
+  );
+  SupervisionPlanVersionRow copyWithCompanion(
+    SupervisionPlanVersionsCompanion data,
+  ) {
+    return SupervisionPlanVersionRow(
+      termId: data.termId.present ? data.termId.value : this.termId,
+      effectiveDate: data.effectiveDate.present
+          ? data.effectiveDate.value
+          : this.effectiveDate,
+      payload: data.payload.present ? data.payload.value : this.payload,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SupervisionPlanVersionRow(')
+          ..write('termId: $termId, ')
+          ..write('effectiveDate: $effectiveDate, ')
+          ..write('payload: $payload')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(termId, effectiveDate, payload);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SupervisionPlanVersionRow &&
+          other.termId == this.termId &&
+          other.effectiveDate == this.effectiveDate &&
+          other.payload == this.payload);
+}
+
+class SupervisionPlanVersionsCompanion
+    extends UpdateCompanion<SupervisionPlanVersionRow> {
+  final Value<String> termId;
+  final Value<String> effectiveDate;
+  final Value<String> payload;
+  final Value<int> rowid;
+  const SupervisionPlanVersionsCompanion({
+    this.termId = const Value.absent(),
+    this.effectiveDate = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SupervisionPlanVersionsCompanion.insert({
+    required String termId,
+    required String effectiveDate,
+    required String payload,
+    this.rowid = const Value.absent(),
+  }) : termId = Value(termId),
+       effectiveDate = Value(effectiveDate),
+       payload = Value(payload);
+  static Insertable<SupervisionPlanVersionRow> custom({
+    Expression<String>? termId,
+    Expression<String>? effectiveDate,
+    Expression<String>? payload,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (termId != null) 'term_id': termId,
+      if (effectiveDate != null) 'effective_date': effectiveDate,
+      if (payload != null) 'payload': payload,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SupervisionPlanVersionsCompanion copyWith({
+    Value<String>? termId,
+    Value<String>? effectiveDate,
+    Value<String>? payload,
+    Value<int>? rowid,
+  }) {
+    return SupervisionPlanVersionsCompanion(
+      termId: termId ?? this.termId,
+      effectiveDate: effectiveDate ?? this.effectiveDate,
+      payload: payload ?? this.payload,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (effectiveDate.present) {
+      map['effective_date'] = Variable<String>(effectiveDate.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SupervisionPlanVersionsCompanion(')
+          ..write('termId: $termId, ')
+          ..write('effectiveDate: $effectiveDate, ')
+          ..write('payload: $payload, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -15405,6 +15907,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   scheduleReconciliationBaselines = $ScheduleReconciliationBaselinesTable(this);
   late final $TemporaryCourseAdjustmentsTable temporaryCourseAdjustments =
       $TemporaryCourseAdjustmentsTable(this);
+  late final $SupervisionDraftsTable supervisionDrafts =
+      $SupervisionDraftsTable(this);
+  late final $SupervisionPlanVersionsTable supervisionPlanVersions =
+      $SupervisionPlanVersionsTable(this);
   late final Index scheduleItemsTerm = Index(
     'schedule_items_term',
     'CREATE INDEX schedule_items_term ON schedule_items (term_id)',
@@ -15472,6 +15978,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     scheduleRunReports,
     scheduleReconciliationBaselines,
     temporaryCourseAdjustments,
+    supervisionDrafts,
+    supervisionPlanVersions,
     scheduleItemsTerm,
     scheduleItemsAssignment,
     scheduleItemsClassSlot,
@@ -15935,6 +16443,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         TableUpdate('temporary_course_adjustments', kind: UpdateKind.delete),
       ],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('supervision_drafts', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('supervision_plan_versions', kind: UpdateKind.delete),
+      ],
+    ),
   ]);
 }
 
@@ -16301,6 +16825,52 @@ final class $$AcademicTermsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _temporaryCourseAdjustmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SupervisionDraftsTable, List<SupervisionDraftRow>>
+  _supervisionDraftsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.supervisionDrafts,
+        aliasName: 'academic_terms__id__supervision_drafts__term_id',
+      );
+
+  $$SupervisionDraftsTableProcessedTableManager get supervisionDraftsRefs {
+    final manager = $$SupervisionDraftsTableTableManager(
+      $_db,
+      $_db.supervisionDrafts,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _supervisionDraftsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $SupervisionPlanVersionsTable,
+    List<SupervisionPlanVersionRow>
+  >
+  _supervisionPlanVersionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.supervisionPlanVersions,
+        aliasName: 'academic_terms__id__supervision_plan_versions__term_id',
+      );
+
+  $$SupervisionPlanVersionsTableProcessedTableManager
+  get supervisionPlanVersionsRefs {
+    final manager = $$SupervisionPlanVersionsTableTableManager(
+      $_db,
+      $_db.supervisionPlanVersions,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _supervisionPlanVersionsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -16756,6 +17326,57 @@ class $$AcademicTermsTableFilterComposer
               }) => $$TemporaryCourseAdjustmentsTableFilterComposer(
                 $db: $db,
                 $table: $db.temporaryCourseAdjustments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> supervisionDraftsRefs(
+    Expression<bool> Function($$SupervisionDraftsTableFilterComposer f) f,
+  ) {
+    final $$SupervisionDraftsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.supervisionDrafts,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SupervisionDraftsTableFilterComposer(
+            $db: $db,
+            $table: $db.supervisionDrafts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> supervisionPlanVersionsRefs(
+    Expression<bool> Function($$SupervisionPlanVersionsTableFilterComposer f) f,
+  ) {
+    final $$SupervisionPlanVersionsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.supervisionPlanVersions,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SupervisionPlanVersionsTableFilterComposer(
+                $db: $db,
+                $table: $db.supervisionPlanVersions,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -17271,6 +17892,59 @@ class $$AcademicTermsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> supervisionDraftsRefs<T extends Object>(
+    Expression<T> Function($$SupervisionDraftsTableAnnotationComposer a) f,
+  ) {
+    final $$SupervisionDraftsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.supervisionDrafts,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SupervisionDraftsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.supervisionDrafts,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> supervisionPlanVersionsRefs<T extends Object>(
+    Expression<T> Function($$SupervisionPlanVersionsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$SupervisionPlanVersionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.supervisionPlanVersions,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SupervisionPlanVersionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.supervisionPlanVersions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AcademicTermsTableTableManager
@@ -17303,6 +17977,8 @@ class $$AcademicTermsTableTableManager
             bool scheduleRunReportsRefs,
             bool scheduleReconciliationBaselinesRefs,
             bool temporaryCourseAdjustmentsRefs,
+            bool supervisionDraftsRefs,
+            bool supervisionPlanVersionsRefs,
           })
         > {
   $$AcademicTermsTableTableManager(_$AppDatabase db, $AcademicTermsTable table)
@@ -17386,6 +18062,8 @@ class $$AcademicTermsTableTableManager
                 scheduleRunReportsRefs = false,
                 scheduleReconciliationBaselinesRefs = false,
                 temporaryCourseAdjustmentsRefs = false,
+                supervisionDraftsRefs = false,
+                supervisionPlanVersionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -17408,6 +18086,8 @@ class $$AcademicTermsTableTableManager
                       db.scheduleReconciliationBaselines,
                     if (temporaryCourseAdjustmentsRefs)
                       db.temporaryCourseAdjustments,
+                    if (supervisionDraftsRefs) db.supervisionDrafts,
+                    if (supervisionPlanVersionsRefs) db.supervisionPlanVersions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -17748,6 +18428,48 @@ class $$AcademicTermsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (supervisionDraftsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          SupervisionDraftRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._supervisionDraftsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).supervisionDraftsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (supervisionPlanVersionsRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          SupervisionPlanVersionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._supervisionPlanVersionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).supervisionPlanVersionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -17785,6 +18507,8 @@ typedef $$AcademicTermsTableProcessedTableManager =
         bool scheduleRunReportsRefs,
         bool scheduleReconciliationBaselinesRefs,
         bool temporaryCourseAdjustmentsRefs,
+        bool supervisionDraftsRefs,
+        bool supervisionPlanVersionsRefs,
       })
     >;
 typedef $$AppSettingsTableCreateCompanionBuilder =
@@ -36385,6 +37109,584 @@ typedef $$TemporaryCourseAdjustmentsTableProcessedTableManager =
       TemporaryCourseAdjustment,
       PrefetchHooks Function({bool termId})
     >;
+typedef $$SupervisionDraftsTableCreateCompanionBuilder =
+    SupervisionDraftsCompanion Function({
+      required String termId,
+      required String payload,
+      Value<int> rowid,
+    });
+typedef $$SupervisionDraftsTableUpdateCompanionBuilder =
+    SupervisionDraftsCompanion Function({
+      Value<String> termId,
+      Value<String> payload,
+      Value<int> rowid,
+    });
+
+final class $$SupervisionDraftsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SupervisionDraftsTable,
+          SupervisionDraftRow
+        > {
+  $$SupervisionDraftsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('supervision_drafts__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SupervisionDraftsTableFilterComposer
+    extends Composer<_$AppDatabase, $SupervisionDraftsTable> {
+  $$SupervisionDraftsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupervisionDraftsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SupervisionDraftsTable> {
+  $$SupervisionDraftsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupervisionDraftsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SupervisionDraftsTable> {
+  $$SupervisionDraftsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupervisionDraftsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SupervisionDraftsTable,
+          SupervisionDraftRow,
+          $$SupervisionDraftsTableFilterComposer,
+          $$SupervisionDraftsTableOrderingComposer,
+          $$SupervisionDraftsTableAnnotationComposer,
+          $$SupervisionDraftsTableCreateCompanionBuilder,
+          $$SupervisionDraftsTableUpdateCompanionBuilder,
+          (SupervisionDraftRow, $$SupervisionDraftsTableReferences),
+          SupervisionDraftRow,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$SupervisionDraftsTableTableManager(
+    _$AppDatabase db,
+    $SupervisionDraftsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SupervisionDraftsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SupervisionDraftsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SupervisionDraftsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> termId = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SupervisionDraftsCompanion(
+                termId: termId,
+                payload: payload,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String termId,
+                required String payload,
+                Value<int> rowid = const Value.absent(),
+              }) => SupervisionDraftsCompanion.insert(
+                termId: termId,
+                payload: payload,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SupervisionDraftsTable, SupervisionDraftRow>(
+                    table,
+                  ),
+                  $$SupervisionDraftsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable: $$SupervisionDraftsTableReferences
+                            ._termIdTable(db),
+                        referencedColumn: $$SupervisionDraftsTableReferences
+                            ._termIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SupervisionDraftsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SupervisionDraftsTable,
+      SupervisionDraftRow,
+      $$SupervisionDraftsTableFilterComposer,
+      $$SupervisionDraftsTableOrderingComposer,
+      $$SupervisionDraftsTableAnnotationComposer,
+      $$SupervisionDraftsTableCreateCompanionBuilder,
+      $$SupervisionDraftsTableUpdateCompanionBuilder,
+      (SupervisionDraftRow, $$SupervisionDraftsTableReferences),
+      SupervisionDraftRow,
+      PrefetchHooks Function({bool termId})
+    >;
+typedef $$SupervisionPlanVersionsTableCreateCompanionBuilder =
+    SupervisionPlanVersionsCompanion Function({
+      required String termId,
+      required String effectiveDate,
+      required String payload,
+      Value<int> rowid,
+    });
+typedef $$SupervisionPlanVersionsTableUpdateCompanionBuilder =
+    SupervisionPlanVersionsCompanion Function({
+      Value<String> termId,
+      Value<String> effectiveDate,
+      Value<String> payload,
+      Value<int> rowid,
+    });
+
+final class $$SupervisionPlanVersionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SupervisionPlanVersionsTable,
+          SupervisionPlanVersionRow
+        > {
+  $$SupervisionPlanVersionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('supervision_plan_versions__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SupervisionPlanVersionsTableFilterComposer
+    extends Composer<_$AppDatabase, $SupervisionPlanVersionsTable> {
+  $$SupervisionPlanVersionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get effectiveDate => $composableBuilder(
+    column: $table.effectiveDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupervisionPlanVersionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SupervisionPlanVersionsTable> {
+  $$SupervisionPlanVersionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get effectiveDate => $composableBuilder(
+    column: $table.effectiveDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupervisionPlanVersionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SupervisionPlanVersionsTable> {
+  $$SupervisionPlanVersionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get effectiveDate => $composableBuilder(
+    column: $table.effectiveDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupervisionPlanVersionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SupervisionPlanVersionsTable,
+          SupervisionPlanVersionRow,
+          $$SupervisionPlanVersionsTableFilterComposer,
+          $$SupervisionPlanVersionsTableOrderingComposer,
+          $$SupervisionPlanVersionsTableAnnotationComposer,
+          $$SupervisionPlanVersionsTableCreateCompanionBuilder,
+          $$SupervisionPlanVersionsTableUpdateCompanionBuilder,
+          (SupervisionPlanVersionRow, $$SupervisionPlanVersionsTableReferences),
+          SupervisionPlanVersionRow,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$SupervisionPlanVersionsTableTableManager(
+    _$AppDatabase db,
+    $SupervisionPlanVersionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SupervisionPlanVersionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SupervisionPlanVersionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SupervisionPlanVersionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> termId = const Value.absent(),
+                Value<String> effectiveDate = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SupervisionPlanVersionsCompanion(
+                termId: termId,
+                effectiveDate: effectiveDate,
+                payload: payload,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String termId,
+                required String effectiveDate,
+                required String payload,
+                Value<int> rowid = const Value.absent(),
+              }) => SupervisionPlanVersionsCompanion.insert(
+                termId: termId,
+                effectiveDate: effectiveDate,
+                payload: payload,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SupervisionPlanVersionsTable,
+                    SupervisionPlanVersionRow
+                  >(table),
+                  $$SupervisionPlanVersionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable:
+                            $$SupervisionPlanVersionsTableReferences
+                                ._termIdTable(db),
+                        referencedColumn:
+                            $$SupervisionPlanVersionsTableReferences
+                                ._termIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SupervisionPlanVersionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SupervisionPlanVersionsTable,
+      SupervisionPlanVersionRow,
+      $$SupervisionPlanVersionsTableFilterComposer,
+      $$SupervisionPlanVersionsTableOrderingComposer,
+      $$SupervisionPlanVersionsTableAnnotationComposer,
+      $$SupervisionPlanVersionsTableCreateCompanionBuilder,
+      $$SupervisionPlanVersionsTableUpdateCompanionBuilder,
+      (SupervisionPlanVersionRow, $$SupervisionPlanVersionsTableReferences),
+      SupervisionPlanVersionRow,
+      PrefetchHooks Function({bool termId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -36470,5 +37772,12 @@ class $AppDatabaseManager {
       $$TemporaryCourseAdjustmentsTableTableManager(
         _db,
         _db.temporaryCourseAdjustments,
+      );
+  $$SupervisionDraftsTableTableManager get supervisionDrafts =>
+      $$SupervisionDraftsTableTableManager(_db, _db.supervisionDrafts);
+  $$SupervisionPlanVersionsTableTableManager get supervisionPlanVersions =>
+      $$SupervisionPlanVersionsTableTableManager(
+        _db,
+        _db.supervisionPlanVersions,
       );
 }
