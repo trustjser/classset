@@ -15,18 +15,23 @@ import 'package:class_set/domain/models/teacher.dart';
 import 'package:class_set/domain/models/teacher_group.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/domain/scheduling/supervision_allocator.dart';
+import 'package:class_set/domain/scheduling/supervision_matching.dart';
 import 'package:class_set/domain/scheduling/supervision_validation.dart';
+import 'package:class_set/features/supervision/supervision_history.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart' as f;
+import 'package:material_ui/material_ui.dart' as forui_material;
 
 part 'supervision_dialogs.dart';
 part 'supervision_post_dialog.dart';
 part 'supervision_week.dart';
+part 'supervision_workspace.dart';
 part 'supervision_selection.dart';
+part 'supervision_matching_settings.dart';
 
 const _weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -141,9 +146,11 @@ class _SupervisionEditor extends ConsumerStatefulWidget {
 }
 
 class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
-  late SupervisionDraft _draft = _initialDraft();
+  late final _history = SupervisionDraftHistory(_initialDraft());
+  SupervisionDraft get _draft => _history.current;
   late final DraftNavigationGuard _guard;
-  bool _dirty = false;
+  SupervisionDraft? _pendingDraft;
+  bool get _dirty => _history.hasChanges;
   bool _publishing = false;
   Future<bool>? _saveInFlight;
   ReceivePort? _fillPort;
@@ -153,6 +160,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
   String? _selectedPostId;
   Set<String> _selectedPostIds = {};
   bool _missingOnly = false;
+  bool _preferenceOnly = false;
   _DutyView _view = _DutyView.week;
 
   String get _termId => widget.snapshot.term.id;
@@ -190,12 +198,22 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
     final sourceChanged =
         oldWidget.draft != widget.draft ||
         (widget.draft == null && oldWidget.versions != widget.versions);
-    if (!_dirty && !_busy && !_filling && sourceChanged) {
-      _draft = _initialDraft();
-      _selectedPostIds = _selectedPostIds.intersection(
-        _draft.posts.map((post) => post.id).toSet(),
-      );
-    }
+    if (!sourceChanged) return;
+    final incoming = _initialDraft();
+    // A delayed echo of our own save must not restore an older storage revision.
+    if (widget.draft != null && incoming.revision < _draft.revision) return;
+    _pendingDraft = _history.isCurrent(incoming) ? null : incoming;
+    _adoptPendingDraft();
+  }
+
+  void _adoptPendingDraft() {
+    if (_pendingDraft == null || _dirty || _busy || _filling) return;
+    final incoming = _pendingDraft!;
+    _pendingDraft = null;
+    if (_history.isCurrent(incoming)) return;
+    _history.reset(incoming);
+    _selectedPostId = null;
+    _pruneSelection();
   }
 
   @override
@@ -205,14 +223,59 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
     super.dispose();
   }
 
-  void _replaceDraft(SupervisionDraft next) {
+  void _pruneSelection() {
+    final remaining = _draft.posts.map((post) => post.id).toSet();
+    _selectedPostIds = _selectedPostIds.intersection(remaining);
+    if (!remaining.contains(_selectedPostId)) _selectedPostId = null;
+  }
+
+  void _replaceDraft(SupervisionDraft next, {required String label}) {
     setState(() {
-      _draft = next;
-      final remaining = next.posts.map((post) => post.id).toSet();
-      _selectedPostIds = _selectedPostIds.intersection(remaining);
-      if (!remaining.contains(_selectedPostId)) _selectedPostId = null;
-      _dirty = true;
+      if (_history.replace(next, label)) _pruneSelection();
+      _adoptPendingDraft();
     });
+  }
+
+  void _undo() => _restoreHistory(undo: true);
+  void _redo() => _restoreHistory(undo: false);
+  void _restoreHistory({required bool undo}) {
+    if (!_editable) return;
+    setState(() {
+      final restored = undo ? _history.undo() : _history.redo();
+      if (restored == null) return;
+      _selectedPostId = null;
+      _selectedPostIds = {};
+      _adoptPendingDraft();
+    });
+  }
+
+  KeyEventResult _historyKey(FocusNode node, KeyEvent event) {
+    if (!_editable ||
+        (event is! KeyDownEvent && event is! KeyRepeatEvent) ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return KeyEventResult.ignored;
+    }
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext?.widget is EditableText ||
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if ((!keyboard.isControlPressed && !keyboard.isMetaPressed) ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.keyZ) {
+      keyboard.isShiftPressed ? _redo() : _undo();
+      return KeyEventResult.handled;
+    }
+    if (keyboard.isControlPressed &&
+        !keyboard.isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyY) {
+      _redo();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void _message(String message) {
@@ -247,8 +310,12 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
       );
       if (!mounted) return false;
       setState(() {
-        _draft = saved;
-        _dirty = false;
+        _history.markSaved(saved);
+        if (_pendingDraft != null &&
+            widget.draft != null &&
+            _pendingDraft!.revision <= saved.revision) {
+          _pendingDraft = null;
+        }
       });
       ref.read(lastPersistedAtProvider.notifier).state = DateTime.now();
       _message('草稿已保存');
@@ -257,7 +324,12 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
       _message('保存草稿失败：$error');
       return false;
     } finally {
-      if (mounted) setState(() => _saveInFlight = null);
+      if (mounted) {
+        setState(() {
+          _saveInFlight = null;
+          _adoptPendingDraft();
+        });
+      }
     }
   }
 
@@ -268,7 +340,10 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
           _PostDialog(snapshot: widget.snapshot, draft: _draft, seed: seed),
     );
     if (!mounted || posts == null) return;
-    _replaceDraft(_draft.copyWith(posts: [..._draft.posts, ...posts]));
+    _replaceDraft(
+      _draft.copyWith(posts: [..._draft.posts, ...posts]),
+      label: '创建 ${posts.length} 个岗位',
+    );
   }
 
   Future<void> _removePost(SupervisionPost post) => _removePosts({post.id});
@@ -289,24 +364,27 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
       context: context,
       builder: (dialogContext) => AppDialog(
         title: Text(batch ? '批量移除带班岗位' : '移除带班岗位'),
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('将从草稿移除 ${targets.length} 个岗位，其中 $assigned 个已安排教师。'),
-            const SizedBox(height: 8),
-            for (final post in targets.take(8))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '${_weekdays[post.weekday - 1]} · ${post.name} · ${_slotLabel(widget.snapshot, post)} · ${post.groupName.isNotEmpty ? post.groupName : post.classIds.map((id) => classes[id] ?? id).join('、')}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+        content: DefaultTextStyle.merge(
+          style: TextStyle(color: context.appColors.inkSecondary),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('将从草稿移除 ${targets.length} 个岗位，其中 $assigned 个已安排教师。'),
+              const SizedBox(height: 8),
+              for (final post in targets.take(8))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '${_weekdays[post.weekday - 1]} · ${post.name} · ${_slotLabel(widget.snapshot, post)} · ${post.groupName.isNotEmpty ? post.groupName : post.classIds.map((id) => classes[id] ?? id).join('、')}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            if (targets.length > 8) Text('另有 ${targets.length - 8} 个岗位。'),
-            const SizedBox(height: 8),
-            const Text('已生效的安排会继续显示，直到预览并确认新版本。'),
-          ],
+              if (targets.length > 8) Text('另有 ${targets.length - 8} 个岗位。'),
+              const SizedBox(height: 8),
+              const Text('已生效的安排会继续显示，直到预览并确认新版本。'),
+            ],
+          ),
         ),
         actions: [
           AppGhostButton(
@@ -328,44 +406,33 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
           ..removeWhere((id, _) => ids.contains(id)),
         manualPostIds: {..._draft.manualPostIds}..removeAll(ids),
       ),
+      label: '移除 ${targets.length} 个岗位',
     );
-  }
-
-  Future<void> _selectTeacher(SupervisionPost post) async {
-    final picked = await showAppDialog<String>(
-      context: context,
-      builder: (dialogContext) => _TeacherPickerDialog(
-        snapshot: widget.snapshot,
-        draft: _draft,
-        post: post,
-        onRemove: () {
-          Navigator.pop(dialogContext);
-          unawaited(_removePost(post));
-        },
-      ),
-    );
-    if (!mounted || picked == null) return;
-    _assignTeacher(post, picked);
   }
 
   void _assignTeacher(SupervisionPost post, String picked) {
     final assignments = {..._draft.assignments};
     final manualPostIds = {..._draft.manualPostIds};
-    final teacherIds = {..._draft.teacherIds};
     if (picked.isEmpty) {
       assignments.remove(post.id);
       manualPostIds.remove(post.id);
     } else {
-      teacherIds.add(picked);
+      final errors = const SupervisionAllocator().teacherBlockers(
+        widget.snapshot,
+        _draft,
+        post,
+        picked,
+      );
+      if (errors.isNotEmpty) {
+        _message(errors.join(' · '));
+        return;
+      }
       assignments[post.id] = picked;
       manualPostIds.add(post.id);
     }
     _replaceDraft(
-      _draft.copyWith(
-        assignments: assignments,
-        manualPostIds: manualPostIds,
-        teacherIds: teacherIds,
-      ),
+      _draft.copyWith(assignments: assignments, manualPostIds: manualPostIds),
+      label: picked.isEmpty ? '清除教师指派' : '指派带班教师',
     );
   }
 
@@ -387,10 +454,116 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
         groups: groups,
       ),
     );
-    if (mounted && revised != null) _replaceDraft(revised);
+    if (mounted && revised != null) _replaceDraft(revised, label: '设置候选池与教师规则');
   }
 
-  Future<void> _smartFill() async {
+  Future<void> _editMatching() async {
+    final value = await showAppDialog<SupervisionMatchingPreferences>(
+      context: context,
+      builder: (_) =>
+          _MatchingPreferencesDialog(initial: _draft.matchingPreferences),
+    );
+    if (mounted && value != null && _editable) {
+      _replaceDraft(
+        _draft.copyWith(matchingPreferences: value),
+        label: '调整人员匹配',
+      );
+    }
+  }
+
+  Future<void> _editPostPersonnel(
+    Set<String> ids, {
+    _PersonnelEditMode mode = _PersonnelEditMode.all,
+  }) async {
+    if (!_editable) return;
+    final posts = _draft.posts.where((post) => ids.contains(post.id)).toList();
+    if (posts.isEmpty) return;
+    final first = posts.first;
+    final value = await showAppDialog<_PersonnelSettings>(
+      context: context,
+      builder: (_) => _PostPersonnelDialog(
+        draft: _draft,
+        snapshot: widget.snapshot,
+        count: posts.length,
+        mode: mode,
+        initial: (
+          poolId: first.teacherPoolId,
+          preferences: first.matchingPreferences,
+          subjects: first.targetSubjectIds,
+        ),
+      ),
+    );
+    if (!mounted || value == null || !_editable) return;
+    _replaceDraft(
+      _draft.copyWith(
+        posts: [
+          for (final post in _draft.posts)
+            if (!ids.contains(post.id))
+              post
+            else
+              post.copyWith(
+                teacherPoolId: mode == _PersonnelEditMode.matching
+                    ? null
+                    : value.poolId,
+                inheritPool:
+                    mode != _PersonnelEditMode.matching && value.poolId == null,
+                matchingPreferences: mode == _PersonnelEditMode.pool
+                    ? null
+                    : value.preferences,
+                inheritPreferences:
+                    mode != _PersonnelEditMode.pool &&
+                    value.preferences == null,
+                targetSubjectIds: mode == _PersonnelEditMode.pool
+                    ? null
+                    : value.subjects,
+              ),
+        ],
+      ),
+      label: '设置 ${posts.length} 个岗位的人员规则',
+    );
+  }
+
+  Future<void> _rematch() async {
+    var keepManual = true;
+    final choice = await showAppDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AppDialog(
+          title: const Text('重新匹配带班教师'),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('按当前候选池与人员匹配规则重新安排草稿中的岗位。已生效版本在预览确认前保持原安排。'),
+              const SizedBox(height: 12),
+              f.FSwitch(
+                label: const Text('保留手动指派'),
+                description: Text(
+                  '当前有 ${_draft.manualPostIds.length} 个手动指派岗位。关闭后这些岗位也会重新匹配。',
+                ),
+                value: keepManual,
+                onChange: (value) => setDialogState(() => keepManual = value),
+              ),
+            ],
+          ),
+          actions: [
+            AppGhostButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            AppPrimaryButton(
+              onPressed: () => Navigator.pop(context, keepManual),
+              child: const Text('开始匹配'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (mounted && choice != null && _editable) {
+      await _smartFill(resetManual: !choice);
+    }
+  }
+
+  Future<void> _smartFill({bool resetManual = false}) async {
     final port = ReceivePort();
     setState(() => _fillPort = port);
     try {
@@ -398,9 +571,12 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
           .read(schoolRepositoryProvider)
           .loadSchedulingSnapshot(_termId);
       if (!mounted || _fillPort != port) return;
-      final input = _draft;
+      final input = resetManual ? _draft.copyWith(manualPostIds: {}) : _draft;
       if (kIsWeb) {
-        _replaceDraft(const SupervisionAllocator().fill(snapshot, input));
+        _replaceDraft(
+          const SupervisionAllocator().fill(snapshot, input),
+          label: '智能匹配带班教师',
+        );
         return;
       }
       final output = port.first;
@@ -417,7 +593,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
       final result = await output;
       if (!mounted || _fillPort != port || result == null) return;
       if (result is SupervisionDraft) {
-        _replaceDraft(result);
+        _replaceDraft(result, label: '智能匹配带班教师');
       } else {
         _message('智能补齐失败：$result');
       }
@@ -433,6 +609,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
     _fillPort?.close();
     _fillIsolate = null;
     _fillPort = null;
+    _adoptPendingDraft();
   }
 
   Future<void> _publish({bool repair = false}) async {
@@ -457,8 +634,8 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
       await repository.publishSupervision(_termId, preview);
       if (!mounted) return;
       setState(() {
-        _dirty = false;
-        _draft = preview.draft.copyWith(revision: 0);
+        _pendingDraft = null;
+        _history.reset(preview.draft.copyWith(revision: 0));
         _viewVersionDate = preview.effectiveDate;
         _selectedPostIds = {};
       });
@@ -471,12 +648,23 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
     } on Object catch (error) {
       _message('确认带班方案失败：$error');
     } finally {
-      if (mounted) setState(() => _publishing = false);
+      if (mounted) {
+        setState(() {
+          _publishing = false;
+          _adoptPendingDraft();
+        });
+      }
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Focus(
+    autofocus: true,
+    onKeyEvent: _historyKey,
+    child: _buildEditor(context),
+  );
+
+  Widget _buildEditor(BuildContext context) {
     final versions = [...widget.versions]
       ..sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
     final selected = versions
@@ -498,48 +686,90 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
         _editable &&
         (versions.isNotEmpty || _draft.posts.isNotEmpty) &&
         _publishDates(widget.snapshot.term).isNotEmpty;
+    final matching = SupervisionMatching(widget.snapshot);
+    final statuses = <String, String>{};
+    final preferenceMisses = <String>{};
+    var invalidAssignments = 0;
+    for (final post in draft.posts) {
+      final teacher = draft.assignments[post.id];
+      if (teacher == null || selected != null) continue;
+      final errors = const SupervisionAllocator().teacherBlockers(
+        widget.snapshot,
+        draft,
+        post,
+        teacher,
+        matching: matching,
+      );
+      if (errors.isNotEmpty && selected == null) {
+        statuses[post.id] = '指派需调整';
+        invalidAssignments++;
+      }
+      if (matching.hasUnmetPreferences(draft, post, teacher)) {
+        preferenceMisses.add(post.id);
+        statuses.putIfAbsent(post.id, () => '偏好未满足');
+      }
+    }
     final colors = context.appColors;
     final theme = Theme.of(context).textTheme;
+    final canUndo = _editable && _history.canUndo;
+    final canRedo = _editable && _history.canRedo;
+    final undoTip =
+        '撤销${_history.undoLabel == null ? '' : '：${_history.undoLabel}'} · Cmd/Ctrl+Z';
+    final redoTip =
+        '重做${_history.redoLabel == null ? '' : '：${_history.redoLabel}'} · Cmd/Ctrl+Shift+Z / Ctrl+Y';
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gutter = constraints.maxWidth < 560 ? 16.0 : 28.0;
-        final inline =
-            constraints.maxWidth >= 1120 && constraints.maxHeight >= 520;
+        final gutter = constraints.maxWidth < 560
+            ? 12.0
+            : constraints.maxWidth < 1280
+            ? 16.0
+            : 24.0;
+        final wide = constraints.maxWidth >= 768;
         final activeDay = days.contains(_filterDay)
             ? _filterDay
             : days.firstOrNull;
         final picker = SizedBox(
-          width: versions.isEmpty ? 116 : 218,
-          child: AppSelectField<String>(
-            compact: true,
-            items: {
-              '编辑草稿': '',
-              for (final version in versions)
-                '${identical(version, current)
-                    ? '当前生效'
-                    : version.effectiveDate.isAfter(DateTime.now())
-                    ? '待生效'
-                    : '历史方案'} · ${_dateLabel(version.effectiveDate)}': version
-                    .effectiveDate
-                    .toIso8601String(),
-            },
-            value: selected?.effectiveDate.toIso8601String() ?? '',
-            enabled: !_busy && !_filling,
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                _viewVersionDate = value.isEmpty ? null : DateTime.parse(value);
-                _selectedPostId = null;
-                _selectedPostIds = {};
-                _filterDay = null;
-                _missingOnly = false;
-              });
-            },
+          width: versions.isEmpty ? 96 : 218,
+          child: _DutyVersionPicker(
+            child: AppSelectField<String>(
+              items: {
+                '编辑草稿': '',
+                for (final version in versions)
+                  '${identical(version, current)
+                      ? '当前生效'
+                      : version.effectiveDate.isAfter(DateTime.now())
+                      ? '待生效'
+                      : '历史方案'} · ${_dateLabel(version.effectiveDate)}': version
+                      .effectiveDate
+                      .toIso8601String(),
+              },
+              value: selected?.effectiveDate.toIso8601String() ?? '',
+              enabled: !_busy && !_filling,
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _viewVersionDate = value.isEmpty
+                      ? null
+                      : DateTime.parse(value);
+                  _selectedPostId = null;
+                  _selectedPostIds = {};
+                  _filterDay = null;
+                  _missingOnly = false;
+                  _preferenceOnly = false;
+                });
+              },
+            ),
           ),
         );
         final body = _DutySelectionRegion(
-          key: ValueKey((_view, _filterDay, _missingOnly, _viewVersionDate)),
+          key: ValueKey((
+            _view,
+            _filterDay,
+            _missingOnly,
+            _preferenceOnly,
+            _viewVersionDate,
+          )),
           enabled: _editable,
           selectedIds: _selectedPostIds,
           onChanged: (ids) {
@@ -562,12 +792,13 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
             view: _view,
             day: _view == _DutyView.week ? null : activeDay,
             missingOnly: _missingOnly,
-            selectedPostId: inline ? focused?.id : null,
+            preferenceOnly: _preferenceOnly,
+            preferenceMisses: preferenceMisses,
+            statuses: statuses,
+            selectedPostId: focused?.id,
             onSelect: !_editable
                 ? null
-                : inline
-                ? (post) => setState(() => _selectedPostId = post.id)
-                : _selectTeacher,
+                : (post) => setState(() => _selectedPostId = post.id),
             onClear: _editable ? (post) => _assignTeacher(post, '') : null,
           ),
         );
@@ -585,220 +816,307 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
         final legend = _DutyLegend(
           activities: {for (final post in draft.posts) post.name: post.kind},
         );
-        return Padding(
-          padding: EdgeInsets.fromLTRB(gutter, 24, gutter, 16),
+        return ColoredBox(
+          color: colors.canvas,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '带班安排',
-                          style: theme.headlineSmall?.copyWith(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '为课后时段安排带班教师，与课表协调后生效',
-                          style: theme.bodySmall?.copyWith(
-                            color: colors.inkSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (selected == null) ...[
-                    const SizedBox(width: 12),
-                    AppPrimaryButton.icon(
-                      onPressed: _editable ? _addPosts : null,
-                      icon: const Icon(Icons.add, size: 15),
-                      label: const Text('创建岗位'),
-                    ),
-                  ],
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _DutySegments<bool>(
-                      items: {false: '全部岗位', true: '待安排 $missing'},
-                      value: _missingOnly,
-                      onChanged: (value) => setState(() {
-                        _missingOnly = value;
-                        _selectedPostId = null;
-                        _selectedPostIds = {};
-                      }),
-                    ),
-                    _DutyToolbarField(label: '带班周期', child: picker),
-                    _DutyToolbarField(
-                      label: '视角',
-                      child: _DutySegments<_DutyView>(
-                        items: const {
-                          _DutyView.week: '整周网格',
-                          _DutyView.schoolClass: '按班级',
-                          _DutyView.teacher: '按教师',
-                        },
-                        value: _view,
-                        onChanged: (view) => setState(() {
-                          _view = view;
-                          _selectedPostId = null;
-                          _selectedPostIds = {};
-                        }),
-                      ),
-                    ),
-                    if (_view != _DutyView.week && days.isNotEmpty)
-                      _DutyToolbarField(
-                        label: '星期',
-                        child: _DutySegments<int>(
-                          items: {
-                            for (final day in days) day: _weekdays[day - 1],
-                          },
-                          value: activeDay!,
-                          itemKey: (day) => ValueKey('duty-day-$day'),
-                          onChanged: (day) => setState(() {
-                            _filterDay = day;
-                            _selectedPostId = null;
-                            _selectedPostIds = {};
-                          }),
-                        ),
-                      ),
-                    if (draft.posts.isNotEmpty) legend,
-                    if (_editable && draft.posts.isNotEmpty)
-                      Text(
-                        '拖动框选岗位 · Shift 追加',
-                        style: theme.bodySmall?.copyWith(color: colors.muted),
-                      ),
-                    if (selected == null) ...[
-                      _DutyOutlineButton(
-                        onPressed: _editable ? _editTeacherPool : null,
-                        child: Text('候选教师 · ${_draft.teacherIds.length}'),
-                      ),
-                      _DutyOutlineButton(
-                        onPressed: _filling
-                            ? () => setState(_stopFill)
-                            : _editable &&
-                                  missing > 0 &&
-                                  _draft.teacherIds.isNotEmpty
-                            ? _smartFill
-                            : null,
-                        child: Text(_filling ? '取消补齐' : '智能补齐'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
               Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    border: Border.all(color: colors.border),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Column(
-                      children: [
-                        if (_filling)
-                          const f.FProgress(semanticsLabel: '正在智能补齐带班'),
-                        Expanded(
-                          child: inline && focused != null
-                              ? Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Expanded(child: weekBody),
-                                    VerticalDivider(
-                                      width: 1,
-                                      color: colors.border,
-                                    ),
-                                    SizedBox(
-                                      width: 272,
-                                      child: _TeacherInspector(
-                                        key: ValueKey(focused.id),
-                                        snapshot: widget.snapshot,
-                                        draft: _draft,
-                                        post: focused,
-                                        onPick: _editable
-                                            ? (teacher) => _assignTeacher(
-                                                focused,
-                                                teacher,
-                                              )
-                                            : null,
-                                        onClose: () => setState(
-                                          () => _selectedPostId = null,
-                                        ),
-                                        onRemove: _editable
-                                            ? () => _removePost(focused)
-                                            : null,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(gutter, 12, gutter, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _DutyPageHeading(
+                            action: selected == null
+                                ? AppPrimaryButton.icon(
+                                    onPressed: _editable ? _addPosts : null,
+                                    icon: const Icon(Icons.add, size: 15),
+                                    label: const Text('创建岗位'),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 10),
+                          _DutyControlPanel(
+                            primary: _DutyToolbarLine(
+                              leading: Wrap(
+                                spacing: 10,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  _DutyToolbarField(
+                                    label: '带班周期',
+                                    child: picker,
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.only(left: 6),
+                                    margin: const EdgeInsets.only(left: 2),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        left: BorderSide(color: colors.border),
                                       ),
                                     ),
-                                  ],
-                                )
-                              : weekBody,
-                        ),
-                      ],
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        f.FTooltip(
+                                          tipBuilder: (context, controller) =>
+                                              Text(undoTip),
+                                          tipAnchor: Alignment.topCenter,
+                                          childAnchor: Alignment.bottomCenter,
+                                          child: AppIconButton(
+                                            key: const ValueKey('duty-undo'),
+                                            icon: Icons.undo_rounded,
+                                            tooltip: undoTip,
+                                            foregroundColor: canUndo
+                                                ? colors.blue
+                                                : colors.muted,
+                                            onPressed: canUndo ? _undo : null,
+                                            iconSize: 18,
+                                          ),
+                                        ),
+                                        f.FTooltip(
+                                          tipBuilder: (context, controller) =>
+                                              Text(redoTip),
+                                          tipAnchor: Alignment.topCenter,
+                                          childAnchor: Alignment.bottomCenter,
+                                          child: AppIconButton(
+                                            key: const ValueKey('duty-redo'),
+                                            icon: Icons.redo_rounded,
+                                            tooltip: redoTip,
+                                            foregroundColor: canRedo
+                                                ? colors.blue
+                                                : colors.muted,
+                                            onPressed: canRedo ? _redo : null,
+                                            iconSize: 18,
+                                          ),
+                                        ),
+                                        f.FTooltip(
+                                          tipBuilder: (context, controller) =>
+                                              const Text(
+                                                '拖动鼠标框选岗位，按 Shift 追加选择；选中后可批量设置或移除。',
+                                              ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(6),
+                                            child: Icon(
+                                              Icons.help_outline,
+                                              size: 16,
+                                              color: colors.inkSecondary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: selected != null
+                                  ? const SizedBox.shrink()
+                                  : _DutyCommandGroup(
+                                      children: [
+                                        _DutyCommand(
+                                          key: const ValueKey(
+                                            'duty-pool-manager',
+                                          ),
+                                          label: '候选池管理',
+                                          count: _draft.teacherPools.length + 1,
+                                          selected: true,
+                                          onPressed: _editable
+                                              ? _editTeacherPool
+                                              : null,
+                                        ),
+                                        _DutyCommand(
+                                          label: '人员匹配',
+                                          onPressed: _editable
+                                              ? _editMatching
+                                              : null,
+                                        ),
+                                        _DutyCommand(
+                                          onPressed: _filling
+                                              ? () => setState(_stopFill)
+                                              : _editable &&
+                                                    _draft.posts.isNotEmpty &&
+                                                    _draft
+                                                        .allTeacherIds
+                                                        .isNotEmpty
+                                              ? missing == 0
+                                                    ? _rematch
+                                                    : _smartFill
+                                              : null,
+                                          label: _filling
+                                              ? '取消补齐'
+                                              : missing == 0 &&
+                                                    _draft.posts.isNotEmpty
+                                              ? '重新匹配'
+                                              : '智能补齐',
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                            filters: _DutyToolbarLine(
+                              leading: Wrap(
+                                spacing: 12,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  _DutySegments<int>(
+                                    pills: true,
+                                    itemKey: (value) =>
+                                        ValueKey('duty-filter-$value'),
+                                    items: {0: '全部岗位', 1: '待安排', 2: '偏好未满足'},
+                                    counts: {
+                                      1: missing,
+                                      2: preferenceMisses.length,
+                                    },
+                                    value: _preferenceOnly
+                                        ? 2
+                                        : _missingOnly
+                                        ? 1
+                                        : 0,
+                                    onChanged: (value) => setState(() {
+                                      _missingOnly = value == 1;
+                                      _preferenceOnly = value == 2;
+                                      _selectedPostId = null;
+                                      _selectedPostIds = {};
+                                    }),
+                                  ),
+                                  if (draft.posts.isNotEmpty) legend,
+                                ],
+                              ),
+                              trailing: Wrap(
+                                spacing: 12,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  _DutyToolbarField(
+                                    label: '视角',
+                                    child: _DutySegments<_DutyView>(
+                                      items: const {
+                                        _DutyView.week: '整周网格',
+                                        _DutyView.schoolClass: '按班级',
+                                        _DutyView.teacher: '按教师',
+                                      },
+                                      value: _view,
+                                      onChanged: (view) => setState(() {
+                                        _view = view;
+                                        _selectedPostId = null;
+                                        _selectedPostIds = {};
+                                      }),
+                                    ),
+                                  ),
+                                  if (_view != _DutyView.week &&
+                                      days.isNotEmpty)
+                                    _DutyToolbarField(
+                                      label: '星期',
+                                      child: _DutySegments<int>(
+                                        items: {
+                                          for (final day in days)
+                                            day: _weekdays[day - 1],
+                                        },
+                                        value: activeDay!,
+                                        itemKey: (day) =>
+                                            ValueKey('duty-day-$day'),
+                                        onChanged: (day) => setState(() {
+                                          _filterDay = day;
+                                          _selectedPostId = null;
+                                          _selectedPostIds = {};
+                                        }),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          if (invalidAssignments > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Text(
+                                '$invalidAssignments 个指派不符合当前规则，已保留原安排，请调整后发布。',
+                                style: theme.bodySmall?.copyWith(
+                                  color: colors.destructive,
+                                ),
+                              ),
+                            ),
+                          Expanded(
+                            child: AppSurface(
+                              child: Column(
+                                children: [
+                                  if (_filling)
+                                    const f.FProgress(
+                                      semanticsLabel: '正在智能补齐带班',
+                                    ),
+                                  Expanded(child: weekBody),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    if (focused != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: ColoredBox(
+                            color: colors.dialogBarrier.withValues(alpha: 0.12),
+                          ),
+                        ),
+                      ),
+                    if (focused != null)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        left: wide ? null : 0,
+                        width: wide ? 440 : null,
+                        child: _TeacherPickerPanel(
+                          key: ValueKey(focused.id),
+                          snapshot: widget.snapshot,
+                          draft: _draft,
+                          post: focused,
+                          editable: _editable,
+                          onConfirm: (picked) =>
+                              _assignTeacher(focused, picked),
+                          onClose: () => setState(() => _selectedPostId = null),
+                          onRemove: _editable
+                              ? () => _removePost(focused)
+                              : null,
+                          onSettings: _editable
+                              ? () =>
+                                    unawaited(_editPostPersonnel({focused.id}))
+                              : null,
+                          onManagePool: _editable
+                              ? () => unawaited(_editTeacherPool())
+                              : null,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
+              Container(
+                key: const ValueKey('duty-actionbar'),
+                constraints: const BoxConstraints(minHeight: 56),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(top: BorderSide(color: colors.border)),
+                ),
                 child: Wrap(
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: 12,
                   runSpacing: 8,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: constraints.maxWidth < 560 ? 72 : 140,
-                          child: f.FDeterminateProgress(
-                            style: f.FDeterminateProgressStyleDelta.delta(
-                              trackDecoration: .value(
-                                BoxDecoration(
-                                  color: colors.border,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                              ),
-                              fillDecoration: .value(
-                                BoxDecoration(
-                                  color: colors.success,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                              ),
-                            ),
-                            value: draft.posts.isEmpty
-                                ? 0
-                                : (draft.posts.length - missing) /
-                                      draft.posts.length,
-                            semanticsLabel:
-                                '已安排 ${draft.posts.length - missing} / ${draft.posts.length} 个岗位',
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            '${draft.posts.length - missing} / ${draft.posts.length} 个岗位已安排'
-                            '${selected == null && _dirty ? ' · 有未保存的修改' : ''}',
-                            style: theme.bodySmall?.copyWith(
-                              color: colors.inkSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
+                    _DutyProgress(
+                      assigned: draft.posts.length - missing,
+                      total: draft.posts.length,
+                      dirty: selected == null && _dirty,
                     ),
                     if (_selectedPostIds.isNotEmpty)
                       Wrap(
@@ -818,6 +1136,22 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                                 setState(() => _selectedPostIds = {}),
                             child: const Text('取消选择'),
                           ),
+                          AppGhostButton(
+                            onPressed: _editable
+                                ? () => _editPostPersonnel({
+                                    ..._selectedPostIds,
+                                  }, mode: _PersonnelEditMode.pool)
+                                : null,
+                            child: const Text('设置候选池'),
+                          ),
+                          AppGhostButton(
+                            onPressed: _editable
+                                ? () => _editPostPersonnel({
+                                    ..._selectedPostIds,
+                                  }, mode: _PersonnelEditMode.matching)
+                                : null,
+                            child: const Text('匹配偏好'),
+                          ),
                           AppDestructiveButton(
                             onPressed: _editable
                                 ? () => _removePosts({
@@ -833,7 +1167,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                         spacing: 8,
                         runSpacing: 6,
                         children: [
-                          AppGhostButton(
+                          _DutyOutlineButton(
                             onPressed: _editable
                                 ? () => unawaited(_save())
                                 : null,

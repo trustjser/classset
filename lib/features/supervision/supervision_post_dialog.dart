@@ -44,14 +44,27 @@ class _PostDialogState extends State<_PostDialog> {
   final _horizontal = ScrollController();
   final _vertical = ScrollController();
   late SupervisionKind _kind = _initialKind();
+  _PersonnelSettings _personnel = (
+    poolId: null,
+    preferences: null,
+    subjects: <String>{},
+  );
   bool _merged = false;
   bool _continuous = false;
   List<String> _errors = const [];
   final _slotReasons = <_PostSlot, String?>{};
+  final _occupiedByClass = <String, List<SchedulePosition>>{};
 
   @override
   void initState() {
     super.initState();
+    const validator = SupervisionValidation();
+    for (final post in widget.draft.posts) {
+      final positions = validator.positions(widget.snapshot, post);
+      for (final id in post.classIds) {
+        (_occupiedByClass[id] ??= []).addAll(positions);
+      }
+    }
     _pruneSlots();
   }
 
@@ -176,6 +189,19 @@ class _PostDialogState extends State<_PostDialog> {
     if (otherLabels.isNotEmpty) {
       return otherLabels.join(' / ');
     }
+    final position = const SupervisionValidation().withRoutineClock(
+      widget.snapshot,
+      SchedulePosition(
+        stageId: _stageId!,
+        weekday: slot.weekday,
+        periodTypeId: slot.periodId,
+        lessonIndex: slot.index,
+      ),
+    );
+    final occupied = _classes
+        .where((id) => _occupiedByClass[id]?.any(position.overlaps) ?? false)
+        .length;
+    if (occupied > 0) return occupied == _classes.length ? '已有岗位' : '含已有岗位';
     return null;
   });
 
@@ -276,6 +302,9 @@ class _PostDialogState extends State<_PostDialog> {
             periodTypeId: block.periodId,
             lessonIndices: block.indices,
             classIds: members,
+            teacherPoolId: _personnel.poolId,
+            matchingPreferences: _personnel.preferences,
+            targetSubjectIds: _personnel.subjects ?? const {},
           ),
     ];
     const validator = SupervisionValidation();
@@ -358,10 +387,19 @@ class _PostDialogState extends State<_PostDialog> {
           const Text('创建带班岗位'),
           const SizedBox(height: 4),
           Text(
-            '先选班级范围，再从作息中勾选课节；正课、无课与不上课不可选。',
+            '先选班级，再选课节；已安排岗位与不可带班课节会自动禁用。',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: context.appColors.inkSecondary),
           ),
+          if (_errors.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            for (final error in _errors)
+              Text(
+                error,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: context.appColors.destructive),
+              ),
+          ],
         ],
       ),
       maxWidth: 1000,
@@ -384,6 +422,34 @@ class _PostDialogState extends State<_PostDialog> {
                   },
                   onChanged: (kind) => setState(() => _kind = kind ?? _kind),
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _DutyOutlineButton(
+                onPressed: () async {
+                  final value = await showAppDialog<_PersonnelSettings>(
+                    context: context,
+                    builder: (_) => _PostPersonnelDialog(
+                      draft: widget.draft,
+                      snapshot: widget.snapshot,
+                      initial: _personnel,
+                    ),
+                  );
+                  if (mounted && value != null) {
+                    setState(() => _personnel = value);
+                  }
+                },
+                child: const Text('人员设置'),
+              ),
+              Text(
+                '${_personnel.poolId == null ? '跟随默认候选池' : widget.draft.teacherPools.where((pool) => pool.id == _personnel.poolId).firstOrNull?.name ?? '基础候选池'} · ${_personnel.preferences == null ? '跟随全局偏好' : '单独匹配偏好'}',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
@@ -418,14 +484,6 @@ class _PostDialogState extends State<_PostDialog> {
                     );
             },
           ),
-          if (_errors.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            for (final error in _errors)
-              Text(
-                error,
-                style: TextStyle(color: context.appColors.destructive),
-              ),
-          ],
         ],
       ),
       actions: [
@@ -581,7 +639,15 @@ class _PostDialogState extends State<_PostDialog> {
     final routine = _routine;
     final days = routine?.teachingWeekdays.toList() ?? <int>[];
     days.sort();
-    final periods = routine?.periodTypes.toList() ?? <LessonPeriodType>[];
+    final periods =
+        routine?.periodTypes
+            .where(
+              (period) => days.any(
+                (day) => routine.effectiveLessonCount(period.id, day) > 0,
+              ),
+            )
+            .toList() ??
+        <LessonPeriodType>[];
     periods.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     final available = _availableSlots;
     final stage = widget.snapshot.stages
@@ -617,7 +683,7 @@ class _PostDialogState extends State<_PostDialog> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            _classes.isEmpty ? '先选择班级，再选择带班课节。' : '正课、无课和不上课不可选，其他免任课均可安排带班。',
+            _classes.isEmpty ? '先选择班级，再选择带班课节。' : '灰色课格不可选，已有岗位已标出；可按星期或整行批选。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -646,8 +712,12 @@ class _PostDialogState extends State<_PostDialog> {
                         )
                         .reduce((a, b) => a > b ? a : b),
               );
+              final maxHeight = (MediaQuery.sizeOf(context).height * .38).clamp(
+                240.0,
+                360.0,
+              );
               final height = (36 + periods.length * 28 + rowCount * 56)
-                  .clamp(0, 402)
+                  .clamp(0, maxHeight)
                   .toDouble();
               return DecoratedBox(
                 decoration: BoxDecoration(

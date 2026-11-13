@@ -181,10 +181,75 @@ void main() {
     );
     expect(await school.watchSupervisionVersions('school-term').first, isEmpty);
 
-    await school.saveSupervisionDraft(
-      draft.copyWith(assignments: const {'evening-post': 'teacher'}),
+    var assigned = await school.saveSupervisionDraft(
+      draft.copyWith(
+        assignments: const {'evening-post': 'teacher'},
+        teacherPools: const [
+          SupervisionTeacherPool(
+            id: 'evening-pool',
+            name: '晚自习教师',
+            teacherIds: {},
+          ),
+        ],
+        defaultTeacherPoolId: 'evening-pool',
+      ),
       expectedRevision: draft.revision,
     );
+    final outsidePool = await school.previewSupervisionPublish(
+      'school-term',
+      effective,
+    );
+    expect(outsidePool.canPublish, isFalse);
+    expect(outsidePool.errors, contains('晚自习：教师不在岗位候选池中'));
+    await expectLater(
+      school.publishSupervision('school-term', outsidePool),
+      throwsStateError,
+    );
+    assigned = await school.saveSupervisionDraft(
+      assigned.copyWith(
+        teacherPools: const [
+          SupervisionTeacherPool(
+            id: 'evening-pool',
+            name: '晚自习教师',
+            teacherIds: {'teacher'},
+          ),
+        ],
+        matchingPreferences: const SupervisionMatchingPreferences(
+          requirement: SupervisionMatchRequirement.all,
+        ),
+      ),
+      expectedRevision: assigned.revision,
+    );
+    final strict = await school.previewSupervisionPublish(
+      'school-term',
+      effective,
+    );
+    expect(strict.canPublish, isFalse);
+    expect(strict.errors, contains('晚自习：未满足岗位必须符合的匹配条件'));
+    assigned = await school.saveSupervisionDraft(
+      assigned.copyWith(
+        posts: [
+          assigned.posts.single.copyWith(
+            matchingPreferences: const SupervisionMatchingPreferences(
+              requirement: SupervisionMatchRequirement.none,
+            ),
+          ),
+        ],
+      ),
+      expectedRevision: assigned.revision,
+    );
+    final reopened = (await school.watchSupervisionDraft('school-term').first)!;
+    expect(reopened.teacherPools.single.teacherIds, {'teacher'});
+    expect(reopened.defaultTeacherPoolId, 'evening-pool');
+    expect(
+      reopened.matchingPreferences.requirement,
+      SupervisionMatchRequirement.all,
+    );
+    expect(
+      reopened.posts.single.matchingPreferences?.requirement,
+      SupervisionMatchRequirement.none,
+    );
+    expect(reopened.assignments, {'evening-post': 'teacher'});
     final stale = await school.previewSupervisionPublish(
       'school-term',
       effective,
@@ -213,6 +278,11 @@ void main() {
     final published =
         (await school.watchSupervisionVersions('school-term').first).single;
     expect(published.occurrences.map((row) => row.teacherName), ['张老师', '张老师']);
+    expect(published.draft.teacherPools.single.name, '晚自习教师');
+    expect(
+      published.draft.posts.single.matchingPreferences?.requirement,
+      SupervisionMatchRequirement.none,
+    );
     expect(await school.watchSupervisionDraft('school-term').first, isNull);
     expect(
       (await school.loadSchedulingSnapshot('school-term')).visibleSupervision,
@@ -299,6 +369,9 @@ void main() {
             periodTypeId: 'evening',
             lessonIndices: const [1],
             classIds: oldPost.classIds,
+            teacherPoolId: oldPost.teacherPoolId,
+            matchingPreferences: oldPost.matchingPreferences,
+            targetSubjectIds: oldPost.targetSubjectIds,
           ),
         ],
       ),

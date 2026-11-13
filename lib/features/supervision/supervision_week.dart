@@ -8,22 +8,27 @@ class _DutySegments<T> extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.itemKey,
+    this.pills = false,
+    this.counts = const {},
   });
   final Map<T, String> items;
   final T value;
   final ValueChanged<T> onChanged;
   final Key Function(T)? itemKey;
+  final bool pills;
+  final Map<T, int> counts;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: context.appColors.canvas,
-      borderRadius: BorderRadius.circular(10),
+      color: pills ? Colors.transparent : context.appColors.canvas,
+      border: pills ? null : Border.all(color: context.appColors.border),
+      borderRadius: BorderRadius.circular(8),
     ),
     child: Padding(
-      padding: const EdgeInsets.all(3),
+      padding: EdgeInsets.all(pills ? 0 : 2),
       child: Wrap(
-        spacing: 2,
+        spacing: pills ? 6 : 2,
         runSpacing: 2,
         children: [
           for (final entry in items.entries)
@@ -34,20 +39,46 @@ class _DutySegments<T> extends StatelessWidget {
               builder: (context, variants, child) => Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 11,
-                  vertical: 6,
+                  vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: value == entry.key ? context.appColors.surface : null,
+                  borderRadius: BorderRadius.circular(pills ? 99 : 6),
+                  boxShadow: !pills && value == entry.key
+                      ? context.appColors.cardShadow
+                      : null,
+                  color: value == entry.key
+                      ? pills
+                            ? context.appColors.blue
+                            : context.appColors.surface
+                      : variants.contains(f.FTappableVariant.hovered)
+                      ? context.appColors.surface
+                      : null,
                   border: variants.contains(f.FTappableVariant.focused)
                       ? Border.all(color: context.appColors.blue)
                       : null,
                 ),
-                child: Text(
-                  entry.value,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: entry.value),
+                      if (counts.containsKey(entry.key))
+                        TextSpan(
+                          text: ' ${counts[entry.key]}',
+                          style: TextStyle(
+                            color: value == entry.key
+                                ? f.FTheme.of(context).colors.primaryForeground
+                                : context.appColors.warning,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                    ],
+                  ),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12.5,
                     color: value == entry.key
-                        ? context.appColors.ink
+                        ? pills
+                              ? f.FTheme.of(context).colors.primaryForeground
+                              : context.appColors.ink
                         : context.appColors.inkSecondary,
                     fontWeight: value == entry.key
                         ? FontWeight.w600
@@ -75,7 +106,7 @@ class _DutyToolbarField extends StatelessWidget {
       Text(
         label,
         style: Theme.of(context).textTheme.bodySmall
-            ?.copyWith(color: context.appColors.inkSecondary),
+            ?.copyWith(color: context.appColors.muted),
       ),
       child,
     ],
@@ -88,6 +119,29 @@ Color _dutyColor(BuildContext context, SupervisionKind kind) => switch (kind) {
   SupervisionKind.morningStudy ||
   SupervisionKind.eveningStudy => context.appColors.blue,
 };
+
+/// Keep version/configuration separate from filters/view controls.
+class _DutyToolbarLine extends StatelessWidget {
+  const _DutyToolbarLine({required this.leading, required this.trailing});
+  final Widget leading;
+  final Widget trailing;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => constraints.maxWidth >= 980
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: leading),
+              const SizedBox(width: 20),
+              trailing,
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [leading, const SizedBox(height: 8), trailing],
+          ),
+  );
+}
 
 class _DutyLegend extends StatelessWidget {
   const _DutyLegend({required this.activities});
@@ -106,7 +160,7 @@ class _DutyLegend extends StatelessWidget {
               height: 7,
               decoration: BoxDecoration(
                 color: _dutyColor(context, entry.value),
-                borderRadius: BorderRadius.circular(2),
+                shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 5),
@@ -137,6 +191,9 @@ class _SupervisionWeek extends StatelessWidget {
     required this.view,
     required this.day,
     required this.missingOnly,
+    required this.preferenceOnly,
+    required this.preferenceMisses,
+    required this.statuses,
     required this.selectedPostId,
     required this.onSelect,
     required this.onClear,
@@ -149,6 +206,9 @@ class _SupervisionWeek extends StatelessWidget {
   final _DutyView view;
   final int? day;
   final bool missingOnly;
+  final bool preferenceOnly;
+  final Set<String> preferenceMisses;
+  final Map<String, String> statuses;
   final String? selectedPostId;
   final ValueChanged<SupervisionPost>? onSelect;
   final ValueChanged<SupervisionPost>? onClear;
@@ -193,7 +253,8 @@ class _SupervisionWeek extends StatelessWidget {
         .where(
           (post) =>
               visibleDays.contains(post.weekday) &&
-              (!missingOnly || !draft.assignments.containsKey(post.id)),
+              (!missingOnly || !draft.assignments.containsKey(post.id)) &&
+              (!preferenceOnly || preferenceMisses.contains(post.id)),
         )
         .toList();
     if (posts.isEmpty) {
@@ -201,7 +262,11 @@ class _SupervisionWeek extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            missingOnly ? '当前范围没有待安排岗位。' : '当天没有带班岗位。',
+            preferenceOnly
+                ? '当前范围没有偏好未满足的岗位。'
+                : missingOnly
+                ? '当前范围没有待安排岗位。'
+                : '当天没有带班岗位。',
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: context.appColors.muted),
           ),
@@ -232,6 +297,7 @@ class _SupervisionWeek extends StatelessWidget {
             ? selection.isSelected(post.id)
             : selectedPostId == post.id,
         selectionMode: selection.selectionMode,
+        status: statuses[post.id],
         onToggleSelection: () => selection.toggle(post.id),
         onTap: selection.selectionMode
             ? () => selection.toggle(post.id)
@@ -256,22 +322,6 @@ class _SupervisionWeek extends StatelessWidget {
             teachers,
           );
         }
-        if (constraints.maxWidth < 680) {
-          return ListView(
-            controller: selection.vertical,
-            padding: const EdgeInsets.all(12),
-            children: [
-              for (final weekday in visibleDays)
-                if (posts.any((post) => post.weekday == weekday)) ...[
-                  _WeekAxisLabel(label: _weekdays[weekday - 1]),
-                  for (final post in posts.where(
-                    (post) => post.weekday == weekday,
-                  ))
-                    tile(post, compact: true),
-                ],
-            ],
-          );
-        }
         final slots = <String, List<SupervisionPost>>{};
         for (final post in posts) {
           (slots[_dutySlotKey(post)] ??= []).add(post);
@@ -279,8 +329,8 @@ class _SupervisionWeek extends StatelessWidget {
         return _DutyTable(
           vertical: selection.vertical,
           horizontal: selection.horizontal,
-          minWidth: 150 + visibleDays.length * 150.0,
-          firstWidth: 150,
+          minWidth: 184 + visibleDays.length * 150.0,
+          firstWidth: 184,
           headers: [
             const _WeekAxisLabel(label: '节次 / 时间'),
             for (final day in visibleDays)
@@ -289,39 +339,11 @@ class _SupervisionWeek extends StatelessWidget {
           rows: [
             for (final slot in slots.values)
               [
-                ColoredBox(
-                  color: context.appColors.tableHeader,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${_postPeriod(snapshot, slot.first)?.name ?? slot.first.periodTypeId} · ${_weekIndexLabel(slot.first)}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        if (_weekTime(snapshot, slot.first) case final time?)
-                          Text(
-                            time,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: context.appColors.muted),
-                          ),
-                        if (stages[slot.first.stageId] case final stage?)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              stage,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    fontSize: 11,
-                                    color: context.appColors.inkSecondary,
-                                  ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                _DutyPeriodCard(
+                  title:
+                      '${_postPeriod(snapshot, slot.first)?.name ?? slot.first.periodTypeId} · ${_weekIndexLabel(slot.first)}',
+                  time: _weekTime(snapshot, slot.first),
+                  stage: stages[slot.first.stageId],
                 ),
                 for (final day in visibleDays)
                   _postColumn(slot.where((post) => post.weekday == day), tile),
@@ -389,7 +411,7 @@ class _SupervisionWeek extends StatelessWidget {
         return rank != 0 ? rank : name(a).compareTo(name(b));
       });
     final slots = <String, SupervisionPost>{
-      for (final post in all) _dutySlotKey(post): post,
+      for (final post in posts) _dutySlotKey(post): post,
     };
     Widget rowLabel(String id) => Padding(
       padding: const EdgeInsets.all(12),
@@ -409,20 +431,6 @@ class _SupervisionWeek extends StatelessWidget {
         ],
       ),
     );
-    if (constraints.maxWidth < 680) {
-      return ListView(
-        controller: selection.vertical,
-        padding: const EdgeInsets.all(12),
-        children: [
-          _WeekAxisLabel(label: byClass ? '班级' : '教师'),
-          for (final id in ids) ...[
-            rowLabel(id),
-            for (final post in posts.where((post) => matches(post, id)))
-              tile(post, compact: true, instance: id),
-          ],
-        ],
-      );
-    }
     return _DutyTable(
       vertical: selection.vertical,
       horizontal: selection.horizontal,
@@ -479,39 +487,65 @@ class _DutyTable extends StatelessWidget {
   final ScrollController horizontal;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    builder: (context, constraints) => Scrollbar(
       controller: horizontal,
-      child: SizedBox(
-        width: constraints.maxWidth < minWidth
-            ? minWidth
-            : constraints.maxWidth,
-        height: constraints.maxHeight,
-        child: Column(
-          children: [
-            ColoredBox(
-              color: context.appColors.tableHeader,
-              child: Table(
-                columnWidths: {0: FixedColumnWidth(firstWidth)},
-                children: [TableRow(children: headers)],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: vertical,
+      thumbVisibility: true,
+      notificationPredicate: (notification) =>
+          notification.metrics.axis == Axis.horizontal,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        controller: horizontal,
+        child: SizedBox(
+          width: constraints.maxWidth < minWidth
+              ? minWidth
+              : constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: Column(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: context.appColors.tableHeader,
+                  border: Border(
+                    bottom: BorderSide(color: context.appColors.border),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Table(
                   columnWidths: {0: FixedColumnWidth(firstWidth)},
-                  border: TableBorder(
-                    horizontalInside: BorderSide(
-                      color: context.appColors.border,
-                    ),
-                    verticalInside: BorderSide(color: context.appColors.border),
-                  ),
-                  children: [for (final row in rows) TableRow(children: row)],
+                  children: [TableRow(children: headers)],
                 ),
               ),
-            ),
-          ],
+              Expanded(
+                child: Scrollbar(
+                  controller: vertical,
+                  child: SingleChildScrollView(
+                    controller: vertical,
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                    child: Table(
+                      columnWidths: {0: FixedColumnWidth(firstWidth)},
+                      children: [
+                        for (final row in rows)
+                          TableRow(
+                            children: [
+                              for (final cell in row.indexed)
+                                Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    cell.$1 == 0 ? 0 : 4,
+                                    0,
+                                    cell.$1 == 0 ? 0 : 4,
+                                    8,
+                                  ),
+                                  child: cell.$2,
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ),
@@ -529,7 +563,7 @@ class _WeekAxisLabel extends StatelessWidget {
   final bool centered;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    padding: EdgeInsets.symmetric(horizontal: centered ? 12 : 0, vertical: 8),
     child: Column(
       crossAxisAlignment: centered
           ? CrossAxisAlignment.center
@@ -538,7 +572,10 @@ class _WeekAxisLabel extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: context.appColors.inkSecondary,
+            color: centered
+                ? context.appColors.inkSecondary
+                : context.appColors.muted,
+            fontSize: centered ? 13 : 12,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -563,6 +600,7 @@ class _WeekPost extends StatelessWidget {
     required this.onClear,
     required this.selectionMode,
     required this.onToggleSelection,
+    this.status,
     this.detail,
   });
   final SupervisionPost post;
@@ -573,6 +611,7 @@ class _WeekPost extends StatelessWidget {
   final VoidCallback? onClear;
   final String? detail;
   final bool selectionMode;
+  final String? status;
   final VoidCallback onToggleSelection;
 
   @override
@@ -587,14 +626,19 @@ class _WeekPost extends StatelessWidget {
             variants.contains(f.FTappableVariant.focused);
         final colors = context.appColors;
         return Container(
-          constraints: const BoxConstraints(minHeight: 72),
+          margin: const EdgeInsets.only(bottom: 8),
+          constraints: const BoxConstraints(minHeight: 64),
           decoration: BoxDecoration(
             color: selected
                 ? colors.selectedBlue
                 : hovered
                 ? colors.tableHeader
                 : colors.surface,
-            border: Border(bottom: BorderSide(color: colors.border)),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: colors.cardShadow,
+            border: selected || hovered
+                ? Border.all(color: colors.blue, width: selected ? 1.5 : 1)
+                : null,
           ),
           child: Stack(
             children: [
@@ -603,11 +647,13 @@ class _WeekPost extends StatelessWidget {
                 top: 9,
                 bottom: 9,
                 child: Container(
-                  width: 3,
+                  width: 2,
                   decoration: BoxDecoration(
-                    color: teacher == null
-                        ? colors.warning
-                        : _dutyColor(context, post.kind),
+                    color: selected || hovered
+                        ? colors.blue
+                        : teacher == null
+                        ? colors.warning.withValues(alpha: .35)
+                        : _dutyColor(context, post.kind).withValues(alpha: .5),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -625,16 +671,49 @@ class _WeekPost extends StatelessWidget {
                           ?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      teacher ?? '待安排',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: teacher == null
-                            ? colors.warning
-                            : colors.inkSecondary,
-                      ),
+                    Row(
+                      children: [
+                        if (teacher == null) ...[
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: selected ? colors.blue : colors.warning,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            teacher ?? '待安排',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontSize: 11.5,
+                                  color: selected
+                                      ? colors.blue
+                                      : teacher == null
+                                      ? colors.warning
+                                      : colors.inkSecondary,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
+                    if (status != null)
+                      Text(
+                        status!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          color: status == '指派需调整'
+                              ? colors.destructive
+                              : colors.warning,
+                        ),
+                      ),
                     if (detail != null)
                       Text(
                         detail!,

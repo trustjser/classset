@@ -334,9 +334,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('周日'), findsOneWidget);
     expect(find.text('待安排'), findsNWidgets(2));
+    await tester.tap(find.byKey(const ValueKey('duty-pool-manager')));
+    await tester.pumpAndSettle();
+    final teacherRow = find.widgetWithText(f.FItem, '张老师');
+    await tester.tap(
+      find.descendant(of: teacherRow, matching: find.byType(AppCheckbox)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('应用'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('待安排').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('张老师'));
+    await tester.pumpAndSettle();
+    // 选人后需由主按钮确认，草稿状态行与「保存草稿」才生效。
+    await tester.tap(find.text('确认指派'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('保存草稿'));
     await tester.pumpAndSettle();
@@ -361,7 +373,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('张老师'), findsOneWidget);
 
-    await tester.tap(find.text('候选教师 · 1'));
+    await tester.tap(find.byKey(const ValueKey('duty-pool-manager')));
     await tester.pumpAndSettle();
     expect(tester.getSize(find.text('全选搜索结果')).height, lessThan(30));
     await tester.enterText(find.byType(AppTextFormField), '语文组');
@@ -399,7 +411,7 @@ void main() {
     expect(tester.widget<AppCheckbox>(liCheckbox).value, isTrue);
     await tester.tap(find.text('应用'));
     await tester.pumpAndSettle();
-    expect(find.text('候选教师 · 2'), findsOneWidget);
+    expect(find.byKey(const ValueKey('duty-pool-manager')), findsOneWidget);
 
     tester.view.physicalSize = const Size(1440, 900);
     await tester.pumpAndSettle();
@@ -411,11 +423,11 @@ void main() {
       tester.view.physicalSize = Size(1440, height);
       await tester.pumpAndSettle();
       final footerBottom = tester
-          .getBottomLeft(find.widgetWithText(AppGhostButton, '保存草稿'))
+          .getBottomLeft(find.widgetWithText(f.FButton, '保存草稿'))
           .dy;
       expect(
         height - footerBottom,
-        inInclusiveRange(16, 32),
+        inInclusiveRange(8, 16),
         reason: '选中岗位时，周表与教师面板应填满可用高度，底部仅保留正常边距',
       );
       expect(tester.takeException(), isNull);
@@ -423,10 +435,19 @@ void main() {
     tester.view.physicalSize = const Size(1440, 900);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(f.FItem, '李老师'));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('duty-teacher-panel')),
+        matching: find.text('李老师'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认指派'));
     await tester.pumpAndSettle();
     expect(find.text('待安排'), findsNothing);
     await tester.tap(find.text('清除指派'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认清除'));
     await tester.pumpAndSettle();
     expect(find.text('待安排'), findsOneWidget);
 

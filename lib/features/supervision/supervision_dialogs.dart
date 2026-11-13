@@ -1,230 +1,1108 @@
 part of 'supervision_page.dart';
 
-class _TeacherPickerDialog extends StatelessWidget {
-  const _TeacherPickerDialog({
+/// 「选择带班教师」浮层面板 —— 全站唯一的一套设置界面。
+///
+/// 由页面以 [Stack] + [Positioned] 浮在周网格之上（不挤压布局、不进路由），
+/// 所有窗口宽度共用同一份实现；窄屏时由外层改为贴底全宽面板。
+/// 所有操作通过回调直接落到页面，不依赖 Navigator 返回值。
+class _TeacherPickerPanel extends StatefulWidget {
+  const _TeacherPickerPanel({
     required this.snapshot,
     required this.draft,
     required this.post,
-    required this.onRemove,
-  });
-
-  final SchedulingSnapshot snapshot;
-  final SupervisionDraft draft;
-  final SupervisionPost post;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) => AppDialog(
-    title: const Text('选择带班教师'),
-    maxWidth: 460,
-    content: SizedBox(
-      height: MediaQuery.sizeOf(context).height < 650 ? 330 : 400,
-      child: _TeacherInspector(
-        snapshot: snapshot,
-        draft: draft,
-        post: post,
-        onPick: (teacher) => Navigator.pop(context, teacher),
-        onRemove: onRemove,
-        showTitle: false,
-      ),
-    ),
-    actions: [
-      AppGhostButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('关闭'),
-      ),
-    ],
-  );
-}
-
-class _TeacherInspector extends StatefulWidget {
-  const _TeacherInspector({
-    required this.snapshot,
-    required this.draft,
-    required this.post,
-    required this.onPick,
-    required this.onRemove,
+    this.onRemove,
+    this.editable = true,
+    this.onConfirm,
+    this.onSettings,
+    this.onManagePool,
     this.onClose,
-    this.showTitle = true,
     super.key,
   });
 
   final SchedulingSnapshot snapshot;
   final SupervisionDraft draft;
   final SupervisionPost post;
-  final ValueChanged<String>? onPick;
   final VoidCallback? onRemove;
+  final bool editable;
+  final ValueChanged<String>? onConfirm;
+  final VoidCallback? onSettings;
+  final VoidCallback? onManagePool;
   final VoidCallback? onClose;
-  final bool showTitle;
 
   @override
-  State<_TeacherInspector> createState() => _TeacherInspectorState();
+  State<_TeacherPickerPanel> createState() => _TeacherPickerPanelState();
 }
 
-class _TeacherInspectorState extends State<_TeacherInspector> {
+enum _PickFilter { recommend, available, load, all }
+
+enum _PickBadge {
+  current,
+  recommended,
+  limit,
+  conflict,
+  outside,
+  blocked,
+  none,
+}
+
+/// 列表中的一行：分组标题或一位候选教师。
+class _PickRow {
+  _PickRow.group(this.label, this.count) : candidate = null, rank = 0;
+  _PickRow.teacher(this.candidate, this.rank) : label = null, count = 0;
+
+  final String? label;
+  final int count;
+  final _PickCandidate? candidate;
+  final int rank;
+}
+
+class _PickCandidate {
+  const _PickCandidate({
+    required this.teacher,
+    required this.inPool,
+    required this.blockers,
+    required this.reasons,
+    required this.preferenceUnmet,
+    required this.lessons,
+    required this.days,
+    required this.maxLessons,
+    required this.isCurrent,
+  });
+
+  final Teacher teacher;
+  final bool inPool;
+  final List<String> blockers;
+  final List<String> reasons;
+  final bool preferenceUnmet;
+
+  /// 指派该教师后的本周带班节数与天数，口径与 [SupervisionAllocator]
+  /// 的硬约束计算保持一致（本岗位 + 其他已指派岗位）。
+  final int lessons;
+  final int days;
+  final int? maxLessons;
+  final bool isCurrent;
+
+  bool get available => inPool && blockers.isEmpty;
+
+  _PickBadge get badge {
+    if (!inPool) return _PickBadge.outside;
+    if (blockers.isEmpty) {
+      if (isCurrent) return _PickBadge.current;
+      if (reasons.isNotEmpty && !preferenceUnmet) {
+        return _PickBadge.recommended;
+      }
+      return _PickBadge.none;
+    }
+    if (blockers.any((reason) => reason.contains('上限'))) {
+      return _PickBadge.limit;
+    }
+    if (blockers.any(
+      (reason) =>
+          reason.contains('已有') ||
+          reason.contains('禁排') ||
+          reason.contains('正课') ||
+          reason.contains('冲突'),
+    )) {
+      return _PickBadge.conflict;
+    }
+    return _PickBadge.blocked;
+  }
+}
+
+class _TeacherPickerPanelState extends State<_TeacherPickerPanel> {
+  final _search = TextEditingController();
   String _query = '';
+  _PickFilter _filter = _PickFilter.recommend;
+  late String? _selected = widget.draft.assignments[widget.post.id];
+  bool _pendingClear = false;
+  bool _confirmRemove = false;
   final _blockers = <String, List<String>>{};
 
   @override
-  void didUpdateWidget(covariant _TeacherInspector oldWidget) {
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TeacherPickerPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.draft != widget.draft ||
-        oldWidget.snapshot != widget.snapshot) {
+        oldWidget.snapshot != widget.snapshot ||
+        oldWidget.post != widget.post) {
       _blockers.clear();
+      _selected = widget.draft.assignments[widget.post.id];
+      _pendingClear = false;
     }
+  }
+
+  List<String> _blockersFor(String id, SupervisionMatching matching) =>
+      _blockers.putIfAbsent(
+        id,
+        () => const SupervisionAllocator().teacherBlockers(
+          widget.snapshot,
+          widget.draft,
+          widget.post,
+          id,
+          matching: matching,
+        ),
+      );
+
+  List<_PickCandidate> _candidates(SupervisionMatching matching) {
+    final draft = widget.draft;
+    final post = widget.post;
+    final current = draft.assignments[post.id];
+    final pool = draft.teachersFor(post);
+    final result = <_PickCandidate>[];
+    for (final teacher in widget.snapshot.teachers) {
+      final others = draft.posts.where(
+        (other) =>
+            other.id != post.id && draft.assignments[other.id] == teacher.id,
+      );
+      result.add(
+        _PickCandidate(
+          teacher: teacher,
+          inPool: pool.contains(teacher.id),
+          blockers: _blockersFor(teacher.id, matching),
+          reasons: matching.reasons(post, teacher.id),
+          preferenceUnmet: matching.hasUnmetPreferences(
+            draft,
+            post,
+            teacher.id,
+          ),
+          lessons:
+              post.lessonIndices.length +
+              others.fold<int>(
+                0,
+                (sum, other) => sum + other.lessonIndices.length,
+              ),
+          days: {post.weekday, ...others.map((other) => other.weekday)}.length,
+          maxLessons: draft.rules[teacher.id]?.maxLessons,
+          isCurrent: teacher.id == current,
+        ),
+      );
+    }
+    result.sort((a, b) {
+      int rank(_PickCandidate item) => item.isCurrent
+          ? 0
+          : item.inPool
+          ? 1
+          : 2;
+      final byRank = rank(a).compareTo(rank(b));
+      if (byRank != 0) return byRank;
+      final byAvailable = (a.available ? 0 : 1).compareTo(b.available ? 0 : 1);
+      if (byAvailable != 0) return byAvailable;
+      return matching.compare(draft, post, a.teacher.id, b.teacher.id);
+    });
+    return result;
+  }
+
+  bool _matches(_PickCandidate candidate, String query) {
+    if (query.isEmpty) return true;
+    final subjects = candidate.teacher.subjectIds
+        .map(
+          (id) =>
+              widget.snapshot.subjects
+                  .where((subject) => subject.id == id)
+                  .firstOrNull
+                  ?.name ??
+              '',
+        )
+        .join(' ');
+    return '${candidate.teacher.searchText} $subjects '
+            '${candidate.reasons.join(' ')}'
+        .toLowerCase()
+        .contains(query);
+  }
+
+  List<_PickCandidate> _shown(List<_PickCandidate> all) {
+    final query = _query.trim().toLowerCase();
+    final list = all.where((item) => _matches(item, query)).toList();
+    if (_filter == _PickFilter.recommend) {
+      return list.where((item) => item.inPool).toList();
+    }
+    if (_filter == _PickFilter.available) {
+      return list.where((item) => item.available).toList();
+    }
+    if (_filter == _PickFilter.load) {
+      return list.where((item) => item.inPool).toList()
+        ..sort((a, b) => a.lessons.compareTo(b.lessons));
+    }
+    return list;
+  }
+
+  String _teacherName(String id) =>
+      widget.snapshot.teachers
+          .where((teacher) => teacher.id == id)
+          .firstOrNull
+          ?.displayName ??
+      id;
+
+  void _select(_PickCandidate candidate) {
+    if (!widget.editable || !candidate.available) return;
+    setState(() {
+      _selected = candidate.teacher.id;
+      _pendingClear = false;
+    });
+  }
+
+  void _clearFilters() {
+    _search.clear();
+    setState(() {
+      _query = '';
+      _filter = _PickFilter.recommend;
+    });
+  }
+
+  /// 操作直接落到页面：确认后浮层保留，草稿状态行与主按钮即时反馈，
+  /// 与 HTML 设计稿一致（关闭由右上角 × 完成）。
+  void _finish(String picked) => widget.onConfirm?.call(picked);
+  void _openSettings() => widget.onSettings?.call();
+  void _openPool() => widget.onManagePool?.call();
+  void _close() => widget.onClose?.call();
+
+  bool _canConfirm(String? current) =>
+      widget.editable &&
+      (_pendingClear || (_selected != null && _selected != current));
+
+  String _confirmLabel(String? current) {
+    if (_pendingClear) return '确认清除';
+    if (!_canConfirm(current)) {
+      return current == null ? '无需变更' : '已是指派教师';
+    }
+    return '确认指派';
+  }
+
+  void _confirm(String? current) {
+    if (!widget.editable) return;
+    if (_pendingClear) {
+      _finish('');
+      return;
+    }
+    final selected = _selected;
+    if (selected == null || selected == current) return;
+    _finish(selected);
   }
 
   @override
   Widget build(BuildContext context) {
+    final matching = SupervisionMatching(widget.snapshot);
+    final all = _candidates(matching);
+    final shown = _shown(all);
+    final assignable = shown.where((item) => item.available).toList();
+    final blocked = shown.where((item) => !item.available).toList();
+    final rows = <_PickRow>[
+      if (assignable.isNotEmpty) ...[
+        _PickRow.group('推荐与可安排', assignable.length),
+        for (var i = 0; i < assignable.length; i++)
+          _PickRow.teacher(assignable[i], i + 1),
+      ],
+      if (blocked.isNotEmpty) ...[
+        _PickRow.group('不可指派', blocked.length),
+        for (var i = 0; i < blocked.length; i++)
+          _PickRow.teacher(blocked[i], assignable.length + i + 1),
+      ],
+    ];
+    // 唯一的呈现形态：全高右侧抽屉，贴边、左侧描边与左向投影，
+    // 由页面级 Stack 承载，不再受周表工作区高度限制。
+    return Material(
+      key: const ValueKey('duty-teacher-panel'),
+      type: MaterialType.transparency,
+      child: SizedBox.expand(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: context.appColors.surface,
+            border: Border(left: BorderSide(color: context.appColors.border)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A000000),
+                offset: Offset(-12, 0),
+                blurRadius: 32,
+              ),
+            ],
+          ),
+          child: _body(matching, all, rows, shown.length, assignable.length),
+        ),
+      ),
+    );
+  }
+
+  Widget _candidateList(List<_PickRow> rows) {
+    if (rows.isEmpty) return _emptyState();
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+      itemCount: rows.length,
+      itemBuilder: (context, index) {
+        final row = rows[index];
+        final label = row.label;
+        if (label != null) return _groupLabel(label, row.count);
+        return _candidateCard(row.candidate!, row.rank);
+      },
+    );
+  }
+
+  Widget _body(
+    SupervisionMatching matching,
+    List<_PickCandidate> all,
+    List<_PickRow> rows,
+    int shownCount,
+    int assignableCount,
+  ) {
     final current = widget.draft.assignments[widget.post.id];
-    final teachers =
-        widget.snapshot.teachers
-            .where(
-              (teacher) => teacher.searchText.toLowerCase().contains(_query),
-            )
-            .toList()
-          ..sort((a, b) {
-            int rank(Teacher teacher) => teacher.id == current
-                ? 0
-                : widget.draft.teacherIds.contains(teacher.id)
-                ? 1
-                : 2;
-            final order = rank(a).compareTo(rank(b));
-            return order != 0 ? order : a.sortOrder.compareTo(b.sortOrder);
-          });
+    final fixed = <Widget>[
+      _header(),
+      _poolBar(matching, all),
+      _tools(),
+      _statusLine(shownCount, assignableCount),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 底部操作区始终固定可见；矮窗口只让上半部分整体滚动。
+        // 空态不进滚动裁剪，否则「清除筛选」可能被挤出可点击区域。
+        final cramped =
+            constraints.maxHeight.isFinite && constraints.maxHeight < 420;
+        Widget scrollArea;
+        if (rows.isEmpty || !cramped) {
+          scrollArea = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ...fixed,
+              Expanded(child: _candidateList(rows)),
+            ],
+          );
+        } else {
+          scrollArea = SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...fixed,
+                SizedBox(height: 200, child: _candidateList(rows)),
+              ],
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: scrollArea),
+            _footer(current),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _header() {
+    final colors = context.appColors;
     final post = widget.post;
     final classes = {
       for (final group in widget.snapshot.classes) group.id: group.name,
     };
-    final colors = context.appColors;
-    final theme = Theme.of(context).textTheme;
     final group = post.groupName.isNotEmpty
         ? post.groupName
         : post.classIds.map((id) => classes[id] ?? id).join('、');
-    return Material(
-      type: MaterialType.transparency,
-      child: Padding(
-        padding: widget.showTitle
-            ? const EdgeInsets.fromLTRB(14, 8, 14, 6)
-            : EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (widget.showTitle)
-              Row(
-                children: [
-                  Expanded(child: Text('选择带班教师', style: theme.titleSmall)),
-                  AppIconButton(
-                    onPressed: widget.onClose,
-                    tooltip: '关闭教师面板',
-                    icon: Icons.close,
-                    iconSize: 18,
+    final time = _weekTime(widget.snapshot, post);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 14, 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                '带班岗位 · 人员指派',
+                style: TextStyle(fontSize: 11, color: colors.muted),
+              ),
+              const Spacer(),
+              AppMenuButton(
+                items: [
+                  AppMenuItem(
+                    label: '岗位人员设置',
+                    enabled: widget.editable,
+                    onPressed: _openSettings,
+                  ),
+                  AppMenuItem(
+                    label: '移除岗位',
+                    destructive: true,
+                    enabled: widget.onRemove != null,
+                    onPressed: () => setState(() => _confirmRemove = true),
                   ),
                 ],
+                child: SizedBox(
+                  key: const ValueKey('duty-teacher-more'),
+                  width: 28,
+                  height: 28,
+                  child: Icon(Icons.more_horiz, size: 18, color: colors.muted),
+                ),
               ),
-            Text(
-              '${_weekdays[post.weekday - 1]} · ${post.name} · $group',
-              style: theme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              [
-                _slotLabel(widget.snapshot, post),
-                ?_weekTime(widget.snapshot, post),
-                if (post.location.isNotEmpty) post.location,
-              ].join(' · '),
-              style: theme.bodySmall?.copyWith(color: colors.inkSecondary),
-            ),
-            const SizedBox(height: 12),
-            AppTextFormField(
-              decoration: const InputDecoration(
-                hintText: '搜索教师姓名',
-                prefixIcon: Icon(Icons.search, size: 17),
-                isDense: true,
+              const SizedBox(width: 2),
+              AppIconButton(
+                key: const ValueKey('duty-teacher-close'),
+                icon: Icons.close,
+                iconSize: 18,
+                tooltip: '关闭教师面板',
+                onPressed: _close,
               ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '选择带班教师',
+            style: TextStyle(
+              fontSize: 16,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: colors.ink,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$group · ${post.name}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+              color: colors.ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              _chip(_weekdays[post.weekday - 1], primary: true),
+              _chip(_slotLabel(widget.snapshot, post)),
+              if (time != null) _chip(time),
+              _chip(
+                post.classIds.length == 1
+                    ? '单班岗位'
+                    : '合班 · ${post.classIds.length} 个班',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, {bool primary = false}) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: primary ? colors.selectedBlue : colors.canvas,
+        border: primary ? null : Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          height: 1.4,
+          fontWeight: primary ? FontWeight.w500 : FontWeight.normal,
+          color: primary ? colors.blue : colors.inkSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _poolBar(SupervisionMatching matching, List<_PickCandidate> all) {
+    final colors = context.appColors;
+    final post = widget.post;
+    final pool = widget.draft.teachersFor(post);
+    final candidateCount = widget.snapshot.teachers
+        .where((teacher) => pool.contains(teacher.id))
+        .length;
+    final availableCount = all.where((item) => item.available).length;
+    String label(SupervisionPreference preference) => switch (preference) {
+      SupervisionPreference.classTeacher => '本班',
+      SupervisionPreference.gradeTeacher => '本年级',
+      SupervisionPreference.subjectTeacher => '学科',
+    };
+    final order = [
+      ...matching.activePreferences(widget.draft, post).map(label),
+      widget.draft.preferencesFor(post).mode ==
+              SupervisionMatchMode.balanceFirst
+          ? '负载优先'
+          : '负载',
+    ].join(' › ');
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.canvas,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.groups_outlined, size: 15, color: colors.blue),
+              const SizedBox(width: 8),
+              Text(
+                widget.draft.poolNameFor(post),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.ink,
+                ),
+              ),
+              Text(
+                ' · $candidateCount 人',
+                style: TextStyle(fontSize: 11, color: colors.inkSecondary),
+              ),
+              const Spacer(),
+              _link('管理 ›', _openPool),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '本时段可安排 $availableCount 人 · 排序 $order',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: colors.inkSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _link(String label, VoidCallback onPressed) {
+    final colors = context.appColors;
+    return f.FTappable(
+      onPress: onPressed,
+      builder: (context, variants, _) => Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: colors.blue,
+          decoration: variants.contains(f.FTappableVariant.hovered)
+              ? TextDecoration.underline
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _tools() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: _DutySearchField(
+              controller: _search,
+              hint: '搜索姓名、任教学科',
               onChanged: (text) =>
                   setState(() => _query = text.trim().toLowerCase()),
+              onClear: () {
+                _search.clear();
+                setState(() => _query = '');
+              },
             ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: teachers.isEmpty
-                  ? const Center(child: Text('没有符合搜索条件的教师。'))
-                  : ListView.separated(
-                      itemCount: teachers.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final teacher = teachers[index];
-                        final existing = widget.draft.posts.where(
-                          (other) =>
-                              other.id != post.id &&
-                              widget.draft.assignments[other.id] == teacher.id,
-                        );
-                        final lessons = existing.fold(
-                          0,
-                          (sum, other) => sum + other.lessonIndices.length,
-                        );
-                        final days = existing
-                            .map((other) => other.weekday)
-                            .toSet()
-                            .length;
-                        final blockers = _blockers.putIfAbsent(
-                          teacher.id,
-                          () => const SupervisionAllocator().teacherBlockers(
-                            widget.snapshot,
-                            widget.draft.copyWith(
-                              teacherIds: {
-                                ...widget.draft.teacherIds,
-                                teacher.id,
-                              },
-                            ),
-                            post,
-                            teacher.id,
-                          ),
-                        );
-                        return f.FItem(
-                          title: Text(teacher.displayName),
-                          subtitle: Text(
-                            blockers.isEmpty
-                                ? '其他岗位 $lessons 节 · $days 天'
-                                : blockers.join(' · '),
-                          ),
-                          selected: teacher.id == current,
-                          suffix: teacher.id == current
-                              ? Icon(Icons.check, size: 16, color: colors.blue)
-                              : null,
-                          onPress: blockers.isEmpty && widget.onPick != null
-                              ? () => widget.onPick!(teacher.id)
-                              : null,
-                          enabled: blockers.isEmpty,
-                        );
-                      },
-                    ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 116,
+            child: AppSelectField<_PickFilter>(
+              compact: true,
+              value: _filter,
+              items: const {
+                '推荐优先': _PickFilter.recommend,
+                '仅看可安排': _PickFilter.available,
+                '按负载排序': _PickFilter.load,
+                '显示全部': _PickFilter.all,
+              },
+              onChanged: (value) {
+                if (value != null) setState(() => _filter = value);
+              },
             ),
-            const Divider(height: 1),
-            Wrap(
-              spacing: 6,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusLine(int shown, int assignable) {
+    final colors = context.appColors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+      child: Row(
+        children: [
+          Text(
+            '显示 $shown 位 · 其中 $assignable 位可指派',
+            style: TextStyle(fontSize: 11, color: colors.muted),
+          ),
+          const Spacer(),
+          Text(
+            _filter == _PickFilter.load ? '按负载排序' : '按推荐度排序',
+            style: TextStyle(fontSize: 11, color: colors.muted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groupLabel(String label, int count) {
+    final colors = context.appColors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 6, 8, 4),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: colors.muted,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text('$count', style: TextStyle(fontSize: 11, color: colors.muted)),
+          const SizedBox(width: 8),
+          Expanded(child: Container(height: 1, color: colors.border)),
+        ],
+      ),
+    );
+  }
+
+  ({String label, Color text, Color background})? _badgeStyle(
+    _PickBadge badge,
+  ) {
+    final colors = context.appColors;
+    return switch (badge) {
+      _PickBadge.current => (
+        label: '当前指派',
+        text: colors.blue,
+        background: colors.selectedBlue,
+      ),
+      _PickBadge.recommended => (
+        label: '推荐',
+        text: colors.success,
+        background: colors.successSurface,
+      ),
+      _PickBadge.limit => (
+        label: '已达上限',
+        text: colors.warning,
+        background: colors.warningSurface,
+      ),
+      _PickBadge.conflict => (
+        label: '时间冲突',
+        text: colors.destructive,
+        background: colors.destructiveSurface,
+      ),
+      _PickBadge.outside => (
+        label: '不在候选池',
+        text: colors.inkSecondary,
+        background: colors.border,
+      ),
+      _PickBadge.blocked => (
+        label: '不可指派',
+        text: colors.destructive,
+        background: colors.destructiveSurface,
+      ),
+      _PickBadge.none => null,
+    };
+  }
+
+  Widget _whyChip(String label, {bool hit = true}) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: hit ? colors.selectedBlue : colors.canvas,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          height: 1.4,
+          fontWeight: hit ? FontWeight.w500 : FontWeight.normal,
+          color: hit ? colors.blue : colors.inkSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _candidateCard(_PickCandidate candidate, int rank) {
+    final colors = context.appColors;
+    final enabled = candidate.available;
+    final selected = !_pendingClear && _selected == candidate.teacher.id;
+    final badge = _badgeStyle(candidate.badge);
+    final chips = <Widget>[
+      for (final reason in candidate.reasons) _whyChip(reason),
+      if (candidate.reasons.isEmpty &&
+          candidate.blockers.isEmpty &&
+          !candidate.preferenceUnmet)
+        _whyChip('无匹配偏好', hit: false),
+      if (candidate.blockers.isEmpty && candidate.preferenceUnmet)
+        _whyChip('偏好未满足', hit: false),
+    ];
+    final note = !candidate.inPool
+        ? '加入「${widget.draft.poolNameFor(widget.post)}」后才能指派'
+        : candidate.blockers.join(' · ');
+    final noteColor = !candidate.inPool
+        ? colors.muted
+        : candidate.badge == _PickBadge.limit
+        ? colors.warning
+        : colors.destructive;
+    final ratio = candidate.maxLessons == null
+        ? null
+        : (candidate.lessons / candidate.maxLessons!).clamp(0.0, 1.0);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: f.FTappable(
+        onPress: widget.editable && enabled ? () => _select(candidate) : null,
+        builder: (context, variants, _) {
+          final hovered = variants.contains(f.FTappableVariant.hovered);
+          final focused = variants.contains(f.FTappableVariant.focused);
+          final background = selected
+              ? colors.selectedBlue
+              : enabled
+              ? (hovered ? colors.tableHeader : colors.surface)
+              : colors.canvas;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected || focused ? colors.blue : colors.border,
+                width: selected ? 1.4 : 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (current != null)
-                  AppGhostButton(
-                    onPressed: widget.onPick == null
-                        ? null
-                        : () => widget.onPick!(''),
-                    child: const Text('清除指派'),
-                  ),
-                AppGhostButton(
-                  onPressed: widget.onRemove,
-                  child: Text(
-                    '移除岗位',
-                    style: TextStyle(color: colors.destructive),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 20,
+                      height: 20,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? colors.blue
+                            : enabled
+                            ? colors.canvas
+                            : colors.border,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '$rank',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: selected
+                              ? Colors.white
+                              : enabled
+                              ? colors.inkSecondary
+                              : colors.muted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            candidate.teacher.displayName,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                              color: enabled ? colors.ink : colors.inkSecondary,
+                            ),
+                          ),
+                          if (badge != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: badge.background,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: Text(
+                                badge.label,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w600,
+                                  color: badge.text,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 20,
+                      height: 20,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: selected ? colors.blue : null,
+                        border: Border.all(
+                          color: selected ? colors.blue : colors.border,
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(
+                              Icons.check,
+                              size: 13,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Padding(
+                  padding: const EdgeInsets.only(left: 30),
+                  child: Wrap(spacing: 4, runSpacing: 4, children: chips),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(left: 30),
+                  child: Row(
+                    children: [
+                      Text(
+                        '本周带班',
+                        style: TextStyle(fontSize: 11, color: colors.muted),
+                      ),
+                      const SizedBox(width: 8),
+                      if (ratio != null)
+                        Expanded(
+                          child: Container(
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: colors.canvas,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: ratio,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: ratio >= 1
+                                      ? colors.warning
+                                      : colors.blue,
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      const SizedBox(width: 8),
+                      Text(
+                        candidate.maxLessons == null
+                            ? '${candidate.lessons} 节 · ${candidate.days} 天'
+                            : '${candidate.lessons} / ${candidate.maxLessons} 节 · ${candidate.days} 天',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: enabled ? colors.inkSecondary : colors.muted,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                if (candidate.blockers.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 30, top: 7),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          candidate.inPool
+                              ? Icons.error_outline
+                              : Icons.info_outline,
+                          size: 13,
+                          color: noteColor,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            note,
+                            style: TextStyle(
+                              fontSize: 11,
+                              height: 1.5,
+                              color: noteColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    final colors = context.appColors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inbox_outlined, size: 32, color: colors.muted),
+            const SizedBox(height: 10),
+            Text(
+              '没有找到匹配的教师',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.ink,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '试试其他姓名或学科，也可清除筛选查看全部候选。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: colors.inkSecondary),
+            ),
+            const SizedBox(height: 12),
+            AppGhostButton(onPressed: _clearFilters, child: const Text('清除筛选')),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _footer(String? current) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: _confirmRemove ? _removeConfirm() : _normalFooter(current),
+    );
+  }
+
+  Widget _removeConfirm() {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.destructiveSurface,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 14, color: colors.destructive),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '移除后该岗位与指派将一并删除',
+              style: TextStyle(fontSize: 12, color: colors.destructive),
+            ),
+          ),
+          const SizedBox(width: 8),
+          AppGhostButton(
+            onPressed: () => setState(() => _confirmRemove = false),
+            child: const Text('取消'),
+          ),
+          const SizedBox(width: 6),
+          AppDestructiveButton(
+            onPressed: widget.onRemove,
+            child: const Text('确认移除'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _normalFooter(String? current) {
+    final colors = context.appColors;
+    final changed =
+        _pendingClear || (_selected != null && _selected != current);
+    String draft;
+    if (_pendingClear) {
+      draft = '将清除当前指派，岗位变为「待安排」';
+    } else if (changed) {
+      draft = '草稿将更新为：${_teacherName(_selected!)} · 确认后仍需「保存草稿」';
+    } else {
+      draft = '当前指派：${current == null ? '待安排' : _teacherName(current)} · 无需变更';
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: changed ? colors.selectedBlue : colors.canvas,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                changed ? Icons.edit_outlined : Icons.info_outline,
+                size: 13,
+                color: changed ? colors.blue : colors.muted,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  draft,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.5,
+                    color: changed ? colors.blue : colors.inkSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            AppGhostButton(
+              onPressed: !widget.editable || current == null
+                  ? null
+                  : () => setState(() {
+                      _pendingClear = true;
+                      _selected = null;
+                    }),
+              child: const Text('清除指派'),
+            ),
+            const Spacer(),
+            _DutyOutlineButton(onPressed: _close, child: const Text('取消')),
+            const SizedBox(width: 8),
+            AppPrimaryButton(
+              onPressed: _canConfirm(current) ? () => _confirm(current) : null,
+              child: Text(_confirmLabel(current)),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -245,9 +1123,74 @@ class _TeacherPoolDialog extends StatefulWidget {
 }
 
 class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
-  late final _teachers = {...widget.draft.teacherIds};
+  late final _members = <String, Set<String>>{
+    SupervisionDraft.basePoolId: {...widget.draft.teacherIds},
+    for (final pool in widget.draft.teacherPools) pool.id: {...pool.teacherIds},
+  };
+  late final _names = {
+    for (final pool in widget.draft.teacherPools) pool.id: pool.name,
+  };
+  String _activePool = SupervisionDraft.basePoolId;
+  late String _defaultPool =
+      widget.draft.defaultTeacherPoolId ?? SupervisionDraft.basePoolId;
+  Set<String> get _teachers => _members[_activePool]!;
+  bool get _referenced =>
+      _activePool == _defaultPool ||
+      widget.draft.posts.any((post) => post.teacherPoolId == _activePool);
+
+  Future<void> _namePool({bool rename = false}) async {
+    final name = await showAppDialog<String>(
+      context: context,
+      builder: (_) => _PoolNameDialog(
+        names: {
+          '基础候选池',
+          for (final entry in _names.entries)
+            if (!rename || entry.key != _activePool) entry.value,
+        },
+        initial: rename ? _names[_activePool] : null,
+      ),
+    );
+    if (!mounted || name == null) return;
+    setState(() {
+      if (!rename) {
+        _activePool = 'pool-${DateTime.now().microsecondsSinceEpoch}';
+        _members[_activePool] = {};
+      }
+      _names[_activePool] = name;
+    });
+  }
+
+  Future<void> _deletePool() async {
+    if (_referenced || _activePool == SupervisionDraft.basePoolId) return;
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (context) => AppDialog(
+        title: const Text('删除候选池'),
+        content: Text('删除「${_names[_activePool]}」？教师和带班规则会保留。'),
+        actions: [
+          AppGhostButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          AppDestructiveButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (mounted && confirmed == true) {
+      setState(() {
+        _members.remove(_activePool);
+        _names.remove(_activePool);
+        _activePool = SupervisionDraft.basePoolId;
+      });
+    }
+  }
+
   late final _rules = {...widget.draft.rules};
   String _query = '';
+  final _search = TextEditingController();
   String? _expandedTeacher;
   final _limits = <String, TextEditingController>{};
 
@@ -259,6 +1202,7 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
 
   @override
   void dispose() {
+    _search.dispose();
     for (final controller in _limits.values) {
       controller.dispose();
     }
@@ -380,24 +1324,72 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
         )
         .toList();
     return AppDialog(
-      title: const Text('候选教师与带班规则'),
+      title: const Text('候选池管理'),
       maxWidth: 720,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '勾选的教师进入带班候选。带班禁排与每周上限仅用于带班，不影响课表。',
+            '为不同岗位维护独立候选范围。同一教师可加入多个池，带班上限和禁排在所有池中统一生效。',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: context.appColors.inkSecondary),
           ),
           const SizedBox(height: 12),
-          AppTextFormField(
-            decoration: const InputDecoration(
-              hintText: '搜索教师姓名或教师组',
-              prefixIcon: Icon(Icons.search, size: 16),
-            ),
+          AppSelectField<String>(
+            key: const ValueKey('pool-manager-select'),
+            label: '当前候选池',
+            value: _activePool,
+            items: {
+              '基础候选池${_defaultPool == SupervisionDraft.basePoolId ? ' · 默认' : ''}':
+                  SupervisionDraft.basePoolId,
+              for (final entry in _names.entries)
+                '${entry.value}${_defaultPool == entry.key ? ' · 默认' : ''}':
+                    entry.key,
+            },
+            onChanged: (id) {
+              if (id != null) {
+                setState(() {
+                  _activePool = id;
+                  _expandedTeacher = null;
+                });
+              }
+            },
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AppGhostButton(onPressed: _namePool, child: const Text('新建候选池')),
+              if (_activePool != SupervisionDraft.basePoolId) ...[
+                AppGhostButton(
+                  onPressed: () => _namePool(rename: true),
+                  child: const Text('重命名'),
+                ),
+                AppGhostButton(
+                  onPressed: _referenced ? null : _deletePool,
+                  child: Text(_referenced ? '使用中不可删除' : '删除候选池'),
+                ),
+              ],
+              AppGhostButton(
+                onPressed: _activePool == _defaultPool
+                    ? null
+                    : () => setState(() => _defaultPool = _activePool),
+                child: Text(_activePool == _defaultPool ? '默认候选池' : '设为默认'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _DutySearchField(
+            controller: _search,
+            hint: '搜索教师姓名或教师组',
             onChanged: (text) =>
                 setState(() => _query = text.trim().toLowerCase()),
+            onClear: () {
+              _search.clear();
+              setState(() => _query = '');
+            },
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
@@ -443,55 +1435,74 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
           ),
           SizedBox(
             height: MediaQuery.sizeOf(context).height < 700 ? 240 : 360,
-            child: ListView.builder(
-              itemCount: teachers.length,
-              itemBuilder: (context, index) {
-                final teacher = teachers[index];
-                final rule = _rules[teacher.id];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    f.FItem(
-                      style: _dutyListStyle(context),
-                      prefix: AppCheckbox(
-                        value: _teachers.contains(teacher.id),
-                        onChanged: (value) => setState(() {
-                          value
-                              ? _teachers.add(teacher.id)
-                              : _teachers.remove(teacher.id);
-                        }),
-                      ),
-                      onPress: () => setState(() {
-                        _teachers.contains(teacher.id)
-                            ? _teachers.remove(teacher.id)
-                            : _teachers.add(teacher.id);
-                      }),
-                      title: Text(teacher.displayName),
-                      subtitle: Text(
-                        [
-                          ...groupsFor(teacher.id),
-                          rule == null
-                              ? '未设置规则'
-                              : '${rule.maxLessons ?? '不限'} 节 / ${rule.maxDays ?? '不限'} 天 · ${rule.unavailable.length} 格禁排',
-                        ].join(' · '),
-                      ),
-                      suffix: _DutyOutlineButton(
-                        onPressed: () => setState(
-                          () =>
-                              _expandedTeacher = _expandedTeacher == teacher.id
-                              ? null
-                              : teacher.id,
+            child: teachers.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '没有找到教师',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        child: Text(
-                          _expandedTeacher == teacher.id ? '收起' : '设置',
+                        const SizedBox(height: 6),
+                        Text(
+                          '试试教师姓名或教师组，或清空搜索条件。',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: context.appColors.inkSecondary),
                         ),
-                      ),
+                      ],
                     ),
-                    if (_expandedTeacher == teacher.id) _quickRule(teacher),
-                  ],
-                );
-              },
-            ),
+                  )
+                : ListView.builder(
+                    itemCount: teachers.length,
+                    itemBuilder: (context, index) {
+                      final teacher = teachers[index];
+                      final rule = _rules[teacher.id];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          f.FItem(
+                            style: _dutyListStyle(context),
+                            prefix: AppCheckbox(
+                              value: _teachers.contains(teacher.id),
+                              onChanged: (value) => setState(() {
+                                value
+                                    ? _teachers.add(teacher.id)
+                                    : _teachers.remove(teacher.id);
+                              }),
+                            ),
+                            onPress: () => setState(() {
+                              _teachers.contains(teacher.id)
+                                  ? _teachers.remove(teacher.id)
+                                  : _teachers.add(teacher.id);
+                            }),
+                            title: Text(teacher.displayName),
+                            subtitle: Text(
+                              [
+                                ...groupsFor(teacher.id),
+                                rule == null
+                                    ? '未设置规则'
+                                    : '${rule.maxLessons ?? '不限'} 节 / ${rule.maxDays ?? '不限'} 天 · ${rule.unavailable.length} 格禁排',
+                              ].join(' · '),
+                            ),
+                            suffix: _DutyOutlineButton(
+                              onPressed: () => setState(
+                                () => _expandedTeacher =
+                                    _expandedTeacher == teacher.id
+                                    ? null
+                                    : teacher.id,
+                              ),
+                              child: Text(
+                                _expandedTeacher == teacher.id ? '收起' : '设置',
+                              ),
+                            ),
+                          ),
+                          if (_expandedTeacher == teacher.id)
+                            _quickRule(teacher),
+                        ],
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -510,7 +1521,24 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
               ? null
               : () => Navigator.pop(
                   context,
-                  widget.draft.copyWith(teacherIds: _teachers, rules: _rules),
+                  widget.draft.copyWith(
+                    teacherIds: _members[SupervisionDraft.basePoolId],
+                    rules: _rules,
+                    teacherPools: [
+                      for (final entry in _names.entries)
+                        SupervisionTeacherPool(
+                          id: entry.key,
+                          name: entry.value,
+                          teacherIds: _members[entry.key]!,
+                        ),
+                    ],
+                    defaultTeacherPoolId:
+                        _defaultPool == SupervisionDraft.basePoolId
+                        ? null
+                        : _defaultPool,
+                    resetDefaultPool:
+                        _defaultPool == SupervisionDraft.basePoolId,
+                  ),
                 ),
           child: const Text('应用'),
         ),
@@ -1039,5 +2067,45 @@ class _SelectionOption extends StatelessWidget {
       onPressed: () => onSelected(!selected),
       child: label,
     ),
+  );
+}
+
+class _DutySearchField extends StatelessWidget {
+  const _DutySearchField({
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+    required this.onClear,
+  });
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: AppTextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: const Icon(Icons.search, size: 16),
+          ),
+          onChanged: onChanged,
+        ),
+      ),
+      if (controller.text.isNotEmpty) ...[
+        const SizedBox(width: 4),
+        f.FTooltip(
+          tipBuilder: (context, control) => const Text('清空教师搜索'),
+          child: AppIconButton(
+            icon: Icons.close,
+            tooltip: '清空教师搜索',
+            onPressed: onClear,
+            foregroundColor: context.appColors.inkSecondary,
+          ),
+        ),
+      ],
+    ],
   );
 }

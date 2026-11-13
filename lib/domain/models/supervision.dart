@@ -10,6 +10,102 @@ enum SupervisionKind {
   final String label;
 }
 
+enum SupervisionPreference {
+  classTeacher('任教班级优先'),
+  gradeTeacher('本年级优先'),
+  subjectTeacher('指定学科优先');
+
+  const SupervisionPreference(this.label);
+  final String label;
+}
+
+enum SupervisionMatchMode { matchFirst, balanceFirst }
+
+enum SupervisionMatchRequirement { none, any, all }
+
+class SupervisionMatchingPreferences {
+  const SupervisionMatchingPreferences({
+    this.order = SupervisionPreference.values,
+    this.enabled = const {
+      SupervisionPreference.classTeacher,
+      SupervisionPreference.gradeTeacher,
+    },
+    this.mode = SupervisionMatchMode.matchFirst,
+    this.requirement = SupervisionMatchRequirement.none,
+  });
+
+  final List<SupervisionPreference> order;
+  final Set<SupervisionPreference> enabled;
+  final SupervisionMatchMode mode;
+  final SupervisionMatchRequirement requirement;
+
+  SupervisionMatchingPreferences copyWith({
+    List<SupervisionPreference>? order,
+    Set<SupervisionPreference>? enabled,
+    SupervisionMatchMode? mode,
+    SupervisionMatchRequirement? requirement,
+  }) => SupervisionMatchingPreferences(
+    order: order ?? this.order,
+    enabled: enabled ?? this.enabled,
+    mode: mode ?? this.mode,
+    requirement: requirement ?? this.requirement,
+  );
+
+  Map<String, Object?> toJson() => {
+    'order': order.map((item) => item.name).toList(),
+    'enabled': enabled.map((item) => item.name).toList(),
+    'mode': mode.name,
+    'requirement': requirement.name,
+  };
+
+  factory SupervisionMatchingPreferences.fromJson(Map<String, Object?> json) =>
+      SupervisionMatchingPreferences(
+        order: {
+          for (final name in (json['order'] as List? ?? const []))
+            SupervisionPreference.values.byName(name as String),
+          ...SupervisionPreference.values,
+        }.toList(),
+        enabled: json['enabled'] == null
+            ? const {
+                SupervisionPreference.classTeacher,
+                SupervisionPreference.gradeTeacher,
+              }
+            : {
+                for (final name in json['enabled'] as List)
+                  SupervisionPreference.values.byName(name as String),
+              },
+        mode: SupervisionMatchMode.values.byName(
+          json['mode'] as String? ?? 'matchFirst',
+        ),
+        requirement: SupervisionMatchRequirement.values.byName(
+          json['requirement'] as String? ?? 'none',
+        ),
+      );
+}
+
+class SupervisionTeacherPool {
+  const SupervisionTeacherPool({
+    required this.id,
+    required this.name,
+    this.teacherIds = const {},
+  });
+  final String id;
+  final String name;
+  final Set<String> teacherIds;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'teacherIds': teacherIds.toList(),
+  };
+  factory SupervisionTeacherPool.fromJson(Map<String, Object?> json) =>
+      SupervisionTeacherPool(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        teacherIds: (json['teacherIds'] as List).cast<String>().toSet(),
+      );
+}
+
 class SupervisionPost {
   const SupervisionPost({
     required this.id,
@@ -22,6 +118,9 @@ class SupervisionPost {
     required this.classIds,
     this.groupName = '',
     this.location = '',
+    this.teacherPoolId,
+    this.matchingPreferences,
+    this.targetSubjectIds = const {},
   });
 
   final String id;
@@ -35,6 +134,35 @@ class SupervisionPost {
   final List<int> lessonIndices;
   final List<String> classIds;
 
+  /// Null follows the draft's default pool. An explicit missing pool stays empty.
+  final String? teacherPoolId;
+  final SupervisionMatchingPreferences? matchingPreferences;
+  final Set<String> targetSubjectIds;
+
+  SupervisionPost copyWith({
+    String? teacherPoolId,
+    bool inheritPool = false,
+    SupervisionMatchingPreferences? matchingPreferences,
+    bool inheritPreferences = false,
+    Set<String>? targetSubjectIds,
+  }) => SupervisionPost(
+    id: id,
+    kind: kind,
+    name: name,
+    stageId: stageId,
+    weekday: weekday,
+    periodTypeId: periodTypeId,
+    lessonIndices: lessonIndices,
+    classIds: classIds,
+    groupName: groupName,
+    location: location,
+    teacherPoolId: inheritPool ? null : teacherPoolId ?? this.teacherPoolId,
+    matchingPreferences: inheritPreferences
+        ? null
+        : matchingPreferences ?? this.matchingPreferences,
+    targetSubjectIds: targetSubjectIds ?? this.targetSubjectIds,
+  );
+
   Map<String, Object?> toJson() => {
     'id': id,
     'kind': kind.name,
@@ -46,6 +174,9 @@ class SupervisionPost {
     'periodTypeId': periodTypeId,
     'lessonIndices': lessonIndices,
     'classIds': classIds,
+    'teacherPoolId': teacherPoolId,
+    'matchingPreferences': matchingPreferences?.toJson(),
+    'targetSubjectIds': targetSubjectIds.toList(),
   };
 
   factory SupervisionPost.fromJson(Map<String, Object?> json) =>
@@ -60,6 +191,15 @@ class SupervisionPost {
         periodTypeId: json['periodTypeId'] as String,
         lessonIndices: (json['lessonIndices'] as List).cast<int>(),
         classIds: (json['classIds'] as List).cast<String>(),
+        teacherPoolId: json['teacherPoolId'] as String?,
+        matchingPreferences: json['matchingPreferences'] == null
+            ? null
+            : SupervisionMatchingPreferences.fromJson(
+                _object(json['matchingPreferences']),
+              ),
+        targetSubjectIds: (json['targetSubjectIds'] as List? ?? const [])
+            .cast<String>()
+            .toSet(),
       );
 }
 
@@ -97,6 +237,9 @@ class SupervisionDraft {
     this.revision = 0,
     this.posts = const [],
     this.teacherIds = const {},
+    this.teacherPools = const [],
+    this.defaultTeacherPoolId,
+    this.matchingPreferences = const SupervisionMatchingPreferences(),
     this.rules = const {},
     this.assignments = const {},
     this.manualPostIds = const {},
@@ -106,6 +249,39 @@ class SupervisionDraft {
   final int revision;
   final List<SupervisionPost> posts;
   final Set<String> teacherIds;
+  final List<SupervisionTeacherPool> teacherPools;
+  final String? defaultTeacherPoolId;
+  final SupervisionMatchingPreferences matchingPreferences;
+
+  static const basePoolId = '__default__';
+  Set<String> get allTeacherIds => {
+    ...teacherIds,
+    for (final pool in teacherPools) ...pool.teacherIds,
+  };
+  String poolIdFor(SupervisionPost post) =>
+      post.teacherPoolId ?? defaultTeacherPoolId ?? basePoolId;
+  Set<String> teachersFor(SupervisionPost post) {
+    final id = poolIdFor(post);
+    if (id == basePoolId) return teacherIds;
+    return teacherPools
+            .where((pool) => pool.id == id)
+            .firstOrNull
+            ?.teacherIds ??
+        const {};
+  }
+
+  String get defaultTeacherPoolName =>
+      _poolName(defaultTeacherPoolId ?? basePoolId);
+  String poolNameFor(SupervisionPost post) => _poolName(poolIdFor(post));
+  String _poolName(String id) {
+    if (id == basePoolId) return '基础候选池';
+    return teacherPools.where((pool) => pool.id == id).firstOrNull?.name ??
+        '候选池已失效';
+  }
+
+  SupervisionMatchingPreferences preferencesFor(SupervisionPost post) =>
+      post.matchingPreferences ?? matchingPreferences;
+
   final Map<String, SupervisionTeacherRule> rules;
   final Map<String, String> assignments;
   final Set<String> manualPostIds;
@@ -114,6 +290,10 @@ class SupervisionDraft {
     int? revision,
     List<SupervisionPost>? posts,
     Set<String>? teacherIds,
+    List<SupervisionTeacherPool>? teacherPools,
+    String? defaultTeacherPoolId,
+    bool resetDefaultPool = false,
+    SupervisionMatchingPreferences? matchingPreferences,
     Map<String, SupervisionTeacherRule>? rules,
     Map<String, String>? assignments,
     Set<String>? manualPostIds,
@@ -122,6 +302,11 @@ class SupervisionDraft {
     revision: revision ?? this.revision,
     posts: posts ?? this.posts,
     teacherIds: teacherIds ?? this.teacherIds,
+    teacherPools: teacherPools ?? this.teacherPools,
+    defaultTeacherPoolId: resetDefaultPool
+        ? null
+        : defaultTeacherPoolId ?? this.defaultTeacherPoolId,
+    matchingPreferences: matchingPreferences ?? this.matchingPreferences,
     rules: rules ?? this.rules,
     assignments: assignments ?? this.assignments,
     manualPostIds: manualPostIds ?? this.manualPostIds,
@@ -133,6 +318,9 @@ class SupervisionDraft {
     'revision': revision,
     'posts': posts.map((post) => post.toJson()).toList(),
     'teacherIds': teacherIds.toList(),
+    'teacherPools': teacherPools.map((pool) => pool.toJson()).toList(),
+    'defaultTeacherPoolId': defaultTeacherPoolId,
+    'matchingPreferences': matchingPreferences.toJson(),
     'rules': rules.map((id, rule) => MapEntry(id, rule.toJson())),
     'assignments': assignments,
     'manualPostIds': manualPostIds.toList(),
@@ -145,6 +333,16 @@ class SupervisionDraft {
       revision: json['revision'] as int,
       posts: _decodeList(json['posts'], SupervisionPost.fromJson),
       teacherIds: (json['teacherIds'] as List).cast<String>().toSet(),
+      teacherPools: _decodeList(
+        json['teacherPools'] ?? const [],
+        SupervisionTeacherPool.fromJson,
+      ),
+      defaultTeacherPoolId: json['defaultTeacherPoolId'] as String?,
+      matchingPreferences: json['matchingPreferences'] == null
+          ? const SupervisionMatchingPreferences()
+          : SupervisionMatchingPreferences.fromJson(
+              _object(json['matchingPreferences']),
+            ),
       rules: _object(json['rules']).map(
         (id, value) =>
             MapEntry(id, SupervisionTeacherRule.fromJson(_object(value))),

@@ -6,6 +6,7 @@ import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/actual_timetable.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/domain/scheduling/supervision_allocator.dart';
+import 'package:class_set/domain/scheduling/supervision_matching.dart';
 import 'package:class_set/domain/scheduling/supervision_validation.dart';
 import 'package:drift/drift.dart';
 
@@ -86,6 +87,7 @@ class DriftSupervisionRepository {
               term.teachingWeekOf(date) == null) {
       errors.add(repair ? '协调后的带班方案从今天生效' : '请选择学期内尚未开始的教学周周一');
     }
+    final matching = SupervisionMatching(snapshot);
     final missing = <String>[];
     for (final post in draft.posts) {
       final teacher = draft.assignments[post.id];
@@ -98,6 +100,7 @@ class DriftSupervisionRepository {
         draft,
         post,
         teacher,
+        matching: matching,
       )) {
         errors.add('${post.name}：$error');
       }

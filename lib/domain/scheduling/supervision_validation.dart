@@ -59,6 +59,16 @@ class SupervisionValidation {
     for (final post in draft.posts) {
       final title = post.groupName.isEmpty ? post.name : post.groupName;
       if (!postIds.add(post.id)) errors.add('岗位 $title 重复');
+      final poolId = draft.poolIdFor(post);
+      if (poolId != SupervisionDraft.basePoolId &&
+          !draft.teacherPools.any((pool) => pool.id == poolId)) {
+        errors.add('$title：候选池已不存在，请重新设置');
+      }
+      if (post.targetSubjectIds.any(
+        (id) => !snapshot.subjects.any((subject) => subject.id == id),
+      )) {
+        errors.add('$title：目标学科已不存在，请重新设置');
+      }
       if (post.name.trim().isEmpty) errors.add('请填写活动名称');
       if (post.classIds.isEmpty ||
           post.classIds.toSet().length != post.classIds.length ||

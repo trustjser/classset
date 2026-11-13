@@ -2,6 +2,7 @@ import 'package:class_set/domain/models/schedule_position.dart';
 import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/domain/scheduling/supervision_validation.dart';
+import 'package:class_set/domain/scheduling/supervision_matching.dart';
 
 class SupervisionAllocator {
   const SupervisionAllocator();
@@ -12,8 +13,9 @@ class SupervisionAllocator {
     SchedulingSnapshot snapshot,
     SupervisionDraft draft,
     SupervisionPost post,
-    String teacherId,
-  ) {
+    String teacherId, {
+    SupervisionMatching? matching,
+  }) {
     final positions = _validation.positions(snapshot, post);
     final rule = draft.rules[teacherId] ?? const SupervisionTeacherRule();
     final others = draft.posts.where(
@@ -21,9 +23,16 @@ class SupervisionAllocator {
           other.id != post.id && draft.assignments[other.id] == teacherId,
     );
     final errors = <String>[];
-    if (!draft.teacherIds.contains(teacherId) ||
+    if (!draft.teachersFor(post).contains(teacherId) ||
         !snapshot.teachers.any((teacher) => teacher.id == teacherId)) {
-      errors.add('老师不在参与教师名单中');
+      errors.add('教师不在岗位候选池中');
+    }
+    if (!(matching ?? SupervisionMatching(snapshot)).meetsRequirement(
+      draft,
+      post,
+      teacherId,
+    )) {
+      errors.add('未满足岗位必须符合的匹配条件');
     }
     if (positions.any((position) => rule.unavailable.any(position.sameCell))) {
       errors.add('教师在该节次禁排');
@@ -68,7 +77,8 @@ class SupervisionAllocator {
   }
 
   SupervisionDraft fill(SchedulingSnapshot snapshot, SupervisionDraft draft) {
-    final ids = draft.teacherIds.toList()..sort();
+    final ids = draft.allTeacherIds.toList()..sort();
+    final matching = SupervisionMatching(snapshot);
     final assignments = <String, String>{
       for (final post in draft.posts)
         if (draft.manualPostIds.contains(post.id) &&
@@ -83,7 +93,14 @@ class SupervisionAllocator {
       for (final post in posts)
         post.id: [
           for (final id in ids)
-            if (teacherBlockers(snapshot, state, post, id).isEmpty) id,
+            if (teacherBlockers(
+              snapshot,
+              state,
+              post,
+              id,
+              matching: matching,
+            ).isEmpty)
+              id,
         ],
     };
     posts.sort((a, b) {
@@ -106,7 +123,39 @@ class SupervisionAllocator {
     }
     var best = Map<String, String>.of(assignments);
     var bestCoverage = -1;
-    var bestBalance = 0;
+    List<int>? bestMetric;
+    final ranks = {
+      for (final post in draft.posts)
+        post.id: {
+          for (final teacher in ids)
+            teacher: matching.ranks(draft, post, teacher),
+        },
+    };
+    List<int> metric(int balance) {
+      final first = List<int>.filled(3, 0);
+      final balanced = List<int>.filled(3, 0);
+      for (final post in draft.posts) {
+        final teacher = assignments[post.id];
+        if (teacher == null) continue;
+        final target =
+            draft.preferencesFor(post).mode == SupervisionMatchMode.matchFirst
+            ? first
+            : balanced;
+        final values = ranks[post.id]?[teacher] ?? const <int>[];
+        for (var i = 0; i < values.length; i++) {
+          target[i] -= values[i];
+        }
+      }
+      return [...first, balance, ...balanced];
+    }
+
+    bool better(List<int> a, List<int> b) {
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return a[i] < b[i];
+      }
+      return false;
+    }
+
     var budget = 12000;
     void visit(int index, int coverage) {
       if (budget-- <= 0 || coverage + remaining[index] < bestCoverage) return;
@@ -114,23 +163,42 @@ class SupervisionAllocator {
         0,
         (sum, load) => sum + load * load,
       );
+      final currentMetric = metric(balance);
       if (coverage > bestCoverage ||
-          (coverage == bestCoverage && balance < bestBalance)) {
+          (coverage == bestCoverage &&
+              (bestMetric == null || better(currentMetric, bestMetric!)))) {
         best = Map.of(assignments);
         bestCoverage = coverage;
-        bestBalance = balance;
+        bestMetric = currentMetric;
       }
       if (index == posts.length) return;
       final post = posts[index];
       final ranked = [...candidates[post.id]!]
         ..sort((a, b) {
-          final order = loads[a]!.compareTo(loads[b]!);
-          return order == 0 ? a.compareTo(b) : order;
+          final loadOrder = loads[a]!.compareTo(loads[b]!);
+          if (draft.preferencesFor(post).mode ==
+                  SupervisionMatchMode.balanceFirst &&
+              loadOrder != 0) {
+            return loadOrder;
+          }
+          final first = ranks[post.id]![a]!;
+          final second = ranks[post.id]![b]!;
+          for (var i = 0; i < first.length; i++) {
+            final order = second[i].compareTo(first[i]);
+            if (order != 0) return order;
+          }
+          return loadOrder == 0 ? a.compareTo(b) : loadOrder;
         });
       final size = post.lessonIndices.length;
       for (final teacher in ranked) {
         if (budget <= 0) break;
-        if (teacherBlockers(snapshot, state, post, teacher).isNotEmpty) {
+        if (teacherBlockers(
+          snapshot,
+          state,
+          post,
+          teacher,
+          matching: matching,
+        ).isNotEmpty) {
           continue;
         }
         assignments[post.id] = teacher;
