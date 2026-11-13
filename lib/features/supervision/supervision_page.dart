@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:class_set/app.dart';
 import 'package:class_set/core/navigation/draft_navigation_guard.dart';
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/widgets/app_badges.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/academic_term.dart';

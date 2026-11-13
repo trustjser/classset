@@ -1,4 +1,6 @@
 import 'package:class_set/data/database/app_database.dart' show AppDatabase;
+import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/domain/models/supervision.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,42 @@ import 'package:flutter_test/flutter_test.dart';
 import 'supervision_test_support.dart';
 
 void main() {
+  testWidgets('创建岗位人员设置同行，班级范围填满工作区，底部统计居中', (tester) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = TestSupervisionRepository(
+      database,
+      supervisionSnapshot(),
+    );
+    await tester.runAsync(() => repository.saveTerm(supervisionTerm));
+    await openSupervision(tester, repository);
+    await tester.tap(find.text('创建岗位'));
+    await tester.pumpAndSettle();
+    final kind = tester.getRect(find.byType(AppSelectField<SupervisionKind>));
+    final personnel = tester.getRect(find.text('人员设置'));
+    expect((kind.center.dy - personnel.center.dy).abs(), lessThan(8));
+    final scope = tester.getRect(find.widgetWithText(AppSectionPanel, '班级范围'));
+    expect(scope.bottom, greaterThan(tester.getRect(find.text('实际合班')).bottom));
+    final summary = tester.getRect(find.text('将创建 0 个岗位 · 0 个课格'));
+    final submit = tester.getRect(
+      find.widgetWithText(AppPrimaryButton, '添加岗位'),
+    );
+    expect((summary.center.dy - submit.center.dy).abs(), lessThan(2));
+    for (final width in [768.0, 390.0]) {
+      tester.view.physicalSize = Size(width, 760);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('实际合班'));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.text('实际合班')).center.dy, lessThan(760));
+      final action = tester.getRect(
+        find.widgetWithText(AppPrimaryButton, '添加岗位'),
+      );
+      expect(action.bottom, lessThan(760));
+      expect(tester.takeException(), isNull);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('放大字体后作息信息卡可容纳完整内容', (tester) async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);

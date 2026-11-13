@@ -63,7 +63,7 @@ class _DutyControlPanel extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: context.appColors.tableHeader,
+            color: context.appColors.surface,
             border: Border(top: BorderSide(color: context.appColors.border)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
@@ -198,7 +198,9 @@ class _DutyVersionPicker extends StatelessWidget {
         ]),
       ),
     ),
-    child: child,
+    // ForUI's input decorator reserves four pixels below the painted field.
+    // Center the visible outline, rather than the decorator's full layout box.
+    child: Transform.translate(offset: const Offset(0, 2), child: child),
   );
 }
 

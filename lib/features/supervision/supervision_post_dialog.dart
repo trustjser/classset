@@ -406,52 +406,56 @@ class _PostDialogState extends State<_PostDialog> {
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              const Text('活动类型'),
-              SizedBox(
-                width: 200,
-                child: AppSelectField<SupervisionKind>(
-                  compact: true,
-                  value: _kind,
-                  hint: '选择活动类型',
-                  items: {
-                    for (final kind in SupervisionKind.values) kind.label: kind,
-                  },
-                  onChanged: (kind) => setState(() => _kind = kind ?? _kind),
+          LayoutBuilder(
+            builder: (context, constraints) => Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: constraints.maxWidth.clamp(0.0, 264.0),
+                  child: Row(
+                    children: [
+                      const Text('活动类型'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppSelectField<SupervisionKind>(
+                          compact: true,
+                          value: _kind,
+                          hint: '选择活动类型',
+                          items: {
+                            for (final kind in SupervisionKind.values)
+                              kind.label: kind,
+                          },
+                          onChanged: (kind) =>
+                              setState(() => _kind = kind ?? _kind),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 10,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _DutyOutlineButton(
-                onPressed: () async {
-                  final value = await showAppDialog<_PersonnelSettings>(
-                    context: context,
-                    builder: (_) => _PostPersonnelDialog(
-                      draft: widget.draft,
-                      snapshot: widget.snapshot,
-                      initial: _personnel,
-                    ),
-                  );
-                  if (mounted && value != null) {
-                    setState(() => _personnel = value);
-                  }
-                },
-                child: const Text('人员设置'),
-              ),
-              Text(
-                '${_personnel.poolId == null ? '跟随默认候选池' : widget.draft.teacherPools.where((pool) => pool.id == _personnel.poolId).firstOrNull?.name ?? '基础候选池'} · ${_personnel.preferences == null ? '跟随全局偏好' : '单独匹配偏好'}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+                _DutyOutlineButton(
+                  onPressed: () async {
+                    final value = await showAppDialog<_PersonnelSettings>(
+                      context: context,
+                      builder: (_) => _PostPersonnelDialog(
+                        draft: widget.draft,
+                        snapshot: widget.snapshot,
+                        initial: _personnel,
+                      ),
+                    );
+                    if (mounted && value != null) {
+                      setState(() => _personnel = value);
+                    }
+                  },
+                  child: const Text('人员设置'),
+                ),
+                Text(
+                  '${_personnel.poolId == null ? '跟随默认候选池' : widget.draft.teacherPools.where((pool) => pool.id == _personnel.poolId).firstOrNull?.name ?? '基础候选池'} · ${_personnel.preferences == null ? '跟随全局偏好' : '单独匹配偏好'}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
           if (_kind == SupervisionKind.custom) ...[
             const SizedBox(height: 8),
@@ -461,43 +465,87 @@ class _PostDialogState extends State<_PostDialog> {
             ),
           ],
           const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 780;
-              final scope = _scopeTree(scrollable: wide);
-              final editor = Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [_routineGrid(), options()],
-              );
-              return wide
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(width: 260, child: scope),
-                        const SizedBox(width: 20),
-                        Expanded(child: editor),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [scope, const SizedBox(height: 16), editor],
-                    );
-            },
+          SizedBox(
+            height: (MediaQuery.sizeOf(context).height - 280).clamp(
+              280.0,
+              720.0,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 780;
+                final scope = _scopeTree(scrollable: wide);
+                final editor = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [_routineGrid(), options()],
+                );
+                return wide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(width: 260, child: scope),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              primary: false,
+                              child: editor,
+                            ),
+                          ),
+                        ],
+                      )
+                    : SingleChildScrollView(
+                        primary: false,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [scope, const SizedBox(height: 16), editor],
+                        ),
+                      );
+              },
+            ),
           ),
         ],
       ),
       actions: [
-        Text(
-          '将创建 $count 个岗位 · ${_slots.length} 个课格',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        AppGhostButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        AppPrimaryButton(
-          onPressed: count == 0 ? null : _submit,
-          child: const Text('添加岗位'),
+        SizedBox(
+          width: double.infinity,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final summary = Text(
+                '将创建 $count 个岗位 · ${_slots.length} 个课格',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: context.appColors.inkSecondary),
+              );
+              final buttons = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppGhostButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 8),
+                  AppPrimaryButton(
+                    onPressed: count == 0 ? null : _submit,
+                    child: const Text('添加岗位'),
+                  ),
+                ],
+              );
+              return constraints.maxWidth >= 520
+                  ? Row(
+                      children: [
+                        Expanded(child: summary),
+                        const SizedBox(width: 16),
+                        buttons,
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        summary,
+                        const SizedBox(height: 8),
+                        Align(alignment: Alignment.centerRight, child: buttons),
+                      ],
+                    );
+            },
+          ),
         ),
       ],
     );
@@ -572,17 +620,18 @@ class _PostDialogState extends State<_PostDialog> {
     );
     return AppSectionPanel(
       title: '班级范围',
-      useShadow: false,
-      showBorder: true,
+      expandChild: scrollable,
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
       trailing: Text(
         '已选 ${_classes.length} 个班级',
         style: Theme.of(context).textTheme.bodySmall,
       ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: scrollable ? 370 : 240),
-        child: SingleChildScrollView(primary: false, child: rows),
-      ),
+      child: scrollable
+          ? SingleChildScrollView(primary: false, child: rows)
+          : ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: SingleChildScrollView(primary: false, child: rows),
+            ),
     );
   }
 
@@ -683,7 +732,9 @@ class _PostDialogState extends State<_PostDialog> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            _classes.isEmpty ? '先选择班级，再选择带班课节。' : '灰色课格不可选，已有岗位已标出；可按星期或整行批选。',
+            _classes.isEmpty
+                ? '先选择班级，再选择带班课节。'
+                : '浅色课格按时段区分，灰色课格不可选；点击星期或节次可批量选择。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -712,127 +763,108 @@ class _PostDialogState extends State<_PostDialog> {
                         )
                         .reduce((a, b) => a > b ? a : b),
               );
-              final maxHeight = (MediaQuery.sizeOf(context).height * .38).clamp(
-                240.0,
-                360.0,
+              final maxHeight = (MediaQuery.sizeOf(context).height * .32).clamp(
+                220.0,
+                340.0,
               );
-              final height = (36 + periods.length * 28 + rowCount * 56)
+              var lessonSequence = 0;
+              final height = (32 + rowCount * 48)
                   .clamp(0, maxHeight)
                   .toDouble();
-              return DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(color: context.appColors.border),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Scrollbar(
+              return Scrollbar(
+                controller: _horizontal,
+                thumbVisibility: true,
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
                   controller: _horizontal,
-                  thumbVisibility: true,
-                  notificationPredicate: (notification) =>
-                      notification.metrics.axis == Axis.horizontal,
-                  child: SingleChildScrollView(
-                    controller: _horizontal,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: tableWidth,
-                      height: height + 8,
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              _PostGridCell(
-                                width: labelWidth,
-                                height: 36,
-                                label: '节次 / 时间',
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    height: height + 8,
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            _PostGridCell(
+                              width: labelWidth,
+                              height: 32,
+                              label: '节次 / 时间',
+                              header: true,
+                            ),
+                            for (final day in days)
+                              _batchCell(
+                                key: ValueKey('post-day-$day'),
+                                width: dayWidth,
+                                label: _weekdays[day - 1],
                                 header: true,
+                                slots: available.where(
+                                  (slot) => slot.weekday == day,
+                                ),
                               ),
-                              for (final day in days)
-                                _batchCell(
-                                  key: ValueKey('post-day-$day'),
-                                  width: dayWidth,
-                                  label: _weekdays[day - 1],
-                                  header: true,
-                                  slots: available.where(
-                                    (slot) => slot.weekday == day,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          Expanded(
-                            child: Scrollbar(
+                          ],
+                        ),
+                        Expanded(
+                          child: Scrollbar(
+                            controller: _vertical,
+                            child: SingleChildScrollView(
                               controller: _vertical,
-                              child: SingleChildScrollView(
-                                controller: _vertical,
-                                child: Column(
-                                  children: [
-                                    for (final period in periods) ...[
-                                      Container(
-                                        width: tableWidth,
-                                        height: 28,
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.only(
-                                          left: 10,
-                                        ),
-                                        color: context.appColors.tableHeader,
-                                        child: Text(
-                                          period.name,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      for (
-                                        var index = 1;
-                                        index <=
-                                            days
-                                                .map(
-                                                  (day) => routine
-                                                      .effectiveLessonCount(
-                                                        period.id,
-                                                        day,
-                                                      ),
-                                                )
-                                                .reduce(
-                                                  (a, b) => a > b ? a : b,
-                                                );
-                                        index++
-                                      )
-                                        Row(
-                                          children: [
-                                            _batchCell(
-                                              key: ValueKey(
-                                                'post-row-${period.id}-$index',
-                                              ),
-                                              width: labelWidth,
-                                              label: '第 $index 节',
-                                              detail: _lessonTime(
-                                                period,
-                                                index,
-                                              ),
-                                              slots: available.where(
-                                                (slot) =>
-                                                    slot.periodId ==
-                                                        period.id &&
-                                                    slot.index == index,
-                                              ),
+                              child: Column(
+                                children: [
+                                  for (final period in periods)
+                                    for (
+                                      var index = 1;
+                                      index <=
+                                          days
+                                              .map(
+                                                (day) => routine
+                                                    .effectiveLessonCount(
+                                                      period.id,
+                                                      day,
+                                                    ),
+                                              )
+                                              .reduce((a, b) => a > b ? a : b);
+                                      index++
+                                    )
+                                      Row(
+                                        children: [
+                                          _batchCell(
+                                            key: ValueKey(
+                                              'post-row-${period.id}-$index',
                                             ),
-                                            for (final day in days)
-                                              _slotCell(
-                                                day,
-                                                period,
-                                                index,
-                                                dayWidth,
-                                              ),
-                                          ],
-                                        ),
-                                    ],
-                                  ],
-                                ),
+                                            width: labelWidth,
+                                            label: period.name.contains('早')
+                                                ? '早$index'
+                                                : period.name.contains('晚')
+                                                ? '晚$index'
+                                                : '第 ${++lessonSequence} 节',
+                                            visual: periodVisualFor(
+                                              context,
+                                              period.name,
+                                              period.sortOrder,
+                                            ),
+                                            detail: _lessonTime(period, index),
+                                            slots: available.where(
+                                              (slot) =>
+                                                  slot.periodId == period.id &&
+                                                  slot.index == index,
+                                            ),
+                                          ),
+                                          for (final day in days)
+                                            _slotCell(
+                                              day,
+                                              period,
+                                              index,
+                                              dayWidth,
+                                            ),
+                                        ],
+                                      ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -845,9 +877,17 @@ class _PostDialogState extends State<_PostDialog> {
           runSpacing: 4,
           children: [
             for (final (label, color) in [
-              ('不可选', context.appColors.border),
-              ('可选课节', context.appColors.surface),
-              ('已选', context.appColors.selectedBlue),
+              for (final period in periods)
+                (
+                  period.name,
+                  periodVisualFor(
+                    context,
+                    period.name,
+                    period.sortOrder,
+                  ).cellTint,
+                ),
+              ('不可选', _postDisabledFill(context)),
+              ('已选', context.appColors.blue),
             ])
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -877,14 +917,17 @@ class _PostDialogState extends State<_PostDialog> {
     required String label,
     required Iterable<_PostSlot> slots,
     String? detail,
+    PeriodVisual? visual,
     bool header = false,
   }) => _PostGridCell(
     cellKey: key,
     width: width,
-    height: header ? 36 : 56,
+    height: header ? 32 : 48,
+    visual: visual,
     label: label,
     detail: detail,
     header: header,
+    axis: !header,
     onPressed: slots.isEmpty ? null : () => _toggleSlots(slots),
   );
 
@@ -895,6 +938,7 @@ class _PostDialogState extends State<_PostDialog> {
     return _PostGridCell(
       cellKey: ValueKey('post-slot-$day-${period.id}-$index'),
       width: width,
+      visual: periodVisualFor(context, period.name, period.sortOrder),
       selected: _slots.contains(slot),
       label: label,
       semanticsLabel:
@@ -913,25 +957,33 @@ class _PostDialogState extends State<_PostDialog> {
   }
 }
 
+Color _postDisabledFill(BuildContext context) => Color.alphaBlend(
+  context.appColors.muted.withValues(alpha: .14),
+  context.appColors.surface,
+);
+
 class _PostGridCell extends StatelessWidget {
   const _PostGridCell({
     required this.width,
     required this.label,
     this.detail,
-    this.height = 56,
+    this.height = 48,
+    this.visual,
     this.selected = false,
     this.header = false,
+    this.axis = false,
     this.onPressed,
     this.cellKey,
     this.semanticsLabel,
   });
-
   final double width;
   final double height;
   final String label;
   final String? detail;
   final bool selected;
   final bool header;
+  final bool axis;
+  final PeriodVisual? visual;
   final VoidCallback? onPressed;
   final Key? cellKey;
   final String? semanticsLabel;
@@ -944,56 +996,88 @@ class _PostGridCell extends StatelessWidget {
       key: cellKey,
       selected: selected,
       onPress: onPressed,
-      builder: (context, variants, child) => Container(
-        width: width,
-        height: height,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: onPressed == null && !header
-              ? context.appColors.border
-              : selected
-              ? context.appColors.selectedBlue
-              : variants.contains(f.FTappableVariant.hovered)
-              ? context.appColors.tableHeader
-              : null,
-          border: Border(
-            right: BorderSide(color: context.appColors.tableDivider),
-            bottom: BorderSide(color: context.appColors.tableDivider),
-          ),
-          boxShadow: variants.contains(f.FTappableVariant.focused)
-              ? [BoxShadow(color: context.appColors.blue, spreadRadius: 1)]
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: header ? 12 : 13,
-                fontWeight: selected || header
-                    ? FontWeight.w600
-                    : FontWeight.normal,
-                color: selected
-                    ? context.appColors.blue
-                    : onPressed == null && !header
-                    ? context.appColors.muted
-                    : null,
-              ),
+      builder: (context, variants, child) {
+        final colors = context.appColors;
+        final disabled = onPressed == null && !header && !axis;
+        final hovered =
+            variants.contains(f.FTappableVariant.hovered) && onPressed != null;
+        final fill = header
+            ? colors.tableHeader
+            : axis
+            ? visual!.labelTint
+            : selected
+            ? colors.blue
+            : disabled
+            ? _postDisabledFill(context)
+            : hovered
+            ? Color.alphaBlend(
+                visual!.color.withValues(alpha: .12),
+                visual!.cellTint,
+              )
+            : visual!.cellTint;
+        final foreground = selected
+            ? context.theme.colors.primaryForeground
+            : header
+            ? colors.muted
+            : axis
+            ? visual!.color
+            : disabled
+            ? colors.muted
+            : visual!.color;
+        return Container(
+          width: width,
+          height: height,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: fill,
+            border: Border(
+              right: BorderSide(color: colors.tableDivider),
+              bottom: BorderSide(color: colors.tableDivider),
             ),
-            if (detail != null)
-              Text(
-                detail!,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: context.appColors.inkSecondary,
-                ),
+            boxShadow: variants.contains(f.FTappableVariant.focused)
+                ? [BoxShadow(color: colors.blue, spreadRadius: 1)]
+                : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (selected && !header && !axis) ...[
+                    Icon(
+                      Icons.check,
+                      size: 14,
+                      color: context.theme.colors.primaryForeground,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: header ? 12 : 13,
+                        fontWeight: selected || header || axis
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: foreground,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-          ],
-        ),
-      ),
+              if (detail != null)
+                Text(
+                  detail!,
+                  style: TextStyle(fontSize: 11, color: colors.inkSecondary),
+                ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }

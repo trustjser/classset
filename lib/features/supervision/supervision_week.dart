@@ -504,7 +504,7 @@ class _DutyTable extends StatelessWidget {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: context.appColors.tableHeader,
+                  color: context.appColors.surface,
                   border: Border(
                     bottom: BorderSide(color: context.appColors.border),
                   ),
