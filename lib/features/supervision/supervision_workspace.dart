@@ -39,24 +39,14 @@ Color _headerMuted(BuildContext context) => _usesReferenceHeaderPalette(context)
     ? const Color(0xFF94A3B8)
     : context.appColors.muted;
 
-Color _headerBlue(BuildContext context) => _usesReferenceHeaderPalette(context)
-    ? const Color(0xFF2563EB)
-    : context.appColors.blue;
+Color _headerBlue(BuildContext context) => context.appColors.blue;
 
 Color _headerBlueHover(BuildContext context) =>
-    _usesReferenceHeaderPalette(context)
-    ? const Color(0xFF1D4ED8)
-    : context.appColors.blue;
+    Color.lerp(context.appColors.blue, context.appColors.ink, .1)!;
 
-Color _headerBadgeFill(BuildContext context) =>
-    _usesReferenceHeaderPalette(context)
-    ? const Color(0xFFDBEAFE)
-    : context.appColors.selectedBlue;
+Color _headerBadgeFill(BuildContext context) => context.appColors.selectedBlue;
 
-Color _headerBadgeInk(BuildContext context) =>
-    _usesReferenceHeaderPalette(context)
-    ? const Color(0xFF1D4ED8)
-    : context.appColors.blue;
+Color _headerBadgeInk(BuildContext context) => context.appColors.blue;
 
 class _DutyPageHeading extends StatelessWidget {
   const _DutyPageHeading({required this.action});
