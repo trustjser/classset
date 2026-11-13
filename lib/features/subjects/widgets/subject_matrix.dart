@@ -12,6 +12,7 @@ import 'package:flutter/services.dart'
     show
         Clipboard,
         ClipboardData,
+        HardwareKeyboard,
         KeyDownEvent,
         KeyRepeatEvent,
         LogicalKeyboardKey;
@@ -107,10 +108,20 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
   /// 表头 / 各科目行 / 页脚 共用的横向滚动联动组：任一处滚动，
   /// 其余同步，保证列对齐。
   final Map<String, ScrollController> _horizontalControllers = {};
+  final ScrollController _verticalController = ScrollController();
+  final GlobalKey _bodyViewportKey = GlobalKey();
+  final GlobalKey _horizontalViewportKey = GlobalKey();
+  final Map<String, BuildContext> _cellContexts = {};
+  Timer? _autoScrollTimer;
+  Offset? _dragPointerGlobal;
   bool _syncing = false;
 
   /// 当前选中 / 内联编辑中的单元格（'subjectId|gradeId'）。
   String? _selectedCell;
+  String? _selectionAnchorCell;
+  String? _selectionExtentCell;
+  Set<String> _selectedCells = {};
+  bool _dragSelecting = false;
   String? _editingCell;
   TextEditingController? _editController;
   FocusNode? _editFocus;
@@ -125,20 +136,132 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
 
   /// 剪贴板预读缓存（选中或右键时刷新），用于决定「粘贴」是否可用。
   String? _clipboardText;
+  Future<void>? _clipboardWriteInFlight;
   bool _readingClipboard = false;
 
   String _cellKey(String subjectId, String gradeId) => '$subjectId|$gradeId';
 
   bool isSelected(Subject subject, GradeGroup grade) =>
+      _selectedCells.contains(_cellKey(subject.id, grade.id)) ||
       _selectedCell == _cellKey(subject.id, grade.id);
 
   bool isEditing(Subject subject, GradeGroup grade) =>
       _editingCell == _cellKey(subject.id, grade.id);
 
-  bool get clipboardHasValidInput =>
-      _clipboardText != null &&
-      _clipboardText!.trim().isNotEmpty &&
-      parseLessonInput(_clipboardText!) != null;
+  void registerCellContext(
+    Subject subject,
+    GradeGroup grade,
+    BuildContext cellContext,
+  ) {
+    _cellContexts[_cellKey(subject.id, grade.id)] = cellContext;
+  }
+
+  void unregisterCellContext(
+    Subject subject,
+    GradeGroup grade,
+    BuildContext cellContext,
+  ) {
+    final key = _cellKey(subject.id, grade.id);
+    if (identical(_cellContexts[key], cellContext)) _cellContexts.remove(key);
+  }
+
+  bool get clipboardHasValidInput {
+    final text = _clipboardText;
+    if (text == null || text.isEmpty) return false;
+    if (!text.contains('\t') && !text.contains('\n') && !text.contains('\r')) {
+      return text.trim().isNotEmpty && parseLessonInput(text) != null;
+    }
+    return text
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .split('\n')
+        .every(
+          (row) => row
+              .split('\t')
+              .every(
+                (cell) => cell.trim().isEmpty || parseLessonInput(cell) != null,
+              ),
+        );
+  }
+
+  ({int subjectIndex, int gradeIndex})? _indicesForCellKey(String? key) {
+    if (key == null) return null;
+    final parts = key.split('|');
+    if (parts.length != 2) return null;
+    final subjectIndex = widget.subjects.indexWhere(
+      (subject) => subject.id == parts[0],
+    );
+    final gradeIndex = widget.visibleGrades.indexWhere(
+      (grade) => grade.id == parts[1],
+    );
+    if (subjectIndex < 0 || gradeIndex < 0) return null;
+    return (subjectIndex: subjectIndex, gradeIndex: gradeIndex);
+  }
+
+  ({
+    int firstSubjectIndex,
+    int lastSubjectIndex,
+    int firstGradeIndex,
+    int lastGradeIndex,
+  })?
+  get _selectionBounds {
+    final anchor = _indicesForCellKey(_selectionAnchorCell);
+    final extent = _indicesForCellKey(_selectionExtentCell);
+    if (anchor == null || extent == null) return null;
+    return (
+      firstSubjectIndex: anchor.subjectIndex < extent.subjectIndex
+          ? anchor.subjectIndex
+          : extent.subjectIndex,
+      lastSubjectIndex: anchor.subjectIndex > extent.subjectIndex
+          ? anchor.subjectIndex
+          : extent.subjectIndex,
+      firstGradeIndex: anchor.gradeIndex < extent.gradeIndex
+          ? anchor.gradeIndex
+          : extent.gradeIndex,
+      lastGradeIndex: anchor.gradeIndex > extent.gradeIndex
+          ? anchor.gradeIndex
+          : extent.gradeIndex,
+    );
+  }
+
+  void _collapseSelection(Subject subject, GradeGroup grade) {
+    final key = _cellKey(subject.id, grade.id);
+    _selectionAnchorCell = key;
+    _selectionExtentCell = key;
+    _selectedCell = key;
+    _selectedCells = {key};
+  }
+
+  void _extendSelection(Subject subject, GradeGroup grade) {
+    final key = _cellKey(subject.id, grade.id);
+    if (_indicesForCellKey(_selectionAnchorCell) == null) {
+      _collapseSelection(subject, grade);
+      return;
+    }
+    _selectionExtentCell = key;
+    _selectedCell = key;
+    final bounds = _selectionBounds;
+    if (bounds == null) {
+      _selectedCells = {key};
+      return;
+    }
+    _selectedCells = {
+      for (
+        var subjectIndex = bounds.firstSubjectIndex;
+        subjectIndex <= bounds.lastSubjectIndex;
+        subjectIndex++
+      )
+        for (
+          var gradeIndex = bounds.firstGradeIndex;
+          gradeIndex <= bounds.lastGradeIndex;
+          gradeIndex++
+        )
+          _cellKey(
+            widget.subjects[subjectIndex].id,
+            widget.visibleGrades[gradeIndex].id,
+          ),
+    };
+  }
 
   Future<void> prefetchClipboard() async {
     if (_readingClipboard) return;
@@ -149,13 +272,189 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
   }
 
   /// 主键按下时先选中单元格，点击其它单元格前提交当前编辑。
-  void selectCell(Subject subject, GradeGroup grade) {
+  void selectCell(Subject subject, GradeGroup grade, {Offset? globalPosition}) {
     // 点击其它单元格：先把进行中的内联编辑按回车语义提交，
     // 避免已输入内容被丢弃或被误提交为清空。
     _commitPendingEdit();
-    setState(() => _selectedCell = _cellKey(subject.id, grade.id));
+    setState(() {
+      _collapseSelection(subject, grade);
+      _dragSelecting = true;
+    });
+    _dragPointerGlobal = globalPosition;
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = Timer.periodic(
+      const Duration(milliseconds: 16),
+      (_) => _autoScrollSelection(),
+    );
     _focusSelectedCell();
     unawaited(prefetchClipboard());
+  }
+
+  void updateDragSelection(Subject subject, GradeGroup grade) {
+    if (!_dragSelecting || isEditing(subject, grade)) return;
+    setState(() => _extendSelection(subject, grade));
+    _focusSelectedCell();
+  }
+
+  void endCellSelection() {
+    _dragSelecting = false;
+    _dragPointerGlobal = null;
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+  }
+
+  void updateDragPointer(Offset globalPosition) {
+    if (_dragSelecting) _dragPointerGlobal = globalPosition;
+  }
+
+  RenderBox? _renderBoxForKey(GlobalKey key) {
+    final object = key.currentContext?.findRenderObject();
+    return object is RenderBox && object.attached && object.hasSize
+        ? object
+        : null;
+  }
+
+  RenderBox? get _verticalViewportBox {
+    if (_verticalController.hasClients) {
+      return _renderBoxForKey(_bodyViewportKey);
+    }
+    if (!widget.scrollable) {
+      final object = Scrollable.maybeOf(context)?.context.findRenderObject();
+      if (object is RenderBox && object.attached && object.hasSize) {
+        return object;
+      }
+    }
+    return null;
+  }
+
+  ScrollPosition? get _verticalScrollPosition {
+    if (_verticalController.hasClients) return _verticalController.position;
+    if (!widget.scrollable) return Scrollable.maybeOf(context)?.position;
+    return null;
+  }
+
+  Rect _globalRect(RenderBox box) => box.localToGlobal(Offset.zero) & box.size;
+
+  bool _scrollNearEdge(ScrollPosition position, double pointer, double extent) {
+    const edge = 40.0;
+    final velocity = pointer < edge
+        ? -((edge - pointer) / edge).clamp(0, 1) * 14
+        : pointer > extent - edge
+        ? ((pointer - extent + edge) / edge).clamp(0, 1) * 14
+        : 0.0;
+    final next = (position.pixels + velocity)
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    if (next == position.pixels) return false;
+    position.jumpTo(next);
+    return true;
+  }
+
+  String? _cellKeyAt(Offset globalPosition, Rect visibleRect) {
+    if (visibleRect.isEmpty) return null;
+    final point = Offset(
+      globalPosition.dx
+          .clamp(visibleRect.left, visibleRect.right - 0.01)
+          .toDouble(),
+      globalPosition.dy
+          .clamp(visibleRect.top, visibleRect.bottom - 0.01)
+          .toDouble(),
+    );
+    String? nearestKey;
+    var nearestDistance = double.infinity;
+    final staleKeys = <String>[];
+    for (final entry in _cellContexts.entries) {
+      final cellContext = entry.value;
+      if (!cellContext.mounted) {
+        staleKeys.add(entry.key);
+        continue;
+      }
+      final object = cellContext.findRenderObject();
+      if (object is! RenderBox || !object.attached || !object.hasSize) continue;
+      final cellRect = _globalRect(object).intersect(visibleRect);
+      if (cellRect.isEmpty) continue;
+      final dx = point.dx < cellRect.left
+          ? cellRect.left - point.dx
+          : point.dx > cellRect.right
+          ? point.dx - cellRect.right
+          : 0.0;
+      final dy = point.dy < cellRect.top
+          ? cellRect.top - point.dy
+          : point.dy > cellRect.bottom
+          ? point.dy - cellRect.bottom
+          : 0.0;
+      final distance = dx * dx + dy * dy;
+      if (distance < nearestDistance) {
+        nearestKey = entry.key;
+        nearestDistance = distance;
+        if (distance == 0) break;
+      }
+    }
+    for (final key in staleKeys) {
+      _cellContexts.remove(key);
+    }
+    return nearestKey;
+  }
+
+  void _selectCellAtPointer(Offset globalPosition) {
+    if (!_dragSelecting) return;
+    final verticalBox = _verticalViewportBox;
+    final horizontalBox = _renderBoxForKey(_horizontalViewportKey);
+    if (verticalBox == null || horizontalBox == null) return;
+    final verticalRect = _globalRect(verticalBox);
+    final horizontalRect = _globalRect(horizontalBox);
+    final visibleRect = Rect.fromLTRB(
+      horizontalRect.left,
+      verticalRect.top,
+      horizontalRect.right,
+      verticalRect.bottom,
+    );
+    final key = _cellKeyAt(globalPosition, visibleRect);
+    if (key == null || key == _selectionExtentCell) return;
+    final indices = _indicesForCellKey(key);
+    if (indices == null) return;
+    setState(() {
+      _extendSelection(
+        widget.subjects[indices.subjectIndex],
+        widget.visibleGrades[indices.gradeIndex],
+      );
+    });
+    _focusSelectedCell();
+  }
+
+  void _autoScrollSelection() {
+    final pointer = _dragPointerGlobal;
+    if (!_dragSelecting || pointer == null) return;
+    final verticalBox = _verticalViewportBox;
+    final verticalPosition = _verticalScrollPosition;
+    var didScroll = false;
+    if (verticalBox != null && verticalPosition != null) {
+      didScroll = _scrollNearEdge(
+        verticalPosition,
+        verticalBox.globalToLocal(pointer).dy,
+        verticalBox.size.height,
+      );
+    }
+    final horizontalBox = _renderBoxForKey(_horizontalViewportKey);
+    final horizontalController = _horizontalControllers['header'];
+    if (horizontalBox != null &&
+        horizontalController != null &&
+        horizontalController.hasClients) {
+      didScroll =
+          _scrollNearEdge(
+            horizontalController.position,
+            horizontalBox.globalToLocal(pointer).dx,
+            horizontalBox.size.width,
+          ) ||
+          didScroll;
+    }
+    if (didScroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _selectCellAtPointer(_dragPointerGlobal ?? pointer);
+      });
+    } else {
+      _selectCellAtPointer(pointer);
+    }
   }
 
   /// 键盘方向键移动选中：上下换科目行、左右换年级列。
@@ -176,12 +475,11 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
       widget.visibleGrades.length - 1,
     );
     if (newSubjectIndex == subjectIndex && newGradeIndex == gradeIndex) return;
-    if (newSubjectIndex == subjectIndex && newGradeIndex == gradeIndex) return;
     _cancelEdit();
     setState(() {
-      _selectedCell = _cellKey(
-        widget.subjects[newSubjectIndex].id,
-        widget.visibleGrades[newGradeIndex].id,
+      _collapseSelection(
+        widget.subjects[newSubjectIndex],
+        widget.visibleGrades[newGradeIndex],
       );
     });
     _focusSelectedCell(ensureVisible: true);
@@ -216,7 +514,7 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
       ..selection = TextSelection(baseOffset: 0, extentOffset: text.length);
     _editFocus = FocusNode();
     setState(() {
-      _selectedCell = _cellKey(subject.id, grade.id);
+      _collapseSelection(subject, grade);
       _editingCell = _cellKey(subject.id, grade.id);
       _editingSubject = subject;
       _editingGrade = grade;
@@ -281,12 +579,47 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
   }
 
   void copyCell(Subject subject, GradeGroup grade, List<ClassBrief> classes) {
-    final text = formatLessonInput(
-      classes.map((classBrief) => widget.valuesFor(subject.id, classBrief.id)),
-    );
+    final cellKey = _cellKey(subject.id, grade.id);
+    final bounds = _selectionBounds;
+    final copyRange =
+        _selectedCells.length > 1 && _selectedCells.contains(cellKey);
+    final text = copyRange && bounds != null
+        ? [
+            for (
+              var subjectIndex = bounds.firstSubjectIndex;
+              subjectIndex <= bounds.lastSubjectIndex;
+              subjectIndex++
+            )
+              [
+                for (
+                  var gradeIndex = bounds.firstGradeIndex;
+                  gradeIndex <= bounds.lastGradeIndex;
+                  gradeIndex++
+                )
+                  formatLessonInput(
+                    (widget.classesByGrade[widget
+                                .visibleGrades[gradeIndex]
+                                .id] ??
+                            const <ClassBrief>[])
+                        .map(
+                          (classBrief) => widget.valuesFor(
+                            widget.subjects[subjectIndex].id,
+                            classBrief.id,
+                          ),
+                        ),
+                  ),
+              ].join('\t'),
+          ].join('\n')
+        : formatLessonInput(
+            classes.map(
+              (classBrief) => widget.valuesFor(subject.id, classBrief.id),
+            ),
+          );
     _clipboardText = text;
-    unawaited(Clipboard.setData(ClipboardData(text: text)));
-    widget.onMessage('已复制节数：$text');
+    _clipboardWriteInFlight = Clipboard.setData(ClipboardData(text: text));
+    widget.onMessage(
+      copyRange ? '已复制 ${_selectedCells.length} 个单元格' : '已复制节数：$text',
+    );
   }
 
   Future<void> pasteCell(
@@ -294,14 +627,110 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
     GradeGroup grade,
     List<ClassBrief> classes,
   ) async {
+    await _clipboardWriteInFlight;
     final text =
-        _clipboardText ?? (await Clipboard.getData('text/plain'))?.text ?? '';
+        (await Clipboard.getData('text/plain'))?.text ?? _clipboardText ?? '';
+    if (text.isEmpty) {
+      widget.onMessage('剪贴板没有合法的节数内容');
+      return;
+    }
+    if (text.contains('\t') || text.contains('\n') || text.contains('\r')) {
+      _pasteGrid(text, subject, grade);
+      return;
+    }
     final parsed = parseLessonInput(text);
     if (parsed == null || parsed.isEmpty) {
       widget.onMessage('剪贴板没有合法的节数内容');
       return;
     }
-    widget.onCellCommit(subject, grade, classes, parsed);
+    final cellKey = _cellKey(subject.id, grade.id);
+    final targets = _selectedCells.contains(cellKey)
+        ? _selectedCells.toList()
+        : [cellKey];
+    for (final target in targets) {
+      final indices = _indicesForCellKey(target);
+      if (indices == null) continue;
+      final targetSubject = widget.subjects[indices.subjectIndex];
+      final targetGrade = widget.visibleGrades[indices.gradeIndex];
+      widget.onCellCommit(
+        targetSubject,
+        targetGrade,
+        widget.classesByGrade[targetGrade.id] ?? const <ClassBrief>[],
+        parsed,
+      );
+    }
+  }
+
+  void _pasteGrid(String text, Subject subject, GradeGroup grade) {
+    final normalized = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final rows = normalized.split('\n');
+    if (rows.length > 1 && rows.last.isEmpty) rows.removeLast();
+    final anchor =
+        _indicesForCellKey(_selectionAnchorCell) ??
+        _indicesForCellKey(_cellKey(subject.id, grade.id));
+    if (anchor == null) return;
+
+    final changes =
+        <
+          ({
+            Subject subject,
+            GradeGroup grade,
+            List<ClassBrief> classes,
+            List<ClassSubjectValues> values,
+          })
+        >[];
+    for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      final cells = rows[rowIndex].split('\t');
+      for (var columnIndex = 0; columnIndex < cells.length; columnIndex++) {
+        final subjectIndex = anchor.subjectIndex + rowIndex;
+        final gradeIndex = anchor.gradeIndex + columnIndex;
+        if (subjectIndex >= widget.subjects.length ||
+            gradeIndex >= widget.visibleGrades.length) {
+          continue;
+        }
+        final values = parseLessonInput(cells[columnIndex]);
+        if (values == null) {
+          widget.onMessage('剪贴板没有合法的节数内容');
+          return;
+        }
+        final targetSubject = widget.subjects[subjectIndex];
+        final targetGrade = widget.visibleGrades[gradeIndex];
+        changes.add((
+          subject: targetSubject,
+          grade: targetGrade,
+          classes:
+              widget.classesByGrade[targetGrade.id] ?? const <ClassBrief>[],
+          values: values,
+        ));
+      }
+    }
+    for (final change in changes) {
+      widget.onCellCommit(
+        change.subject,
+        change.grade,
+        change.classes,
+        change.values,
+      );
+    }
+  }
+
+  void clearSelection(Subject subject, GradeGroup grade) {
+    final cellKey = _cellKey(subject.id, grade.id);
+    final targets = _selectedCells.contains(cellKey)
+        ? _selectedCells.toList()
+        : [cellKey];
+    for (final target in targets) {
+      final indices = _indicesForCellKey(target);
+      if (indices == null) continue;
+      final targetSubject = widget.subjects[indices.subjectIndex];
+      final targetGrade = widget.visibleGrades[indices.gradeIndex];
+      widget.onCellCommit(
+        targetSubject,
+        targetGrade,
+        widget.classesByGrade[targetGrade.id] ?? const <ClassBrief>[],
+        const [],
+      );
+    }
   }
 
   ScrollController _horizontal(String key) =>
@@ -331,6 +760,7 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
       ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
         child: SingleChildScrollView(
+          key: key == 'header' ? _horizontalViewportKey : null,
           scrollDirection: Axis.horizontal,
           controller: _horizontal(key),
           child: child,
@@ -339,9 +769,12 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
 
   @override
   void dispose() {
+    _autoScrollTimer?.cancel();
     _editController?.dispose();
     _editFocus?.dispose();
     cellFocusNode.dispose();
+    _verticalController.dispose();
+    _cellContexts.clear();
     for (final controller in _horizontalControllers.values) {
       controller.dispose();
     }
@@ -365,40 +798,22 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
             Divider(height: 1, color: context.appColors.border),
             if (widget.scrollable)
               Expanded(
-                child: ListView.builder(
-                  itemCount: widget.subjects.length,
-                  itemBuilder: (context, index) => _SubjectRow(
-                    key: ValueKey('subject-row-${widget.subjects[index].id}'),
-                    subject: widget.subjects[index],
-                    visibleGrades: widget.visibleGrades,
-                    classesByGrade: widget.classesByGrade,
-                    valuesFor: widget.valuesFor,
-                    presetSummary:
-                        widget.presetSummaries[widget.subjects[index].id],
-                    advancedDetails:
-                        widget.advancedSummaries[widget.subjects[index].id],
-                    onCellTap: widget.onCellTap,
-                    onEditSubject: widget.onEditSubject,
-                    onDeleteSubject: widget.onDeleteSubject,
-                    onPresetTap: widget.onPresetTap,
-                    horizontal: _horizontalScrollArea,
-                    state: this,
-                  ),
-                ),
-              )
-            else if (widget.subjects.isNotEmpty)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final subject in widget.subjects)
-                    _SubjectRow(
-                      key: ValueKey('subject-row-${subject.id}'),
-                      subject: subject,
+                child: Listener(
+                  key: _bodyViewportKey,
+                  onPointerMove: (event) => updateDragPointer(event.position),
+                  child: ListView.builder(
+                    controller: _verticalController,
+                    itemCount: widget.subjects.length,
+                    itemBuilder: (context, index) => _SubjectRow(
+                      key: ValueKey('subject-row-${widget.subjects[index].id}'),
+                      subject: widget.subjects[index],
                       visibleGrades: widget.visibleGrades,
                       classesByGrade: widget.classesByGrade,
                       valuesFor: widget.valuesFor,
-                      presetSummary: widget.presetSummaries[subject.id],
-                      advancedDetails: widget.advancedSummaries[subject.id],
+                      presetSummary:
+                          widget.presetSummaries[widget.subjects[index].id],
+                      advancedDetails:
+                          widget.advancedSummaries[widget.subjects[index].id],
                       onCellTap: widget.onCellTap,
                       onEditSubject: widget.onEditSubject,
                       onDeleteSubject: widget.onDeleteSubject,
@@ -406,7 +821,34 @@ class _SubjectMatrixState extends State<SubjectMatrix> {
                       horizontal: _horizontalScrollArea,
                       state: this,
                     ),
-                ],
+                  ),
+                ),
+              )
+            else if (widget.subjects.isNotEmpty)
+              Listener(
+                key: _bodyViewportKey,
+                onPointerMove: (event) => updateDragPointer(event.position),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final subject in widget.subjects)
+                      _SubjectRow(
+                        key: ValueKey('subject-row-${subject.id}'),
+                        subject: subject,
+                        visibleGrades: widget.visibleGrades,
+                        classesByGrade: widget.classesByGrade,
+                        valuesFor: widget.valuesFor,
+                        presetSummary: widget.presetSummaries[subject.id],
+                        advancedDetails: widget.advancedSummaries[subject.id],
+                        onCellTap: widget.onCellTap,
+                        onEditSubject: widget.onEditSubject,
+                        onDeleteSubject: widget.onDeleteSubject,
+                        onPresetTap: widget.onPresetTap,
+                        horizontal: _horizontalScrollArea,
+                        state: this,
+                      ),
+                  ],
+                ),
               ),
             // 校验状态与班级周课时固定在表格底部，不随科目行滚动。
             _CapacityValidationRow(
@@ -812,6 +1254,26 @@ class _MatrixCell extends StatefulWidget {
 class _MatrixCellState extends State<_MatrixCell> {
   bool _hovering = false;
 
+  @override
+  void didUpdateWidget(covariant _MatrixCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.subject.id != widget.subject.id ||
+        oldWidget.grade.id != widget.grade.id ||
+        oldWidget.state != widget.state) {
+      oldWidget.state.unregisterCellContext(
+        oldWidget.subject,
+        oldWidget.grade,
+        context,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.state.unregisterCellContext(widget.subject, widget.grade, context);
+    super.dispose();
+  }
+
   /// 整格可编辑文本（各班一致 → 单组；否则逗号分隔）。
   String get _gradeText => formatLessonInput(
     widget.classes.map(
@@ -822,20 +1284,30 @@ class _MatrixCellState extends State<_MatrixCell> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
+    state.registerCellContext(widget.subject, widget.grade, context);
     final selected = state.isSelected(widget.subject, widget.grade);
     final editing = state.isEditing(widget.subject, widget.grade);
     // 不用 InkWell：其墨水 hover 高亮在快速移出时会残留灰底；
     // 这里用 MouseRegion + AnimatedContainer 自绘 hover（浅蓝底）。
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
+      onEnter: (_) {
+        setState(() => _hovering = true);
+        state.updateDragSelection(widget.subject, widget.grade);
+      },
       onExit: (_) => setState(() => _hovering = false),
       child: Listener(
         // 按下时先选中并提交其它格的编辑，抬起后再进入当前格的编辑态。
         onPointerDown: (event) {
           if (event.buttons == kPrimaryButton && !editing) {
-            state.selectCell(widget.subject, widget.grade);
+            state.selectCell(
+              widget.subject,
+              widget.grade,
+              globalPosition: event.position,
+            );
           }
         },
+        onPointerUp: (_) => state.endCellSelection(),
+        onPointerCancel: (_) => state.endCellSelection(),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () =>
@@ -952,18 +1424,20 @@ class _MatrixCellState extends State<_MatrixCell> {
         state.startEdit(widget.subject, widget.grade, widget.classes);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.delete || LogicalKeyboardKey.backspace:
-        // 清空：整格节数归零。
-        widget.state.widget.onCellCommit(
-          widget.subject,
-          widget.grade,
-          widget.classes,
-          const [],
-        );
+        state.clearSelection(widget.subject, widget.grade);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.keyC:
+        final keyboard = HardwareKeyboard.instance;
+        if (!keyboard.isControlPressed && !keyboard.isMetaPressed) {
+          return KeyEventResult.ignored;
+        }
         state.copyCell(widget.subject, widget.grade, widget.classes);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.keyV:
+        final keyboard = HardwareKeyboard.instance;
+        if (!keyboard.isControlPressed && !keyboard.isMetaPressed) {
+          return KeyEventResult.ignored;
+        }
         unawaited(
           state.pasteCell(widget.subject, widget.grade, widget.classes),
         );

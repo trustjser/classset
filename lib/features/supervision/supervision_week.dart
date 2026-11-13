@@ -21,14 +21,14 @@ class _DutySegments<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: pills ? Colors.transparent : context.appColors.canvas,
-      border: pills ? null : Border.all(color: context.appColors.border),
+      color: _headerCanvas(context),
+      border: Border.all(color: _headerBorder(context)),
       borderRadius: BorderRadius.circular(8),
     ),
     child: Padding(
-      padding: EdgeInsets.all(pills ? 0 : 2),
+      padding: const EdgeInsets.all(2),
       child: Wrap(
-        spacing: pills ? 6 : 2,
+        spacing: 2,
         runSpacing: 2,
         children: [
           for (final entry in items.entries)
@@ -42,19 +42,17 @@ class _DutySegments<T> extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(pills ? 99 : 6),
-                  boxShadow: !pills && value == entry.key
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: value == entry.key
                       ? context.appColors.cardShadow
                       : null,
                   color: value == entry.key
-                      ? pills
-                            ? context.appColors.blue
-                            : context.appColors.surface
+                      ? context.appColors.surface
                       : variants.contains(f.FTappableVariant.hovered)
                       ? context.appColors.surface
                       : null,
                   border: variants.contains(f.FTappableVariant.focused)
-                      ? Border.all(color: context.appColors.blue)
+                      ? Border.all(color: _headerBlue(context))
                       : null,
                 ),
                 child: Text.rich(
@@ -65,9 +63,7 @@ class _DutySegments<T> extends StatelessWidget {
                         TextSpan(
                           text: ' ${counts[entry.key]}',
                           style: TextStyle(
-                            color: value == entry.key
-                                ? f.FTheme.of(context).colors.primaryForeground
-                                : context.appColors.warning,
+                            color: _headerSecondary(context),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -77,9 +73,9 @@ class _DutySegments<T> extends StatelessWidget {
                     fontSize: 12.5,
                     color: value == entry.key
                         ? pills
-                              ? f.FTheme.of(context).colors.primaryForeground
-                              : context.appColors.ink
-                        : context.appColors.inkSecondary,
+                              ? _headerBlue(context)
+                              : _headerInk(context)
+                        : _headerText(context),
                     fontWeight: value == entry.key
                         ? FontWeight.w600
                         : FontWeight.normal,
@@ -93,10 +89,84 @@ class _DutySegments<T> extends StatelessWidget {
   );
 }
 
+class _DutyHeaderSearchField extends StatefulWidget {
+  const _DutyHeaderSearchField({required this.onChanged});
+
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_DutyHeaderSearchField> createState() => _DutyHeaderSearchFieldState();
+}
+
+class _DutyHeaderSearchFieldState extends State<_DutyHeaderSearchField> {
+  final FocusNode _focusNode = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  void _onFocusChanged() => setState(() => _focused = _focusNode.hasFocus);
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 140),
+    curve: Curves.easeOut,
+    width: _focused ? 224 : 176,
+    height: 30,
+    child: TextField(
+      focusNode: _focusNode,
+      onChanged: widget.onChanged,
+      cursorColor: _headerBlue(context),
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
+      decoration: InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: _headerInput(context),
+        hintText: '搜索班级或教师...',
+        hintStyle: Theme.of(context).textTheme.bodySmall
+            ?.copyWith(color: _headerMuted(context), fontSize: 12),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          size: 15,
+          color: _headerMuted(context),
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 30,
+          minHeight: 30,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: _headerBorder(context)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: _headerBlue(context)),
+        ),
+      ),
+    ),
+  );
+}
+
 class _DutyToolbarField extends StatelessWidget {
-  const _DutyToolbarField({required this.label, required this.child});
+  const _DutyToolbarField({
+    required this.label,
+    required this.child,
+    this.labelColor,
+  });
   final String label;
   final Widget child;
+  final Color? labelColor;
   @override
   Widget build(BuildContext context) => Wrap(
     spacing: 8,
@@ -106,7 +176,7 @@ class _DutyToolbarField extends StatelessWidget {
       Text(
         label,
         style: Theme.of(context).textTheme.bodySmall
-            ?.copyWith(color: context.appColors.muted),
+            ?.copyWith(color: labelColor ?? _headerMuted(context)),
       ),
       child,
     ],
@@ -167,7 +237,7 @@ class _DutyLegend extends StatelessWidget {
             Text(
               entry.key,
               style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: context.appColors.inkSecondary),
+                  ?.copyWith(color: _headerSecondary(context)),
             ),
           ],
         ),
@@ -190,6 +260,7 @@ class _SupervisionWeek extends StatelessWidget {
     required this.historical,
     required this.view,
     required this.day,
+    required this.searchQuery,
     required this.missingOnly,
     required this.preferenceOnly,
     required this.preferenceMisses,
@@ -205,6 +276,7 @@ class _SupervisionWeek extends StatelessWidget {
   final SupervisionVersion? historical;
   final _DutyView view;
   final int? day;
+  final String searchQuery;
   final bool missingOnly;
   final bool preferenceOnly;
   final Set<String> preferenceMisses;
@@ -230,6 +302,18 @@ class _SupervisionWeek extends StatelessWidget {
       for (final group in snapshot.classes) group.id: group.name,
     };
     final stages = {for (final stage in snapshot.stages) stage.id: stage.name};
+    final normalizedQuery = searchQuery.trim().toLowerCase();
+    bool matchesSearch(SupervisionPost post) {
+      if (normalizedQuery.isEmpty) return true;
+      final teacherName =
+          history[post.id]?.teacherName ?? teachers[draft.assignments[post.id]];
+      return post.groupName.toLowerCase().contains(normalizedQuery) ||
+          post.classIds.any(
+            (id) => (classes[id] ?? id).toLowerCase().contains(normalizedQuery),
+          ) ||
+          (teacherName?.toLowerCase().contains(normalizedQuery) ?? false);
+    }
+
     final classOrder = {
       for (final entry in snapshot.classes.indexed) entry.$2.id: entry.$1,
     };
@@ -253,6 +337,7 @@ class _SupervisionWeek extends StatelessWidget {
         .where(
           (post) =>
               visibleDays.contains(post.weekday) &&
+              matchesSearch(post) &&
               (!missingOnly || !draft.assignments.containsKey(post.id)) &&
               (!preferenceOnly || preferenceMisses.contains(post.id)),
         )
@@ -262,7 +347,9 @@ class _SupervisionWeek extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            preferenceOnly
+            normalizedQuery.isNotEmpty
+                ? '没有匹配的班级或教师。'
+                : preferenceOnly
                 ? '当前范围没有偏好未满足的岗位。'
                 : missingOnly
                 ? '当前范围没有待安排岗位。'
