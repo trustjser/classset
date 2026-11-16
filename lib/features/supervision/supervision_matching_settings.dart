@@ -28,25 +28,25 @@ class _MatchingPreferencesEditor extends StatelessWidget {
     final preferences = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('匹配偏好', style: theme.titleSmall),
+        Text('匹配优先级', style: theme.titleSmall),
         Text(
-          '按顺序逐项比较，不合并为一个总分。',
+          '从上到下逐项比较；关闭的项目不参与匹配。',
           style: theme.bodySmall?.copyWith(color: colors.inkSecondary),
         ),
         const SizedBox(height: 10),
         for (final (index, preference) in value.order.indexed)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 6),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: value.enabled.contains(preference)
                     ? colors.selectedBlue
                     : colors.surface,
                 border: Border.all(color: colors.border),
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+                padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
                 child: Row(
                   children: [
                     AppCheckbox(
@@ -64,15 +64,38 @@ class _MatchingPreferencesEditor extends StatelessWidget {
                               onChanged(value.copyWith(enabled: enabled));
                             },
                     ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: value.enabled.contains(preference)
+                            ? colors.blue
+                            : colors.canvas,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: value.enabled.contains(preference)
+                              ? colors.surface
+                              : colors.inkSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${index + 1}  ${preference.label}',
+                            preference.label,
                             style: theme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                               color:
                                   preference ==
                                           SupervisionPreference
@@ -85,14 +108,14 @@ class _MatchingPreferencesEditor extends StatelessWidget {
                           Text(
                             switch (preference) {
                               SupervisionPreference.classTeacher =>
-                                '本学期实际任教岗位班级；合班优先覆盖更多班级。',
+                                '实际任教该班的教师优先；合班优先覆盖更多班级。',
                               SupervisionPreference.gradeTeacher =>
-                                '本学期实际任教岗位对应年级。',
+                                '优先安排本学期实际任教该年级的教师。',
                               SupervisionPreference.subjectTeacher =>
                                 global
                                     ? '仅对设置了目标学科的岗位生效。'
                                     : allowSubject
-                                    ? '实际任教学科命中任一目标学科。'
+                                    ? '实际任教学科命中岗位目标学科。'
                                     : '先在上方为岗位选择目标学科。',
                             },
                             style: theme.bodySmall?.copyWith(
@@ -128,7 +151,7 @@ class _MatchingPreferencesEditor extends StatelessWidget {
     final modes = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('排序模式', style: theme.titleSmall),
+        Text('排序方式', style: theme.titleSmall),
         const SizedBox(height: 8),
         _DutySegments<SupervisionMatchMode>(
           items: const {
@@ -140,16 +163,16 @@ class _MatchingPreferencesEditor extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '尽量排满岗位，再按所选模式比较匹配程度与带班工作量。',
+          '先尽量排满岗位，再按匹配程度或带班工作量排序。',
           style: theme.bodySmall?.copyWith(color: colors.inkSecondary),
         ),
         const SizedBox(height: 20),
-        Text('必须符合', style: theme.titleSmall),
+        Text('匹配门槛', style: theme.titleSmall),
         const SizedBox(height: 8),
         _DutySegments<SupervisionMatchRequirement>(
           items: const {
-            SupervisionMatchRequirement.none: '不启用',
-            SupervisionMatchRequirement.any: '满足任一项',
+            SupervisionMatchRequirement.none: '不限',
+            SupervisionMatchRequirement.any: '满足任一',
             SupervisionMatchRequirement.all: '满足全部',
           },
           value: value.requirement,
@@ -159,10 +182,12 @@ class _MatchingPreferencesEditor extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           value.enabled.isEmpty
-              ? '尚未启用匹配偏好，当前不额外限制候选教师。'
+              ? '未启用匹配偏好，候选池内的合法教师均可参与。'
               : value.requirement == SupervisionMatchRequirement.none
-              ? '偏好未满足时，允许候选池内其他合法教师补位。'
-              : '仅比较已启用的偏好。无合格教师时保留缺岗；班级、年级条件须覆盖合班岗位全部来源班。',
+              ? '偏好用于排序；未命中时其他合法教师仍可补位。'
+              : value.requirement == SupervisionMatchRequirement.any
+              ? '至少命中一项已启用偏好；无合格教师时保留缺岗。'
+              : '须命中全部已启用偏好；无合格教师时保留缺岗。班级、年级条件需覆盖合班来源。',
           style: theme.bodySmall?.copyWith(color: colors.inkSecondary),
         ),
       ],
@@ -200,11 +225,13 @@ class _MatchingPreferencesDialogState
   Widget build(BuildContext context) => AppDialog(
     title: const Text('人员匹配'),
     maxWidth: 920,
+    titleGap: 12,
+    actionsGap: 16,
     content: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '作为岗位默认规则。时间冲突、禁排和带班上限始终生效；岗位可单独设置。',
+          '作为所有岗位的默认规则，岗位可单独覆盖。时间冲突、禁排和带班上限始终生效。',
           style: Theme.of(context).textTheme.bodySmall
               ?.copyWith(color: context.appColors.inkSecondary),
         ),

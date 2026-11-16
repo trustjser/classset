@@ -1188,6 +1188,498 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
     }
   }
 
+  Set<String> _groupTeacherIds(String groupId) => widget
+      .snapshot
+      .teacherGroupMembers
+      .where((member) => member.groupId == groupId)
+      .map((member) => member.teacherId)
+      .toSet();
+
+  Widget _menuTrigger({required IconData icon, required String label}) {
+    final colors = context.appColors;
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colors.inkSecondary),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(fontSize: 13, color: colors.ink)),
+          const SizedBox(width: 4),
+          Icon(Icons.expand_more, size: 16, color: colors.muted),
+        ],
+      ),
+    );
+  }
+
+  Widget _poolActionsMenu() {
+    final colors = context.appColors;
+    final isBasePool = _activePool == SupervisionDraft.basePoolId;
+    final canDelete = !isBasePool && !_referenced;
+    final deleteLabel = isBasePool
+        ? '基础候选池不可删除'
+        : _activePool == _defaultPool
+        ? '默认候选池不可删除'
+        : _referenced
+        ? '已有岗位使用，无法删除'
+        : '删除候选池';
+    return f.FPopoverMenu(
+      menuBuilder: (context, controller, menu) => [
+        f.FItemGroup(
+          divider: .none,
+          children: [
+            AppMenuTile(
+              item: AppMenuItem(
+                label: '重命名候选池',
+                enabled: !isBasePool,
+                onPressed: () {
+                  unawaited(controller.hide());
+                  unawaited(_namePool(rename: true));
+                },
+              ),
+            ),
+            AppMenuTile(
+              item: AppMenuItem(
+                label: _activePool == _defaultPool ? '默认候选池' : '设为默认候选池',
+                selected: _activePool == _defaultPool,
+                enabled: _activePool != _defaultPool,
+                onPressed: () {
+                  unawaited(controller.hide());
+                  setState(() => _defaultPool = _activePool);
+                },
+              ),
+            ),
+            AppMenuTile(
+              item: AppMenuItem(
+                label: deleteLabel,
+                destructive: canDelete,
+                enabled: canDelete,
+                onPressed: () {
+                  unawaited(controller.hide());
+                  unawaited(_deletePool());
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+      builder: (context, controller, child) => f.FTappable(
+        semanticsLabel: '候选池操作',
+        onPress: () => unawaited(controller.toggle()),
+        child: child!,
+      ),
+      child: Tooltip(
+        message: '候选池操作',
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Center(
+            child: Icon(Icons.more_horiz, size: 18, color: colors.inkSecondary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _groupAddMenu() {
+    final colors = context.appColors;
+    return f.FPopoverMenu(
+      menuBuilder: (context, controller, menu) => [
+        f.FItemGroup(
+          divider: .none,
+          children: [
+            ...widget.groups.map((group) {
+              final teacherIds = _groupTeacherIds(group.id);
+              return AppMenuTile(
+                key: ValueKey('pool-group-${group.id}'),
+                item: AppMenuItem(
+                  label: '${group.name} · ${teacherIds.length} 人',
+                  enabled: teacherIds.isNotEmpty,
+                  onPressed: () {
+                    unawaited(controller.hide());
+                    setState(() => _teachers.addAll(teacherIds));
+                  },
+                ),
+              );
+            }),
+          ],
+        ),
+      ],
+      builder: (context, controller, child) => f.FTappable(
+        semanticsLabel: '从教师组添加候选教师',
+        onPress: () => unawaited(controller.toggle()),
+        child: child!,
+      ),
+      child: _menuTrigger(icon: Icons.group_add_outlined, label: '从教师组添加'),
+    );
+  }
+
+  String get _activePoolName => _activePool == SupervisionDraft.basePoolId
+      ? '基础候选池'
+      : _names[_activePool] ?? '候选池';
+
+  Widget _poolTile(String id, String name) {
+    final colors = context.appColors;
+    final selected = id == _activePool;
+    final isDefault = id == _defaultPool;
+    final count = _members[id]?.length ?? 0;
+    return AppTreeTile(
+      key: ValueKey('pool-item-$id'),
+      leading: Icon(
+        Icons.groups_outlined,
+        size: 16,
+        color: selected ? colors.blue : colors.inkSecondary,
+      ),
+      title: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+                    color: selected ? colors.blue : colors.ink,
+                  ),
+                ),
+              ),
+              if (isDefault) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '默认',
+                  style: TextStyle(fontSize: 11, color: colors.inkSecondary),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$count 位教师',
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.inkSecondary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+      isSelected: selected,
+      selectedBackground: colors.selectedBlue,
+      selectedForeground: colors.blue,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+      height: 56,
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => setState(() {
+        _activePool = id;
+        _expandedTeacher = null;
+      }),
+    );
+  }
+
+  Widget _poolSidebar(double height) {
+    final colors = context.appColors;
+    final pools = <String, String>{
+      SupervisionDraft.basePoolId: '基础候选池',
+      ..._names,
+    }.entries.toList(growable: false);
+    return SizedBox(
+      width: 232,
+      height: height,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.canvas,
+          border: Border.all(color: colors.border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '候选池',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                Text(
+                  '${pools.length} 个',
+                  style: TextStyle(fontSize: 12, color: colors.inkSecondary),
+                ),
+                const SizedBox(width: 4),
+                _poolActionsMenu(),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: pools.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 4),
+                itemBuilder: (context, index) {
+                  final pool = pools[index];
+                  return _poolTile(pool.key, pool.value);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: AppGhostButton(
+                onPressed: _namePool,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add, size: 16, color: colors.inkSecondary),
+                    const SizedBox(width: 8),
+                    const Text('新建候选池'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _compactPoolControls() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final selector = AppSelectField<String>(
+          key: const ValueKey('pool-manager-select'),
+          label: '当前候选池',
+          value: _activePool,
+          items: {
+            '基础候选池${_defaultPool == SupervisionDraft.basePoolId ? ' · 默认' : ''}':
+                SupervisionDraft.basePoolId,
+            for (final entry in _names.entries)
+              '${entry.value}${_defaultPool == entry.key ? ' · 默认' : ''}':
+                  entry.key,
+          },
+          onChanged: (id) {
+            if (id != null) {
+              setState(() {
+                _activePool = id;
+                _expandedTeacher = null;
+              });
+            }
+          },
+        );
+        final actions = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppGhostButton(onPressed: _namePool, child: const Text('新建候选池')),
+            const SizedBox(width: 4),
+            _poolActionsMenu(),
+          ],
+        );
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              selector,
+              const SizedBox(height: 4),
+              Align(alignment: Alignment.centerRight, child: actions),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: selector),
+            const SizedBox(width: 8),
+            actions,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _teacherWorkspace({
+    required List<Teacher> teachers,
+    required List<String> Function(String id) groupsFor,
+    required double height,
+  }) {
+    final colors = context.appColors;
+    return SizedBox(
+      height: height,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '教师名单',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Text(
+                '本池 ${_teachers.length} 人',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.inkSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _DutySearchField(
+            controller: _search,
+            hint: '搜索教师姓名或教师组',
+            onChanged: (text) =>
+                setState(() => _query = text.trim().toLowerCase()),
+            onClear: () {
+              _search.clear();
+              setState(() => _query = '');
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final selectAll = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppCheckbox(
+                      value:
+                          teachers.isNotEmpty &&
+                          teachers.every(
+                            (teacher) => _teachers.contains(teacher.id),
+                          ),
+                      onChanged: (value) => setState(() {
+                        final ids = teachers.map((teacher) => teacher.id);
+                        value
+                            ? _teachers.addAll(ids)
+                            : _teachers.removeAll(ids);
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('全选搜索结果'),
+                  ],
+                );
+                final searchCount = Text(
+                  '搜索结果 ${teachers.length} 人',
+                  style: TextStyle(fontSize: 12, color: colors.inkSecondary),
+                );
+                if (constraints.maxWidth >= 560) {
+                  return Row(
+                    children: [
+                      selectAll,
+                      const SizedBox(width: 12),
+                      searchCount,
+                      const Spacer(),
+                      if (widget.groups.isNotEmpty) _groupAddMenu(),
+                    ],
+                  );
+                }
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    selectAll,
+                    searchCount,
+                    if (widget.groups.isNotEmpty) _groupAddMenu(),
+                  ],
+                );
+              },
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: colors.border),
+          Expanded(
+            child: teachers.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '没有找到教师',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '试试教师姓名或教师组，或清空搜索条件。',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colors.inkSecondary),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.only(top: 4),
+                    itemCount: teachers.length,
+                    separatorBuilder: (context, index) =>
+                        Divider(height: 1, thickness: 1, color: colors.border),
+                    itemBuilder: (context, index) {
+                      final teacher = teachers[index];
+                      final rule = _rules[teacher.id];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          f.FItem(
+                            style: _dutyListStyle(context),
+                            prefix: AppCheckbox(
+                              value: _teachers.contains(teacher.id),
+                              onChanged: (value) => setState(() {
+                                value
+                                    ? _teachers.add(teacher.id)
+                                    : _teachers.remove(teacher.id);
+                              }),
+                            ),
+                            onPress: () => setState(() {
+                              _teachers.contains(teacher.id)
+                                  ? _teachers.remove(teacher.id)
+                                  : _teachers.add(teacher.id);
+                            }),
+                            title: Text(teacher.displayName),
+                            subtitle: Text(
+                              [
+                                ...groupsFor(teacher.id),
+                                rule == null
+                                    ? '未设置规则'
+                                    : '${rule.maxLessons ?? '不限'} 节 / ${rule.maxDays ?? '不限'} 天 · ${rule.unavailable.length} 格禁排',
+                              ].join(' · '),
+                            ),
+                            suffix: AppGhostButton(
+                              onPressed: () => setState(
+                                () => _expandedTeacher =
+                                    _expandedTeacher == teacher.id
+                                    ? null
+                                    : teacher.id,
+                              ),
+                              child: Text(
+                                _expandedTeacher == teacher.id ? '收起' : '规则',
+                              ),
+                            ),
+                          ),
+                          if (_expandedTeacher == teacher.id)
+                            _quickRule(teacher),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
   late final _rules = {...widget.draft.rules};
   String _query = '';
   final _search = TextEditingController();
@@ -1233,13 +1725,17 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
         text: _rules[teacher.id]?.maxLessons?.toString(),
       ),
     );
+    final rule = _rules[teacher.id];
+    final maxDays = rule?.maxDays;
+    final unavailableCount = rule?.unavailable.length ?? 0;
+    final daySummary = maxDays == null ? '不限天数' : '每周最多 $maxDays 天';
+    final ruleSummary = '$daySummary · $unavailableCount 格禁排';
     final field = AppTextFormField(
       controller: controller,
       keyboardType: TextInputType.number,
       decoration: const InputDecoration(labelText: '每周带班上限', hintText: '留空不限'),
       onChanged: (text) => setState(() {
         if (!_invalidLimit(text)) {
-          final rule = _rules[teacher.id];
           _rules[teacher.id] = SupervisionTeacherRule(
             maxLessons: int.tryParse(text.trim()),
             maxDays: rule?.maxDays,
@@ -1251,12 +1747,41 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
     final forbidden = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('带班禁排与天数上限', style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 4),
+        Text('其他带班规则', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 8),
         _DutyOutlineButton(
           onPressed: () => _editRule(teacher),
-          child: Text(
-            '编辑禁排 · ${_rules[teacher.id]?.unavailable.length ?? 0} 格',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.event_busy_outlined,
+                size: 16,
+                color: context.appColors.inkSecondary,
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('禁排时段与天数上限'),
+                  const SizedBox(height: 4),
+                  Text(
+                    ruleSummary,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.appColors.inkSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.edit_outlined,
+                size: 16,
+                color: context.appColors.inkSecondary,
+              ),
+            ],
           ),
         ),
       ],
@@ -1307,6 +1832,9 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final workspaceHeight = (MediaQuery.sizeOf(context).height * 0.62)
+        .clamp(360.0, 580.0)
+        .toDouble();
     final groupNames = {
       for (final group in widget.groups) group.id: group.name,
     };
@@ -1325,186 +1853,45 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
         .toList();
     return AppDialog(
       title: const Text('候选池管理'),
-      maxWidth: 720,
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            '为不同岗位维护独立候选范围。同一教师可加入多个池，带班上限和禁排在所有池中统一生效。',
+      maxWidth: 1040,
+      content: LayoutBuilder(
+        builder: (context, constraints) {
+          final wideLayout = constraints.maxWidth >= 760;
+          final description = Text(
+            '岗位分别使用候选池；教师的带班上限和禁排规则在所有池共享。',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: context.appColors.inkSecondary),
-          ),
-          const SizedBox(height: 12),
-          AppSelectField<String>(
-            key: const ValueKey('pool-manager-select'),
-            label: '当前候选池',
-            value: _activePool,
-            items: {
-              '基础候选池${_defaultPool == SupervisionDraft.basePoolId ? ' · 默认' : ''}':
-                  SupervisionDraft.basePoolId,
-              for (final entry in _names.entries)
-                '${entry.value}${_defaultPool == entry.key ? ' · 默认' : ''}':
-                    entry.key,
-            },
-            onChanged: (id) {
-              if (id != null) {
-                setState(() {
-                  _activePool = id;
-                  _expandedTeacher = null;
-                });
-              }
-            },
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          );
+          final teacherWorkspace = _teacherWorkspace(
+            teachers: teachers,
+            groupsFor: groupsFor,
+            height: workspaceHeight,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AppGhostButton(onPressed: _namePool, child: const Text('新建候选池')),
-              if (_activePool != SupervisionDraft.basePoolId) ...[
-                AppGhostButton(
-                  onPressed: () => _namePool(rename: true),
-                  child: const Text('重命名'),
-                ),
-                AppGhostButton(
-                  onPressed: _referenced ? null : _deletePool,
-                  child: Text(_referenced ? '使用中不可删除' : '删除候选池'),
-                ),
-              ],
-              AppGhostButton(
-                onPressed: _activePool == _defaultPool
-                    ? null
-                    : () => setState(() => _defaultPool = _activePool),
-                child: Text(_activePool == _defaultPool ? '默认候选池' : '设为默认'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _DutySearchField(
-            controller: _search,
-            hint: '搜索教师姓名或教师组',
-            onChanged: (text) =>
-                setState(() => _query = text.trim().toLowerCase()),
-            onClear: () {
-              _search.clear();
-              setState(() => _query = '');
-            },
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                AppCheckbox(
-                  value:
-                      teachers.isNotEmpty &&
-                      teachers.every(
-                        (teacher) => _teachers.contains(teacher.id),
-                      ),
-                  onChanged: (value) => setState(() {
-                    final ids = teachers.map((teacher) => teacher.id);
-                    value ? _teachers.addAll(ids) : _teachers.removeAll(ids);
-                  }),
-                ),
-                const SizedBox(width: 8),
-                const Text('全选搜索结果'),
-                const Spacer(),
-                Text(
-                  '已选 ${_teachers.length} 人',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final group in widget.groups)
-                AppGhostButton(
-                  child: Text('+ ${group.name}'),
-                  onPressed: () => setState(
-                    () => _teachers.addAll(
-                      widget.snapshot.teacherGroupMembers
-                          .where((member) => member.groupId == group.id)
-                          .map((member) => member.teacherId),
-                    ),
+              description,
+              const SizedBox(height: 16),
+              if (wideLayout)
+                SizedBox(
+                  height: workspaceHeight,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _poolSidebar(workspaceHeight),
+                      const SizedBox(width: 16),
+                      Expanded(child: teacherWorkspace),
+                    ],
                   ),
-                ),
+                )
+              else ...[
+                _compactPoolControls(),
+                const SizedBox(height: 12),
+                teacherWorkspace,
+              ],
             ],
-          ),
-          SizedBox(
-            height: MediaQuery.sizeOf(context).height < 700 ? 240 : 360,
-            child: teachers.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '没有找到教师',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '试试教师姓名或教师组，或清空搜索条件。',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: context.appColors.inkSecondary),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: teachers.length,
-                    itemBuilder: (context, index) {
-                      final teacher = teachers[index];
-                      final rule = _rules[teacher.id];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          f.FItem(
-                            style: _dutyListStyle(context),
-                            prefix: AppCheckbox(
-                              value: _teachers.contains(teacher.id),
-                              onChanged: (value) => setState(() {
-                                value
-                                    ? _teachers.add(teacher.id)
-                                    : _teachers.remove(teacher.id);
-                              }),
-                            ),
-                            onPress: () => setState(() {
-                              _teachers.contains(teacher.id)
-                                  ? _teachers.remove(teacher.id)
-                                  : _teachers.add(teacher.id);
-                            }),
-                            title: Text(teacher.displayName),
-                            subtitle: Text(
-                              [
-                                ...groupsFor(teacher.id),
-                                rule == null
-                                    ? '未设置规则'
-                                    : '${rule.maxLessons ?? '不限'} 节 / ${rule.maxDays ?? '不限'} 天 · ${rule.unavailable.length} 格禁排',
-                              ].join(' · '),
-                            ),
-                            suffix: _DutyOutlineButton(
-                              onPressed: () => setState(
-                                () => _expandedTeacher =
-                                    _expandedTeacher == teacher.id
-                                    ? null
-                                    : teacher.id,
-                              ),
-                              child: Text(
-                                _expandedTeacher == teacher.id ? '收起' : '设置',
-                              ),
-                            ),
-                          ),
-                          if (_expandedTeacher == teacher.id)
-                            _quickRule(teacher),
-                        ],
-                      );
-                    },
-                  ),
-          ),
-        ],
+          );
+        },
       ),
       actions: [
         if (_hasInvalidLimits)
@@ -1590,86 +1977,201 @@ class _TeacherRuleDialogState extends State<_TeacherRuleDialog> {
     final routine = widget.snapshot.routines
         .where((routine) => routine.stageId == _stageId)
         .firstOrNull;
-    final slots = [
-      for (final period in routine?.periodTypes ?? const <LessonPeriodType>[])
+    final slotGroups = <(String, List<SchedulePosition>)>[];
+    if (routine != null) {
+      for (final period in routine.periodTypes) {
+        final positions = <SchedulePosition>[];
         for (
           var index = 1;
-          index <= routine!.effectiveLessonCount(period.id, _weekday);
+          index <= routine.effectiveLessonCount(period.id, _weekday);
           index++
-        )
-          (
-            period.name,
+        ) {
+          final time = period.lessonTimes
+              .where((time) => time.lessonIndex == index)
+              .firstOrNull;
+          positions.add(
             SchedulePosition(
               stageId: routine.stageId,
               weekday: _weekday,
               periodTypeId: period.id,
               lessonIndex: index,
-              startMinute: period.lessonTimes
-                  .where((time) => time.lessonIndex == index)
-                  .firstOrNull
-                  ?.startMinute,
-              endMinute: period.lessonTimes
-                  .where((time) => time.lessonIndex == index)
-                  .firstOrNull
-                  ?.endMinute,
+              startMinute: time?.startMinute,
+              endMinute: time?.endMinute,
             ),
-          ),
-    ];
+          );
+        }
+        if (positions.isNotEmpty) slotGroups.add((period.name, positions));
+      }
+    }
+    final colors = context.appColors;
+    final lessonLimit = AppTextFormField(
+      controller: _lessons,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(
+        labelText: '每周最多带班节次',
+        hintText: '留空不限',
+      ),
+    );
+    final dayLimit = AppTextFormField(
+      controller: _days,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(
+        labelText: '每周最多带班天数',
+        hintText: '留空不限',
+      ),
+    );
     return AppDialog(
       title: Text('${widget.teacher.displayName} · 带班规则'),
+      maxWidth: 760,
+      titleGap: 12,
+      actionsGap: 16,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppTextFormField(
-            controller: _lessons,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '每周最多带班节次（留空不限）'),
+          Text(
+            '设置每周带班上限，并标记不能安排带班的课节。',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colors.inkSecondary),
           ),
-          AppTextFormField(
-            controller: _days,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '每周最多带班天数（留空不限）'),
+          const SizedBox(height: 16),
+          Text('带班上限', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) => constraints.maxWidth >= 560
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: lessonLimit),
+                      const SizedBox(width: 16),
+                      Expanded(child: dayLimit),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      lessonLimit,
+                      const SizedBox(height: 8),
+                      dayLimit,
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 20),
+          Divider(height: 1, thickness: 1, color: colors.border),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '禁排时段',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colors.canvas,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '已选 ${_forbidden.length} 格',
+                  style: TextStyle(fontSize: 12, color: colors.inkSecondary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '选择学段和星期，再点选不安排带班的课节。',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colors.inkSecondary),
           ),
           const SizedBox(height: 12),
-          Text('禁排时段 · 已选 ${_forbidden.length} 格'),
-          AppSelectField<String>(
-            value: _stageId,
-            label: '学段',
-            hint: '选择学段',
-            items: {
-              for (final stage in widget.snapshot.stages) stage.name: stage.id,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stageField = AppSelectField<String>(
+                value: _stageId,
+                label: '学段',
+                hint: '选择学段',
+                items: {
+                  for (final stage in widget.snapshot.stages)
+                    stage.name: stage.id,
+                },
+                onChanged: (value) => setState(() => _stageId = value),
+              );
+              final weekdayField = AppSelectField<int>(
+                value: _weekday,
+                label: '星期',
+                items: {
+                  for (var day = 1; day <= 7; day++) _weekdays[day - 1]: day,
+                },
+                onChanged: (day) => setState(() => _weekday = day ?? _weekday),
+              );
+              if (constraints.maxWidth < 560) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    stageField,
+                    const SizedBox(height: 8),
+                    weekdayField,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: stageField),
+                  const SizedBox(width: 16),
+                  Expanded(child: weekdayField),
+                ],
+              );
             },
-            onChanged: (value) => setState(() => _stageId = value),
           ),
-          AppSelectField<int>(
-            value: _weekday,
-            label: '星期',
-            items: {for (var day = 1; day <= 7; day++) _weekdays[day - 1]: day},
-            onChanged: (day) => setState(() => _weekday = day ?? _weekday),
-          ),
-          if (!(routine?.teachingWeekdays.contains(_weekday) ?? false))
-            const Text('当天没有配置上课。')
+          const SizedBox(height: 4),
+          if (routine == null)
+            _emptyForbiddenSlots('该学段尚未配置作息。')
+          else if (!routine.teachingWeekdays.contains(_weekday))
+            _emptyForbiddenSlots('当天没有安排课程。')
+          else if (slotGroups.isEmpty)
+            _emptyForbiddenSlots('当天没有可选课节。')
           else
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final (label, position) in slots)
-                  _SelectionOption(
-                    label: Text('$label · 第 ${position.lessonIndex} 节'),
-                    selected: _forbidden.containsKey(position.cellKey),
-                    onSelected: (selected) => setState(() {
-                      if (selected) {
-                        _forbidden[position.cellKey] = position;
-                      } else {
-                        _forbidden.remove(position.cellKey);
-                      }
-                    }),
-                  ),
-              ],
-            ),
+            for (final (periodName, positions) in slotGroups)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      periodName,
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final position in positions)
+                          _SelectionOption(
+                            label: Text('第 ${position.lessonIndex} 节'),
+                            selected: _forbidden.containsKey(position.cellKey),
+                            onSelected: (selected) => setState(() {
+                              if (selected) {
+                                _forbidden[position.cellKey] = position;
+                              } else {
+                                _forbidden.remove(position.cellKey);
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
           if (_error case final error?)
-            Text(error, style: TextStyle(color: context.appColors.destructive)),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(error, style: TextStyle(color: colors.destructive)),
+            ),
         ],
       ),
       actions: [
@@ -1700,6 +2202,30 @@ class _TeacherRuleDialogState extends State<_TeacherRuleDialog> {
           child: const Text('应用规则'),
         ),
       ],
+    );
+  }
+
+  Widget _emptyForbiddenSlots(String message) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.canvas,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 16, color: colors.inkSecondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 13, color: colors.inkSecondary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
