@@ -805,7 +805,7 @@ class _TeacherPickerPanelState extends State<_TeacherPickerPanel> {
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: selected
-                              ? Colors.white
+                              ? colors.onAccent
                               : enabled
                               ? colors.inkSecondary
                               : colors.muted,
@@ -864,11 +864,7 @@ class _TeacherPickerPanelState extends State<_TeacherPickerPanel> {
                         ),
                       ),
                       child: selected
-                          ? const Icon(
-                              Icons.check,
-                              size: 13,
-                              color: Colors.white,
-                            )
+                          ? Icon(Icons.check, size: 13, color: colors.onAccent)
                           : null,
                     ),
                   ],

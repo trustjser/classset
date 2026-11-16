@@ -12,7 +12,7 @@ class AppPageHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.actions = const [],
-    this.responsiveActions = false,
+    this.responsiveActions = true,
     this.actionsFlex = 1,
     super.key,
   }) : assert(actionsFlex > 0);
@@ -30,7 +30,11 @@ class AppPageHeader extends StatelessWidget {
       children: [
         Text(title, style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 5),
-        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: context.appColors.inkSecondary),
+        ),
       ],
     );
     if (!responsiveActions) {
@@ -211,7 +215,7 @@ class AppTreeTile extends StatelessWidget {
     final showSelectedStyle = isSelected && selectedForeground != null;
     return Material(
       color: isSelected
-          ? selectedBackground ?? context.appColors.selectedBlue
+          ? selectedBackground ?? context.appColors.selection
           : Colors.transparent,
       // 选中底色画在外层 Material 上，圆角必须同步给它，
       // 否则只有 InkWell 水波纹是圆角、高亮仍是直角。
@@ -300,12 +304,12 @@ class AppInlineMessage extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: backgroundColor ?? context.appColors.selectedBlue,
+      color: backgroundColor ?? context.appColors.selection,
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
     ),
     child: Row(
       children: [
-        Icon(icon, size: 17, color: context.appColors.blue),
+        Icon(icon, size: 17, color: context.appColors.accent),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -401,7 +405,7 @@ class AppSummaryMetricCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Row(
         children: [
-          Icon(icon, size: 19, color: context.appColors.blue),
+          Icon(icon, size: 19, color: context.appColors.accent),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
@@ -510,23 +514,30 @@ class _CompactWeekdayOption extends StatelessWidget {
         child: Row(
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
+              duration: AppTheme.motionDuration(
+                context,
+                AppTheme.feedbackDuration,
+              ),
               width: 18,
               height: 18,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? context.appColors.blue
+                    ? context.appColors.accent
                     : context.appColors.surface,
                 border: Border.all(
                   color: isSelected
-                      ? context.appColors.blue
+                      ? context.appColors.accent
                       : context.appColors.border,
                   width: 1.5,
                 ),
                 borderRadius: BorderRadius.circular(5),
               ),
               child: isSelected
-                  ? const Icon(Icons.check, size: 12, color: Colors.white)
+                  ? Icon(
+                      Icons.check,
+                      size: 12,
+                      color: context.appColors.onAccent,
+                    )
                   : null,
             ),
             const SizedBox(width: 10),
@@ -570,11 +581,11 @@ class _WeekdayOption extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? context.appColors.selectedBlue
+              ? context.appColors.selection
               : context.appColors.surface,
           border: Border.all(
             color: isSelected
-                ? context.appColors.blue
+                ? context.appColors.accent
                 : context.appColors.border,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -586,7 +597,7 @@ class _WeekdayOption extends StatelessWidget {
               isSelected ? Icons.check_box : Icons.check_box_outline_blank,
               size: 17,
               color: isSelected
-                  ? context.appColors.blue
+                  ? context.appColors.accent
                   : context.appColors.muted,
             ),
             const SizedBox(width: 7),
@@ -594,7 +605,7 @@ class _WeekdayOption extends StatelessWidget {
               label,
               style: TextStyle(
                 color: isSelected
-                    ? context.appColors.blue
+                    ? context.appColors.accent
                     : context.appColors.ink,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -1770,7 +1781,7 @@ class AppMenuTile extends StatelessWidget with FItemMixin {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: item.selected
-              ? context.appColors.selectedBlue
+              ? context.appColors.selection
               : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
         ),
@@ -1782,7 +1793,7 @@ class AppMenuTile extends StatelessWidget with FItemMixin {
                 child: Icon(
                   Icons.check,
                   size: 13,
-                  color: context.appColors.blue,
+                  color: context.appColors.accent,
                 ),
               ),
             Text(item.label, style: TextStyle(fontSize: 13, color: foreground)),
@@ -1790,7 +1801,7 @@ class AppMenuTile extends StatelessWidget with FItemMixin {
             if (item.shortcut != null)
               Text(
                 item.shortcut!,
-                style: const TextStyle(fontSize: 11, color: Color(0xFFA6A6A6)),
+                style: TextStyle(fontSize: 12, color: context.appColors.muted),
               ),
           ],
         ),

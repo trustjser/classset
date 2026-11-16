@@ -1,28 +1,21 @@
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
-/// 科目配色：不落库，按科目 ID 稳定散列到固定色板。
-///
-/// - 同一科目在任何设备、任何会话中颜色一致（FNV-1a 散列，与排序、
-///   增删其他科目无关）。
-/// - 色板为 10 个鲜亮色相，刻意避开系统语义色的纯色相：品牌蓝
-///   （#0075DE，链接/选中）、成功绿（#2BA471，成功提示）、警示金
-///   （#C98A2B）、危险红（#D54941），避免科目颜色被误读为状态色。
-/// - 浅色模式前景取 600 级饱和色（小字号可读），暗色模式换 400 级
-///   亮色；格底用同色低透明度叠加 surface，两种模式下观感一致。
+/// 科目按 ID 稳定散列到十种清透色；不落库、不改变科目归属。
+/// 色名仅帮助辨识，课表始终同时显示科目名称。
 abstract final class SubjectColors {
-  /// (浅色模式前景, 暗色模式前景)。
+  /// (晴空蓝浅色前景, 夜空蓝深色前景)，配对格底检查普通文字对比度。
   static const List<(Color, Color)> _palette = [
-    (Color(0xFFDB2777), Color(0xFFF472B6)), // 玫红
-    (Color(0xFFEA580C), Color(0xFFFB923C)), // 甜橙
-    (Color(0xFFCA8A04), Color(0xFFFACC15)), // 明黄
-    (Color(0xFF65A30D), Color(0xFFA3E635)), // 青柠
-    (Color(0xFF16A34A), Color(0xFF4ADE80)), // 草绿
-    (Color(0xFF0D9488), Color(0xFF2DD4BF)), // 青碧
-    (Color(0xFF0284C7), Color(0xFF38BDF8)), // 天青
-    (Color(0xFF4F46E5), Color(0xFF818CF8)), // 靛蓝
-    (Color(0xFF7C3AED), Color(0xFFA78BFA)), // 紫罗兰
-    (Color(0xFFC026D3), Color(0xFFE879F9)), // 洋红
+    (Color(0xFFA1396D), Color(0xFFF3ACCE)), // 蔷薇
+    (Color(0xFF9B521E), Color(0xFFF1BC92)), // 杏橙
+    (Color(0xFF806314), Color(0xFFE6D18D)), // 琥珀
+    (Color(0xFF4F7029), Color(0xFFB8D98D)), // 青柠
+    (Color(0xFF1F7457), Color(0xFF91DABB)), // 薄荷
+    (Color(0xFF117783), Color(0xFF88D7DE)), // 湖青
+    (Color(0xFF326CAB), Color(0xFFA1C8FA)), // 晴蓝
+    (Color(0xFF5C56AC), Color(0xFFB9B3FA)), // 鸢尾
+    (Color(0xFF8253A3), Color(0xFFD2AEED)), // 丁香
+    (Color(0xFF9C477D), Color(0xFFE5ABD3)), // 莓粉
   ];
 
   /// 科目 ID → 色板序号。FNV-1a 32 位散列 + 位移混合，
@@ -47,11 +40,11 @@ abstract final class SubjectColors {
   }
 
   /// 课表格 / 科目色块的浅底：同色低透明度叠在 surface 上，
-  /// 浅色模式约 13%、暗色模式约 22%（深底需要更高不透明度才可感知）。
+  /// 浅色模式约 8%、暗色模式约 12%（深底需要更高不透明度才可感知）。
   static Color cellBackground(BuildContext context, String subjectId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Color.alphaBlend(
-      of(context, subjectId).withValues(alpha: isDark ? .22 : .13),
+      of(context, subjectId).withValues(alpha: isDark ? .12 : .08),
       context.appColors.surface,
     );
   }

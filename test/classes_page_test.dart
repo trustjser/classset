@@ -192,7 +192,7 @@ void main() {
         .widgetList<AppStageDot>(find.byType(AppStageDot))
         .toList();
     expect(dots.first.color, AppThemeColors.light.blue);
-    expect(dots.last.color, const Color(0xFF2BA471));
+    expect(dots.last.color, AppThemeColors.light.purple);
     expect(tester.getRect(find.textContaining('共 2 个学段')).top, lessThan(600));
     expect(tester.takeException(), isNull);
   });

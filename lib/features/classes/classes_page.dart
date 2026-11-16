@@ -16,11 +16,8 @@ import 'package:forui/forui.dart';
 /// 预置学段名称（US-001 AC1）。
 const stagePresets = ['小学部', '初中部', '高中部'];
 
-Color _stageAccent(BuildContext context, int index) => switch (index % 3) {
-  0 => context.appColors.blue,
-  1 => context.appColors.success,
-  _ => context.appColors.warning,
-};
+Color _stageAccent(BuildContext context, int index) =>
+    AppTheme.stageAccent(context, index);
 
 Color _stageTint(BuildContext context, int index) => Color.alphaBlend(
   _stageAccent(context, index).withValues(alpha: .1),
@@ -1853,7 +1850,7 @@ class _GradePickChip extends StatelessWidget {
   );
 }
 
-/// 预览名称 chip（设计稿：#F8F9FD 底、11px）。
+/// 班级预览使用随主题变化的浅底标签。
 class _PreviewNameChip extends StatelessWidget {
   const _PreviewNameChip({required this.label});
 
@@ -1863,7 +1860,7 @@ class _PreviewNameChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
-      color: const Color(0xFFF8F9FD),
+      color: context.appColors.tableHeader,
       borderRadius: BorderRadius.circular(4),
     ),
     child: Text(

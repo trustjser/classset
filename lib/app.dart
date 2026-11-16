@@ -2,6 +2,8 @@ import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 
 import 'package:class_set/core/theme/app_theme.dart';
+import 'package:class_set/core/theme/app_appearance.dart';
+import 'package:class_set/core/widgets/appearance_settings_dialog.dart';
 import 'package:class_set/core/navigation/draft_navigation_guard.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
@@ -37,15 +39,12 @@ enum AppSection {
 
 enum _DraftLeaveChoice { save, discard }
 
-enum _AppThemeMode {
-  system('跟随系统', Icons.brightness_auto_rounded),
-  light('浅色模式', Icons.light_mode_outlined),
-  dark('暗色模式', Icons.dark_mode_outlined);
-
-  const _AppThemeMode(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
+extension on AppAppearanceMode {
+  IconData get icon => switch (this) {
+    AppAppearanceMode.system => Icons.brightness_auto_rounded,
+    AppAppearanceMode.light => Icons.light_mode_outlined,
+    AppAppearanceMode.dark => Icons.dark_mode_outlined,
+  };
 }
 
 final selectedSectionProvider = StateProvider<AppSection>(
@@ -68,9 +67,14 @@ String _savedTimeLabel(DateTime time) {
 }
 
 class ClassSetApp extends StatefulWidget {
-  const ClassSetApp({required this.databasePath, super.key});
+  const ClassSetApp({required this.databasePath,
+    this.initialAppearance = const AppAppearance(),
+    this.onAppearanceChanged,
+    super.key});
 
   final String databasePath;
+  final AppAppearance initialAppearance;
+  final Future<void> Function(AppAppearance)? onAppearanceChanged;
 
   @override
   State<ClassSetApp> createState() => _ClassSetAppState();
@@ -81,20 +85,24 @@ class _ClassSetAppState extends State<ClassSetApp> with WidgetsBindingObserver {
     'class_set/window_appearance',
   );
 
-  _AppThemeMode _themeMode = _AppThemeMode.light;
+  late AppAppearance _appearance;
+  AppAppearanceMode get _themeMode => _appearance.mode;
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   bool get _isDarkMode => switch (_themeMode) {
-    _AppThemeMode.system =>
+    AppAppearanceMode.system =>
       WidgetsBinding.instance.platformDispatcher.platformBrightness ==
           Brightness.dark,
-    _AppThemeMode.light => false,
-    _AppThemeMode.dark => true,
+    AppAppearanceMode.light => false,
+    AppAppearanceMode.dark => true,
   };
 
   @override
   void initState() {
     super.initState();
+    _appearance = widget.initialAppearance;
     WidgetsBinding.instance.addObserver(this);
+    if (Platform.isMacOS) unawaited(_setNativeWindowAppearance(_themeMode));
   }
 
   @override
@@ -106,24 +114,54 @@ class _ClassSetAppState extends State<ClassSetApp> with WidgetsBindingObserver {
   @override
   void didChangePlatformBrightness() {
     super.didChangePlatformBrightness();
-    if (_themeMode == _AppThemeMode.system) setState(() {});
+    if (_themeMode == AppAppearanceMode.system) setState(() {});
   }
 
-  void _setThemeMode(_AppThemeMode mode) {
-    setState(() => _themeMode = mode);
-    if (Platform.isMacOS) unawaited(_setNativeWindowAppearance(mode));
+  void _setThemeMode(AppAppearanceMode mode) {
+    _setAppearance(_appearance.copyWith(mode: mode));
   }
+
+  void _setAppearance(AppAppearance next) {
+    if (next == _appearance) return;
+    final modeChanged = next.mode != _themeMode;
+    setState(() => _appearance = next);
+    if (modeChanged && Platform.isMacOS) {
+      unawaited(_setNativeWindowAppearance(next.mode));
+    }
+    unawaited(_saveAppearance(next));
+  }
+
+  Future<void> _saveAppearance(AppAppearance next) async {
+    try {
+      await widget.onAppearanceChanged?.call(next);
+    } on Object {
+      if (mounted) _messengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('外观已切换，但保存失败；请重新选择以重试。')));
+    }
+  }
+
+  Future<void> _showAppearanceSettings(BuildContext context) => showAppDialog<void>(
+    context: context,
+    builder: (context) => StatefulBuilder(builder: (context, updateDialog) =>
+      AppearanceSettingsDialog(
+        appearance: _appearance,
+        onChanged: (next) {
+          _setAppearance(next);
+          updateDialog(() {});
+        },
+      )),
+  );
 
   void _cycleThemeMode() {
     final nextMode = switch (_themeMode) {
-      _AppThemeMode.light => _AppThemeMode.dark,
-      _AppThemeMode.dark => _AppThemeMode.system,
-      _AppThemeMode.system => _AppThemeMode.light,
+      AppAppearanceMode.light => AppAppearanceMode.dark,
+      AppAppearanceMode.dark => AppAppearanceMode.system,
+      AppAppearanceMode.system => AppAppearanceMode.light,
     };
     _setThemeMode(nextMode);
   }
 
-  Future<void> _setNativeWindowAppearance(_AppThemeMode mode) async {
+  Future<void> _setNativeWindowAppearance(AppAppearanceMode mode) async {
     try {
       await _windowAppearanceChannel.invokeMethod<void>(
         'setAppearance',
@@ -140,14 +178,27 @@ class _ClassSetAppState extends State<ClassSetApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => MaterialApp(
     title: '课集',
     debugShowCheckedModeBanner: false,
-    theme: AppTheme.themeFor(_isDarkMode),
+    scaffoldMessengerKey: _messengerKey,
+    theme: AppTheme.themeFor(false, palette: _appearance.palette),
+    darkTheme: AppTheme.themeFor(true, palette: _appearance.palette),
+    themeMode: switch (_themeMode) {
+      AppAppearanceMode.system => ThemeMode.system,
+      AppAppearanceMode.light => ThemeMode.light,
+      AppAppearanceMode.dark => ThemeMode.dark,
+    },
+    themeAnimationDuration:
+        MediaQueryData.fromView(View.of(context)).disableAnimations
+        ? Duration.zero
+        : AppTheme.transitionDuration,
     builder: (context, child) => f.FTheme(
-      data: AppTheme.foruiFor(_isDarkMode),
+      data: AppTheme.foruiFor(_isDarkMode, palette: _appearance.palette),
       child: f.FToaster(child: child!),
     ),
     home: _AppShell(
       databasePath: widget.databasePath,
       themeMode: _themeMode,
+      palette: _appearance.palette,
+      onAppearanceSettings: _showAppearanceSettings,
       onCycleThemeMode: _cycleThemeMode,
     ),
   );
@@ -157,11 +208,15 @@ class _AppShell extends ConsumerStatefulWidget {
   const _AppShell({
     required this.databasePath,
     required this.themeMode,
+    required this.palette,
+    required this.onAppearanceSettings,
     required this.onCycleThemeMode,
   });
 
   final String databasePath;
-  final _AppThemeMode themeMode;
+  final AppAppearanceMode themeMode;
+  final AppPalette palette;
+  final void Function(BuildContext) onAppearanceSettings;
   final VoidCallback onCycleThemeMode;
 
   @override
@@ -322,6 +377,8 @@ class _AppShellState extends ConsumerState<_AppShell> {
                       pageTitle: pageTitle,
                       isSidebarExpanded: !compactNavigation,
                       themeMode: widget.themeMode,
+                      palette: widget.palette,
+                      onAppearanceSettings: widget.onAppearanceSettings,
                       onCycleThemeMode: widget.onCycleThemeMode,
                       onSelectTerm: (value) => unawaited(_requestTerm(value)),
                       onToggleSidebar:
@@ -333,8 +390,14 @@ class _AppShellState extends ConsumerState<_AppShell> {
                     ),
                     Expanded(
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        reverseDuration: const Duration(milliseconds: 140),
+                        duration: AppTheme.motionDuration(
+                          context,
+                          AppTheme.transitionDuration,
+                        ),
+                        reverseDuration: AppTheme.motionDuration(
+                          context,
+                          AppTheme.exitDuration,
+                        ),
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
                         layoutBuilder: (currentChild, previousChildren) =>
@@ -438,13 +501,10 @@ class _Sidebar extends ConsumerWidget {
     final termTitle = selectedTerm.isEmpty ? '当前学期' : selectedTerm.first.title;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
+      duration: AppTheme.motionDuration(context, AppTheme.transitionDuration),
       curve: Curves.easeInOutCubic,
       width: isCompact ? 70 : 244,
-      decoration: BoxDecoration(
-        color: context.appColors.surface,
-        border: Border(right: BorderSide(color: context.appColors.border)),
-      ),
+      decoration: BoxDecoration(color: context.appColors.surface),
       padding: EdgeInsets.fromLTRB(0, 0, 0, isCompact ? 10 : 14),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -483,11 +543,10 @@ class _Sidebar extends ConsumerWidget {
                           ),
                           SizedBox(height: 3),
                           Text(
-                            'CLASSSET',
+                            '学校日程',
                             style: TextStyle(
                               color: context.appColors.muted,
-                              fontSize: 9,
-                              letterSpacing: .7,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -622,7 +681,7 @@ class _Sidebar extends ConsumerWidget {
                                 '本地数据 · 离线可用',
                                 style: TextStyle(
                                   color: context.appColors.ink,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -633,7 +692,7 @@ class _Sidebar extends ConsumerWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: context.appColors.muted,
-                                  fontSize: 9,
+                                  fontSize: 12,
                                 ),
                               ),
                               if (lastPersistedAt != null) ...[
@@ -644,7 +703,7 @@ class _Sidebar extends ConsumerWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: context.appColors.muted,
-                                    fontSize: 9,
+                                    fontSize: 12,
                                   ),
                                 ),
                               ],
@@ -704,7 +763,7 @@ class _SchoolIdentityCard extends ConsumerWidget {
                 child: Text(
                   initial,
                   style: TextStyle(
-                    color: context.appColors.blue,
+                    color: context.appColors.accent,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -722,7 +781,7 @@ class _SchoolIdentityCard extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.appColors.ink,
-                          fontSize: 11,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -733,7 +792,7 @@ class _SchoolIdentityCard extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.appColors.muted,
-                          fontSize: 9.5,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -783,9 +842,8 @@ class _NavGroupLabel extends StatelessWidget {
       label,
       style: TextStyle(
         color: context.appColors.muted,
-        fontSize: 10,
+        fontSize: 12,
         fontWeight: FontWeight.w600,
-        letterSpacing: .15,
       ),
     ),
   );
@@ -839,9 +897,10 @@ class _NavItem extends StatelessWidget {
       message: isCompact ? label : '',
       child: f.FTappable(
         semanticsLabel: label,
+        selected: isSelected,
         onPress: onTap,
         child: Container(
-          height: 40,
+          height: 44,
           padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 11),
           decoration: BoxDecoration(
             color: isSelected
@@ -858,7 +917,7 @@ class _NavItem extends StatelessWidget {
                 icon,
                 size: 17,
                 color: isSelected
-                    ? context.appColors.blue
+                    ? context.appColors.accent
                     : context.appColors.sidebarMuted,
               ),
               if (!isCompact) const SizedBox(width: 10),
@@ -870,7 +929,7 @@ class _NavItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: isSelected
-                          ? context.appColors.blue
+                          ? context.appColors.accent
                           : context.appColors.sidebarText,
                       fontSize: 12,
                       fontWeight: isSelected
@@ -893,7 +952,7 @@ class _NavItem extends StatelessWidget {
                     '分学段',
                     style: TextStyle(
                       color: context.appColors.muted,
-                      fontSize: 9,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -959,6 +1018,8 @@ class _TopBar extends ConsumerWidget {
     required this.pageTitle,
     required this.isSidebarExpanded,
     required this.themeMode,
+    required this.palette,
+    required this.onAppearanceSettings,
     required this.onCycleThemeMode,
     required this.onSelectTerm,
     required this.onToggleSidebar,
@@ -966,7 +1027,9 @@ class _TopBar extends ConsumerWidget {
 
   final String pageTitle;
   final bool isSidebarExpanded;
-  final _AppThemeMode themeMode;
+  final AppAppearanceMode themeMode;
+  final AppPalette palette;
+  final void Function(BuildContext) onAppearanceSettings;
   final VoidCallback onCycleThemeMode;
   final ValueChanged<String> onSelectTerm;
   final VoidCallback? onToggleSidebar;
@@ -981,10 +1044,7 @@ class _TopBar extends ConsumerWidget {
     return Container(
       height: 62,
       padding: const EdgeInsets.symmetric(horizontal: 22),
-      decoration: BoxDecoration(
-        color: context.appColors.surface,
-        border: Border(bottom: BorderSide(color: context.appColors.border)),
-      ),
+      decoration: BoxDecoration(color: context.appColors.canvas),
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
           children: [
@@ -1041,7 +1101,7 @@ class _TopBar extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.appColors.ink,
-                          fontSize: 11,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1057,6 +1117,14 @@ class _TopBar extends ConsumerWidget {
               ),
             ),
             const Spacer(),
+            AppIconButton(
+              key: const Key('appearance-settings-button'),
+              icon: Icons.palette_outlined,
+              tooltip: '主题与外观：${palette.label}',
+              onPressed: () => onAppearanceSettings(context),
+              iconSize: 18,
+            ),
+            const SizedBox(width: 8),
             AppIconButton(
               icon: themeMode.icon,
               tooltip: '当前主题：${themeMode.label}，点击切换',

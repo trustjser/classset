@@ -1,43 +1,13 @@
 part of 'supervision_page.dart';
 
-bool _usesReferenceHeaderPalette(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.light;
-
-Color _headerBorder(BuildContext context) =>
-    _usesReferenceHeaderPalette(context)
-    ? const Color(0xFFE2E8F0)
-    : context.appColors.border;
-
-Color _headerDivider(BuildContext context) =>
-    _usesReferenceHeaderPalette(context)
-    ? const Color(0xFFF1F5F9)
-    : context.appColors.border;
-
-Color _headerCanvas(BuildContext context) =>
-    _usesReferenceHeaderPalette(context)
-    ? const Color(0xFFF1F5F9)
-    : context.appColors.canvas;
-
-Color _headerInput(BuildContext context) => _usesReferenceHeaderPalette(context)
-    ? const Color(0xFFF8FAFC)
-    : context.appColors.canvas;
-
-Color _headerInk(BuildContext context) => _usesReferenceHeaderPalette(context)
-    ? const Color(0xFF0F172A)
-    : context.appColors.ink;
-
-Color _headerText(BuildContext context) => _usesReferenceHeaderPalette(context)
-    ? const Color(0xFF334155)
-    : context.appColors.inkSecondary;
-
-Color _headerSecondary(BuildContext context) =>
-    _usesReferenceHeaderPalette(context)
-    ? const Color(0xFF64748B)
-    : context.appColors.inkSecondary;
-
-Color _headerMuted(BuildContext context) => _usesReferenceHeaderPalette(context)
-    ? const Color(0xFF94A3B8)
-    : context.appColors.muted;
+Color _headerBorder(BuildContext context) => context.appColors.border;
+Color _headerDivider(BuildContext context) => context.appColors.tableDivider;
+Color _headerCanvas(BuildContext context) => context.appColors.canvas;
+Color _headerInput(BuildContext context) => context.appColors.tableHeader;
+Color _headerInk(BuildContext context) => context.appColors.ink;
+Color _headerText(BuildContext context) => context.appColors.inkSecondary;
+Color _headerSecondary(BuildContext context) => context.appColors.inkSecondary;
+Color _headerMuted(BuildContext context) => context.appColors.muted;
 
 Color _headerBlue(BuildContext context) => context.appColors.blue;
 
@@ -285,12 +255,16 @@ class _DutyCreatePostButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add_rounded, size: 14, color: Colors.white),
+            Icon(
+              Icons.add_rounded,
+              size: 14,
+              color: context.appColors.onAccent,
+            ),
             const SizedBox(width: 6),
             Text(
               '创建岗位',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white,
+                color: context.appColors.onAccent,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
               ),

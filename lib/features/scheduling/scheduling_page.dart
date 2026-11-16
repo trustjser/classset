@@ -1196,7 +1196,7 @@ class _DrawerCheckbox extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: value
-                    ? const Icon(Icons.check, size: 12, color: Colors.white)
+                    ? Icon(Icons.check, size: 12, color: colors.onAccent)
                     : null,
               ),
               const SizedBox(width: 9),

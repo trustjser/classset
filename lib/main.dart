@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:class_set/app.dart';
+import 'package:class_set/data/repositories/appearance_preferences_repository.dart';
 import 'package:class_set/data/database/app_database.dart';
 import 'package:class_set/data/providers/database_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
@@ -14,6 +15,11 @@ Future<void> main() async {
   final databaseDirectory = Directory('${supportDirectory.path}/class_set');
   await databaseDirectory.create(recursive: true);
 
+  final appearanceRepository = AppearancePreferencesRepository(
+    File.fromUri(databaseDirectory.uri.resolve('appearance.json')),
+  );
+  final appearance = await appearanceRepository.load();
+
   final databaseFile = File('${databaseDirectory.path}/school.sqlite');
   final lastPersistedAt = await _lastDatabaseWriteAt(databaseFile);
   final database = AppDatabase.open(databaseFile);
@@ -26,7 +32,11 @@ Future<void> main() async {
         activeTermIdProvider.overrideWith((ref) => activeTermId),
         lastPersistedAtProvider.overrideWith((ref) => lastPersistedAt),
       ],
-      child: ClassSetApp(databasePath: databaseFile.path),
+      child: ClassSetApp(
+        databasePath: databaseFile.path,
+        initialAppearance: appearance,
+        onAppearanceChanged: appearanceRepository.save,
+      ),
     ),
   );
 }

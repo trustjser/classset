@@ -545,7 +545,9 @@ class _ExceptionRangeChip extends StatelessWidget {
         height: 24,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: isMakeup ? const Color(0xFFFFF1E8) : const Color(0xFFFFF8F8),
+          color: isMakeup
+              ? context.appColors.warningSurface
+              : context.appColors.destructiveSurface,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(
