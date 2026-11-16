@@ -60,16 +60,8 @@ class _ClassesPageState extends ConsumerState<ClassesPage> {
         final selectedStage = matching.isEmpty ? items.first : matching.first;
         return LayoutBuilder(
           builder: (context, constraints) {
-            final horizontalPadding = AppTheme.pagePaddingForWidth(
-              constraints.maxWidth,
-            );
             return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPadding,
-                22,
-                horizontalPadding,
-                30,
-              ),
+              padding: AppTheme.pageInsetsForWidth(constraints.maxWidth),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

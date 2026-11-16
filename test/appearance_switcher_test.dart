@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:class_set/app.dart';
@@ -24,10 +25,16 @@ void main() {
     addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await tester.pumpWidget(ProviderScope(
-      overrides: [schoolRepositoryProvider.overrideWithValue(DriftSchoolRepository(database))],
-      child: const ClassSetApp(databasePath: 'preview.sqlite'),
-    ));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schoolRepositoryProvider.overrideWithValue(
+            DriftSchoolRepository(database),
+          ),
+        ],
+        child: const ClassSetApp(databasePath: 'preview.sqlite'),
+      ),
+    );
     await tester.pumpAndSettle();
     final entry = find.byKey(const Key('appearance-settings-button'));
     expect(entry, findsOneWidget);
@@ -36,7 +43,8 @@ void main() {
     expect(find.text('主题与外观'), findsOneWidget);
     await tester.tap(find.text('海盐青'));
     await tester.pumpAndSettle();
-    ColorScheme colors() => Theme.of(tester.element(find.byType(Scaffold).first)).colorScheme;
+    ColorScheme colors() =>
+        Theme.of(tester.element(find.byType(Scaffold).first)).colorScheme;
     expect(colors().primary, const Color(0xFF087D89));
     expect(colors().brightness, Brightness.light);
     await tester.tap(find.text('深色模式'));
@@ -71,41 +79,54 @@ void main() {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final directory = await tester.runAsync(() => Directory.systemTemp.createTemp('appearance-ui-'));
+    final directory = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('appearance-ui-'),
+    );
     addTearDown(() => directory!.delete(recursive: true));
     final file = File.fromUri(directory!.uri.resolve('appearance.json'));
-    final preferences = AppearancePreferencesRepository(file);
+    // Flutter 的手势回调会回到注册时的 FakeAsync zone；真实文件 I/O
+    // 和写入队列的初始 Future 必须在 runAsync 的真实 zone 中创建。
+    final persistenceZone = (await tester.runAsync(() async => Zone.current))!;
+    final preferences = persistenceZone.run(
+      () => AppearancePreferencesRepository(file),
+    );
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    final container = ProviderContainer(overrides: [
-      schoolRepositoryProvider.overrideWithValue(DriftSchoolRepository(database)),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        schoolRepositoryProvider.overrideWithValue(
+          DriftSchoolRepository(database),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     Future<void>? pending;
     Widget app(AppAppearance initial) => UncontrolledProviderScope(
       container: container,
-      child: ClassSetApp(databasePath: 'preview.sqlite', initialAppearance: initial,
-        onAppearanceChanged: (value) => pending = preferences.save(value)),
+      child: ClassSetApp(
+        databasePath: 'preview.sqlite',
+        initialAppearance: initial,
+        onAppearanceChanged: (value) => pending = persistenceZone
+            .run<Future<void>>(() => preferences.save(value)),
+      ),
     );
     await tester.pumpWidget(app(const AppAppearance()));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('appearance-settings-button')));
     await tester.pumpAndSettle();
-    await tester.runAsync(() async {
-      await tester.tap(find.text('海盐青'));
-      await pending;
-    });
+    await tester.tap(find.text('海盐青'));
+    await tester.runAsync(() => pending!);
     await tester.pumpAndSettle();
-    await tester.runAsync(() async {
-      await tester.tap(find.text('深色模式'));
-      await pending;
-    });
+    await tester.tap(find.text('深色模式'));
+    await tester.runAsync(() => pending!);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(AppPrimaryButton, '完成'));
     await tester.pumpAndSettle();
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
-    final restored = await tester.runAsync(() => AppearancePreferencesRepository(file).load());
+    final restored = await tester.runAsync(
+      () => AppearancePreferencesRepository(file).load(),
+    );
     await tester.pumpWidget(app(restored!));
     await tester.pumpAndSettle();
     final context = tester.element(find.byType(Scaffold).first);
@@ -113,8 +134,17 @@ void main() {
     expect(Theme.of(context).colorScheme.primary, const Color(0xFF78D7D6));
     await tester.tap(find.byKey(const Key('appearance-settings-button')));
     await tester.pumpAndSettle();
-    expect(tester.widget<AppearanceSettingsDialog>(find.byType(AppearanceSettingsDialog)).appearance,
-      const AppAppearance(palette: AppPalette.teal, mode: AppAppearanceMode.dark));
+    expect(
+      tester
+          .widget<AppearanceSettingsDialog>(
+            find.byType(AppearanceSettingsDialog),
+          )
+          .appearance,
+      const AppAppearance(
+        palette: AppPalette.teal,
+        mode: AppAppearanceMode.dark,
+      ),
+    );
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
   });
@@ -124,14 +154,29 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     var appearance = const AppAppearance();
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light,
-      builder: (context, child) => FTheme(data: AppTheme.foruiFor(false), child: MediaQuery(
-        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(2)), child: child!)),
-      home: Scaffold(body: Center(child: StatefulBuilder(builder: (context, update) =>
-        AppearanceSettingsDialog(appearance: appearance,
-          onChanged: (next) => update(() => appearance = next))))),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => FTheme(
+          data: AppTheme.foruiFor(false),
+          child: MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(2)),
+            child: child!,
+          ),
+        ),
+        home: Scaffold(
+          body: Center(
+            child: StatefulBuilder(
+              builder: (context, update) => AppearanceSettingsDialog(
+                appearance: appearance,
+                onChanged: (next) => update(() => appearance = next),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('云白墨灰'));
     await tester.tap(find.text('云白墨灰'));
@@ -140,5 +185,45 @@ void main() {
     expect(find.text('完成'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-
+  testWidgets('偏好保存失败后可直接重试当前选择', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final database = db.AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    var fail = true;
+    AppAppearance? saved;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schoolRepositoryProvider.overrideWithValue(
+            DriftSchoolRepository(database),
+          ),
+        ],
+        child: ClassSetApp(
+          databasePath: 'preview.sqlite',
+          onAppearanceChanged: (value) async {
+            if (fail) {
+              fail = false;
+              throw const FileSystemException('cannot save');
+            }
+            saved = value;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('appearance-settings-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('海盐青'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(AppPrimaryButton, '完成'));
+    await tester.pumpAndSettle();
+    expect(find.text('重试'), findsOneWidget);
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+    expect(saved?.palette, AppPalette.teal);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
 }

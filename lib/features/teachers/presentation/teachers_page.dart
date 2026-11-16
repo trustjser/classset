@@ -5,6 +5,7 @@ import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/core/widgets/app_badges.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/core/widgets/app_page_layout.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/domain/models/teacher.dart';

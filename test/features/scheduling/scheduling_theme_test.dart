@@ -81,6 +81,37 @@ void main() {
     expect(decoration.color, AppThemeColors.dark.surface);
     expect(decoration.border, isNull);
     expect(decoration.boxShadow, AppThemeColors.dark.cardShadow);
-    expect(tester.takeException(), isNull);
+    for (final (width, gutter) in [
+      (879.0, 16.0),
+      (880.0, 32.0),
+      (1800.0, 32.0),
+    ]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      final bounds = tester.getRect(
+        find
+            .ancestor(
+              of: title,
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w is Container &&
+                    w.decoration is BoxDecoration &&
+                    (w.decoration! as BoxDecoration).boxShadow != null,
+              ),
+            )
+            .first,
+      );
+      expect(bounds.left, gutter);
+      final scroll = tester.widget<ListView>(
+        find
+            .descendant(
+              of: find.byType(SchedulingTimetable),
+              matching: find.byType(ListView),
+            )
+            .first,
+      );
+      expect(scroll.padding, EdgeInsets.fromLTRB(gutter, 16, gutter, gutter));
+      expect(tester.takeException(), isNull);
+    }
   });
 }

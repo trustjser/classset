@@ -717,9 +717,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final pagePadding = AppTheme.pagePaddingForWidth(
-          MediaQuery.sizeOf(context).width,
-        );
+        final pagePadding = AppTheme.pagePaddingForWidth(constraints.maxWidth);
         final wide = constraints.maxWidth >= 768;
         final picker = SizedBox(
           width: 142,
@@ -876,7 +874,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                         Padding(
                           padding: EdgeInsets.fromLTRB(
                             pagePadding,
-                            20,
+                            AppTheme.pageTopPadding,
                             pagePadding,
                             0,
                           ),

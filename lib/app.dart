@@ -6,6 +6,7 @@ import 'package:class_set/core/theme/app_appearance.dart';
 import 'package:class_set/core/widgets/appearance_settings_dialog.dart';
 import 'package:class_set/core/navigation/draft_navigation_guard.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/core/widgets/app_page_layout.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/features/classes/classes_page.dart';
 import 'package:class_set/features/routines/routine_page.dart';
@@ -67,10 +68,12 @@ String _savedTimeLabel(DateTime time) {
 }
 
 class ClassSetApp extends StatefulWidget {
-  const ClassSetApp({required this.databasePath,
+  const ClassSetApp({
+    required this.databasePath,
     this.initialAppearance = const AppAppearance(),
     this.onAppearanceChanged,
-    super.key});
+    super.key,
+  });
 
   final String databasePath;
   final AppAppearance initialAppearance;
@@ -135,22 +138,33 @@ class _ClassSetAppState extends State<ClassSetApp> with WidgetsBindingObserver {
     try {
       await widget.onAppearanceChanged?.call(next);
     } on Object {
-      if (mounted) _messengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text('外观已切换，但保存失败；请重新选择以重试。')));
+      if (mounted && next == _appearance) {
+        _messengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: const Text('外观已切换，但偏好保存失败。'),
+            action: SnackBarAction(
+              label: '重试',
+              onPressed: () => unawaited(_saveAppearance(_appearance)),
+            ),
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _showAppearanceSettings(BuildContext context) => showAppDialog<void>(
-    context: context,
-    builder: (context) => StatefulBuilder(builder: (context, updateDialog) =>
-      AppearanceSettingsDialog(
-        appearance: _appearance,
-        onChanged: (next) {
-          _setAppearance(next);
-          updateDialog(() {});
-        },
-      )),
-  );
+  Future<void> _showAppearanceSettings(BuildContext context) =>
+      showAppDialog<void>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, updateDialog) => AppearanceSettingsDialog(
+            appearance: _appearance,
+            onChanged: (next) {
+              _setAppearance(next);
+              updateDialog(() {});
+            },
+          ),
+        ),
+      );
 
   void _cycleThemeMode() {
     final nextMode = switch (_themeMode) {
@@ -361,119 +375,125 @@ class _AppShellState extends ConsumerState<_AppShell> {
             AppSection.temporaryAdjustments => '调代课',
             AppSection.publicRooms => '公共场室',
           };
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Sidebar(
-                section: section,
-                isCompact: compactNavigation,
-                onNavigate: (value) => unawaited(_requestSection(value)),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _TopBar(
-                      pageTitle: pageTitle,
-                      isSidebarExpanded: !compactNavigation,
-                      themeMode: widget.themeMode,
-                      palette: widget.palette,
-                      onAppearanceSettings: widget.onAppearanceSettings,
-                      onCycleThemeMode: widget.onCycleThemeMode,
-                      onSelectTerm: (value) => unawaited(_requestTerm(value)),
-                      onToggleSidebar:
-                          constraints.maxWidth < _compactNavigationBreakpoint
-                          ? null
-                          : () => setState(
-                              () => _sidebarExpanded = !_sidebarExpanded,
-                            ),
-                    ),
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: AppTheme.motionDuration(
-                          context,
-                          AppTheme.transitionDuration,
-                        ),
-                        reverseDuration: AppTheme.motionDuration(
-                          context,
-                          AppTheme.exitDuration,
-                        ),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        layoutBuilder: (currentChild, previousChildren) =>
-                            Stack(
-                              alignment: Alignment.topLeft,
-                              fit: StackFit.expand,
-                              clipBehavior: Clip.hardEdge,
-                              children: [...previousChildren, ?currentChild],
-                            ),
-                        transitionBuilder: (child, animation) => FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.012),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
+          return AppPageLayout(
+            availableWidth:
+                constraints.maxWidth - (compactNavigation ? 70 : 244),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Sidebar(
+                  section: section,
+                  isCompact: compactNavigation,
+                  onNavigate: (value) => unawaited(_requestSection(value)),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _TopBar(
+                        pageTitle: pageTitle,
+                        isSidebarExpanded: !compactNavigation,
+                        themeMode: widget.themeMode,
+                        palette: widget.palette,
+                        onAppearanceSettings: widget.onAppearanceSettings,
+                        onCycleThemeMode: widget.onCycleThemeMode,
+                        onSelectTerm: (value) => unawaited(_requestTerm(value)),
+                        onToggleSidebar:
+                            constraints.maxWidth < _compactNavigationBreakpoint
+                            ? null
+                            : () => setState(
+                                () => _sidebarExpanded = !_sidebarExpanded,
+                              ),
+                      ),
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: AppTheme.motionDuration(
+                            context,
+                            AppTheme.transitionDuration,
+                          ),
+                          reverseDuration: AppTheme.motionDuration(
+                            context,
+                            AppTheme.exitDuration,
+                          ),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          layoutBuilder: (currentChild, previousChildren) =>
+                              Stack(
+                                alignment: Alignment.topLeft,
+                                fit: StackFit.expand,
+                                clipBehavior: Clip.hardEdge,
+                                children: [...previousChildren, ?currentChild],
+                              ),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0, 0.012),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
+                              ),
+                          child: KeyedSubtree(
+                            key: ValueKey((section, activeTermId)),
+                            child: switch (section) {
+                              AppSection.workbench => const WorkbenchPage(),
+                              AppSection.publicRooms => const PublicRoomsPage(),
+                              AppSection.terms => TermPage(
+                                databasePath: widget.databasePath,
+                              ),
+                              AppSection.classes =>
+                                activeTermId == null
+                                    ? const _ChooseTermMessage()
+                                    : ClassesPage(termId: activeTermId),
+                              AppSection.routines =>
+                                activeTermId == null
+                                    ? const _ChooseTermMessage()
+                                    : RoutinePage(
+                                        termId: activeTermId,
+                                        onArrangeSupervision: (seed) =>
+                                            unawaited(
+                                              _requestSection(
+                                                AppSection.supervision,
+                                                supervisionSeed: seed,
+                                              ),
+                                            ),
+                                      ),
+                              AppSection.subjects =>
+                                activeTermId == null
+                                    ? const _ChooseTermMessage()
+                                    : SubjectsPage(termId: activeTermId),
+                              AppSection.teachers =>
+                                activeTermId == null
+                                    ? const _ChooseTermMessage()
+                                    : TeachersPage(termId: activeTermId),
+                              AppSection.scheduling =>
+                                activeTermId == null
+                                    ? const _ChooseTermMessage()
+                                    : SchedulingPage(termId: activeTermId),
+                              AppSection.supervision =>
+                                activeTermId == null
+                                    ? const _ChooseTermMessage()
+                                    : SupervisionPage(
+                                        termId: activeTermId,
+                                        seed: _supervisionSeed,
+                                      ),
+                              AppSection.temporaryAdjustments =>
+                                activeTermId == null
+                                    ? const _ChooseTermMessage()
+                                    : TemporaryAdjustmentsPage(
+                                        termId: activeTermId,
+                                      ),
+                            },
                           ),
                         ),
-                        child: KeyedSubtree(
-                          key: ValueKey((section, activeTermId)),
-                          child: switch (section) {
-                            AppSection.workbench => const WorkbenchPage(),
-                            AppSection.publicRooms => const PublicRoomsPage(),
-                            AppSection.terms => TermPage(
-                              databasePath: widget.databasePath,
-                            ),
-                            AppSection.classes =>
-                              activeTermId == null
-                                  ? const _ChooseTermMessage()
-                                  : ClassesPage(termId: activeTermId),
-                            AppSection.routines =>
-                              activeTermId == null
-                                  ? const _ChooseTermMessage()
-                                  : RoutinePage(
-                                      termId: activeTermId,
-                                      onArrangeSupervision: (seed) => unawaited(
-                                        _requestSection(
-                                          AppSection.supervision,
-                                          supervisionSeed: seed,
-                                        ),
-                                      ),
-                                    ),
-                            AppSection.subjects =>
-                              activeTermId == null
-                                  ? const _ChooseTermMessage()
-                                  : SubjectsPage(termId: activeTermId),
-                            AppSection.teachers =>
-                              activeTermId == null
-                                  ? const _ChooseTermMessage()
-                                  : TeachersPage(termId: activeTermId),
-                            AppSection.scheduling =>
-                              activeTermId == null
-                                  ? const _ChooseTermMessage()
-                                  : SchedulingPage(termId: activeTermId),
-                            AppSection.supervision =>
-                              activeTermId == null
-                                  ? const _ChooseTermMessage()
-                                  : SupervisionPage(
-                                      termId: activeTermId,
-                                      seed: _supervisionSeed,
-                                    ),
-                            AppSection.temporaryAdjustments =>
-                              activeTermId == null
-                                  ? const _ChooseTermMessage()
-                                  : TemporaryAdjustmentsPage(
-                                      termId: activeTermId,
-                                    ),
-                          },
-                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -511,14 +531,17 @@ class _Sidebar extends ConsumerWidget {
           // Keep expanded-only rows out of the sidebar while its width is
           // animating through a size that cannot fit them yet.
           final compactContents = isCompact || constraints.maxWidth < 160;
+          final sidebarInset = AppTheme.sidebarPaddingForWidth(
+            AppPageLayout.widthOf(context),
+          );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                  compactContents ? 0 : 18,
+                  compactContents ? 0 : sidebarInset,
                   17,
-                  compactContents ? 0 : 16,
+                  compactContents ? 0 : sidebarInset,
                   16,
                 ),
                 child: Row(
@@ -556,9 +579,9 @@ class _Sidebar extends ConsumerWidget {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                  compactContents ? 7 : 13,
+                  compactContents ? 7 : sidebarInset,
                   0,
-                  compactContents ? 7 : 13,
+                  compactContents ? 7 : sidebarInset,
                   13,
                 ),
                 child: _SchoolIdentityCard(
@@ -569,7 +592,7 @@ class _Sidebar extends ConsumerWidget {
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.symmetric(
-                    horizontal: compactContents ? 7 : 10,
+                    horizontal: compactContents ? 7 : sidebarInset,
                   ),
                   children: [
                     if (!compactContents) const _NavGroupLabel('排课准备'),
@@ -652,7 +675,12 @@ class _Sidebar extends ConsumerWidget {
               ),
               if (!compactContents)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(13, 10, 13, 0),
+                  padding: EdgeInsets.fromLTRB(
+                    sidebarInset,
+                    10,
+                    sidebarInset,
+                    0,
+                  ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -837,7 +865,7 @@ class _NavGroupLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(10, 13, 10, 6),
+    padding: const EdgeInsets.fromLTRB(0, 13, 0, 6),
     child: Text(
       label,
       style: TextStyle(
@@ -892,7 +920,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 8),
+    padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 0),
     child: Tooltip(
       message: isCompact ? label : '',
       child: f.FTappable(
@@ -1043,7 +1071,9 @@ class _TopBar extends ConsumerWidget {
 
     return Container(
       height: 62,
-      padding: const EdgeInsets.symmetric(horizontal: 22),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppPageLayout.gutterOf(context),
+      ),
       decoration: BoxDecoration(color: context.appColors.canvas),
       child: LayoutBuilder(
         builder: (context, constraints) => Row(

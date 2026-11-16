@@ -62,17 +62,8 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
       key: const ValueKey('routine-page-snapshot'),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < AppTheme.compactPageBreakpoint;
-          final horizontalPadding = AppTheme.pagePaddingForWidth(
-            constraints.maxWidth,
-          );
           return Padding(
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              compact ? 16 : 20,
-              horizontalPadding,
-              16,
-            ),
+            padding: AppTheme.pageInsetsForWidth(constraints.maxWidth),
             child: stages.when(
               loading: () => _StaticRoutinePage(
                 child: const Center(child: CircularProgressIndicator()),

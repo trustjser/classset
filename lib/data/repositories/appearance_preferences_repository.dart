@@ -27,7 +27,10 @@ class AppearancePreferencesRepository {
     final write = _pendingWrite.catchError((Object _) {}).then((_) async {
       await file.parent.create(recursive: true);
       final temporary = File('${file.path}.tmp');
-      await temporary.writeAsString(jsonEncode(appearance.toJson()), flush: true);
+      await temporary.writeAsString(
+        jsonEncode(appearance.toJson()),
+        flush: true,
+      );
       await temporary.rename(file.path);
     });
     _pendingWrite = write;

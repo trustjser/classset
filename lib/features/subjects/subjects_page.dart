@@ -4,6 +4,7 @@ import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/navigation/draft_navigation_guard.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/core/widgets/app_page_layout.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/free_slot.dart';
@@ -242,12 +243,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     );
 
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppTheme.pagePaddingForWidth(
-          MediaQuery.sizeOf(context).width,
-        ),
-        vertical: 20,
-      ),
+      padding: AppPageLayout.insetsOf(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

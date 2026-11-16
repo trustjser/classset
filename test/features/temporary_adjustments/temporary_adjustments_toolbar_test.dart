@@ -90,6 +90,34 @@ TemporaryTimetableState _state() {
 }
 
 void main() {
+  testWidgets('调代课页面使用统一的879/880边距断点', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    for (final (width, gutter) in [(879.0, 16.0), (880.0, 32.0)]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpWidget(
+        ProviderScope(
+          key: ValueKey(width),
+          overrides: [
+            schoolRepositoryProvider.overrideWithValue(_Repository(_state())),
+          ],
+          child: _wrap(const TemporaryAdjustmentsPage(termId: 't')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final padding = tester.widget<Padding>(
+        find
+            .descendant(
+              of: find.byType(TemporaryAdjustmentsPage),
+              matching: find.byType(Padding),
+            )
+            .first,
+      );
+      expect(padding.padding, EdgeInsets.fromLTRB(gutter, 16, gutter, gutter));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('统一工具条：四组控件同处一行，窄屏回退不溢出', (tester) async {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);

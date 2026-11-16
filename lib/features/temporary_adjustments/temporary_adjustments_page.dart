@@ -6,6 +6,7 @@ import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/core/widgets/app_page_layout.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/calendar_exception.dart';
@@ -134,11 +135,13 @@ class _TemporaryAdjustmentsPageState
   ) async {
     setState(() => _saving = true);
     try {
-      await ref.read(schoolRepositoryProvider).commitTemporarySupervisionSubstitute(
-        termId: widget.termId,
-        request: request,
-        expectedRevision: state.revision,
-      );
+      await ref
+          .read(schoolRepositoryProvider)
+          .commitTemporarySupervisionSubstitute(
+            termId: widget.termId,
+            request: request,
+            expectedRevision: state.revision,
+          );
       await _load();
     } on Object catch (error) {
       if (mounted) setState(() => _error = '替班失败：$error');
@@ -204,7 +207,7 @@ class _TemporaryAdjustmentsPageState
       Duration(days: (_week ?? 0) * 7),
     );
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: AppPageLayout.insetsOf(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

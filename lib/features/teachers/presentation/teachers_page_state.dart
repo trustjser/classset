@@ -38,12 +38,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
         builder: (routeContext) => Scaffold(
           appBar: AppBar(title: const Text('教师预排')),
           body: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: AppTheme.pagePaddingForWidth(
-                MediaQuery.sizeOf(routeContext).width,
-              ),
-              vertical: 20,
-            ),
+            padding: AppPageLayout.insetsOf(routeContext),
             child: _TeacherPresetWorkspace(
               key: const ValueKey('teacher-preset-workspace'),
               termId: widget.termId,
@@ -282,7 +277,6 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
       for (final subject in subjects.valueOrNull ?? const <Subject>[])
         subject.id: subject.name,
     };
-    final pageWidth = MediaQuery.sizeOf(context).width;
     final subtitle = _viewIndex == 2
         ? '按分组维护教师成员，并设置该组在具体课节的预排规则。'
         : _viewIndex == 0
@@ -290,10 +284,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
         : '按教师查看任课和周均节数；可从右侧未分配课程区拖拽分配。';
 
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppTheme.pagePaddingForWidth(pageWidth),
-        vertical: 20,
-      ),
+      padding: AppPageLayout.insetsOf(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

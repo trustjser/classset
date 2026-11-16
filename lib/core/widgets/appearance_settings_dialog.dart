@@ -20,46 +20,70 @@ class AppearanceSettingsDialog extends StatelessWidget {
     content: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('选择后立即生效，并自动保存到这台设备。',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.appColors.inkSecondary)),
+        Text(
+          '选择后立即生效，并自动保存到这台设备。',
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: context.appColors.inkSecondary),
+        ),
         const SizedBox(height: 24),
         Text('主题配色', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 12),
-        LayoutBuilder(builder: (context, constraints) {
-          final columns = constraints.maxWidth >= 600 ? 3 : 1;
-          final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
-          return Wrap(spacing: 12, runSpacing: 12, children: [
-            for (final palette in AppPalette.values)
-              SizedBox(width: width, child: _PaletteChoice(
-                palette: palette,
-                selected: appearance.palette == palette,
-                isDark: Theme.of(context).brightness == Brightness.dark,
-                onTap: () => onChanged(appearance.copyWith(palette: palette)),
-              )),
-          ]);
-        }),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 600 ? 3 : 1;
+            final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final palette in AppPalette.values)
+                  SizedBox(
+                    width: width,
+                    child: _PaletteChoice(
+                      palette: palette,
+                      selected: appearance.palette == palette,
+                      isDark: Theme.of(context).brightness == Brightness.dark,
+                      onTap: () =>
+                          onChanged(appearance.copyWith(palette: palette)),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
         const SizedBox(height: 24),
         Text('明暗模式', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final mode in AppAppearanceMode.values)
-            AppActionPill(
-              selected: appearance.mode == mode,
-              onPressed: () => onChanged(appearance.copyWith(mode: mode)),
-              child: Text(mode.label),
-            ),
-        ]),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final mode in AppAppearanceMode.values)
+              AppActionPill(
+                selected: appearance.mode == mode,
+                onPressed: () => onChanged(appearance.copyWith(mode: mode)),
+                child: Text(mode.label),
+              ),
+          ],
+        ),
       ],
     ),
-    actions: [AppPrimaryButton(
-      onPressed: () => Navigator.pop(context), child: const Text('完成'),
-    )],
+    actions: [
+      AppPrimaryButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('完成'),
+      ),
+    ],
   );
 }
 
 class _PaletteChoice extends StatelessWidget {
-  const _PaletteChoice({required this.palette, required this.selected,
-    required this.isDark, required this.onTap});
+  const _PaletteChoice({
+    required this.palette,
+    required this.selected,
+    required this.isDark,
+    required this.onTap,
+  });
 
   final AppPalette palette;
   final bool selected;
@@ -79,45 +103,92 @@ class _PaletteChoice extends StatelessWidget {
         color: colors.canvas,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: selected ? colors.accent : context.appColors.border,
-            width: selected ? 2 : 1),
+          side: BorderSide(
+            color: selected ? colors.accent : context.appColors.border,
+            width: selected ? 2 : 1,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                height: 68,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: colors.surface,
-                  borderRadius: BorderRadius.circular(10)),
-                child: Row(children: [
-                  Container(width: 8, decoration: BoxDecoration(
-                    color: colors.selection, borderRadius: BorderRadius.circular(4))),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(height: 6, decoration: BoxDecoration(
-                        color: colors.tableHeader, borderRadius: BorderRadius.circular(3))),
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Container(width: 34, height: 12, decoration: BoxDecoration(
-                          color: colors.accent, borderRadius: BorderRadius.circular(4))),
-                      ]),
-                    ])),
-                ]),
-              ),
-              const SizedBox(height: 14),
-              Row(children: [
-                Expanded(child: Text(palette.label, style: TextStyle(
-                  color: colors.ink, fontSize: 14, fontWeight: FontWeight.w600))),
-                const SizedBox(width: 8),
-                Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                  size: 18, color: selected ? colors.accent : colors.muted),
-              ]),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 68,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        decoration: BoxDecoration(
+                          color: colors.selection,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: colors.tableHeader,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 34,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: colors.accent,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        palette.label,
+                        style: TextStyle(
+                          color: colors.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      selected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      size: 18,
+                      color: selected ? colors.accent : colors.muted,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/core/widgets/app_page_layout.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/schedule_condition.dart';
@@ -55,7 +56,7 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
     final snapshot = state.snapshot;
     if (snapshot == null) {
       return ListView(
-        padding: const EdgeInsets.all(20),
+        padding: AppPageLayout.insetsOf(context),
         children: [
           AppSectionPanel(
             title: '排课与课表',

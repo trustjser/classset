@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/core/widgets/app_page_layout.dart';
 import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
@@ -277,19 +278,15 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
               child: LayoutBuilder(
                 key: _pageViewportKey,
                 builder: (context, viewport) {
-                  final horizontalInset = viewport.maxWidth < 700 ? 16.0 : 24.0;
                   return ListView(
                     controller: _pageScrollController,
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalInset,
-                      20,
-                      horizontalInset,
-                      32,
-                    ),
+                    padding: AppTheme.pageInsetsForWidth(viewport.maxWidth),
                     children: [
                       Center(
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1440),
+                          constraints: const BoxConstraints(
+                            maxWidth: double.infinity,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -397,10 +394,12 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
             ),
             if (solving || widget.state.status == SchedulingStatus.completed)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: AppPageLayout.insetsOf(context).copyWith(top: 0),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1440),
+                    constraints: const BoxConstraints(
+                      maxWidth: double.infinity,
+                    ),
                     child: _taskBar(context),
                   ),
                 ),

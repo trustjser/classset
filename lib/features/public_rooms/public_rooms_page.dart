@@ -149,7 +149,7 @@ class _PublicRoomsPageState extends ConsumerState<PublicRoomsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: EdgeInsets.all(padding),
+                padding: AppTheme.pageInsetsForWidth(constraints.maxWidth),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

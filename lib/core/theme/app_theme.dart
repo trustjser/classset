@@ -240,6 +240,7 @@ abstract final class AppTheme {
   static const double controlRadius = 12;
   static const double pagePadding = 32;
   static const double compactPagePadding = 16;
+  static const double pageTopPadding = 16;
   static const double compactPageBreakpoint = 880;
   static const double twoColumnLayoutBreakpoint = 1040;
   static const double pageSectionGap = 24;
@@ -253,6 +254,14 @@ abstract final class AppTheme {
   static double pagePaddingForWidth(double availableWidth) =>
       availableWidth < compactPageBreakpoint ? compactPagePadding : pagePadding;
 
+  static EdgeInsets pageInsetsForWidth(double availableWidth) {
+    final gutter = pagePaddingForWidth(availableWidth);
+    return EdgeInsets.fromLTRB(gutter, pageTopPadding, gutter, gutter);
+  }
+
+  static double sidebarPaddingForWidth(double availableWidth) =>
+      availableWidth < compactPageBreakpoint ? 12 : 16;
+
   static final ThemeData light = _createMaterialTheme(
     AppThemeColors.light,
     isDark: false,
@@ -265,62 +274,119 @@ abstract final class AppTheme {
   static final _materialThemes = <(AppPalette, bool), ThemeData>{};
   static final _foruiThemes = <(AppPalette, bool), f.FThemeData>{};
 
-  static ThemeData themeFor(bool isDark, {AppPalette palette = AppPalette.sky}) {
+  static ThemeData themeFor(
+    bool isDark, {
+    AppPalette palette = AppPalette.sky,
+  }) {
     if (palette == AppPalette.sky) return isDark ? dark : light;
-    return _materialThemes.putIfAbsent((palette, isDark), () =>
-      _createMaterialTheme(colorsFor(isDark, palette: palette), isDark: isDark));
+    return _materialThemes.putIfAbsent(
+      (palette, isDark),
+      () => _createMaterialTheme(
+        colorsFor(isDark, palette: palette),
+        isDark: isDark,
+      ),
+    );
   }
 
-  static f.FThemeData foruiFor(bool isDark, {AppPalette palette = AppPalette.sky}) =>
-    _foruiThemes.putIfAbsent((palette, isDark), () =>
-      _createForuiTheme(colorsFor(isDark, palette: palette), isDark));
+  static f.FThemeData foruiFor(
+    bool isDark, {
+    AppPalette palette = AppPalette.sky,
+  }) => _foruiThemes.putIfAbsent((
+    palette,
+    isDark,
+  ), () => _createForuiTheme(colorsFor(isDark, palette: palette), isDark));
 
-  static AppThemeColors colorsFor(bool isDark, {AppPalette palette = AppPalette.sky}) {
+  static AppThemeColors colorsFor(
+    bool isDark, {
+    AppPalette palette = AppPalette.sky,
+  }) {
     final base = isDark ? AppThemeColors.dark : AppThemeColors.light;
     return switch (palette) {
       AppPalette.sky => base,
-      AppPalette.teal => isDark ? base.copyWith(
-        canvas: const Color(0xFF101C20), surface: const Color(0xFF1B2A30),
-        ink: const Color(0xFFE6F4F5), inkSecondary: const Color(0xFFA0BEC4),
-        muted: const Color(0xFFA0BEC4), helpIcon: const Color(0xFFA0BEC4),
-        blue: const Color(0xFF78D7D6), onAccent: const Color(0xFF103A3D),
-        selectedBlue: const Color(0xFF244347), sidebarActive: const Color(0xFF244347),
-        sidebarAccent: const Color(0xFF78D7D6), sidebarText: const Color(0xFFA0BEC4),
-        sidebarMuted: const Color(0xFFA0BEC4), sidebarHint: const Color(0xFFA0BEC4),
-        tableHeader: const Color(0xFF26373D), border: const Color(0xFF31464E),
-        tableDivider: const Color(0xFF2B4149), controlBorder: const Color(0xFF718E99),
-      ) : base.copyWith(
-        canvas: const Color(0xFFF2F9F9), surface: Colors.white,
-        ink: const Color(0xFF20373B), inkSecondary: const Color(0xFF526F74),
-        muted: const Color(0xFF526F74), helpIcon: const Color(0xFF526F74),
-        blue: const Color(0xFF087D89), onAccent: Colors.white,
-        selectedBlue: const Color(0xFFEEF9F9), sidebarActive: const Color(0xFFEEF9F9),
-        sidebarAccent: const Color(0xFF087D89), sidebarText: const Color(0xFF526F74),
-        sidebarMuted: const Color(0xFF526F74), sidebarHint: const Color(0xFF526F74),
-        tableHeader: const Color(0xFFF0F6F6), border: const Color(0xFFD6E6E8),
-        tableDivider: const Color(0xFFE2ECEE), controlBorder: const Color(0xFF748E94),
-      ),
-      AppPalette.cloud => isDark ? base.copyWith(
-        canvas: const Color(0xFF15181E), surface: const Color(0xFF21262F),
-        ink: const Color(0xFFEEF0F5), inkSecondary: const Color(0xFFACB5C4),
-        muted: const Color(0xFFACB5C4), helpIcon: const Color(0xFFACB5C4),
-        blue: const Color(0xFFBDCEE9), onAccent: const Color(0xFF263447),
-        selectedBlue: const Color(0xFF303D51), sidebarActive: const Color(0xFF303D51),
-        sidebarAccent: const Color(0xFFBDCEE9), sidebarText: const Color(0xFFACB5C4),
-        sidebarMuted: const Color(0xFFACB5C4), sidebarHint: const Color(0xFFACB5C4),
-        tableHeader: const Color(0xFF2A303A), border: const Color(0xFF3B424F),
-        tableDivider: const Color(0xFF333B48), controlBorder: const Color(0xFF7D899C),
-      ) : base.copyWith(
-        canvas: const Color(0xFFF6F7F9), surface: Colors.white,
-        ink: const Color(0xFF242B38), inkSecondary: const Color(0xFF626D7E),
-        muted: const Color(0xFF626D7E), helpIcon: const Color(0xFF626D7E),
-        blue: const Color(0xFF3E4F6D), onAccent: Colors.white,
-        selectedBlue: const Color(0xFFEAF0F8), sidebarActive: const Color(0xFFEAF0F8),
-        sidebarAccent: const Color(0xFF3E4F6D), sidebarText: const Color(0xFF626D7E),
-        sidebarMuted: const Color(0xFF626D7E), sidebarHint: const Color(0xFF626D7E),
-        tableHeader: const Color(0xFFF1F3F6), border: const Color(0xFFDEE3EA),
-        tableDivider: const Color(0xFFE6EAF0), controlBorder: const Color(0xFF7B8596),
-      ),
+      AppPalette.teal =>
+        isDark
+            ? base.copyWith(
+                canvas: const Color(0xFF101C20),
+                surface: const Color(0xFF1B2A30),
+                ink: const Color(0xFFE6F4F5),
+                inkSecondary: const Color(0xFFA0BEC4),
+                muted: const Color(0xFFA0BEC4),
+                helpIcon: const Color(0xFFA0BEC4),
+                blue: const Color(0xFF78D7D6),
+                onAccent: const Color(0xFF103A3D),
+                selectedBlue: const Color(0xFF244347),
+                sidebarActive: const Color(0xFF244347),
+                sidebarAccent: const Color(0xFF78D7D6),
+                sidebarText: const Color(0xFFA0BEC4),
+                sidebarMuted: const Color(0xFFA0BEC4),
+                sidebarHint: const Color(0xFFA0BEC4),
+                tableHeader: const Color(0xFF26373D),
+                border: const Color(0xFF31464E),
+                tableDivider: const Color(0xFF2B4149),
+                controlBorder: const Color(0xFF718E99),
+              )
+            : base.copyWith(
+                canvas: const Color(0xFFF2F9F9),
+                surface: Colors.white,
+                ink: const Color(0xFF20373B),
+                inkSecondary: const Color(0xFF526F74),
+                muted: const Color(0xFF526F74),
+                helpIcon: const Color(0xFF526F74),
+                blue: const Color(0xFF087D89),
+                onAccent: Colors.white,
+                selectedBlue: const Color(0xFFEEF9F9),
+                sidebarActive: const Color(0xFFEEF9F9),
+                sidebarAccent: const Color(0xFF087D89),
+                sidebarText: const Color(0xFF526F74),
+                sidebarMuted: const Color(0xFF526F74),
+                sidebarHint: const Color(0xFF526F74),
+                tableHeader: const Color(0xFFF0F6F6),
+                border: const Color(0xFFD6E6E8),
+                tableDivider: const Color(0xFFE2ECEE),
+                controlBorder: const Color(0xFF748E94),
+              ),
+      AppPalette.cloud =>
+        isDark
+            ? base.copyWith(
+                canvas: const Color(0xFF15181E),
+                surface: const Color(0xFF21262F),
+                ink: const Color(0xFFEEF0F5),
+                inkSecondary: const Color(0xFFACB5C4),
+                muted: const Color(0xFFACB5C4),
+                helpIcon: const Color(0xFFACB5C4),
+                blue: const Color(0xFFBDCEE9),
+                onAccent: const Color(0xFF263447),
+                selectedBlue: const Color(0xFF303D51),
+                sidebarActive: const Color(0xFF303D51),
+                sidebarAccent: const Color(0xFFBDCEE9),
+                sidebarText: const Color(0xFFACB5C4),
+                sidebarMuted: const Color(0xFFACB5C4),
+                sidebarHint: const Color(0xFFACB5C4),
+                tableHeader: const Color(0xFF2A303A),
+                border: const Color(0xFF3B424F),
+                tableDivider: const Color(0xFF333B48),
+                controlBorder: const Color(0xFF7D899C),
+              )
+            : base.copyWith(
+                canvas: const Color(0xFFF6F7F9),
+                surface: Colors.white,
+                ink: const Color(0xFF242B38),
+                inkSecondary: const Color(0xFF626D7E),
+                muted: const Color(0xFF626D7E),
+                helpIcon: const Color(0xFF626D7E),
+                blue: const Color(0xFF3E4F6D),
+                onAccent: Colors.white,
+                selectedBlue: const Color(0xFFEAF0F8),
+                sidebarActive: const Color(0xFFEAF0F8),
+                sidebarAccent: const Color(0xFF3E4F6D),
+                sidebarText: const Color(0xFF626D7E),
+                sidebarMuted: const Color(0xFF626D7E),
+                sidebarHint: const Color(0xFF626D7E),
+                tableHeader: const Color(0xFFF1F3F6),
+                border: const Color(0xFFDEE3EA),
+                tableDivider: const Color(0xFFE6EAF0),
+                controlBorder: const Color(0xFF7B8596),
+              ),
     };
   }
 
@@ -356,8 +422,14 @@ abstract final class AppTheme {
             surfaceContainerLowest: colors.surface,
             surfaceContainerLow: colors.tableHeader,
             surfaceContainer: colors.canvas,
-            surfaceContainerHigh: Color.alphaBlend(colors.ink.withValues(alpha: .07), colors.surface),
-            surfaceContainerHighest: Color.alphaBlend(colors.ink.withValues(alpha: .12), colors.surface),
+            surfaceContainerHigh: Color.alphaBlend(
+              colors.ink.withValues(alpha: .07),
+              colors.surface,
+            ),
+            surfaceContainerHighest: Color.alphaBlend(
+              colors.ink.withValues(alpha: .12),
+              colors.surface,
+            ),
             onSurfaceVariant: colors.inkSecondary,
             outline: colors.controlBorder,
             outlineVariant: colors.tableDivider,
@@ -377,8 +449,14 @@ abstract final class AppTheme {
             surfaceContainerLowest: colors.surface,
             surfaceContainerLow: colors.tableHeader,
             surfaceContainer: colors.canvas,
-            surfaceContainerHigh: Color.alphaBlend(colors.ink.withValues(alpha: .04), colors.surface),
-            surfaceContainerHighest: Color.alphaBlend(colors.ink.withValues(alpha: .08), colors.surface),
+            surfaceContainerHigh: Color.alphaBlend(
+              colors.ink.withValues(alpha: .04),
+              colors.surface,
+            ),
+            surfaceContainerHighest: Color.alphaBlend(
+              colors.ink.withValues(alpha: .08),
+              colors.surface,
+            ),
             onSurfaceVariant: colors.inkSecondary,
             outline: colors.controlBorder,
             outlineVariant: colors.border,

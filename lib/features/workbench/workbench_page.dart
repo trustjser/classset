@@ -1,6 +1,7 @@
 import 'package:class_set/app.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/widgets/app_components.dart';
+import 'package:class_set/core/widgets/app_page_layout.dart';
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/features/workbench/workbench_data.dart';
@@ -65,12 +66,8 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
       PreparationStep.autoSchedule ||
       PreparationStep.timetable => () => _navigate(AppSection.scheduling),
     };
-    final pagePadding = AppTheme.pagePaddingForWidth(
-      MediaQuery.sizeOf(context).width,
-    );
-
     return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: pagePadding, vertical: 22),
+      padding: AppPageLayout.insetsOf(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -27,12 +27,16 @@ class AppAppearance {
   final AppAppearanceMode mode;
 
   factory AppAppearance.fromJson(Map<String, Object?> json) => AppAppearance(
-    palette: AppPalette.values
-        .where((value) => value.name == json['palette'])
-        .firstOrNull ?? AppPalette.sky,
-    mode: AppAppearanceMode.values
-        .where((value) => value.name == json['mode'])
-        .firstOrNull ?? AppAppearanceMode.system,
+    palette:
+        AppPalette.values
+            .where((value) => value.name == json['palette'])
+            .firstOrNull ??
+        AppPalette.sky,
+    mode:
+        AppAppearanceMode.values
+            .where((value) => value.name == json['mode'])
+            .firstOrNull ??
+        AppAppearanceMode.system,
   );
 
   Map<String, Object?> toJson() => {'palette': palette.name, 'mode': mode.name};
