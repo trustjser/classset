@@ -28,7 +28,7 @@ const _builtInPeriodDefinitions = <(String, String, int, List<String>)>[
 const _timeSeparatorWidth = 16.0;
 const _timeRowTrailingWidth = 22.0;
 const _timeRowFixedWidth = 44.0;
-const _routineStackedLayoutBreakpoint = AppTheme.twoColumnLayoutBreakpoint;
+const _routineStackedLayoutBreakpoint = 880.0;
 const _routineThreeColumnLayoutBreakpoint = 1120.0;
 
 ({double label, double field}) _timeRowWidths(double availableWidth) {

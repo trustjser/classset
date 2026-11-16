@@ -294,9 +294,9 @@ class _TermCalendarDashboard extends StatelessWidget {
                 ),
               )
             else ...[
-              termCard,
-              const SizedBox(height: 14),
               calendar,
+              const SizedBox(height: 14),
+              termCard,
             ],
           ],
         );

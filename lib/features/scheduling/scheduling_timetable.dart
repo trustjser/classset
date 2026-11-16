@@ -534,7 +534,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         LayoutBuilder(
-          builder: (context, constraints) => constraints.maxWidth >= 820
+          builder: (context, constraints) => constraints.maxWidth >= 640
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
