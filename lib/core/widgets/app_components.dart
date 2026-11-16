@@ -14,6 +14,7 @@ class AppPageHeader extends StatelessWidget {
     this.actions = const [],
     this.responsiveActions = true,
     this.actionsFlex = 1,
+    this.narrowActionsAlignment = WrapAlignment.end,
     super.key,
   }) : assert(actionsFlex > 0);
 
@@ -22,6 +23,10 @@ class AppPageHeader extends StatelessWidget {
   final List<Widget> actions;
   final bool responsiveActions;
   final int actionsFlex;
+
+  /// 窄窗口（操作换行到标题下方）时操作行的对齐方式；
+  /// 操作多且左对齐更自然的页面（如带班安排）可传 start。
+  final WrapAlignment narrowActionsAlignment;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +55,9 @@ class AppPageHeader extends StatelessWidget {
       builder: (context, constraints) {
         final actionWrap = Wrap(
           alignment: WrapAlignment.end,
+          // Wrap 默认底对齐（end），高度不一的操作（选择器/按钮/分隔线）
+          // 会错位，显式居中。
+          crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 8,
           runSpacing: 8,
           children: actions,
@@ -61,7 +69,13 @@ class AppPageHeader extends StatelessWidget {
               heading,
               if (actions.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                actionWrap,
+                Wrap(
+                  alignment: narrowActionsAlignment,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: actions,
+                ),
               ],
             ],
           );

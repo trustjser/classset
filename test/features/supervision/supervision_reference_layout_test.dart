@@ -64,7 +64,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('桌面页头紧凑同行，操作栏固定于工作区底部', (tester) async {
+  testWidgets('页头与其他页面同构，操作栏固定于工作区底部', (tester) async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     final repository = TestSupervisionRepository(
@@ -81,8 +81,9 @@ void main() {
     await openSupervision(tester, repository);
     final title = tester.getRect(find.text('带班安排'));
     final subtitle = tester.getRect(find.text('为课后时段安排带班教师，与课表协调后生效'));
-    expect((title.center.dy - subtitle.center.dy).abs(), lessThan(8));
-    expect(subtitle.left, greaterThan(title.right));
+    // 与科目节数 / 教师任课等页面同构：副标题在标题正下方左对齐。
+    expect(subtitle.top, greaterThanOrEqualTo(title.bottom));
+    expect(subtitle.left, title.left);
     expect(tester.getRect(find.text('预览并确认')).bottom, greaterThan(960));
   });
 

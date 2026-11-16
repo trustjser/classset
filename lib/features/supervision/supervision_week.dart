@@ -70,7 +70,7 @@ class _DutySegments<T> extends StatelessWidget {
                     ],
                   ),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 12.5,
+                    fontSize: 12,
                     color: value == entry.key
                         ? pills
                               ? _headerBlue(context)
@@ -190,26 +190,49 @@ Color _dutyColor(BuildContext context, SupervisionKind kind) => switch (kind) {
   SupervisionKind.eveningStudy => context.appColors.blue,
 };
 
-/// Keep version/configuration separate from filters/view controls.
-class _DutyToolbarLine extends StatelessWidget {
-  const _DutyToolbarLine({required this.leading, required this.trailing});
-  final Widget leading;
-  final Widget trailing;
+/// 页面工具行：宽窗口左右分居两端；窄窗口合并为一条自然换行的 Wrap，
+/// 避免两组控件各自成行、左对齐散落。
+class _DutyToolbarRow extends StatelessWidget {
+  const _DutyToolbarRow({required this.leading, required this.trailing});
+  final List<Widget> leading;
+  final List<Widget> trailing;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => constraints.maxWidth >= 980
-        ? Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(child: leading),
-              const SizedBox(width: 20),
-              trailing,
-            ],
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [leading, const SizedBox(height: 8), trailing],
-          ),
+    builder: (context, constraints) {
+      if (constraints.maxWidth >= 980) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: leading,
+              ),
+            ),
+            const SizedBox(width: 20),
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: trailing,
+            ),
+          ],
+        );
+      }
+      return Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ...leading,
+          Container(width: 1, height: 18, color: _headerBorder(context)),
+          ...trailing,
+        ],
+      );
+    },
   );
 }
 
@@ -449,7 +472,7 @@ class _SupervisionWeek extends StatelessWidget {
     key: key,
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: posts.isEmpty
-        ? [const Padding(padding: EdgeInsets.all(16), child: Text('—'))]
+        ? [const _DutyEmptySlot()]
         : [
             for (final post in posts)
               tile(post, instance: key is ValueKey<String> ? key.value : null),
@@ -670,7 +693,7 @@ class _WeekAxisLabel extends StatelessWidget {
           Text(
             detail!,
             style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(fontSize: 11, color: context.appColors.muted),
+                ?.copyWith(fontSize: 12, color: context.appColors.muted),
           ),
       ],
     ),
@@ -778,7 +801,7 @@ class _WeekPost extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
-                                  fontSize: 11.5,
+                                  fontSize: 12,
                                   color: selected
                                       ? colors.blue
                                       : teacher == null
@@ -790,24 +813,28 @@ class _WeekPost extends StatelessWidget {
                       ],
                     ),
                     if (status != null)
-                      Text(
-                        status!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 11,
-                          color: status == '指派需调整'
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: AppBadge(
+                          label: status!,
+                          foreground: status == '指派需调整'
                               ? colors.destructive
                               : colors.warning,
+                          background: status == '指派需调整'
+                              ? colors.destructiveSurface
+                              : colors.warningSurface,
                         ),
                       ),
                     if (detail != null)
-                      Text(
-                        detail!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(fontSize: 11, color: colors.muted),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          detail!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontSize: 12, color: colors.muted),
+                        ),
                       ),
                   ],
                 ),
@@ -875,6 +902,59 @@ String? _weekTime(SchedulingSnapshot snapshot, SupervisionPost post) {
 String _weekIndexLabel(SupervisionPost post) => post.lessonIndices.length == 1
     ? '第 ${post.lessonIndices.first} 节'
     : '第 ${post.lessonIndices.first}–${post.lessonIndices.last} 节';
+
+/// 空岗位占位：虚线框 + 「暂无岗位」，表达该时段此天没有岗位，
+/// 与待安排（有岗位但未指派教师的橙色提示）区分开。
+class _DutyEmptySlot extends StatelessWidget {
+  const _DutyEmptySlot();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    constraints: const BoxConstraints(minHeight: 64),
+    child: CustomPaint(
+      painter: _DashedSlotPainter(color: context.appColors.border),
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+        child: Text(
+          '暂无岗位',
+          style: TextStyle(fontSize: 12, color: context.appColors.muted),
+        ),
+      ),
+    ),
+  );
+}
+
+class _DashedSlotPainter extends CustomPainter {
+  const _DashedSlotPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+      );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = color;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = math.min(distance + 4, metric.length);
+        final tangent = metric.getTangentForOffset(distance)!;
+        final endTangent = metric.getTangentForOffset(next)!;
+        canvas.drawLine(tangent.position, endTangent.position, paint);
+        distance = next + 3;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedSlotPainter old) => old.color != color;
+}
 
 class _DutyOutlineButton extends StatelessWidget {
   const _DutyOutlineButton({required this.onPressed, required this.child});

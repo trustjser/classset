@@ -543,7 +543,7 @@ class _Sidebar extends ConsumerWidget {
                           ),
                           SizedBox(height: 3),
                           Text(
-                            '学校日程',
+                            'ClassSet.app',
                             style: TextStyle(
                               color: context.appColors.muted,
                               fontSize: 12,

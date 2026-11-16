@@ -1,7 +1,6 @@
 part of 'supervision_page.dart';
 
 Color _headerBorder(BuildContext context) => context.appColors.border;
-Color _headerDivider(BuildContext context) => context.appColors.tableDivider;
 Color _headerCanvas(BuildContext context) => context.appColors.canvas;
 Color _headerInput(BuildContext context) => context.appColors.tableHeader;
 Color _headerInk(BuildContext context) => context.appColors.ink;
@@ -11,110 +10,9 @@ Color _headerMuted(BuildContext context) => context.appColors.muted;
 
 Color _headerBlue(BuildContext context) => context.appColors.blue;
 
-Color _headerBlueHover(BuildContext context) =>
-    Color.lerp(context.appColors.blue, context.appColors.ink, .1)!;
-
 Color _headerBadgeFill(BuildContext context) => context.appColors.selectedBlue;
 
 Color _headerBadgeInk(BuildContext context) => context.appColors.blue;
-
-class _DutyPageHeading extends StatelessWidget {
-  const _DutyPageHeading({required this.action});
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final title = Text(
-        '带班安排',
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: _headerInk(context),
-        ),
-      );
-      final subtitle = Text(
-        '为课后时段安排带班教师，与课表协调后生效',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodySmall
-            ?.copyWith(color: _headerSecondary(context)),
-      );
-      final titleLine = constraints.maxWidth >= 720
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                title,
-                const SizedBox(width: 12),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 380),
-                  child: subtitle,
-                ),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [title, subtitle],
-            );
-      if (action == null) return titleLine;
-      return OverflowBar(
-        alignment: MainAxisAlignment.spaceBetween,
-        overflowAlignment: OverflowBarAlignment.start,
-        spacing: 16,
-        overflowSpacing: 12,
-        children: [titleLine, action!],
-      );
-    },
-  );
-}
-
-class _DutyControlPanel extends StatelessWidget {
-  const _DutyControlPanel({
-    required this.primary,
-    required this.filters,
-    required this.horizontalPadding,
-  });
-  final Widget primary;
-  final Widget filters;
-  final double horizontalPadding;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    key: const ValueKey('duty-control-panel'),
-    decoration: BoxDecoration(
-      color: context.appColors.surface,
-      border: Border(bottom: BorderSide(color: _headerBorder(context))),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            16,
-            horizontalPadding,
-            0,
-          ),
-          child: primary,
-        ),
-        Container(
-          margin: const EdgeInsets.only(top: 14),
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: _headerDivider(context))),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            12,
-            horizontalPadding,
-            16,
-          ),
-          child: filters,
-        ),
-      ],
-    ),
-  );
-}
 
 class _DutyCommandGroup extends StatelessWidget {
   const _DutyCommandGroup({required this.children});
@@ -141,60 +39,36 @@ class _DutyCommand extends StatelessWidget {
   final int? count;
   final IconData? icon;
   @override
-  Widget build(BuildContext context) => f.FTappable(
-    onPress: onPressed,
-    builder: (context, variants, child) => Opacity(
-      opacity: onPressed == null ? .42 : 1,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 32),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: variants.contains(f.FTappableVariant.hovered)
-              ? context.appColors.surface
-              : null,
-          borderRadius: BorderRadius.circular(8),
-          border: variants.contains(f.FTappableVariant.focused)
-              ? Border.all(color: _headerBlue(context))
-              : Border.all(color: _headerBorder(context)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: _headerSecondary(context)),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
+  Widget build(BuildContext context) => AppOutlineButton.icon(
+    onPressed: onPressed,
+    icon: icon == null
+        ? null
+        : Icon(icon, size: 14, color: _headerSecondary(context)),
+    label: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: _headerInk(context))),
+        if (count != null) ...[
+          const SizedBox(width: 7),
+          Container(
+            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            decoration: BoxDecoration(
+              color: _headerBadgeFill(context),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              '$count',
               style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w400,
-                color: _headerText(context),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _headerBadgeInk(context),
               ),
             ),
-            if (count != null) ...[
-              const SizedBox(width: 7),
-              Container(
-                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                decoration: BoxDecoration(
-                  color: _headerBadgeFill(context),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _headerBadgeInk(context),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
+        ],
+      ],
     ),
   );
 }
@@ -212,21 +86,16 @@ class _DutyOutlinedIconButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: 36,
-    height: 32,
-    decoration: BoxDecoration(
-      color: context.appColors.surface,
-      border: Border.all(color: _headerBorder(context)),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    alignment: Alignment.center,
-    child: AppIconButton(
-      icon: icon,
-      tooltip: tooltip,
-      onPressed: onPressed,
-      iconSize: 16,
-      foregroundColor: onPressed == null
+  Widget build(BuildContext context) => f.FButton.icon(
+    variant: .outline,
+    size: .sm,
+    onPress: onPressed,
+    semanticsLabel: tooltip,
+    semanticsTooltip: tooltip,
+    child: Icon(
+      icon,
+      size: 16,
+      color: onPressed == null
           ? _headerMuted(context)
           : _headerSecondary(context),
     ),
@@ -239,40 +108,10 @@ class _DutyCreatePostButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => f.FTappable(
-    onPress: onPressed,
-    builder: (context, variants, child) => Opacity(
-      opacity: onPressed == null ? .42 : 1,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 32),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: variants.contains(f.FTappableVariant.hovered)
-              ? _headerBlueHover(context)
-              : _headerBlue(context),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.add_rounded,
-              size: 14,
-              color: context.appColors.onAccent,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '创建岗位',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: context.appColors.onAccent,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
+  Widget build(BuildContext context) => AppPrimaryButton.icon(
+    onPressed: onPressed,
+    icon: Icon(Icons.add_rounded, size: 14, color: context.appColors.onAccent),
+    label: const Text('创建岗位'),
   );
 }
 
@@ -297,7 +136,7 @@ class _DutyVersionPicker extends StatelessWidget {
               contentTextStyle: f.FVariantsDelta.delta([
                 f.FVariantOperation.base(
                   f.TextStyleDelta.delta(
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: _headerText(context),
                   ),
@@ -323,29 +162,28 @@ class _DutyVersionPicker extends StatelessWidget {
 }
 
 class _DutyProgress extends StatelessWidget {
-  const _DutyProgress({
-    required this.assigned,
-    required this.total,
-    required this.dirty,
-  });
+  const _DutyProgress({required this.assigned, required this.total});
   final int assigned;
   final int total;
-  final bool dirty;
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: '已安排 $assigned / $total 个岗位${dirty ? '，有未保存的修改' : ''}',
+    label: '已安排 $assigned / $total 个岗位',
     child: Wrap(
-      spacing: 14,
+      spacing: 10,
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text(
+          '已安排',
+          style: TextStyle(fontSize: 12, color: context.appColors.inkSecondary),
+        ),
+        Text(
           '$assigned / $total',
           style: TextStyle(
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: context.appColors.blue,
+            color: context.appColors.ink,
           ),
         ),
         SizedBox(
@@ -369,15 +207,6 @@ class _DutyProgress extends StatelessWidget {
             ),
           ),
         ),
-        Text(
-          '个岗位已安排',
-          style: TextStyle(fontSize: 12, color: context.appColors.inkSecondary),
-        ),
-        if (dirty)
-          Text(
-            '· 有未保存的修改',
-            style: TextStyle(fontSize: 12, color: context.appColors.warning),
-          ),
       ],
     ),
   );
@@ -456,7 +285,7 @@ class _DutyPeriodCard extends StatelessWidget {
                     child: Text(
                       stage!,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: context.appColors.inkSecondary,
                       ),
                     ),

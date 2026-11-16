@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:class_set/app.dart';
 import 'package:class_set/core/navigation/draft_navigation_guard.dart';
@@ -716,11 +717,9 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gutter = constraints.maxWidth < 560
-            ? 12.0
-            : constraints.maxWidth < 1280
-            ? 16.0
-            : 24.0;
+        final pagePadding = AppTheme.pagePaddingForWidth(
+          MediaQuery.sizeOf(context).width,
+        );
         final wide = constraints.maxWidth >= 768;
         final picker = SizedBox(
           width: 142,
@@ -751,67 +750,62 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
             ),
           ),
         );
-        final headerActions = Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            _DutyToolbarField(
-              label: '当前版本',
-              labelColor: _headerMuted(context),
-              child: picker,
+        final headerActions = <Widget>[
+          _DutyToolbarField(
+            label: '当前版本',
+            labelColor: _headerMuted(context),
+            child: picker,
+          ),
+          Container(width: 1, height: 22, color: _headerBorder(context)),
+          _DutyOutlinedIconButton(
+            key: const ValueKey('duty-undo'),
+            icon: Icons.undo_rounded,
+            tooltip: undoTip,
+            onPressed: canUndo ? _undo : null,
+          ),
+          _DutyOutlinedIconButton(
+            key: const ValueKey('duty-redo'),
+            icon: Icons.redo_rounded,
+            tooltip: redoTip,
+            onPressed: canRedo ? _redo : null,
+          ),
+          if (selected == null)
+            _DutyCommandGroup(
+              children: [
+                _DutyCommand(
+                  key: const ValueKey('duty-pool-manager'),
+                  icon: Icons.tune_rounded,
+                  label: '候选池',
+                  count: _draft.teacherPools.length + 1,
+                  onPressed: _editable ? _editTeacherPool : null,
+                ),
+                _DutyCommand(
+                  icon: Icons.person_add_alt_1_outlined,
+                  label: '人员匹配',
+                  onPressed: _editable ? _editMatching : null,
+                ),
+                _DutyCommand(
+                  icon: Icons.refresh_rounded,
+                  onPressed: _filling
+                      ? () => setState(_stopFill)
+                      : _editable &&
+                            _draft.posts.isNotEmpty &&
+                            _draft.allTeacherIds.isNotEmpty
+                      ? missing == 0
+                            ? _rematch
+                            : _smartFill
+                      : null,
+                  label: _filling
+                      ? '取消补齐'
+                      : missing == 0 && _draft.posts.isNotEmpty
+                      ? '重新匹配'
+                      : '智能补齐',
+                ),
+              ],
             ),
-            Container(width: 1, height: 22, color: _headerBorder(context)),
-            _DutyOutlinedIconButton(
-              key: const ValueKey('duty-undo'),
-              icon: Icons.undo_rounded,
-              tooltip: undoTip,
-              onPressed: canUndo ? _undo : null,
-            ),
-            _DutyOutlinedIconButton(
-              key: const ValueKey('duty-redo'),
-              icon: Icons.redo_rounded,
-              tooltip: redoTip,
-              onPressed: canRedo ? _redo : null,
-            ),
-            if (selected == null)
-              _DutyCommandGroup(
-                children: [
-                  _DutyCommand(
-                    key: const ValueKey('duty-pool-manager'),
-                    icon: Icons.tune_rounded,
-                    label: '候选池',
-                    count: _draft.teacherPools.length + 1,
-                    onPressed: _editable ? _editTeacherPool : null,
-                  ),
-                  _DutyCommand(
-                    icon: Icons.person_add_alt_1_outlined,
-                    label: '人员匹配',
-                    onPressed: _editable ? _editMatching : null,
-                  ),
-                  _DutyCommand(
-                    icon: Icons.refresh_rounded,
-                    onPressed: _filling
-                        ? () => setState(_stopFill)
-                        : _editable &&
-                              _draft.posts.isNotEmpty &&
-                              _draft.allTeacherIds.isNotEmpty
-                        ? missing == 0
-                              ? _rematch
-                              : _smartFill
-                        : null,
-                    label: _filling
-                        ? '取消补齐'
-                        : missing == 0 && _draft.posts.isNotEmpty
-                        ? '重新匹配'
-                        : '智能补齐',
-                  ),
-                ],
-              ),
-            if (selected == null)
-              _DutyCreatePostButton(onPressed: _editable ? _addPosts : null),
-          ],
-        );
+          if (selected == null)
+            _DutyCreatePostButton(onPressed: _editable ? _addPosts : null),
+        ];
         final body = _DutySelectionRegion(
           key: ValueKey((
             _view,
@@ -879,84 +873,96 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _DutyControlPanel(
-                          horizontalPadding: gutter,
-                          primary: _DutyPageHeading(action: headerActions),
-                          filters: _DutyToolbarLine(
-                            leading: Wrap(
-                              spacing: 10,
-                              runSpacing: 6,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                _DutySegments<int>(
-                                  pills: true,
-                                  itemKey: (value) =>
-                                      ValueKey('duty-filter-$value'),
-                                  items: {0: '全部岗位', 1: '待安排', 2: '偏好未满足'},
-                                  counts: {
-                                    0: draft.posts.length,
-                                    1: missing,
-                                    2: preferenceMisses.length,
-                                  },
-                                  value: _preferenceOnly
-                                      ? 2
-                                      : _missingOnly
-                                      ? 1
-                                      : 0,
-                                  onChanged: (value) => setState(() {
-                                    _missingOnly = value == 1;
-                                    _preferenceOnly = value == 2;
-                                    _selectedPostId = null;
-                                    _selectedPostIds = {};
-                                  }),
-                                ),
-                                if (draft.posts.isNotEmpty) ...[
-                                  Container(
-                                    width: 1,
-                                    height: 18,
-                                    color: _headerBorder(context),
-                                  ),
-                                  legend,
-                                ],
-                              ],
-                            ),
-                            trailing: Wrap(
-                              spacing: 12,
-                              runSpacing: 6,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                _DutyHeaderSearchField(
-                                  onChanged: (value) => setState(() {
-                                    _searchQuery = value;
-                                    _selectedPostId = null;
-                                    _selectedPostIds = {};
-                                  }),
-                                ),
-                                _DutyToolbarField(
-                                  label: '视角',
-                                  labelColor: _headerSecondary(context),
-                                  child: _DutySegments<_DutyView>(
-                                    items: const {
-                                      _DutyView.week: '整周网格',
-                                      _DutyView.schoolClass: '按班级',
-                                      _DutyView.teacher: '按教师',
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            pagePadding,
+                            20,
+                            pagePadding,
+                            0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              AppPageHeader(
+                                title: '带班安排',
+                                subtitle: '为课后时段安排带班教师，与课表协调后生效',
+                                actions: headerActions,
+                                actionsFlex: 2,
+                                narrowActionsAlignment: WrapAlignment.start,
+                              ),
+                              const SizedBox(height: AppTheme.pageSectionGap),
+                              _DutyToolbarRow(
+                                leading: [
+                                  _DutySegments<int>(
+                                    pills: true,
+                                    itemKey: (value) =>
+                                        ValueKey('duty-filter-$value'),
+                                    items: {0: '全部岗位', 1: '待安排', 2: '偏好未满足'},
+                                    counts: {
+                                      0: draft.posts.length,
+                                      1: missing,
+                                      2: preferenceMisses.length,
                                     },
-                                    value: _view,
-                                    onChanged: (view) => setState(() {
-                                      _view = view;
+                                    value: _preferenceOnly
+                                        ? 2
+                                        : _missingOnly
+                                        ? 1
+                                        : 0,
+                                    onChanged: (value) => setState(() {
+                                      _missingOnly = value == 1;
+                                      _preferenceOnly = value == 2;
                                       _selectedPostId = null;
                                       _selectedPostIds = {};
                                     }),
                                   ),
-                                ),
-                              ],
-                            ),
+                                ],
+                                trailing: [
+                                  _DutyHeaderSearchField(
+                                    onChanged: (value) => setState(() {
+                                      _searchQuery = value;
+                                      _selectedPostId = null;
+                                      _selectedPostIds = {};
+                                    }),
+                                  ),
+                                  _DutyToolbarField(
+                                    label: '视角',
+                                    labelColor: _headerSecondary(context),
+                                    child: _DutySegments<_DutyView>(
+                                      items: const {
+                                        _DutyView.week: '整周网格',
+                                        _DutyView.schoolClass: '按班级',
+                                        _DutyView.teacher: '按教师',
+                                      },
+                                      value: _view,
+                                      onChanged: (view) => setState(() {
+                                        _view = view;
+                                        _selectedPostId = null;
+                                        _selectedPostIds = {};
+                                      }),
+                                    ),
+                                  ),
+                                  if (draft.posts.isNotEmpty) ...[
+                                    Container(
+                                      width: 1,
+                                      height: 18,
+                                      color: _headerBorder(context),
+                                    ),
+                                    legend,
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         Expanded(
                           child: Padding(
-                            padding: EdgeInsets.fromLTRB(gutter, 0, gutter, 12),
+                            padding: EdgeInsets.fromLTRB(
+                              pagePadding,
+                              0,
+                              pagePadding,
+                              12,
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
@@ -1031,8 +1037,8 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
               Container(
                 key: const ValueKey('duty-actionbar'),
                 constraints: const BoxConstraints(minHeight: 56),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
+                padding: EdgeInsets.symmetric(
+                  horizontal: pagePadding,
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
@@ -1048,7 +1054,6 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                     _DutyProgress(
                       assigned: draft.posts.length - missing,
                       total: draft.posts.length,
-                      dirty: selected == null && _dirty,
                     ),
                     if (_selectedPostIds.isNotEmpty)
                       Wrap(
@@ -1098,7 +1103,16 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
+                          if (_dirty)
+                            Text(
+                              '有未保存的修改',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.warning,
+                              ),
+                            ),
                           _DutyOutlineButton(
                             onPressed: _editable
                                 ? () => unawaited(_save())
