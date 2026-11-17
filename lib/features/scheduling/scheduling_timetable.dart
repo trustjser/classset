@@ -2609,7 +2609,7 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
         ),
         const SizedBox(height: 6),
         SizedBox(
-          height: math.min(count * 38.0, 220.0),
+          height: math.min(count * 46.0, 220.0),
           child: ListView.builder(
             itemCount: count,
             itemBuilder: (context, index) {
@@ -2619,7 +2619,7 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
               final detail =
                   widget.teacherNames[item.teacherId] ?? item.teacherId;
               final child = Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 child: SizedBox(
                   width: double.infinity,
                   child: Column(
@@ -2644,18 +2644,22 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
                   ),
                 ),
               );
-              if (!widget.editable) return child;
-              return _LessonDragHandle(
-                item: item,
-                label: label,
-                feedbackColor: SubjectColors.cellBackground(
-                  context,
-                  item.subjectId,
-                ),
-                draggedItemId: widget.draggedItemId,
-                onPreviewMove: widget.onPreviewMove,
-                onMove: widget.onMove,
-                child: child,
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: !widget.editable
+                    ? child
+                    : _LessonDragHandle(
+                        item: item,
+                        label: label,
+                        feedbackColor: SubjectColors.cellBackground(
+                          context,
+                          item.subjectId,
+                        ),
+                        draggedItemId: widget.draggedItemId,
+                        onPreviewMove: widget.onPreviewMove,
+                        onMove: widget.onMove,
+                        child: child,
+                      ),
               );
             },
           ),

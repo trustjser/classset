@@ -6,8 +6,8 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
     final message = _teacherView
         ? '教师视图用于核对占用；请在班级视图选择课次发起调整。'
         : switch (_kind) {
-            'swap' when _source != null => '虚线蓝框为可选目标，蓝实线为源课次，绿实线为已选目标。',
-            'move' => '点选一个虚线空课位作为目标，原课位会空出来。',
+            'swap' when _source != null => '选择标有“可交换”的课次；不可选课次可悬停查看原因。',
+            'move' => '选择标有“移入此位”的空课位，原课位会空出来。',
             'substitute' => '选择代课教师后，可预览本次变更。',
             _ => '点击任意课格发起调整；已生效的变更会标记在课格中。',
           };
@@ -808,9 +808,9 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
       if (!available) return Colors.transparent;
       if (isSource) return colors.selectedBlue;
       if (isChosenTarget) return colors.successSurface;
-      if (invalid) return colors.tableHeader;
+      if (invalid || waiting) return colors.tableHeader;
+      if (selecting && eligible) return colors.selectedBlue;
       if (subjectBackground != null) return subjectBackground;
-      if (selecting && eligible) return colors.surface;
       if (makeupDay) return _blueWash;
       return _slotBackground(filled: course != null);
     }
@@ -821,15 +821,25 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
         child: Text('—', style: TextStyle(fontSize: 12, color: colors.muted)),
       );
     } else if (course == null) {
-      // 不再把「检测中 / 可选 / 不可选」铺进每个课格：
-      // 可选态由蓝色虚线框表达，整体检测进度交给流程条与页脚。
       final actionable = selecting && eligible && !waiting && !invalid;
       body = Center(
         child: Text(
-          actionable && _kind == 'move' ? '＋ 移入此位' : '空课位',
+          isChosenTarget
+              ? '✓ 目标课位'
+              : waiting
+              ? '检测中'
+              : invalid
+              ? '不可选'
+              : actionable && _kind == 'move'
+              ? '＋ 移入此位'
+              : '空课位',
           style: TextStyle(
             fontSize: 11.5,
-            color: actionable ? colors.blue : colors.muted,
+            color: isChosenTarget
+                ? colors.success
+                : actionable
+                ? colors.blue
+                : colors.muted,
           ),
         ),
       );
@@ -872,22 +882,42 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
             ),
           ),
           if (badge != null) Positioned(top: 5, right: 6, child: badge),
+          if (selecting && eligible && !isChosenTarget)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Text(
+                waiting
+                    ? '检测中'
+                    : invalid
+                    ? '不可选'
+                    : '可交换',
+                style: TextStyle(
+                  color: invalid
+                      ? colors.warning
+                      : waiting
+                      ? colors.inkSecondary
+                      : colors.blue,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       );
     }
 
     final highlight = isSource || isChosenTarget;
     // 虚线用于「空课位」与「调整中可选的目标」；源 / 目标用实线高亮。
-    final dashed =
-        available && !highlight && (course == null || (selecting && eligible));
+    final dashed = available && !highlight && course == null && !eligible;
     final outlineColor = isSource
         ? colors.blue
         : isChosenTarget
         ? colors.success
         : invalid
         ? colors.warning
-        : selecting && eligible
-        ? colors.blue.withValues(alpha: .55)
+        : selecting && eligible && !waiting
+        ? colors.blue
         : course == null
         ? (_isDark ? const Color(0x1FFFFFFF) : const Color(0x1A000000))
         : colors.border;
@@ -911,8 +941,14 @@ extension _TemporaryAdjustmentsTimetable on _TemporaryAdjustmentsPageState {
                 border: dashed
                     ? null
                     : Border.all(
-                        color: highlight ? outlineColor : colors.border,
-                        width: highlight ? 1.5 : 1,
+                        color: highlight || (selecting && eligible)
+                            ? outlineColor
+                            : colors.border,
+                        width:
+                            highlight ||
+                                (selecting && eligible && !invalid && !waiting)
+                            ? 1.5
+                            : 1,
                       ),
               ),
               child: Stack(

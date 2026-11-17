@@ -360,7 +360,7 @@ extension _TemporaryAdjustmentsEditor on _TemporaryAdjustmentsPageState {
                         color: colors.blue,
                       ),
                     ),
-                    const TextSpan(text: '，虚线蓝框的格子都可选。'),
+                    const TextSpan(text: '，标有“可交换”或“移入此位”的课格可选。'),
                   ],
                 ),
               ),

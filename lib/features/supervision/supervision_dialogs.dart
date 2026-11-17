@@ -1378,7 +1378,6 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
       borderRadius: BorderRadius.circular(8),
       onTap: () => setState(() {
         _activePool = id;
-        _expandedTeacher = null;
       }),
     );
   }
@@ -1470,7 +1469,6 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
             if (id != null) {
               setState(() {
                 _activePool = id;
-                _expandedTeacher = null;
               });
             }
           },
@@ -1653,19 +1651,10 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
                               ].join(' · '),
                             ),
                             suffix: AppGhostButton(
-                              onPressed: () => setState(
-                                () => _expandedTeacher =
-                                    _expandedTeacher == teacher.id
-                                    ? null
-                                    : teacher.id,
-                              ),
-                              child: Text(
-                                _expandedTeacher == teacher.id ? '收起' : '规则',
-                              ),
+                              onPressed: () => _editRule(teacher),
+                              child: const Text('编辑规则'),
                             ),
                           ),
-                          if (_expandedTeacher == teacher.id)
-                            _quickRule(teacher),
                         ],
                       );
                     },
@@ -1679,21 +1668,9 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
   late final _rules = {...widget.draft.rules};
   String _query = '';
   final _search = TextEditingController();
-  String? _expandedTeacher;
-  final _limits = <String, TextEditingController>{};
-
-  bool _invalidLimit(String text) =>
-      text.trim().isNotEmpty &&
-      (int.tryParse(text.trim()) == null || int.parse(text.trim()) < 0);
-  bool get _hasInvalidLimits =>
-      _limits.values.any((controller) => _invalidLimit(controller.text));
-
   @override
   void dispose() {
     _search.dispose();
-    for (final controller in _limits.values) {
-      controller.dispose();
-    }
     super.dispose();
   }
 
@@ -1709,121 +1686,8 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
     if (mounted && changed != null) {
       setState(() {
         _rules[teacher.id] = changed;
-        _limits[teacher.id]?.text = changed.maxLessons?.toString() ?? '';
       });
     }
-  }
-
-  Widget _quickRule(Teacher teacher) {
-    final controller = _limits.putIfAbsent(
-      teacher.id,
-      () => TextEditingController(
-        text: _rules[teacher.id]?.maxLessons?.toString(),
-      ),
-    );
-    final rule = _rules[teacher.id];
-    final maxDays = rule?.maxDays;
-    final unavailableCount = rule?.unavailable.length ?? 0;
-    final daySummary = maxDays == null ? '不限天数' : '每周最多 $maxDays 天';
-    final ruleSummary = '$daySummary · $unavailableCount 格禁排';
-    final field = AppTextFormField(
-      controller: controller,
-      keyboardType: TextInputType.number,
-      decoration: const InputDecoration(labelText: '每周带班上限', hintText: '留空不限'),
-      onChanged: (text) => setState(() {
-        if (!_invalidLimit(text)) {
-          _rules[teacher.id] = SupervisionTeacherRule(
-            maxLessons: int.tryParse(text.trim()),
-            maxDays: rule?.maxDays,
-            unavailable: rule?.unavailable ?? const [],
-          );
-        }
-      }),
-    );
-    final forbidden = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('其他带班规则', style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 8),
-        _DutyOutlineButton(
-          onPressed: () => _editRule(teacher),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.event_busy_outlined,
-                size: 16,
-                color: context.appColors.inkSecondary,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('禁排时段与天数上限'),
-                  const SizedBox(height: 4),
-                  Text(
-                    ruleSummary,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.appColors.inkSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.edit_outlined,
-                size: 16,
-                color: context.appColors.inkSecondary,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 4, 8, 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: context.appColors.canvas,
-          border: Border.all(color: context.appColors.border),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) => constraints.maxWidth >= 460
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: field),
-                          const SizedBox(width: 16),
-                          Expanded(child: forbidden),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          field,
-                          const SizedBox(height: 12),
-                          forbidden,
-                        ],
-                      ),
-              ),
-              if (_invalidLimit(controller.text))
-                Text(
-                  '带班上限需填非负整数。',
-                  style: TextStyle(color: context.appColors.destructive),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -1890,39 +1754,30 @@ class _TeacherPoolDialogState extends State<_TeacherPoolDialog> {
         },
       ),
       actions: [
-        if (_hasInvalidLimits)
-          Text(
-            '请先修正带班上限。',
-            style: TextStyle(color: context.appColors.destructive),
-          ),
         AppGhostButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
         AppPrimaryButton(
-          onPressed: _hasInvalidLimits
-              ? null
-              : () => Navigator.pop(
-                  context,
-                  widget.draft.copyWith(
-                    teacherIds: _members[SupervisionDraft.basePoolId],
-                    rules: _rules,
-                    teacherPools: [
-                      for (final entry in _names.entries)
-                        SupervisionTeacherPool(
-                          id: entry.key,
-                          name: entry.value,
-                          teacherIds: _members[entry.key]!,
-                        ),
-                    ],
-                    defaultTeacherPoolId:
-                        _defaultPool == SupervisionDraft.basePoolId
-                        ? null
-                        : _defaultPool,
-                    resetDefaultPool:
-                        _defaultPool == SupervisionDraft.basePoolId,
+          onPressed: () => Navigator.pop(
+            context,
+            widget.draft.copyWith(
+              teacherIds: _members[SupervisionDraft.basePoolId],
+              rules: _rules,
+              teacherPools: [
+                for (final entry in _names.entries)
+                  SupervisionTeacherPool(
+                    id: entry.key,
+                    name: entry.value,
+                    teacherIds: _members[entry.key]!,
                   ),
-                ),
+              ],
+              defaultTeacherPoolId: _defaultPool == SupervisionDraft.basePoolId
+                  ? null
+                  : _defaultPool,
+              resetDefaultPool: _defaultPool == SupervisionDraft.basePoolId,
+            ),
+          ),
           child: const Text('应用'),
         ),
       ],
@@ -1958,7 +1813,6 @@ class _TeacherRuleDialogState extends State<_TeacherRuleDialog> {
       position.cellKey: position,
   };
   late String? _stageId = widget.snapshot.routines.firstOrNull?.stageId;
-  int _weekday = 1;
   String? _error;
 
   @override
@@ -1973,32 +1827,6 @@ class _TeacherRuleDialogState extends State<_TeacherRuleDialog> {
     final routine = widget.snapshot.routines
         .where((routine) => routine.stageId == _stageId)
         .firstOrNull;
-    final slotGroups = <(String, List<SchedulePosition>)>[];
-    if (routine != null) {
-      for (final period in routine.periodTypes) {
-        final positions = <SchedulePosition>[];
-        for (
-          var index = 1;
-          index <= routine.effectiveLessonCount(period.id, _weekday);
-          index++
-        ) {
-          final time = period.lessonTimes
-              .where((time) => time.lessonIndex == index)
-              .firstOrNull;
-          positions.add(
-            SchedulePosition(
-              stageId: routine.stageId,
-              weekday: _weekday,
-              periodTypeId: period.id,
-              lessonIndex: index,
-              startMinute: time?.startMinute,
-              endMinute: time?.endMinute,
-            ),
-          );
-        }
-        if (positions.isNotEmpty) slotGroups.add((period.name, positions));
-      }
-    }
     final colors = context.appColors;
     final lessonLimit = AppTextFormField(
       controller: _lessons,
@@ -2077,92 +1905,136 @@ class _TeacherRuleDialogState extends State<_TeacherRuleDialog> {
           ),
           const SizedBox(height: 4),
           Text(
-            '选择学段和星期，再点选不安排带班的课节。',
+            '点击“＋”设为禁排，再次点击可取消；“—”表示该时段没有课程。',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: colors.inkSecondary),
           ),
           const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stageField = AppSelectField<String>(
-                value: _stageId,
-                label: '学段',
-                hint: '选择学段',
-                items: {
-                  for (final stage in widget.snapshot.stages)
-                    stage.name: stage.id,
-                },
-                onChanged: (value) => setState(() => _stageId = value),
-              );
-              final weekdayField = AppSelectField<int>(
-                value: _weekday,
-                label: '星期',
-                items: {
-                  for (var day = 1; day <= 7; day++) _weekdays[day - 1]: day,
-                },
-                onChanged: (day) => setState(() => _weekday = day ?? _weekday),
-              );
-              if (constraints.maxWidth < 560) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    stageField,
-                    const SizedBox(height: 8),
-                    weekdayField,
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: stageField),
-                  const SizedBox(width: 16),
-                  Expanded(child: weekdayField),
-                ],
-              );
-            },
+          Text('学段', style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final stage in widget.snapshot.stages)
+                _SelectionOption(
+                  label: Text(stage.name),
+                  selected: _stageId == stage.id,
+                  onSelected: (_) => setState(() => _stageId = stage.id),
+                ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           if (routine == null)
             _emptyForbiddenSlots('该学段尚未配置作息。')
-          else if (!routine.teachingWeekdays.contains(_weekday))
-            _emptyForbiddenSlots('当天没有安排课程。')
-          else if (slotGroups.isEmpty)
-            _emptyForbiddenSlots('当天没有可选课节。')
           else
-            for (final (periodName, positions) in slotGroups)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final rows = <TableRow>[
+                  TableRow(
+                    children: [
+                      _matrixHeader('节次'),
+                      for (final day in _weekdays) _matrixHeader(day),
+                    ],
+                  ),
+                ];
+                for (final period in routine.periodTypes) {
+                  final maxCount = List.generate(
+                    7,
+                    (index) =>
+                        routine.effectiveLessonCount(period.id, index + 1),
+                  ).fold<int>(0, (a, b) => a > b ? a : b);
+                  for (var index = 1; index <= maxCount; index++) {
+                    final time = period.lessonTimes
+                        .where((time) => time.lessonIndex == index)
+                        .firstOrNull;
+                    rows.add(
+                      TableRow(
+                        children: [
+                          _matrixRowLabel(period.name, index),
+                          for (var day = 1; day <= 7; day++)
+                            if (!routine.teachingWeekdays.contains(day) ||
+                                index >
+                                    routine.effectiveLessonCount(
+                                      period.id,
+                                      day,
+                                    ))
+                              SizedBox(
+                                height: 42,
+                                child: Center(
+                                  child: Text(
+                                    '—',
+                                    style: TextStyle(color: colors.muted),
+                                  ),
+                                ),
+                              )
+                            else
+                              Builder(
+                                builder: (context) {
+                                  final position = SchedulePosition(
+                                    stageId: routine.stageId,
+                                    weekday: day,
+                                    periodTypeId: period.id,
+                                    lessonIndex: index,
+                                    startMinute: time?.startMinute,
+                                    endMinute: time?.endMinute,
+                                  );
+                                  final selected = _forbidden.containsKey(
+                                    position.cellKey,
+                                  );
+                                  return _forbiddenCell(
+                                    label:
+                                        '${_weekdays[day - 1]} ${period.name} 第 $index 节',
+                                    selected: selected,
+                                    onPressed: () => setState(() {
+                                      if (selected) {
+                                        _forbidden.remove(position.cellKey);
+                                      } else {
+                                        _forbidden[position.cellKey] = position;
+                                      }
+                                    }),
+                                  );
+                                },
+                              ),
+                        ],
+                      ),
+                    );
+                  }
+                }
+                if (rows.length == 1) return _emptyForbiddenSlots('该学段没有可选课节。');
+                final table = SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: math.max(620.0, constraints.maxWidth),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Table(
+                        border: TableBorder.all(
+                          color: colors.border,
+                          width: 0.7,
+                        ),
+                        columnWidths: const {0: FixedColumnWidth(110)},
+                        defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
+                        children: rows,
+                      ),
+                    ),
+                  ),
+                );
+                if (constraints.maxWidth >= 620) return table;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      periodName,
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w500),
+                      '左右滚动查看完整作息表',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final position in positions)
-                          _SelectionOption(
-                            label: Text('第 ${position.lessonIndex} 节'),
-                            selected: _forbidden.containsKey(position.cellKey),
-                            onSelected: (selected) => setState(() {
-                              if (selected) {
-                                _forbidden[position.cellKey] = position;
-                              } else {
-                                _forbidden.remove(position.cellKey);
-                              }
-                            }),
-                          ),
-                      ],
-                    ),
+                    table,
                   ],
-                ),
-              ),
+                );
+              },
+            ),
           if (_error case final error?)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -2198,6 +2070,69 @@ class _TeacherRuleDialogState extends State<_TeacherRuleDialog> {
           child: const Text('应用规则'),
         ),
       ],
+    );
+  }
+
+  Widget _matrixHeader(String text) => Container(
+    height: 36,
+    alignment: Alignment.center,
+    color: context.appColors.tableHeader,
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: context.appColors.inkSecondary,
+      ),
+    ),
+  );
+
+  Widget _matrixRowLabel(String period, int index) => Container(
+    height: 42,
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    color: context.appColors.canvas,
+    child: Text(
+      '$period · $index',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 12, color: context.appColors.inkSecondary),
+    ),
+  );
+
+  Widget _forbiddenCell({
+    required String label,
+    required bool selected,
+    required VoidCallback onPressed,
+  }) {
+    final colors = context.appColors;
+    return Semantics(
+      label: '$label，${selected ? '禁排' : '可安排'}',
+      selected: selected,
+      button: true,
+      child: ExcludeSemantics(
+        child: TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 42),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: const RoundedRectangleBorder(),
+            backgroundColor: selected
+                ? colors.destructiveSurface
+                : colors.surface,
+            foregroundColor: selected
+                ? colors.destructive
+                : colors.inkSecondary,
+          ),
+          child: selected
+              ? const Text(
+                  '禁排',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                )
+              : const Icon(Icons.add_rounded, size: 16),
+        ),
+      ),
     );
   }
 
