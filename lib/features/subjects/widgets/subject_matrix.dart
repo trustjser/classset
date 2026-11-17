@@ -98,7 +98,7 @@ class SubjectMatrix extends StatefulWidget {
 
   static const double _nameColumnWidth = 104;
   static const double _gradeColumnWidth = 112;
-  static const double _presetColumnWidth = 210;
+  static const double _presetColumnWidth = 144;
 
   @override
   State<SubjectMatrix> createState() => _SubjectMatrixState();
