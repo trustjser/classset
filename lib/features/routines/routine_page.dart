@@ -491,9 +491,10 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         useShadow: true,
         headerPadding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
         padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
-        trailing: AppSecondaryButton(
+        trailing: AppGhostButton.icon(
           onPressed: _isSaving || _isHistoryBusy ? null : _showTemplateDialog,
-          child: const Text('应用模板'),
+          icon: const Icon(Icons.dashboard_customize_rounded, size: 16),
+          label: const Text('选择模板'),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
