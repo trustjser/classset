@@ -423,6 +423,8 @@ class DriftSchoolRepository implements SchoolRepository {
               ),
             );
         if (existing == null) {
+          // 学段自动创建，但不写入默认作息：作息数据由用户在「作息设置」
+          // 保存后才落库（watchRoutine 返回 null 时由页面提供默认草稿）。
           await _createDefaultStage(term.id);
           await (_database.update(_database.subjects)
                 ..where((row) => row.termId.isNull()))
@@ -942,8 +944,10 @@ class DriftSchoolRepository implements SchoolRepository {
             sortOrder: stage.sortOrder,
           ),
         );
+    // 不写入默认作息：作息数据由用户在「作息设置」保存后才落库。
+    // 新学段的全校免任课继承保留：新学段暂无作息时按名称匹配自然为空；
+    // 首次保存作息后由 saveRoutine 补做继承。
     if (existing == null) {
-      await _createDefaultRoutine(stage.id);
       await _inheritSchoolFreeSlots(stage.id, stage.termId);
     }
     if (existing != null && existing.termId != stage.termId) {
@@ -1442,6 +1446,12 @@ class DriftSchoolRepository implements SchoolRepository {
           CommonPeriodsCompanion(insertAfterLessonId: Value(newAnchor)),
         );
       }
+
+      // 学段此前从未保存过作息（如新建学段后直接进入作息设置保存）：
+      // 补做全校免任课继承，覆盖创建学段时因无作息而跳过的部分。
+      if (stage != null && previous.periodTypes.isEmpty) {
+        await _inheritSchoolFreeSlots(routine.stageId, stage.termId);
+      }
     });
   }
 
@@ -1767,57 +1777,7 @@ class DriftSchoolRepository implements SchoolRepository {
             sortOrder: 0,
           ),
         );
-    await _createDefaultRoutine(stageId);
-  }
-
-  Future<void> _createDefaultRoutine(String stageId) async {
-    const defaultPeriods = [
-      ('早上', 0, 'early'),
-      ('上午', 4, '0'),
-      ('下午', 4, '1'),
-      ('晚上', 2, '2'),
-    ];
-    for (var index = 0; index < defaultPeriods.length; index++) {
-      final (name, count, key) = defaultPeriods[index];
-      final periodId = '${stageId}_period_$key';
-      await _database
-          .into(_database.lessonPeriodTypes)
-          .insert(
-            LessonPeriodTypesCompanion.insert(
-              id: periodId,
-              stageId: stageId,
-              name: name,
-              defaultLessonCount: count,
-              sortOrder: index,
-            ),
-          );
-      for (var lessonIndex = 1; lessonIndex <= count; lessonIndex++) {
-        await _database
-            .into(_database.lessonTimes)
-            .insert(
-              LessonTimesCompanion.insert(
-                id: '${periodId}_$lessonIndex',
-                periodTypeId: periodId,
-                lessonIndex: lessonIndex,
-                label: '第 $lessonIndex 节',
-                startMinute: const Value(null),
-                endMinute: const Value(null),
-              ),
-            );
-      }
-    }
-    for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++) {
-      await _database
-          .into(_database.stageTeachingDays)
-          .insert(
-            StageTeachingDaysCompanion.insert(
-              id: '${stageId}_day_$weekday',
-              stageId: stageId,
-              weekday: weekday,
-              isTeachingDay: weekday <= DateTime.friday,
-            ),
-          );
-    }
+    // 不写入默认作息：作息数据由用户在「作息设置」保存后才落库。
   }
 
   void _validateRoutine(domain.StageRoutine routine) {

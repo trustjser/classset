@@ -79,6 +79,34 @@ void main() {
     }
   }
 
+  /// 作息改为「保存才生效」后，saveTerm 自动创建的学段不再带默认作息；
+  /// 需要作息就绪的场景显式为自动学段落库一份。
+  /// 注意：取学段 id 需要 drift 流，必须包在 runAsync 里（假异步下
+  /// 直接 await 流会永不完成）。
+  Future<void> seedAutoStageRoutine(WidgetTester tester) async {
+    await tester.runAsync(() async {
+      final stages = await repository.watchStages('t1').first;
+      for (final stage in stages.where((item) => item.id != 's1')) {
+        await repository.saveRoutine(
+          StageRoutine(
+            stageId: stage.id,
+            teachingWeekdays: const {1, 2, 3, 4, 5},
+            periodTypes: [
+              LessonPeriodType(
+                id: '${stage.id}_am',
+                name: '上午时段',
+                defaultLessonCount: 4,
+                sortOrder: 0,
+                lessonTimes: const [],
+              ),
+            ],
+            overrides: const [],
+          ),
+        );
+      }
+    });
+  }
+
   Future<void> seedRoutine() async {
     await repository.saveRoutine(
       StageRoutine(
@@ -99,7 +127,6 @@ void main() {
   }
 
   /// 清空指定学段的作息（无上课日、无时段），用于构造「作息未配置」状态。
-  /// 注意：新建学段会自动带上默认作息，需显式清空。
   Future<void> clearRoutine(String stageId) async {
     await repository.saveRoutine(
       StageRoutine(
@@ -136,6 +163,7 @@ void main() {
 
   testWidgets('学段就绪未配作息时第 2 步为当前步骤', (tester) async {
     await saveTerm();
+    await seedAutoStageRoutine(tester);
     await seedStagesAndClasses();
     await clearRoutine('s1');
     container.read(activeTermIdProvider.notifier).state = 't1';
@@ -154,6 +182,7 @@ void main() {
 
   testWidgets('两步完成后第 3 步为当前步骤且可跳转科目节数', (tester) async {
     await saveTerm();
+    await seedAutoStageRoutine(tester);
     await seedStagesAndClasses();
     await seedRoutine();
     container.read(activeTermIdProvider.notifier).state = 't1';
@@ -190,6 +219,7 @@ void main() {
 
   testWidgets('填写节数和任课后实时推进，任课不足或删除时回退', (tester) async {
     await saveTerm();
+    await seedAutoStageRoutine(tester);
     await repository.saveStage(
       const SchoolStage(id: 's1', termId: 't1', name: '小学部', sortOrder: 0),
     );

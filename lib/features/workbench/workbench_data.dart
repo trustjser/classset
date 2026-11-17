@@ -259,13 +259,19 @@ Future<void> seedDemoData({
     }
   }
   // 不覆盖用户在空学期中已经配置的作息。
+  // 作息保存才生效：学段存在但从未保存过作息时 watchRoutine 返回空作息
+  // （无时段、无上课日），视为未配置。
   for (final stage in existingStages.where(
     (stage) => stage.name.trim() == '小学部' || stage.name.trim() == '初中部',
   )) {
     final routine = await repository.watchRoutine(stage.id).first;
+    final hasRoutine =
+        routine != null &&
+        routine.periodTypes.isNotEmpty &&
+        routine.teachingWeekdays.isNotEmpty;
     final defaults = [('早上', 0), ('上午', 4), ('下午', 4), ('晚上', 2)];
     final isDefault =
-        routine != null &&
+        hasRoutine &&
         routine.teachingWeekdays.length == 5 &&
         routine.teachingWeekdays.containsAll({1, 2, 3, 4, 5}) &&
         routine.overrides.isEmpty &&
@@ -281,7 +287,7 @@ Future<void> seedDemoData({
     final hasCustomSlots =
         (await repository.watchFreeSlots(stage.id).first).isNotEmpty ||
         (await repository.watchCommonPeriods(stage.id).first).isNotEmpty;
-    if ((routine != null && !isDefault) || hasCustomSlots) {
+    if ((hasRoutine && !isDefault) || hasCustomSlots) {
       throw StateError('${stage.name}已有作息，请先在空学期生成演示数据');
     }
   }

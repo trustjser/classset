@@ -161,51 +161,14 @@ class _TermEditorDialogState extends State<TermEditorDialog> {
             const SizedBox(height: 13),
             AppLabeledFieldRow(
               label: '总周数',
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _StepperButton(
-                    icon: Icons.remove,
-                    onPressed: () => _changeWeekCount(-1),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 44,
-                    child: AppTextFormField(
-                      size: .sm,
-                      controller: _weekCountController,
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      textAlignVertical: TextAlignVertical.center,
-                      borderless: true,
-                      validator: (value) {
-                        final count = int.tryParse(value ?? '');
-                        return count == null || count < 1 || count > 52
-                            ? '请输入 1–52 之间的周数'
-                            : null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 20,
-                    child: Text(
-                      '周',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: context.appColors.ink,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _StepperButton(
-                    icon: Icons.add,
-                    onPressed: () => _changeWeekCount(1),
-                    emphasized: true,
-                  ),
-                ],
+              child: AppNumberStepperField(
+                controller: _weekCountController,
+                validator: (value) {
+                  final count = int.tryParse(value ?? '');
+                  return count == null || count < 1 || count > 52
+                      ? '请输入 1–52 之间的周数'
+                      : null;
+                },
               ),
             ),
             const SizedBox(height: 13),
@@ -258,16 +221,6 @@ class _TermEditorDialogState extends State<TermEditorDialog> {
       ),
     ],
   );
-
-  void _changeWeekCount(int delta) {
-    final current = int.tryParse(_weekCountController.text) ?? 20;
-    final next = (current + delta).clamp(1, 52);
-    _weekCountController.value = TextEditingValue(
-      text: '$next',
-      selection: TextSelection.collapsed(offset: '$next'.length),
-    );
-    setState(() => _dateValidationError = null);
-  }
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
@@ -332,27 +285,4 @@ class _TermEditorDialogState extends State<TermEditorDialog> {
       ),
     );
   }
-}
-
-class _StepperButton extends StatelessWidget {
-  const _StepperButton({
-    required this.icon,
-    required this.onPressed,
-    this.emphasized = false,
-  });
-
-  final IconData icon;
-  final VoidCallback onPressed;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) => AppIconButton(
-    onPressed: onPressed,
-    tooltip: icon == Icons.add ? '增加周数' : '减少周数',
-    icon: icon,
-    iconSize: 14,
-    foregroundColor: emphasized
-        ? context.appColors.blue
-        : context.appColors.inkSecondary,
-  );
 }

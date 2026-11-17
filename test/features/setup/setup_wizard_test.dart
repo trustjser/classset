@@ -304,6 +304,31 @@ void main() {
     expect(await tester.runAsync(repository.loadActiveTermId), terms.first.id);
   });
 
+  testWidgets('向导总周数加减后创建学期，步进值落库', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('下一步'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byWidgetPredicate((widget) => widget is FDateField));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1').first);
+    await tester.pumpAndSettle();
+
+    // 连续两次「+」：显示值从 20 变为 22（回归保护：早先版本回调缺
+    // setState，点击后界面不更新）。
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    expect(find.text('22'), findsOneWidget);
+
+    await tester.tap(find.text('完成设置，进入工作台'));
+    await tester.pumpAndSettle();
+
+    final terms = (await tester.runAsync(() => repository.watchTerms().first))!;
+    expect(terms, hasLength(1));
+    expect(terms.first.teachingWeekCount, 22);
+  });
+
   testWidgets('新学期数据未就绪时排课相关菜单置灰且点击不切换', (tester) async {
     await pumpApp(tester);
     await completeWizard(tester);

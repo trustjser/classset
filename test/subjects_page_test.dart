@@ -104,6 +104,23 @@ void main() {
         overrides: [],
       ),
     );
+    // 作息改为「保存才生效」：需要容量参与校验的学段显式落库作息。
+    await repository.saveRoutine(
+      const StageRoutine(
+        stageId: 'gz',
+        teachingWeekdays: {1, 2, 3, 4, 5},
+        periodTypes: [
+          LessonPeriodType(
+            id: 'gz_am',
+            name: '上午',
+            defaultLessonCount: 4,
+            sortOrder: 0,
+            lessonTimes: [],
+          ),
+        ],
+        overrides: [],
+      ),
+    );
     await repository.saveSubjects([
       const Subject(id: 's_chinese', name: '语文', shortName: '语', sortOrder: 0),
       const Subject(id: 's_math', name: '数学', shortName: '数', sortOrder: 1),

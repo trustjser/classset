@@ -23,6 +23,40 @@ void main() {
     await database.close();
   });
 
+  /// 显式保存与旧版自动写入一致的默认作息（早上 0 / 上午 4 / 下午 4 / 晚上 2）。
+  Future<void> seedDefaultRoutine(String stageId) async {
+    await repository.saveRoutine(
+      StageRoutine(
+        stageId: stageId,
+        teachingWeekdays: {1, 2, 3, 4, 5},
+        periodTypes: [
+          for (final (index, name, count) in const [
+            (0, '早上', 0),
+            (1, '上午', 4),
+            (2, '下午', 4),
+            (3, '晚上', 2),
+          ])
+            LessonPeriodType(
+              id: '${stageId}_period_$index',
+              name: name,
+              defaultLessonCount: count,
+              sortOrder: index,
+              lessonTimes: [
+                for (var lesson = 1; lesson <= count; lesson++)
+                  LessonTime(
+                    lessonIndex: lesson,
+                    label: '第 $lesson 节',
+                    startMinute: null,
+                    endMinute: null,
+                  ),
+              ],
+            ),
+        ],
+        overrides: const [],
+      ),
+    );
+  }
+
   Future<AcademicTerm> createTerm() async {
     final term = AcademicTerm(
       id: 'term1',
@@ -34,6 +68,9 @@ void main() {
       createdAt: DateTime(2026, 8, 1),
     );
     await repository.saveTerm(term);
+    // 作息改为「保存才生效」：测试需要作息时显式落库一份默认结构。
+    final stages = await repository.watchStages(term.id).first;
+    await seedDefaultRoutine(stages.first.id);
     return term;
   }
 
@@ -51,6 +88,7 @@ void main() {
         sortOrder: 1,
       ),
     );
+    await seedDefaultRoutine('stage2');
     final firstRoutine = (await repository.watchRoutine(firstStage.id).first)!;
     final secondRoutine = (await repository.watchRoutine('stage2').first)!;
     final firstMorning = firstRoutine.periodTypes.firstWhere(
@@ -130,19 +168,26 @@ void main() {
     expect(presets.single.stageId, 'stage2');
   });
 
-  test('新建学期自动建立默认学段与作息', () async {
-    await createTerm();
+  test('新建学期自动建立默认学段，作息保存后才落库', () async {
+    await repository.saveTerm(
+      AcademicTerm(
+        id: 'term1',
+        title: '2026 学年 · 秋季学期',
+        academicYear: '2026-2027',
+        semesterLabel: '秋季学期',
+        firstTeachingWeekStart: DateTime(2026, 9, 1),
+        teachingWeekCount: 20,
+        createdAt: DateTime(2026, 8, 1),
+      ),
+    );
     final stages = await repository.watchStages('term1').first;
     expect(stages, hasLength(1));
+    // 学段自动创建，但作息数据必须由用户在「作息设置」保存后才写入。
+    // watchRoutine 对存在的学段返回空作息对象（非 null）。
     final routine = await repository.watchRoutine(stages.first.id).first;
     expect(routine, isNotNull);
-    expect(routine!.teachingWeekdays, {1, 2, 3, 4, 5});
-    expect(
-      routine.periodTypes.map(
-        (period) => '${period.name}:${period.defaultLessonCount}',
-      ),
-      ['上午:4', '下午:4', '晚上:2'],
-    );
+    expect(routine!.periodTypes, isEmpty);
+    expect(routine.teachingWeekdays, isEmpty);
   });
 
   test('学期周期模式默认单双周并可持久化每周相同', () async {
@@ -370,7 +415,10 @@ void main() {
     await createTerm();
     final first = (await repository.watchStages('term1').first).first;
     final routine = (await repository.watchRoutine(first.id).first)!;
-    final morning = routine.periodTypes.first;
+    // 继承按时段名称匹配并要求目标节次存在，用上午（有节次）验证。
+    final morning = routine.periodTypes.firstWhere(
+      (period) => period.name == '上午',
+    );
 
     await repository.saveFreeSlot(
       FreeSlot(
@@ -392,6 +440,8 @@ void main() {
       sortOrder: 1,
     );
     await repository.saveStage(second);
+    // 作息保存才生效：首次保存作息时补做全校免任课继承。
+    await seedDefaultRoutine('stage2');
 
     final inherited = await repository.watchFreeSlots('stage2').first;
     expect(inherited, hasLength(1));
@@ -459,6 +509,7 @@ void main() {
       sortOrder: 1,
     );
     await repository.saveStage(target);
+    await seedDefaultRoutine(target.id);
     await repository.saveGrade(
       GradeGroup(id: 'g1', stageId: source.id, name: '一年级', sortOrder: 0),
     );
@@ -513,6 +564,7 @@ void main() {
       sortOrder: 1,
     );
     await repository.saveStage(target);
+    await seedDefaultRoutine(target.id);
     await repository.saveGrade(
       GradeGroup(id: 'g1', stageId: source.id, name: '一年级', sortOrder: 0),
     );

@@ -12,6 +12,7 @@ import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/routine_grid.dart';
 import 'package:class_set/domain/models/school_structure.dart';
 import 'package:class_set/domain/models/stage_routine.dart';
+import 'package:class_set/features/routines/routine_templates.dart';
 import 'package:class_set/features/supervision/supervision_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -229,6 +230,9 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   final Map<String, _DraftSnapshot> _routineDraftByStage = {};
   final Map<String, bool> _routineNeedsNormalizationByStage = {};
   final Map<String, List<RoutineOverride>> _routineOverridesByStage = {};
+
+  /// 已进入过编辑但从未在数据库落库过作息的学段：其草稿始终视为未保存。
+  final Set<String> _missingRoutineStages = {};
   bool _isSaving = false;
   Future<bool>? _saveInFlight;
   bool _isHistoryBusy = false;
@@ -251,6 +255,8 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
 
   /// 当前页面是否存在尚未通过保存按钮确认的修改。
   bool get _hasUnsavedChanges {
+    // 有学段的作息从未落库（如新建学段后尚未保存），保存按钮应可用。
+    if (_missingRoutineStages.isNotEmpty) return true;
     if (!_sameNullableMap(
           _freeSlotDraft,
           _initialOverrideSlots,
@@ -304,14 +310,18 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         child: Center(child: SelectableText('读取作息失败：$error')),
       ),
       data: (value) {
-        if (value == null) {
-          return const _StaticRoutinePage(
-            child: Center(child: Text('该学段尚未初始化作息。')),
-          );
-        }
         if (_loadedStageId != widget.stage.id) {
           // 同步加载（学段页签已预热过 routineProvider，切换学段无需闪烁加载态）。
-          _load(value);
+          // watchRoutine 对存在的学段总返回非 null；学段从未保存过作息时
+          // 返回空作息（无时段、无上课日），此时以内置默认结构作为草稿。
+          final hasPersistedRoutine =
+              value != null &&
+              (value.periodTypes.isNotEmpty ||
+                  value.teachingWeekdays.isNotEmpty);
+          _load(
+            hasPersistedRoutine ? value : _unsavedRoutine(widget.stage.id),
+            persisted: hasPersistedRoutine,
+          );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -481,6 +491,10 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
         useShadow: true,
         headerPadding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
         padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+        trailing: AppSecondaryButton(
+          onPressed: _isSaving || _isHistoryBusy ? null : _showTemplateDialog,
+          child: const Text('应用模板'),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -615,7 +629,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
 
   // —— 数据加载与保存 ——
 
-  void _load(StageRoutine routine) {
+  void _load(StageRoutine routine, {required bool persisted}) {
     final previousStageId = _loadedStageId;
     if (previousStageId != null) {
       _routineDraftByStage[previousStageId] = _currentRoutineSnapshot();
@@ -630,7 +644,10 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       _needsNormalization = _routineNeedsNormalizationByStage[stageId] ?? false;
     } else {
       _teachingDays = {...routine.teachingWeekdays};
-      _needsNormalization = _requiresFixedPeriods(routine);
+      // 从未落库的学段（persisted == false）始终需要保存一次，即使草稿
+      // 与默认结构一致也没有可落库的数据行。
+      _needsNormalization = !persisted || _requiresFixedPeriods(routine);
+      if (!persisted) _missingRoutineStages.add(stageId);
       _periods = _fixedPeriodDrafts(routine);
       final remainingOverrides = <RoutineOverride>[];
       for (final override in routine.overrides) {
@@ -701,6 +718,16 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     _draftRevision++;
     _syncCurrentRoutineDraft();
   }
+
+  /// 学段从未保存过作息时的默认草稿来源：空作息结构，由
+  /// `_fixedPeriodDrafts` 展开为内置时段（早上 0 / 上午 4 / 下午 4 / 晚上 2，
+  /// 周一至周五），与旧版自动写入的默认作息一致。
+  StageRoutine _unsavedRoutine(String stageId) => StageRoutine(
+    stageId: stageId,
+    teachingWeekdays: const {1, 2, 3, 4, 5},
+    periodTypes: const [],
+    overrides: const [],
+  );
 
   bool _requiresFixedPeriods(StageRoutine routine) {
     if (routine.overrides.isNotEmpty ||
@@ -956,13 +983,22 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
   Future<void> _selectHistoryStage(String stageId) async {
     if (_loadedStageId == stageId && widget.stage.id == stageId) return;
 
-    final routine = await ref.read(routineProvider(stageId).future);
-    if (!mounted || routine == null) return;
+    final persisted = await ref.read(routineProvider(stageId).future);
+    if (!mounted) return;
+    final hasPersistedRoutine =
+        persisted != null &&
+        (persisted.periodTypes.isNotEmpty ||
+            persisted.teachingWeekdays.isNotEmpty);
     if (widget.stage.id != stageId) widget.onSelectStage(stageId);
 
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || _loadedStageId == stageId) return;
-    setState(() => _load(routine));
+    setState(() {
+      _load(
+        hasPersistedRoutine ? persisted : _unsavedRoutine(stageId),
+        persisted: hasPersistedRoutine,
+      );
+    });
   }
 
   // —— 时段节数 ——
@@ -1001,6 +1037,50 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
       before,
       _currentSnapshot(),
     );
+  }
+
+  // —— 作息模板 ——（应用后仅填充草稿，仍需点击「保存」落库）
+
+  Future<void> _showTemplateDialog() async {
+    final selected = await showDialog<RoutineTemplate>(
+      context: context,
+      builder: (context) => const _RoutineTemplateDialog(),
+    );
+    if (selected == null || !mounted) return;
+    _applyTemplate(selected);
+  }
+
+  void _applyTemplate(RoutineTemplate template) {
+    final before = _currentSnapshot();
+    final timesByName = {
+      for (final period in template.periods) period.periodName: period.times,
+    };
+    setState(() {
+      _teachingDays = {...template.teachingWeekdays};
+      for (final period in _periods) {
+        // 模板节次时间数量与节数一一对应；模板未列出的时段节数清零。
+        period.defaultLessonCount = timesByName[period.name]?.length ?? 0;
+        _ensureTimes(period);
+      }
+      _renumberLabels();
+      _timeInputs
+        ..clear()
+        ..addEntries([
+          for (final period in _periods)
+            for (var index = 0; index < period.times.length; index++) ...[
+              MapEntry(
+                _timeKey(period.id, index + 1, true),
+                timesByName[period.name]?[index].$1 ?? '',
+              ),
+              MapEntry(
+                _timeKey(period.id, index + 1, false),
+                timesByName[period.name]?[index].$2 ?? '',
+              ),
+            ],
+        ]);
+    });
+    _syncCurrentRoutineDraft();
+    _pushSnapshotUndo('已应用作息模板「${template.name}」', before, _currentSnapshot());
   }
 
   void _ensureTimes(_PeriodDraft period) {
@@ -1177,6 +1257,7 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
           _routineBaselineByStage[entry.key] = entry.value;
           _routineNeedsNormalizationByStage[entry.key] = false;
         }
+        _missingRoutineStages.removeAll(routineSnapshots.keys);
         _initialOverrideSlots.removeWhere(
           (_, slot) =>
               slot != null && routineSnapshots.containsKey(slot.stageId),
@@ -4086,4 +4167,134 @@ int? _parseTime(String value) {
   final hour = int.parse(match.group(1)!);
   if (hour > 23) return null;
   return hour * 60 + int.parse(match.group(2)!);
+}
+
+/// 作息模板选择弹窗：单选内置模板，应用后仅填充草稿，由外层「保存」落库。
+class _RoutineTemplateDialog extends StatefulWidget {
+  const _RoutineTemplateDialog();
+
+  @override
+  State<_RoutineTemplateDialog> createState() => _RoutineTemplateDialogState();
+}
+
+class _RoutineTemplateDialogState extends State<_RoutineTemplateDialog> {
+  String? _selectedId;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = routineTemplates
+        .where((template) => template.id == _selectedId)
+        .firstOrNull;
+    return AppDialog(
+      title: const Text('应用作息模板'),
+      maxWidth: 480,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '按大陆中小学常见作息整理的模板，应用后覆盖当前学段的上课日、每天节数和节次时间，点击「保存」后才生效。',
+            style: TextStyle(
+              color: context.appColors.inkSecondary,
+              fontSize: 12,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (var index = 0; index < routineTemplates.length; index++) ...[
+            if (index > 0) const SizedBox(height: 8),
+            _buildTemplateTile(routineTemplates[index]),
+          ],
+        ],
+      ),
+      actions: [
+        AppGhostButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        AppPrimaryButton(
+          onPressed: selected == null
+              ? null
+              : () => Navigator.pop(context, selected),
+          child: const Text('应用'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTemplateTile(RoutineTemplate template) {
+    final isSelected = template.id == _selectedId;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => setState(() => _selectedId = template.id),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? context.appColors.selectedBlue
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? context.appColors.accent
+                : context.appColors.border,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: AppRadioIndicator<String>(
+                value: template.id,
+                groupValue: _selectedId ?? '',
+                label: template.name,
+                indicatorSize: 16,
+                onChanged: (value) => setState(() => _selectedId = value),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          template.name,
+                          style: TextStyle(
+                            color: context.appColors.ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        template.structureSummary,
+                        style: TextStyle(
+                          color: context.appColors.blue,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    template.description,
+                    style: TextStyle(
+                      color: context.appColors.inkSecondary,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

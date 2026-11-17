@@ -26,8 +26,8 @@ class _SetupWizardPageState extends ConsumerState<SetupWizardPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _schoolNameController;
   late final TextEditingController _termTitleController;
+  late final TextEditingController _weekCountController;
   int _step = 1;
-  int _weekCount = 20;
   AcademicTermCycle _cycleMode = AcademicTermCycle.alternating;
   DateTime? _firstTeachingWeekStart;
   String? _dateValidationError;
@@ -42,12 +42,14 @@ class _SetupWizardPageState extends ConsumerState<SetupWizardPage> {
     _termTitleController = TextEditingController(
       text: '${now.year} 学年 · $semesterLabel',
     );
+    _weekCountController = TextEditingController(text: '20');
   }
 
   @override
   void dispose() {
     _schoolNameController.dispose();
     _termTitleController.dispose();
+    _weekCountController.dispose();
     super.dispose();
   }
 
@@ -78,7 +80,7 @@ class _SetupWizardPageState extends ConsumerState<SetupWizardPage> {
           ? '秋季学期'
           : '春季学期',
       firstTeachingWeekStart: _firstTeachingWeekStart,
-      teachingWeekCount: _weekCount,
+      teachingWeekCount: int.tryParse(_weekCountController.text) ?? 20,
       createdAt: now,
       cycleMode: _cycleMode,
     );
@@ -269,12 +271,14 @@ class _SetupWizardPageState extends ConsumerState<SetupWizardPage> {
           const SizedBox(height: 13),
           AppLabeledFieldRow(
             label: '总周数',
-            child: AppNumberStepper(
-              value: _weekCount,
-              min: 1,
-              max: 52,
-              suffix: '周',
-              onChanged: (value) => _weekCount = value,
+            child: AppNumberStepperField(
+              controller: _weekCountController,
+              validator: (value) {
+                final count = int.tryParse(value ?? '');
+                return count == null || count < 1 || count > 52
+                    ? '请输入 1–52 之间的周数'
+                    : null;
+              },
             ),
           ),
           const SizedBox(height: 13),

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>作息设置 · 应用作息模板 · UI 设计图</title>
+<style>
+  /* 晴空蓝 · 浅色 —— 依据 design/DESIGN.md */
+  :root {
+    --canvas: #F4F7FC;
+    --surface: #FFFFFF;
+    --table-header: #F3F5F9;
+    --ink: #202A3D;
+    --ink-secondary: #5E6B80;
+    --muted: #606F86;
+    --accent: #2864DC;
+    --on-accent: #FFFFFF;
+    --selection: #EAF1FF;
+    --border: #DCE3EF;
+    --table-divider: #E6EBF4;
+    --dialog-barrier: rgba(17, 27, 45, 0.4);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1440px; height: 900px; overflow: hidden;
+    background: var(--canvas);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .page { width: 1440px; height: 900px; padding: 16px 32px 32px; position: relative; }
+
+  /* —— 页头 —— */
+  .page-header { display: flex; align-items: flex-start; gap: 16px; }
+  .page-header .titles h1 { font-size: 28px; font-weight: 600; line-height: 1.25; }
+  .page-header .titles p { font-size: 12px; color: var(--ink-secondary); margin-top: 5px; }
+  .page-header .actions { margin-left: auto; display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+  .icon-btn {
+    width: 32px; height: 32px; border-radius: 8px; border: none; background: transparent;
+    display: flex; align-items: center; justify-content: center; color: var(--muted); cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--table-header); }
+  .btn-primary {
+    height: 32px; padding: 0 16px; border-radius: 12px; border: none;
+    background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+
+  /* —— 三栏布局 —— */
+  .layout { display: flex; gap: 16px; margin-top: 20px; height: 800px; }
+  .col-settings { width: 248px; display: flex; flex-direction: column; gap: 12px; }
+  .col-matrix { flex: 1; }
+  .col-times { width: 304px; }
+
+  .panel {
+    background: var(--surface); border-radius: 20px; padding: 16px;
+  }
+  .panel-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+  .panel-title-row { display: flex; align-items: center; margin-bottom: 10px; }
+  .panel-title-row .panel-title { margin-bottom: 0; }
+  .btn-secondary {
+    height: 28px; padding: 0 12px; border-radius: 12px; font-size: 12px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+    cursor: pointer; margin-left: auto;
+  }
+  .btn-secondary:hover { background: var(--table-header); }
+
+  /* 每天节数行 */
+  .period-row { display: flex; align-items: center; height: 40px; border-top: 1px solid var(--table-divider); }
+  .period-row:first-of-type { border-top: none; }
+  .period-dot { width: 8px; height: 8px; border-radius: 4px; margin-right: 10px; }
+  .period-name { font-size: 14px; flex: 1; }
+  .stepper { display: flex; align-items: center; gap: 2px; }
+  .stepper button {
+    width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted); font-size: 13px; cursor: pointer;
+  }
+  .stepper .count { width: 28px; text-align: center; font-size: 14px; }
+
+  /* 上课日 */
+  .weekday-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .weekday-chip {
+    height: 30px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px;
+    display: flex; align-items: center; justify-content: center; color: var(--ink-secondary); background: var(--surface);
+  }
+  .weekday-chip.on { background: var(--selection); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  /* 范围树 */
+  .tree-tile { display: flex; align-items: center; height: 30px; border-radius: 8px; padding: 0 8px 0 12px; gap: 6px; }
+  .tree-tile .chev { color: var(--muted); font-size: 11px; }
+  .tree-tile .dot { width: 7px; height: 7px; border-radius: 4px; background: #A6B4CC; }
+  .tree-tile .name { font-size: 13px; color: var(--ink-secondary); flex: 1; }
+  .tree-tile.editing { background: #E5F4ED; }
+  .tree-tile.editing .dot { background: #1F765E; }
+  .tree-tile.editing .name { color: #1F765E; font-weight: 600; }
+  .tree-tag { font-size: 10px; color: #1F765E; background: rgba(31,118,94,.10); border-radius: 4px; padding: 1px 6px; }
+
+  /* 矩阵 */
+  .matrix-tabs { display: flex; align-items: center; gap: 4px; margin-bottom: 12px; }
+  .matrix-tab { height: 28px; padding: 0 12px; border-radius: 8px; font-size: 13px; color: var(--ink-secondary); display: flex; align-items: center; }
+  .matrix-tab.on { background: var(--selection); color: var(--accent); font-weight: 600; }
+  .capacity { margin-left: auto; font-size: 12px; color: var(--accent); font-weight: 600; }
+  table.matrix { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.matrix th {
+    font-size: 12px; color: var(--ink-secondary); font-weight: 500; background: var(--table-header);
+    height: 36px; border: 1px solid var(--table-divider);
+  }
+  table.matrix td { height: 44px; border: 1px solid var(--table-divider); font-size: 12px; color: var(--muted); text-align: center; }
+  table.matrix td.none { color: #875D18; background: #FFF4DD; border-radius: 6px; }
+  .row-label { font-size: 13px; color: var(--ink); text-align: left; padding-left: 10px; width: 150px; }
+  .row-label .lp { font-size: 12px; color: var(--muted); margin-right: 6px; }
+
+  /* 节次时间 */
+  .time-group-title { font-size: 13px; font-weight: 600; margin: 10px 0 6px; }
+  .time-row { display: flex; align-items: center; gap: 8px; height: 34px; }
+  .time-row .label { width: 56px; font-size: 13px; color: var(--ink); }
+  .time-input {
+    flex: 1; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+    font-size: 13px; color: var(--ink); display: flex; align-items: center; padding: 0 8px;
+  }
+
+  /* —— 弹窗 —— */
+  .barrier {
+    position: absolute; inset: 0; background: var(--dialog-barrier);
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  .dialog {
+    width: 480px; margin-top: 120px; background: var(--surface); border-radius: 16px;
+    border: 1px solid var(--border); box-shadow: 0 8px 24px -4px rgba(17,27,45,.14);
+    padding: 24px;
+  }
+  .dialog h2 { font-size: 16px; font-weight: 600; }
+  .dialog .hint { font-size: 12px; line-height: 1.5; color: var(--ink-secondary); margin-top: 12px; }
+  .tiles { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .tile {
+    border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+    display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  }
+  .tile.selected { background: var(--selection); border-color: var(--accent); }
+  .radio { width: 16px; height: 16px; border-radius: 8px; border: 1.5px solid #7E8BA3; margin-top: 3px; flex: none; }
+  .tile.selected .radio { border-color: var(--accent); position: relative; }
+  .tile.selected .radio::after {
+    content: ""; position: absolute; inset: 3px; border-radius: 5px; background: var(--accent);
+  }
+  .tile .body { flex: 1; min-width: 0; }
+  .tile .row1 { display: flex; align-items: baseline; }
+  .tile .name { font-size: 14px; font-weight: 600; }
+  .tile .summary { margin-left: auto; font-size: 12px; color: var(--accent); }
+  .tile .desc { font-size: 12px; color: var(--ink-secondary); margin-top: 2px; line-height: 1.4; }
+  .dialog .footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .btn-ghost {
+    height: 32px; padding: 0 16px; border-radius: 12px; border: none; background: transparent;
+    color: var(--ink-secondary); font-size: 13px; cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--table-header); }
+  .btn-primary.disabled { opacity: .45; cursor: default; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <div class="titles">
+      <h1>作息设置</h1>
+      <p>按学段设置上课日、时段节数、免任课范围和节次时间。</p>
+    </div>
+    <div class="actions">
+      <button class="icon-btn">↺</button>
+      <button class="icon-btn">↻</button>
+      <button class="btn-primary">保存</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="col-settings">
+      <div class="panel">
+        <div class="panel-title-row">
+          <div class="panel-title">每天节数</div>
+          <button class="btn-secondary">应用模板</button>
+        </div>
+        <div class="period-row">
+          <span class="period-dot" style="background:#6E5AAC"></span>
+          <span class="period-name">早上</span>
+          <div class="stepper"><button>−</button><span class="count">1</span><button>＋</button></div>
+        </div>
+        <div class="period-row">
+          <span class="period-dot" style="background:#2864DC"></span>
+          <span class="period-name">上午</span>
+          <div class="stepper"><button>−</button><span class="count">4</span><button>＋</button></div>
+        </div>
+        <div class="period-row">
+          <span class="period-dot" style="background:#1F765E"></span>
+          <span class="period-name">下午</span>
+          <div class="stepper"><button>−</button><span class="count">3</span><button>＋</button></div>
+        </div>
+        <div class="period-row">
+          <span class="period-dot" style="background:#875D18"></span>
+          <span class="period-name">晚上</span>
+          <div class="stepper"><button>−</button><span class="count">0</span><button>＋</button></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">上课日</div>
+        <div class="weekday-grid">
+          <div class="weekday-chip on">星期一</div>
+          <div class="weekday-chip on">星期二</div>
+          <div class="weekday-chip on">星期三</div>
+          <div class="weekday-chip on">星期四</div>
+          <div class="weekday-chip on">星期五</div>
+          <div class="weekday-chip">星期六</div>
+          <div class="weekday-chip">星期日</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">免任课范围</div>
+        <div class="tree-tile editing"><span class="chev">▾</span><span class="dot"></span><span class="name">初中部</span><span class="tree-tag">编辑中</span></div>
+        <div class="tree-tile"><span class="chev">▸</span><span class="dot"></span><span class="name">小学部</span></div>
+      </div>
+    </div>
+
+    <div class="col-matrix panel">
+      <div class="matrix-tabs">
+        <div class="matrix-tab on">初中部</div>
+        <div class="matrix-tab">小学部</div>
+        <div class="capacity">32 格 / 班</div>
+      </div>
+      <table class="matrix">
+        <tr>
+          <th class="row-label"></th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th>
+        </tr>
+        <tr><td class="row-label"><span class="lp">早读</span>第 1 节</td><td>·</td><td>·</td><td>·</td><td>·</td><td>·</td></tr>
+        <tr><td class="row-label"><span class="lp">上午</span>第 2 节</td><td>·</td><td>·</td><td>·</td><td>·</td><td>·</td></tr>
+        <tr><td class="row-label"><span class="lp">上午</span>第 3 节</td><td>·</td><td>·</td><td>·</td><td>·</td><td>·</td></tr>
+        <tr><td class="row-label"><span class="lp">上午</span>第 4 节</td><td>·</td><td>·</td><td>·</td><td>·</td><td>·</td></tr>
+        <tr><td class="row-label"><span class="lp">上午</span>第 5 节</td><td>·</td><td>·</td><td>·</td><td>·</td><td>·</td></tr>
+        <tr><td class="row-label"><span class="lp">下午</span>第 6 节</td><td>·</td><td>·</td><td>·</td><td>·</td><td>·</td></tr>
+        <tr><td class="row-label"><span class="lp">下午</span>第 7 节</td><td>·</td><td>·</td><td>·</td><td>·</td><td>·</td></tr>
+        <tr><td class="row-label"><span class="lp">下午</span>第 8 节</td><td class="none">无课</td><td>·</td><td>·</td><td class="none">无课</td><td>·</td></tr>
+      </table>
+    </div>
+
+    <div class="col-times panel">
+      <div class="panel-title">节次时间</div>
+      <div class="time-group-title">早读</div>
+      <div class="time-row"><span class="label">早读 1</span><div class="time-input">07:40</div><div class="time-input">08:00</div></div>
+      <div class="time-group-title">上午</div>
+      <div class="time-row"><span class="label">第 1 节</span><div class="time-input">08:00</div><div class="time-input">08:45</div></div>
+      <div class="time-row"><span class="label">第 2 节</span><div class="time-input">08:55</div><div class="time-input">09:40</div></div>
+      <div class="time-row"><span class="label">第 3 节</span><div class="time-input">10:10</div><div class="time-input">10:55</div></div>
+      <div class="time-row"><span class="label">第 4 节</span><div class="time-input">11:05</div><div class="time-input">11:50</div></div>
+      <div class="time-group-title">下午</div>
+      <div class="time-row"><span class="label">第 5 节</span><div class="time-input">14:00</div><div class="time-input">14:45</div></div>
+      <div class="time-row"><span class="label">第 6 节</span><div class="time-input">14:55</div><div class="time-input">15:40</div></div>
+      <div class="time-row"><span class="label">第 7 节</span><div class="time-input">15:50</div><div class="time-input">16:35</div></div>
+    </div>
+  </div>
+
+  <div class="barrier">
+    <div class="dialog">
+      <h2>应用作息模板</h2>
+      <p class="hint">按大陆中小学常见作息整理的模板，应用后覆盖当前学段的上课日、每天节数和节次时间，点击「保存」后才生效。</p>
+      <div class="tiles">
+        <div class="tile">
+          <span class="radio"></span>
+          <div class="body">
+            <div class="row1"><span class="name">小学走读</span><span class="summary">上午 4 节 · 下午 3 节</span></div>
+            <div class="desc">40 分钟课时，第一节 8:20 开始，符合小学上课时间不早于 8:20 的要求。</div>
+          </div>
+        </div>
+        <div class="tile selected">
+          <span class="radio"></span>
+          <div class="body">
+            <div class="row1"><span class="name">初中走读</span><span class="summary">早读 1 节 · 上午 4 节 · 下午 3 节</span></div>
+            <div class="desc">45 分钟课时，早读 + 上午 4 节 + 下午 3 节，第一节 8:00 开始。</div>
+          </div>
+        </div>
+        <div class="tile">
+          <span class="radio"></span>
+          <div class="body">
+            <div class="row1"><span class="name">初中寄宿</span><span class="summary">早读 1 节 · 上午 4 节 · 下午 4 节 · 晚上 2 节</span></div>
+            <div class="desc">早读 + 上午 4 节 + 下午 4 节 + 晚自习 2 节，适合寄宿制初中。</div>
+          </div>
+        </div>
+        <div class="tile">
+          <span class="radio"></span>
+          <div class="body">
+            <div class="row1"><span class="name">高中寄宿</span><span class="summary">早读 1 节 · 上午 4 节 · 下午 4 节 · 晚上 3 节</span></div>
+            <div class="desc">早读 + 上午 4 节 + 下午 4 节 + 晚自习 3 节，适合寄宿制高中。</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <button class="btn-ghost">取消</button>
+        <button class="btn-primary">应用</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

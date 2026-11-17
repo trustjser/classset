@@ -738,6 +738,90 @@ class AppNumberStepper extends StatelessWidget {
   }
 }
 
+/// 「− 输入框 单位 +」可输入数字步进控件，用于表单行（如学期总周数）。
+///
+/// 与 [AppNumberStepper] 的区别：数字可手动输入，且不加外层整体边框容器，
+/// 与「编辑学期信息」弹窗的既有样式保持一致。
+class AppNumberStepperField extends StatelessWidget {
+  const AppNumberStepperField({
+    required this.controller,
+    this.onChanged,
+    this.min = 1,
+    this.max = 52,
+    this.suffix = '周',
+    this.validator,
+    super.key,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<int>? onChanged;
+  final int min;
+  final int max;
+  final String suffix;
+  final FormFieldValidator<String>? validator;
+
+  int get _current => int.tryParse(controller.text) ?? min;
+
+  void _step(int delta) {
+    final next = (_current + delta).clamp(min, max);
+    controller.value = TextEditingValue(
+      text: '$next',
+      selection: TextSelection.collapsed(offset: '$next'.length),
+    );
+    onChanged?.call(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppIconButton(
+          onPressed: () => _step(-1),
+          tooltip: '减少$suffix数',
+          icon: Icons.remove,
+          iconSize: 14,
+          foregroundColor: context.appColors.inkSecondary,
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 44,
+          child: AppTextFormField(
+            size: .sm,
+            controller: controller,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            textAlignVertical: TextAlignVertical.center,
+            borderless: true,
+            validator: validator,
+          ),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 20,
+          child: Text(
+            suffix,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.appColors.ink,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        AppIconButton(
+          onPressed: () => _step(1),
+          tooltip: '增加$suffix数',
+          icon: Icons.add,
+          iconSize: 14,
+          foregroundColor: context.appColors.blue,
+        ),
+      ],
+    );
+  }
+}
+
 /// Shared Forui button adapters for actions across feature modules.
 class AppOutlineButton extends StatelessWidget {
   const AppOutlineButton({
@@ -1504,8 +1588,11 @@ class AppDateField extends StatelessWidget {
           ),
           headerBuilder: _appDateFieldCalendarHeader,
         ),
-        prefixBuilder: (context, style, variants) => const SizedBox.shrink(),
-        suffixBuilder: (context, style, variants) => const SizedBox.shrink(),
+        // 显式传 null 覆盖默认日历图标，同时让字段走与 AppTextFormField
+        // 相同的前缀留白路径（非 null prefixBuilder 会把内容左边距清零，
+        // 文字比普通文本框贴左 10px，见 test/date_field_alignment_test.dart）。
+        prefixBuilder: null,
+        suffixBuilder: null,
       ),
     );
   }

@@ -337,7 +337,6 @@ class _Toolbar extends StatelessWidget {
           children: [
             heading,
             const SizedBox(height: 12),
-            Align(alignment: Alignment.centerRight, child: templateImport),
           ],
         );
       }
@@ -346,7 +345,6 @@ class _Toolbar extends StatelessWidget {
         children: [
           Expanded(child: heading),
           const SizedBox(width: 16),
-          templateImport,
         ],
       );
     },
