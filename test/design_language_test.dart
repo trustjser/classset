@@ -5,6 +5,7 @@ import 'package:class_set/core/theme/app_appearance.dart';
 import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
+import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/core/widgets/app_components.dart';
@@ -30,6 +31,20 @@ void main() {
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     final repository = DriftSchoolRepository(database);
+    // 空库会进入创建向导（无顶部栏），先种一个学期以便测试主题入口。
+    await tester.runAsync(
+      () => repository.saveTerm(
+        AcademicTerm(
+          id: 'design-seed',
+          title: '2026 秋季',
+          academicYear: '2026-2027',
+          semesterLabel: '秋季学期',
+          firstTeachingWeekStart: DateTime(2026, 9, 1),
+          teachingWeekCount: 20,
+          createdAt: DateTime(2026, 8, 1),
+        ),
+      ),
+    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [schoolRepositoryProvider.overrideWithValue(repository)],

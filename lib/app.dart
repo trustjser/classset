@@ -17,7 +17,9 @@ import 'package:class_set/features/public_rooms/public_rooms_page.dart';
 import 'package:class_set/features/subjects/subjects_page.dart';
 import 'package:class_set/features/teachers/teachers_page.dart';
 import 'package:class_set/features/school/school_name_dialog.dart';
+import 'package:class_set/features/setup/setup_wizard_page.dart';
 import 'package:class_set/features/terms/term_page.dart';
+import 'package:class_set/features/workbench/workbench_data.dart';
 import 'package:class_set/features/workbench/workbench_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -65,6 +67,56 @@ String _savedTimeLabel(DateTime time) {
     return timeText;
   }
   return '${time.month}/${time.day} $timeText';
+}
+
+/// 侧栏菜单门控：关键前置数据未就绪的菜单置灰并说明原因（返回
+/// `(enabled, reason)`）。与工作台「接下来」卡片的级联语义一致：
+/// 作息完成解锁科目节数与带班安排，科目节数完成解锁教师任课，
+/// 教师任课齐备解锁排课与课表，已生成课表解锁调代课。
+///
+/// [summary] 为 null 表示学期汇总尚未加载完成或读取失败，此时不拦截，
+/// 避免加载期间误伤可用入口；真正的数据问题由目标页面自行呈现。
+(bool, String?) navSectionAvailability(
+  AppSection section, {
+  required bool hasTerm,
+  WorkbenchSummary? summary,
+}) {
+  if (!hasTerm) {
+    return switch (section) {
+      AppSection.workbench ||
+      AppSection.terms ||
+      AppSection.publicRooms => (true, null),
+      _ => (false, '请先创建学期'),
+    };
+  }
+  final ready = summary;
+  // 依赖作息的菜单：学段班级还没搭好时，先提示更前置的步骤。
+  (bool, String?) routineGate() {
+    if (ready == null || ready.routineDone) return (true, null);
+    return ready.stagesDone ? (false, '请先完成各学段作息设置') : (false, '请先创建学段、年级与班级');
+  }
+
+  return switch (section) {
+    AppSection.workbench ||
+    AppSection.terms ||
+    AppSection.publicRooms ||
+    AppSection.classes ||
+    AppSection.routines => (true, null),
+    AppSection.subjects => routineGate(),
+    AppSection.supervision => routineGate(),
+    AppSection.teachers =>
+      ready == null || ready.subjectLessonsReady
+          ? (true, null)
+          : (false, '请先填写各年级科目节数'),
+    AppSection.scheduling =>
+      ready == null || ready.teacherAssignmentsReady
+          ? (true, null)
+          : (false, '请先补齐各班教师任课'),
+    AppSection.temporaryAdjustments =>
+      ready == null || ready.hasSchedule
+          ? (true, null)
+          : (false, '请先在排课与课表中生成课表'),
+  };
 }
 
 class ClassSetApp extends StatefulWidget {
@@ -356,9 +408,27 @@ class _AppShellState extends ConsumerState<_AppShell> {
       });
     }
 
-    return Scaffold(
-      backgroundColor: context.appColors.canvas,
-      body: LayoutBuilder(
+    Widget shellBody;
+    if (terms.hasError) {
+      shellBody = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: SelectableText(
+            '读取本地学期数据失败：${terms.error}',
+            style: TextStyle(
+              color: context.appColors.destructive,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      );
+    } else if (terms.hasValue && availableTerms.isEmpty) {
+      // 本地还没有任何学期：进入全屏创建向导，不展示侧边栏与顶部栏。
+      shellBody = const SetupWizardPage();
+    } else if (!terms.hasValue) {
+      shellBody = const Center(child: CircularProgressIndicator());
+    } else {
+      shellBody = LayoutBuilder(
         builder: (context, constraints) {
           final compactNavigation =
               constraints.maxWidth < _compactNavigationBreakpoint ||
@@ -496,8 +566,9 @@ class _AppShellState extends ConsumerState<_AppShell> {
             ),
           );
         },
-      ),
-    );
+      );
+    }
+    return Scaffold(backgroundColor: context.appColors.canvas, body: shellBody);
   }
 }
 
@@ -519,6 +590,15 @@ class _Sidebar extends ConsumerWidget {
     final lastPersistedAt = ref.watch(lastPersistedAtProvider);
     final selectedTerm = terms.where((term) => term.id == selectedTermId);
     final termTitle = selectedTerm.isEmpty ? '当前学期' : selectedTerm.first.title;
+    // 菜单门控依据：学期汇总（加载中/失败时为 null，不拦截导航）。
+    final summary = selectedTermId == null
+        ? null
+        : ref.watch(workbenchSummaryProvider(selectedTermId)).valueOrNull;
+    (bool, String?) gate(AppSection target) => navSectionAvailability(
+      target,
+      hasTerm: selectedTermId != null,
+      summary: summary,
+    );
 
     return AnimatedContainer(
       duration: AppTheme.motionDuration(context, AppTheme.transitionDuration),
@@ -534,6 +614,19 @@ class _Sidebar extends ConsumerWidget {
           final sidebarInset = AppTheme.sidebarPaddingForWidth(
             AppPageLayout.widthOf(context),
           );
+          Widget navItem(AppSection target, IconData icon, String label) {
+            final (enabled, reason) = gate(target);
+            return _NavItem(
+              isCompact: compactContents,
+              icon: icon,
+              label: label,
+              isSelected: target == section,
+              enabled: enabled,
+              disabledReason: reason,
+              onTap: () => onNavigate(target),
+            );
+          }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -595,80 +688,56 @@ class _Sidebar extends ConsumerWidget {
                     horizontal: compactContents ? 7 : sidebarInset,
                   ),
                   children: [
-                    _NavItem(
-                      isCompact: compactContents,
-                      icon: Icons.space_dashboard_outlined,
-                      label: '工作台',
-                      isSelected: section == AppSection.workbench,
-                      onTap: () => onNavigate(AppSection.workbench),
+                    navItem(
+                      AppSection.workbench,
+                      Icons.space_dashboard_outlined,
+                      '工作台',
                     ),
                     if (!compactContents) const _NavGroupLabel('基础设置'),
-                    _NavItem(
-                      isCompact: compactContents,
-                      icon: Icons.event_note_rounded,
-                      label: '学期与日历',
-                      isSelected: section == AppSection.terms,
-                      onTap: () => onNavigate(AppSection.terms),
+                    navItem(
+                      AppSection.terms,
+                      Icons.event_note_rounded,
+                      '学期与日历',
                     ),
-                    _NavItem(
-                      isCompact: compactContents,
-                      icon: Icons.account_tree_outlined,
-                      label: '班级与学段',
-                      isSelected: section == AppSection.classes,
-                      onTap: () => onNavigate(AppSection.classes),
+                    navItem(
+                      AppSection.classes,
+                      Icons.account_tree_outlined,
+                      '班级与学段',
                     ),
-                    _NavItem(
-                      isCompact: compactContents,
-                      icon: Icons.view_week_outlined,
-                      label: '作息设置',
-                      isSelected: section == AppSection.routines,
-                      onTap: () => onNavigate(AppSection.routines),
+                    navItem(
+                      AppSection.routines,
+                      Icons.view_week_outlined,
+                      '作息设置',
                     ),
-                    _NavItem(
-                      label: '公共场室',
-                      icon: Icons.meeting_room_outlined,
-                      isCompact: compactContents,
-                      isSelected: section == AppSection.publicRooms,
-                      onTap: () => onNavigate(AppSection.publicRooms),
+                    navItem(
+                      AppSection.publicRooms,
+                      Icons.meeting_room_outlined,
+                      '公共场室',
                     ),
                     if (!compactContents) const _NavDivider(),
                     if (!compactContents) const _NavGroupLabel('排课准备'),
-                    _NavItem(
-                      isCompact: compactContents,
-                      icon: Icons.calculate_outlined,
-                      label: '科目节数',
-                      isSelected: section == AppSection.subjects,
-                      onTap: () => onNavigate(AppSection.subjects),
+                    navItem(
+                      AppSection.subjects,
+                      Icons.calculate_outlined,
+                      '科目节数',
                     ),
-                    _NavItem(
-                      label: '教师任课',
-                      icon: Icons.person_outline,
-                      isCompact: compactContents,
-                      isSelected: section == AppSection.teachers,
-                      onTap: () => onNavigate(AppSection.teachers),
-                    ),
+                    navItem(AppSection.teachers, Icons.person_outline, '教师任课'),
                     if (!compactContents) const _NavDivider(),
                     if (!compactContents) const _NavGroupLabel('课表与课务'),
-                    _NavItem(
-                      label: '排课与课表',
-                      icon: Icons.auto_awesome_outlined,
-                      isCompact: compactContents,
-                      isSelected: section == AppSection.scheduling,
-                      onTap: () => onNavigate(AppSection.scheduling),
+                    navItem(
+                      AppSection.scheduling,
+                      Icons.auto_awesome_outlined,
+                      '排课与课表',
                     ),
-                    _NavItem(
-                      label: '带班安排',
-                      icon: Icons.groups_outlined,
-                      isCompact: compactContents,
-                      isSelected: section == AppSection.supervision,
-                      onTap: () => onNavigate(AppSection.supervision),
+                    navItem(
+                      AppSection.supervision,
+                      Icons.groups_outlined,
+                      '带班安排',
                     ),
-                    _NavItem(
-                      label: '调代课',
-                      icon: Icons.swap_horiz_rounded,
-                      isCompact: compactContents,
-                      isSelected: section == AppSection.temporaryAdjustments,
-                      onTap: () => onNavigate(AppSection.temporaryAdjustments),
+                    navItem(
+                      AppSection.temporaryAdjustments,
+                      Icons.swap_horiz_rounded,
+                      '调代课',
                     ),
                   ],
                 ),
@@ -910,86 +979,103 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
+    this.enabled = true,
+    this.disabledReason,
   });
 
   final IconData icon;
-  final bool isCompact;
   final String label;
+  final bool isCompact;
   final bool isSelected;
+
+  /// 关键数据未就绪时置灰；此时 Tooltip 展示 [disabledReason]。
+  final bool enabled;
+  final String? disabledReason;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 0),
-    child: Tooltip(
-      message: isCompact ? label : '',
-      child: f.FTappable(
-        semanticsLabel: label,
-        selected: isSelected,
-        onPress: onTap,
-        child: Container(
-          height: 44,
-          padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 11),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? context.appColors.sidebarActive
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisAlignment: isCompact
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
-            children: [
-              Icon(
-                icon,
-                size: 17,
-                color: isSelected
-                    ? context.appColors.accent
-                    : context.appColors.sidebarMuted,
-              ),
-              if (!isCompact) const SizedBox(width: 10),
-              if (!isCompact)
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isSelected
-                          ? context.appColors.accent
-                          : context.appColors.sidebarText,
-                      fontSize: 12,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w500,
+  Widget build(BuildContext context) {
+    final disabled = !enabled;
+    // 禁用态在正常弱化色上再降低强调，与可用项区分且不当作辅助文字使用。
+    final disabledColor = context.appColors.sidebarMuted.withValues(
+      alpha: 0.55,
+    );
+    final iconColor = disabled
+        ? disabledColor
+        : isSelected
+        ? context.appColors.accent
+        : context.appColors.sidebarMuted;
+    final textColor = disabled
+        ? disabledColor
+        : isSelected
+        ? context.appColors.accent
+        : context.appColors.sidebarText;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 0),
+      child: Tooltip(
+        message: disabled
+            ? (disabledReason ?? '暂不可用')
+            : (isCompact ? label : ''),
+        child: f.FTappable(
+          semanticsLabel: label,
+          selected: isSelected,
+          onPress: disabled ? null : onTap,
+          child: Container(
+            height: 44,
+            padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 11),
+            decoration: BoxDecoration(
+              color: isSelected && !disabled
+                  ? context.appColors.sidebarActive
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisAlignment: isCompact
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Icon(icon, size: 17, color: iconColor),
+                if (!isCompact) const SizedBox(width: 10),
+                if (!isCompact)
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 12,
+                        fontWeight: isSelected && !disabled
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-              if (!isCompact && label == '作息设置')
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.appColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '分学段',
-                    style: TextStyle(
-                      color: context.appColors.muted,
-                      fontSize: 12,
+                if (!isCompact && label == '作息设置')
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.appColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '分学段',
+                      style: TextStyle(
+                        color: context.appColors.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// 尚未实现的导航项：置灰并提示后续版本提供。

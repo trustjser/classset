@@ -11,10 +11,22 @@ import 'package:forui/forui.dart';
 import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
+import 'package:class_set/domain/models/academic_term.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// 空库会进入创建向导（无顶部栏），先种一个学期以便测试外观入口。
+AcademicTerm _seedTerm() => AcademicTerm(
+  id: 'appearance-seed',
+  title: '2026 秋季',
+  academicYear: '2026-2027',
+  semesterLabel: '秋季学期',
+  firstTeachingWeekStart: DateTime(2026, 9, 1),
+  teachingWeekCount: 20,
+  createdAt: DateTime(2026, 8, 1),
+);
 
 void main() {
   testWidgets('三套配色可直接选择，明暗模式独立，关闭后保留选择', (tester) async {
@@ -25,13 +37,11 @@ void main() {
     addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
+    final repository = DriftSchoolRepository(database);
+    await tester.runAsync(() => repository.saveTerm(_seedTerm()));
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          schoolRepositoryProvider.overrideWithValue(
-            DriftSchoolRepository(database),
-          ),
-        ],
+        overrides: [schoolRepositoryProvider.overrideWithValue(repository)],
         child: const ClassSetApp(databasePath: 'preview.sqlite'),
       ),
     );
@@ -92,14 +102,12 @@ void main() {
     );
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
+    final repository = DriftSchoolRepository(database);
     final container = ProviderContainer(
-      overrides: [
-        schoolRepositoryProvider.overrideWithValue(
-          DriftSchoolRepository(database),
-        ),
-      ],
+      overrides: [schoolRepositoryProvider.overrideWithValue(repository)],
     );
     addTearDown(container.dispose);
+    await tester.runAsync(() => repository.saveTerm(_seedTerm()));
     Future<void>? pending;
     Widget app(AppAppearance initial) => UncontrolledProviderScope(
       container: container,
@@ -191,15 +199,13 @@ void main() {
     addTearDown(tester.view.reset);
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
+    final repository = DriftSchoolRepository(database);
     var fail = true;
     AppAppearance? saved;
+    await tester.runAsync(() => repository.saveTerm(_seedTerm()));
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          schoolRepositoryProvider.overrideWithValue(
-            DriftSchoolRepository(database),
-          ),
-        ],
+        overrides: [schoolRepositoryProvider.overrideWithValue(repository)],
         child: ClassSetApp(
           databasePath: 'preview.sqlite',
           onAppearanceChanged: (value) async {
