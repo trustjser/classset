@@ -595,7 +595,6 @@ class _Sidebar extends ConsumerWidget {
                     horizontal: compactContents ? 7 : sidebarInset,
                   ),
                   children: [
-                    if (!compactContents) const _NavGroupLabel('排课准备'),
                     _NavItem(
                       isCompact: compactContents,
                       icon: Icons.space_dashboard_outlined,
@@ -603,6 +602,7 @@ class _Sidebar extends ConsumerWidget {
                       isSelected: section == AppSection.workbench,
                       onTap: () => onNavigate(AppSection.workbench),
                     ),
+                    if (!compactContents) const _NavGroupLabel('基础设置'),
                     _NavItem(
                       isCompact: compactContents,
                       icon: Icons.event_note_rounded,
@@ -624,8 +624,15 @@ class _Sidebar extends ConsumerWidget {
                       isSelected: section == AppSection.routines,
                       onTap: () => onNavigate(AppSection.routines),
                     ),
+                    _NavItem(
+                      label: '公共场室',
+                      icon: Icons.meeting_room_outlined,
+                      isCompact: compactContents,
+                      isSelected: section == AppSection.publicRooms,
+                      onTap: () => onNavigate(AppSection.publicRooms),
+                    ),
                     if (!compactContents) const _NavDivider(),
-                    if (!compactContents) const _NavGroupLabel('排课与课表'),
+                    if (!compactContents) const _NavGroupLabel('排课准备'),
                     _NavItem(
                       isCompact: compactContents,
                       icon: Icons.calculate_outlined,
@@ -640,6 +647,8 @@ class _Sidebar extends ConsumerWidget {
                       isSelected: section == AppSection.teachers,
                       onTap: () => onNavigate(AppSection.teachers),
                     ),
+                    if (!compactContents) const _NavDivider(),
+                    if (!compactContents) const _NavGroupLabel('课表与课务'),
                     _NavItem(
                       label: '排课与课表',
                       icon: Icons.auto_awesome_outlined,
@@ -660,15 +669,6 @@ class _Sidebar extends ConsumerWidget {
                       isCompact: compactContents,
                       isSelected: section == AppSection.temporaryAdjustments,
                       onTap: () => onNavigate(AppSection.temporaryAdjustments),
-                    ),
-                    if (!compactContents) const _NavDivider(),
-                    if (!compactContents) const _NavGroupLabel('更多'),
-                    _NavItem(
-                      label: '公共场室',
-                      icon: Icons.meeting_room_outlined,
-                      isCompact: compactContents,
-                      isSelected: section == AppSection.publicRooms,
-                      onTap: () => onNavigate(AppSection.publicRooms),
                     ),
                   ],
                 ),
