@@ -232,6 +232,11 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
 extension AppThemeColorsContext on BuildContext {
   AppThemeColors get appColors =>
       Theme.of(this).extension<AppThemeColors>() ?? AppThemeColors.light;
+
+  Color get routineMatrixDivider =>
+      Theme.of(this).brightness == Brightness.light
+      ? Colors.white
+      : Color.lerp(appColors.tableDivider, appColors.inkSecondary, 0.22)!;
 }
 
 /// Shared layout tokens and factories for the coordinated app themes.

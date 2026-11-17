@@ -2478,7 +2478,7 @@ class _FreeSlotMatrix extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.appColors.warningSurface,
           border: Border(
-            bottom: BorderSide(color: context.appColors.tableDivider),
+            bottom: BorderSide(color: context.routineMatrixDivider),
           ),
         ),
         child: Text(
@@ -2498,7 +2498,7 @@ class _FreeSlotMatrix extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.appColors.warningSurface,
           border: Border(
-            bottom: BorderSide(color: context.appColors.tableDivider),
+            bottom: BorderSide(color: context.routineMatrixDivider),
           ),
         ),
         child: _CommonPeriodChip(period: period),
@@ -2518,8 +2518,8 @@ class _FreeSlotMatrix extends StatelessWidget {
     decoration: BoxDecoration(
       color: context.appColors.tableHeader,
       border: Border(
-        right: BorderSide(color: context.appColors.tableDivider),
-        bottom: BorderSide(color: context.appColors.tableDivider),
+        right: BorderSide(color: context.routineMatrixDivider),
+        bottom: BorderSide(color: context.routineMatrixDivider),
       ),
     ),
     child: Text(
@@ -2542,8 +2542,8 @@ class _FreeSlotMatrix extends StatelessWidget {
     decoration: BoxDecoration(
       color: background,
       border: Border(
-        right: BorderSide(color: context.appColors.tableDivider),
-        bottom: BorderSide(color: context.appColors.tableDivider),
+        right: BorderSide(color: context.routineMatrixDivider),
+        bottom: BorderSide(color: context.routineMatrixDivider),
       ),
     ),
     child: Text(
@@ -2616,8 +2616,8 @@ class _MatrixCell extends StatelessWidget {
           decoration: BoxDecoration(
             color: background,
             border: Border(
-              right: BorderSide(color: context.appColors.tableDivider),
-              bottom: BorderSide(color: context.appColors.tableDivider),
+              right: BorderSide(color: context.routineMatrixDivider),
+              bottom: BorderSide(color: context.routineMatrixDivider),
             ),
           ),
           child: label == null

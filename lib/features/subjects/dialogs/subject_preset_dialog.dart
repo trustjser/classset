@@ -515,8 +515,7 @@ class _SubjectPresetDialogState extends ConsumerState<SubjectPresetDialog> {
         : null;
     // 更细范围的标记在上级视图中「部分生效」的判定集合。
     final (applicableGradeIds, applicableClassIds) = switch (draftKey.scope) {
-      FreeSlotScope.school ||
-      FreeSlotScope.stage => (
+      FreeSlotScope.school || FreeSlotScope.stage => (
         {
           for (final grade in widget.grades)
             if (grade.stageId == draftKey.stageId) grade.id,
@@ -2877,8 +2876,8 @@ class _GridHeader extends StatelessWidget {
     decoration: BoxDecoration(
       color: context.appColors.tableHeader,
       border: Border(
-        right: BorderSide(color: context.appColors.tableDivider),
-        bottom: BorderSide(color: context.appColors.tableDivider),
+        right: BorderSide(color: context.routineMatrixDivider),
+        bottom: BorderSide(color: context.routineMatrixDivider),
       ),
     ),
     child: Text(
@@ -2941,8 +2940,8 @@ class _LessonRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: visual.labelTint,
           border: Border(
-            right: BorderSide(color: context.appColors.tableDivider),
-            bottom: BorderSide(color: context.appColors.tableDivider),
+            right: BorderSide(color: context.routineMatrixDivider),
+            bottom: BorderSide(color: context.routineMatrixDivider),
           ),
         ),
         child: Text(
@@ -2973,8 +2972,10 @@ class _LessonRow extends StatelessWidget {
             width: dayWidth,
             tint: visual.cellTint,
             exemptLabel: resolveExemption(weekday, lessonIndex)?.label,
-            partialExemptLabel:
-                resolvePartialExemption(weekday, lessonIndex)?.label,
+            partialExemptLabel: resolvePartialExemption(
+              weekday,
+              lessonIndex,
+            )?.label,
             value:
                 grid[presetCellKey(weekday, periodTypeId, lessonIndex)] ??
                 PresetValue.auto,
@@ -3024,8 +3025,8 @@ class _FreeSlotMarkCell extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         border: Border(
-          right: BorderSide(color: context.appColors.tableDivider),
-          bottom: BorderSide(color: context.appColors.tableDivider),
+          right: BorderSide(color: context.routineMatrixDivider),
+          bottom: BorderSide(color: context.routineMatrixDivider),
         ),
       ),
       child: slot == null
@@ -3081,8 +3082,8 @@ class _PresetCell extends StatelessWidget {
           decoration: BoxDecoration(
             color: context.appColors.destructiveSurface,
             border: Border(
-              right: BorderSide(color: context.appColors.tableDivider),
-              bottom: BorderSide(color: context.appColors.tableDivider),
+              right: BorderSide(color: context.routineMatrixDivider),
+              bottom: BorderSide(color: context.routineMatrixDivider),
             ),
           ),
           child: Text(
@@ -3109,8 +3110,8 @@ class _PresetCell extends StatelessWidget {
             decoration: BoxDecoration(
               color: tint,
               border: Border(
-                right: BorderSide(color: context.appColors.tableDivider),
-                bottom: BorderSide(color: context.appColors.tableDivider),
+                right: BorderSide(color: context.routineMatrixDivider),
+                bottom: BorderSide(color: context.routineMatrixDivider),
               ),
             ),
             child: Text(
@@ -3156,8 +3157,8 @@ class _PresetCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: background,
           border: Border(
-            right: BorderSide(color: context.appColors.tableDivider),
-            bottom: BorderSide(color: context.appColors.tableDivider),
+            right: BorderSide(color: context.routineMatrixDivider),
+            bottom: BorderSide(color: context.routineMatrixDivider),
           ),
         ),
         child: value == PresetValue.auto

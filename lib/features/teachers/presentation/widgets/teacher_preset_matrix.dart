@@ -186,8 +186,8 @@ class TeacherPresetMatrix extends StatelessWidget {
           decoration: BoxDecoration(
             color: context.appColors.destructiveSurface,
             border: Border(
-              right: BorderSide(color: context.appColors.tableDivider),
-              bottom: BorderSide(color: context.appColors.tableDivider),
+              right: BorderSide(color: context.routineMatrixDivider),
+              bottom: BorderSide(color: context.routineMatrixDivider),
             ),
           ),
           child: Text(
@@ -251,8 +251,8 @@ class TeacherPresetMatrix extends StatelessWidget {
       decoration: BoxDecoration(
         color: visual.cellTint,
         border: Border(
-          right: BorderSide(color: context.appColors.tableDivider),
-          bottom: BorderSide(color: context.appColors.tableDivider),
+          right: BorderSide(color: context.routineMatrixDivider),
+          bottom: BorderSide(color: context.routineMatrixDivider),
         ),
       ),
       child: partialLabel == null
@@ -283,8 +283,8 @@ class TeacherPresetMatrix extends StatelessWidget {
     decoration: BoxDecoration(
       color: visual.cellTint,
       border: Border(
-        right: BorderSide(color: context.appColors.tableDivider),
-        bottom: BorderSide(color: context.appColors.tableDivider),
+        right: BorderSide(color: context.routineMatrixDivider),
+        bottom: BorderSide(color: context.routineMatrixDivider),
       ),
     ),
     child: Text(
@@ -313,8 +313,8 @@ class TeacherPresetMatrix extends StatelessWidget {
     decoration: BoxDecoration(
       color: background,
       border: Border(
-        right: BorderSide(color: context.appColors.tableDivider),
-        bottom: BorderSide(color: context.appColors.tableDivider),
+        right: BorderSide(color: context.routineMatrixDivider),
+        bottom: BorderSide(color: context.routineMatrixDivider),
       ),
     ),
     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -355,8 +355,8 @@ class TeacherPresetMatrix extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         border: Border(
-          right: BorderSide(color: context.appColors.tableDivider),
-          bottom: BorderSide(color: context.appColors.tableDivider),
+          right: BorderSide(color: context.routineMatrixDivider),
+          bottom: BorderSide(color: context.routineMatrixDivider),
         ),
       ),
       child: value == null || value == PresetValue.auto
