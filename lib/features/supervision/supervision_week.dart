@@ -90,8 +90,12 @@ class _DutySegments<T> extends StatelessWidget {
 }
 
 class _DutyHeaderSearchField extends StatefulWidget {
-  const _DutyHeaderSearchField({required this.onChanged});
+  const _DutyHeaderSearchField({
+    required this.onChanged,
+    this.value = '',
+  });
 
+  final String value;
   final ValueChanged<String> onChanged;
 
   @override
@@ -100,6 +104,9 @@ class _DutyHeaderSearchField extends StatefulWidget {
 
 class _DutyHeaderSearchFieldState extends State<_DutyHeaderSearchField> {
   final FocusNode _focusNode = FocusNode();
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
   bool _focused = false;
 
   @override
@@ -108,54 +115,100 @@ class _DutyHeaderSearchFieldState extends State<_DutyHeaderSearchField> {
     _focusNode.addListener(_onFocusChanged);
   }
 
+  @override
+  void didUpdateWidget(covariant _DutyHeaderSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: widget.value,
+        selection: TextSelection.collapsed(offset: widget.value.length),
+      );
+    }
+  }
+
   void _onFocusChanged() => setState(() => _focused = _focusNode.hasFocus);
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged('');
+    setState(() {});
+  }
 
   @override
   void dispose() {
     _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedContainer(
-    duration: const Duration(milliseconds: 140),
-    curve: Curves.easeOut,
-    width: _focused ? 224 : 176,
-    height: 30,
-    child: TextField(
-      focusNode: _focusNode,
-      onChanged: widget.onChanged,
-      cursorColor: _headerBlue(context),
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
-      decoration: InputDecoration(
-        isDense: true,
-        filled: true,
-        fillColor: _headerInput(context),
-        hintText: '搜索班级或教师...',
-        hintStyle: Theme.of(context).textTheme.bodySmall
-            ?.copyWith(color: _headerMuted(context), fontSize: 12),
-        prefixIcon: Icon(
-          Icons.search_rounded,
-          size: 15,
-          color: _headerMuted(context),
-        ),
-        prefixIconConstraints: const BoxConstraints(
-          minWidth: 30,
-          minHeight: 30,
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: _headerBorder(context)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: _headerBlue(context)),
+  Widget build(BuildContext context) {
+    final hasText = _controller.text.isNotEmpty;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOut,
+      width: _focused || hasText ? 224 : 176,
+      height: 30,
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        onChanged: (value) {
+          setState(() {});
+          widget.onChanged(value);
+        },
+        cursorColor: _headerBlue(context),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
+        decoration: InputDecoration(
+          isDense: true,
+          filled: true,
+          fillColor: _headerInput(context),
+          hintText: '搜索班级或教师...',
+          hintStyle: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: _headerMuted(context), fontSize: 12),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 15,
+            color: _headerMuted(context),
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 30,
+            minHeight: 30,
+          ),
+          suffixIcon: hasText
+              ? Tooltip(
+                  message: '清空搜索',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _clear,
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: _headerMuted(context),
+                    ),
+                  ),
+                )
+              : null,
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 26,
+            minHeight: 30,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 6,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: _headerBorder(context)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: _headerBlue(context)),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _DutyToolbarField extends StatelessWidget {
@@ -292,6 +345,7 @@ class _SupervisionWeek extends StatelessWidget {
     required this.onSelect,
     required this.onClear,
     required this.selection,
+    this.onResetFilter,
   });
   final _DutySelectionRegionState selection;
   final SupervisionDraft draft;
@@ -307,6 +361,7 @@ class _SupervisionWeek extends StatelessWidget {
   final String? selectedPostId;
   final ValueChanged<SupervisionPost>? onSelect;
   final ValueChanged<SupervisionPost>? onClear;
+  final VoidCallback? onResetFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -369,16 +424,38 @@ class _SupervisionWeek extends StatelessWidget {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            normalizedQuery.isNotEmpty
-                ? '没有匹配的班级或教师。'
-                : preferenceOnly
-                ? '当前范围没有偏好未满足的岗位。'
-                : missingOnly
-                ? '当前范围没有待安排岗位。'
-                : '当天没有带班岗位。',
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: context.appColors.muted),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                normalizedQuery.isNotEmpty
+                    ? Icons.search_off_rounded
+                    : Icons.check_circle_outline_rounded,
+                size: 32,
+                color: context.appColors.muted,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                normalizedQuery.isNotEmpty
+                    ? '没有匹配的班级或教师。'
+                    : preferenceOnly
+                    ? '当前范围没有偏好未满足的岗位。'
+                    : missingOnly
+                    ? '当前范围没有待安排岗位。'
+                    : '当天没有带班岗位。',
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: context.appColors.muted),
+              ),
+              if (onResetFilter != null) ...[
+                const SizedBox(height: 12),
+                AppGhostButton(
+                  onPressed: onResetFilter,
+                  child: Text(
+                    normalizedQuery.isNotEmpty ? '清空搜索条件' : '查看全部岗位',
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       );

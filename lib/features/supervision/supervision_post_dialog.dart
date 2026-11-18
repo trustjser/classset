@@ -1112,6 +1112,24 @@ class _PostDialogState extends State<_PostDialog> {
                   minWidth: 32,
                   minHeight: 32,
                 ),
+                suffixIcon: _classSearch.text.isEmpty
+                    ? null
+                    : Tooltip(
+                        message: '清空搜索',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(99),
+                          onTap: () => setState(_classSearch.clear),
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 14,
+                            color: context.appColors.muted,
+                          ),
+                        ),
+                      ),
+                suffixIconConstraints: const BoxConstraints(
+                  minWidth: 28,
+                  minHeight: 28,
+                ),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 filled: true,
@@ -1410,6 +1428,37 @@ class _PostDialogState extends State<_PostDialog> {
           const SizedBox(height: 4),
           if (_slotError != null) _validationMessage(_slotError!),
           for (final error in _scheduleErrors) _validationMessage(error),
+        ],
+        if (_classes.isEmpty &&
+            routine != null &&
+            _routineSlots.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: context.appColors.selectedBlue,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: context.appColors.blue,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '请先在左侧勾选适用班级，即可查看并点选可安排带班的课节。',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: context.appColors.ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
         const SizedBox(height: 6),
         if (routine == null || _routineSlots.isEmpty)

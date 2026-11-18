@@ -308,17 +308,11 @@ class _TemporaryAdjustmentsPageState
     key: const ValueKey('temporary-adjustments-records-panel'),
     title: '调整记录',
     expandTitle: false,
-    trailing: Expanded(
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: Text(
-          '共 ${_filteredRecords(state).length} 条',
-          style: TextStyle(fontSize: 12, color: context.appColors.muted),
-        ),
-      ),
-    ),
+    headerPadding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+    headerDivider: true,
+    trailing: Expanded(child: _recordsPanelHeaderTrailing(state)),
     expandChild: true,
-    padding: const EdgeInsets.symmetric(vertical: 8),
+    padding: EdgeInsets.zero,
     child: _recordList(state),
   );
 

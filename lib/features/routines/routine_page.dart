@@ -15,6 +15,7 @@ import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/features/routines/routine_templates.dart';
 import 'package:class_set/features/supervision/supervision_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart' as f;
 
@@ -323,31 +324,75 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
             persisted: hasPersistedRoutine,
           );
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _RoutinePageHeading(actions: _buildHeaderActions()),
-            const SizedBox(height: 20),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth < _routineStackedLayoutBreakpoint) {
-                    return _buildStackedLayout();
-                  }
+        return Focus(
+          autofocus: true,
+          onKeyEvent: _handleKeyEvent,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _RoutinePageHeading(actions: _buildHeaderActions()),
+              const SizedBox(height: 20),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth <
+                        _routineStackedLayoutBreakpoint) {
+                      return _buildStackedLayout();
+                    }
 
-                  if (constraints.maxWidth <
-                      _routineThreeColumnLayoutBreakpoint) {
-                    return _buildTwoColumnLayout(constraints.maxWidth);
-                  }
+                    if (constraints.maxWidth <
+                        _routineThreeColumnLayoutBreakpoint) {
+                      return _buildTwoColumnLayout(constraints.maxWidth);
+                    }
 
-                  return _buildThreeColumnLayout(constraints.maxWidth);
-                },
+                    return _buildThreeColumnLayout(constraints.maxWidth);
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (_isSaving ||
+        _isHistoryBusy ||
+        (event is! KeyDownEvent && event is! KeyRepeatEvent) ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return KeyEventResult.ignored;
+    }
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext?.widget is EditableText ||
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if ((!keyboard.isControlPressed && !keyboard.isMetaPressed) ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.keyZ) {
+      if (keyboard.isShiftPressed) {
+        if (_redoStack.isNotEmpty) unawaited(_redo());
+      } else {
+        if (_undoStack.isNotEmpty) unawaited(_undo());
+      }
+      return KeyEventResult.handled;
+    }
+    if (keyboard.isControlPressed &&
+        !keyboard.isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyY) {
+      if (_redoStack.isNotEmpty) unawaited(_redo());
+      return KeyEventResult.handled;
+    }
+    if (!keyboard.isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyS) {
+      if (_hasUnsavedChanges) unawaited(_save());
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Widget _buildStackedLayout() => SingleChildScrollView(
@@ -420,34 +465,61 @@ class _RoutineEditorState extends ConsumerState<_RoutineEditor> {
     );
   }
 
-  List<Widget> _buildHeaderActions() => [
-    Tooltip(
-      message: _undoStack.isEmpty ? '撤销' : '撤销：${_undoStack.last.message}',
-      child: IconButton(
-        onPressed: _undoStack.isEmpty || _isHistoryBusy
-            ? null
-            : () => unawaited(_undo()),
-        icon: const Icon(Icons.undo_rounded),
+  List<Widget> _buildHeaderActions() {
+    final colors = context.appColors;
+    final canUndo = _undoStack.isNotEmpty && !_isHistoryBusy;
+    final canRedo = _redoStack.isNotEmpty && !_isHistoryBusy;
+    return [
+      if (_hasUnsavedChanges)
+        Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: colors.warning,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '有未保存的修改',
+                style: TextStyle(fontSize: 12, color: colors.warning),
+              ),
+            ],
+          ),
+        ),
+      Tooltip(
+        message:
+            '${_undoStack.isEmpty ? '撤销' : '撤销：${_undoStack.last.message}'} · Cmd/Ctrl+Z',
+        child: IconButton(
+          onPressed: canUndo ? () => unawaited(_undo()) : null,
+          color: colors.blue,
+          icon: const Icon(Icons.undo_rounded),
+        ),
       ),
-    ),
-    Tooltip(
-      message: _redoStack.isEmpty ? '重做' : '重做：${_redoStack.last.message}',
-      child: IconButton(
-        onPressed: _redoStack.isEmpty || _isHistoryBusy
-            ? null
-            : () => unawaited(_redo()),
-        icon: const Icon(Icons.redo_rounded),
+      Tooltip(
+        message:
+            '${_redoStack.isEmpty ? '重做' : '重做：${_redoStack.last.message}'} · Cmd/Ctrl+Shift+Z / Ctrl+Y',
+        child: IconButton(
+          onPressed: canRedo ? () => unawaited(_redo()) : null,
+          color: colors.blue,
+          icon: const Icon(Icons.redo_rounded),
+        ),
       ),
-    ),
-    const SizedBox(width: 4),
-    Tooltip(
-      message: _isSaving ? '保存中' : '保存作息设置',
-      child: AppPrimaryButton(
-        onPressed: _hasUnsavedChanges && !_isSaving ? _save : null,
-        child: Text(_isSaving ? '保存中' : '保存'),
+      const SizedBox(width: 4),
+      Tooltip(
+        message: _isSaving ? '保存中' : '保存作息设置',
+        child: AppPrimaryButton(
+          onPressed: _hasUnsavedChanges && !_isSaving ? _save : null,
+          child: Text(_isSaving ? '保存中' : '保存'),
+        ),
       ),
-    ),
-  ];
+    ];
+  }
 
   /// 范围树节点点击：若所选年级/班级不属于当前编辑学段，先切换到对应学段再恢复选中项。
   void _selectScope(String stageId, _FreeSlotScopeSelection selection) {

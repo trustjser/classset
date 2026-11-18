@@ -690,17 +690,30 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     final colors = context.appColors;
     final shell = Container(
       height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 11),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _borderStrong),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('导出', style: TextStyle(fontSize: 13, color: colors.ink)),
+          Icon(
+            Icons.file_download_outlined,
+            size: 14,
+            color: colors.inkSecondary,
+          ),
           const SizedBox(width: 5),
+          Text(
+            '导出',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: colors.ink,
+            ),
+          ),
+          const SizedBox(width: 4),
           Icon(Icons.expand_more, size: 14, color: colors.muted),
         ],
       ),
@@ -749,57 +762,69 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
   Widget _showCancelledToggle() {
     final colors = context.appColors;
     final on = _showCancelled;
-    return InkWell(
-      onTap: () => setState(() => _showCancelled = !on),
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        height: 30,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: on ? colors.selectedBlue : colors.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: on ? colors.blue.withValues(alpha: .35) : _borderStrong,
+    return Semantics(
+      label: '显示已取消',
+      toggled: on,
+      button: true,
+      child: InkWell(
+        onTap: () => setState(() => _showCancelled = !on),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 11),
+          decoration: BoxDecoration(
+            color: on ? colors.selection : colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: on ? colors.accent.withValues(alpha: .4) : colors.border,
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 22,
-              height: 12,
-              decoration: BoxDecoration(
-                color: on ? colors.blue : _switchTrackOff,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Stack(
-                children: [
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 150),
-                    left: on ? 11 : 2,
-                    top: 1.5,
-                    child: Container(
-                      width: 9,
-                      height: 9,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: AppTheme.motionDuration(
+                  context,
+                  AppTheme.feedbackDuration,
+                ),
+                width: 24,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: on ? colors.accent : _switchTrackOff,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: AppTheme.motionDuration(
+                        context,
+                        AppTheme.feedbackDuration,
+                      ),
+                      left: on ? 12 : 2,
+                      top: 2,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: on ? colors.onAccent : colors.surface,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 7),
-            Text(
-              '显示已取消',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: on ? colors.blue : colors.inkSecondary,
+              const SizedBox(width: 7),
+              Text(
+                '显示已取消',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+                  color: on ? colors.accent : colors.inkSecondary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -895,49 +920,73 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
   Widget _recordDatesField() {
     final colors = context.appColors;
     final term = _data!.snapshot.term;
-    return FPopover(
-      constraints: const FPortalConstraints(maxWidth: 320),
-      spacing: const .spacing(6),
-      popoverAnchor: .topLeft,
-      childAnchor: .bottomLeft,
-      popoverBuilder: (context, popoverController) => _RecordDatesPanel(
-        key: ValueKey(_datesPanelSession),
-        initial: _recordDates,
-        first: term.firstTeachingWeekStart!,
-        last: term.teachingWeekEnd(term.teachingWeekCount)!,
-        onClear: () => setState(() => _recordDates = null),
-        onConfirm: (range) => setState(() => _recordDates = range),
-        onClose: popoverController.hide,
-      ),
-      builder: (context, popoverController, child) => MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            _datesPanelSession++;
-            popoverController.toggle();
-          },
-          child: child,
+    final hasRange = _recordDates != null;
+    // 与 AppSelectField(compact: true) 保持一致的 2px 视觉基线补偿，消除同行高低差。
+    return Transform.translate(
+      offset: const Offset(0, 2),
+      child: FPopover(
+        constraints: const FPortalConstraints(maxWidth: 320),
+        spacing: const .spacing(6),
+        popoverAnchor: .topLeft,
+        childAnchor: .bottomLeft,
+        popoverBuilder: (context, popoverController) => _RecordDatesPanel(
+          key: ValueKey(_datesPanelSession),
+          initial: _recordDates,
+          first: term.firstTeachingWeekStart!,
+          last: term.teachingWeekEnd(term.teachingWeekCount)!,
+          onClear: () => setState(() => _recordDates = null),
+          onConfirm: (range) => setState(() => _recordDates = range),
+          onClose: popoverController.hide,
         ),
-      ),
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          // 与 compact 筛选器一致的浅灰底无边框样式。
-          color: colors.tableHeader,
-          borderRadius: BorderRadius.circular(8),
+        builder: (context, popoverController, child) => MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              _datesPanelSession++;
+              popoverController.toggle();
+            },
+            child: child,
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _recordDates == null
-                  ? '全部日期'
-                  : '${_date(_recordDates!.start)} 至 ${_date(_recordDates!.end)}',
-              style: TextStyle(fontSize: 12.5, color: colors.inkSecondary),
-            ),
-          ],
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: hasRange ? colors.selection : colors.tableHeader,
+            borderRadius: BorderRadius.circular(8),
+            border: hasRange
+                ? Border.all(color: colors.accent.withValues(alpha: .35))
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 13,
+                color: hasRange ? colors.accent : colors.muted,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                hasRange
+                    ? '${_date(_recordDates!.start)} 至 ${_date(_recordDates!.end)}'
+                    : '全部日期',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: hasRange ? FontWeight.w500 : FontWeight.w400,
+                  color: hasRange ? colors.accent : colors.ink,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.expand_more,
+                size: 15,
+                color: hasRange ? colors.accent : colors.muted,
+              ),
+            ],
+          ),
         ),
       ),
     );

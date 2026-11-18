@@ -263,6 +263,20 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
       return KeyEventResult.ignored;
     }
     final keyboard = HardwareKeyboard.instance;
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        !keyboard.isControlPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed) {
+      if (_selectedPostId != null) {
+        setState(() => _selectedPostId = null);
+        return KeyEventResult.handled;
+      }
+      if (_selectedPostIds.isNotEmpty) {
+        setState(() => _selectedPostIds = {});
+        return KeyEventResult.handled;
+      }
+    }
     if ((!keyboard.isControlPressed && !keyboard.isMetaPressed) ||
         keyboard.isAltPressed) {
       return KeyEventResult.ignored;
@@ -275,6 +289,11 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
         !keyboard.isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyY) {
       _redo();
+      return KeyEventResult.handled;
+    }
+    if (!keyboard.isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyS) {
+      unawaited(_save(userInitiated: true));
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -291,9 +310,10 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
     }
   }
 
-  Future<bool> _save() {
+  Future<bool> _save({bool userInitiated = false}) {
     if (_saveInFlight case final existing?) return existing;
     if (!_dirty && _draft.revision == widget.draft?.revision) {
+      if (userInitiated) _message('当前草稿已是最新');
       return Future.value(true);
     }
     final operation = _persist();
@@ -666,6 +686,88 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
     child: _buildEditor(context),
   );
 
+  Widget _buildEmptyPostsState({required bool isHistorical}) {
+    final colors = context.appColors;
+    final hasSupervisionSlots = widget.snapshot.freeSlots.any(
+      (slot) => slot.allowsSupervision,
+    );
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colors.tableHeader,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.groups_outlined,
+                  size: 24,
+                  color: colors.muted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isHistorical
+                    ? '此版本没有带班岗位。'
+                    : '周表还是空的。创建岗位后，即可按节次安排老师。',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: colors.ink,
+                ),
+              ),
+              if (!isHistorical) ...[
+                const SizedBox(height: 6),
+                Text(
+                  hasSupervisionSlots
+                      ? '选择适用班级与带班课节，支持一班一岗或合班教学，并可按候选池智能匹配老师。'
+                      : '可在「作息设置」中将早晚自习或课后服务标记为免任课时段，再创建对应带班岗位。',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: colors.inkSecondary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    AppPrimaryButton.icon(
+                      onPressed: _editable ? _addPosts : null,
+                      icon: Icon(
+                        Icons.add_rounded,
+                        size: 15,
+                        color: colors.onAccent,
+                      ),
+                      label: const Text('立即创建岗位'),
+                    ),
+                    AppOutlineButton(
+                      onPressed: () =>
+                          ref.read(selectedSectionProvider.notifier).state =
+                              AppSection.routines,
+                      child: const Text('前往作息设置'),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEditor(BuildContext context) {
     final versions = [...widget.versions]
       ..sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
@@ -756,13 +858,13 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
           ),
           Container(width: 1, height: 22, color: _headerBorder(context)),
           _DutyOutlinedIconButton(
-            key: const ValueKey('duty-undo'),
+            buttonKey: const ValueKey('duty-undo'),
             icon: Icons.undo_rounded,
             tooltip: undoTip,
             onPressed: canUndo ? _undo : null,
           ),
           _DutyOutlinedIconButton(
-            key: const ValueKey('duty-redo'),
+            buttonKey: const ValueKey('duty-redo'),
             icon: Icons.redo_rounded,
             tooltip: redoTip,
             onPressed: canRedo ? _redo : null,
@@ -843,18 +945,21 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                 ? null
                 : (post) => setState(() => _selectedPostId = post.id),
             onClear: _editable ? (post) => _assignTeacher(post, '') : null,
+            onResetFilter: (_searchQuery.isNotEmpty ||
+                    _missingOnly ||
+                    _preferenceOnly)
+                ? () => setState(() {
+                    _searchQuery = '';
+                    _missingOnly = false;
+                    _preferenceOnly = false;
+                    _selectedPostId = null;
+                    _selectedPostIds = {};
+                  })
+                : null,
           ),
         );
         final weekBody = draft.posts.isEmpty
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    selected == null ? '周表还是空的。创建岗位后，即可按节次安排老师。' : '此版本没有带班岗位。',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              )
+            ? _buildEmptyPostsState(isHistorical: selected != null)
             : body;
         final legend = _DutyLegend(
           activities: {for (final post in draft.posts) post.name: post.kind},
@@ -916,6 +1021,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                                 ],
                                 trailing: [
                                   _DutyHeaderSearchField(
+                                    value: _searchQuery,
                                     onChanged: (value) => setState(() {
                                       _searchQuery = value;
                                       _selectedPostId = null;
@@ -995,7 +1101,9 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                     ),
                     if (focused != null)
                       Positioned.fill(
-                        child: IgnorePointer(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => setState(() => _selectedPostId = null),
                           child: ColoredBox(
                             color: colors.dialogBarrier.withValues(alpha: 0.12),
                           ),
@@ -1104,16 +1212,30 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           if (_dirty)
-                            Text(
-                              '有未保存的修改',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colors.warning,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: colors.warning,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '有未保存的修改',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.warning,
+                                  ),
+                                ),
+                              ],
                             ),
                           _DutyOutlineButton(
                             onPressed: _editable
-                                ? () => unawaited(_save())
+                                ? () => unawaited(_save(userInitiated: true))
                                 : null,
                             child: const Text('保存草稿'),
                           ),

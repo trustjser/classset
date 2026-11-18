@@ -78,26 +78,34 @@ class _DutyOutlinedIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.buttonKey,
     super.key,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;
+  final Key? buttonKey;
 
   @override
-  Widget build(BuildContext context) => f.FButton.icon(
-    variant: .outline,
-    size: .sm,
-    onPress: onPressed,
-    semanticsLabel: tooltip,
-    semanticsTooltip: tooltip,
-    child: Icon(
-      icon,
-      size: 16,
-      color: onPressed == null
-          ? _headerMuted(context)
-          : _headerSecondary(context),
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.appColors.surface,
+        border: Border.all(color: _headerBorder(context)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: AppIconButton(
+        key: buttonKey,
+        icon: icon,
+        iconSize: 16,
+        tooltip: tooltip,
+        onPressed: onPressed,
+        foregroundColor: onPressed == null
+            ? _headerMuted(context)
+            : _headerBlue(context),
+      ),
     ),
   );
 }
@@ -184,6 +192,7 @@ class _DutyProgress extends StatelessWidget {
             fontSize: 14,
             fontWeight: FontWeight.w700,
             color: context.appColors.ink,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
         SizedBox(

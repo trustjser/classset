@@ -1181,7 +1181,7 @@ class _TopBar extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: context.appColors.ink,
-                fontSize: 12,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1200,12 +1200,13 @@ class _TopBar extends ConsumerWidget {
                   maxWidth: constraints.maxWidth < 800 ? 220 : 320,
                 ),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
+                  horizontal: 11,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: context.appColors.canvas,
-                  borderRadius: BorderRadius.circular(10),
+                  color: context.appColors.surface,
+                  border: Border.all(color: context.appColors.border),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1217,12 +1218,12 @@ class _TopBar extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.appColors.ink,
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Icon(
                       Icons.expand_more_rounded,
                       size: 15,

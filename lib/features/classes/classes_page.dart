@@ -326,11 +326,6 @@ class _Toolbar extends StatelessWidget {
           ),
         ],
       );
-      final templateImport = AppOutlineButton.icon(
-        onPressed: null,
-        icon: const Icon(Icons.upload_file_outlined, size: 16),
-        label: const Text('模板导入'),
-      );
       if (constraints.maxWidth < 700) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -691,7 +686,7 @@ class _GradeClassTable extends ConsumerWidget {
                   ],
                 ),
                 rows.isEmpty
-                    ? const _EmptyGradeRows()
+                    ? _EmptyGradeRows(onAddGrade: onAddGrade)
                     : Column(
                         children: [
                           ReorderableListView.builder(
@@ -732,15 +727,32 @@ class _GradeClassTable extends ConsumerWidget {
 }
 
 class _EmptyGradeRows extends StatelessWidget {
-  const _EmptyGradeRows();
+  const _EmptyGradeRows({required this.onAddGrade});
+
+  final VoidCallback onAddGrade;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.all(24),
+    padding: const EdgeInsets.all(24),
     child: Center(
-      child: Text(
-        '还没有年级，点击表头的 + 新增年级。',
-        style: TextStyle(color: context.appColors.muted),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '还没有年级，点击表头的 + 新增年级。',
+            style: TextStyle(color: context.appColors.muted),
+          ),
+          const SizedBox(height: 12),
+          AppOutlineButton.icon(
+            onPressed: onAddGrade,
+            icon: Icon(
+              Icons.add_rounded,
+              size: 14,
+              color: context.appColors.blue,
+            ),
+            label: const Text('新增年级'),
+          ),
+        ],
       ),
     ),
   );

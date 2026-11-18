@@ -475,6 +475,136 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
 
   // ---------------------------------------------------------------- 记录列表
 
+  List<({String label, VoidCallback onRemove})> _activeRecordFilterPills() {
+    final pills = <({String label, VoidCallback onRemove})>[];
+    if (_recordType != null) {
+      pills.add((
+        label: '类型：${_kindLabel(_recordType!)}',
+        onRemove: () => setState(() => _recordType = null),
+      ));
+    }
+    if (_recordStatus != null) {
+      final statusLabel = switch (_recordStatus) {
+        'active' => '有效',
+        'invalid' => '需处理',
+        'cancelled' => '已取消',
+        _ => _recordStatus!,
+      };
+      pills.add((
+        label: '状态：$statusLabel',
+        onRemove: () => setState(() => _recordStatus = null),
+      ));
+    }
+    if (_recordClass != null) {
+      pills.add((
+        label: '班级：${_className(_recordClass!)}',
+        onRemove: () => setState(() => _recordClass = null),
+      ));
+    }
+    if (_recordTeacher != null) {
+      pills.add((
+        label: '教师：${_teacher(_recordTeacher!)}',
+        onRemove: () => setState(() => _recordTeacher = null),
+      ));
+    }
+    if (_recordDates != null) {
+      pills.add((
+        label: '日期：${_md(_recordDates!.start)}–${_md(_recordDates!.end)}',
+        onRemove: () => setState(() => _recordDates = null),
+      ));
+    }
+    return pills;
+  }
+
+  Widget _recordsPanelHeaderTrailing(TemporaryTimetableState state) {
+    final colors = context.appColors;
+    final filtered = _filteredRecords(state);
+    final attentionCount = filtered
+        .where((record) => record.cancelledAt == null && record.needsAttention)
+        .length;
+    final filterPills = _activeRecordFilterPills();
+
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        for (final pill in filterPills)
+          InkWell(
+            onTap: pill.onRemove,
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: colors.selection,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    pill.label,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: colors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.close_rounded, size: 12, color: colors.accent),
+                ],
+              ),
+            ),
+          ),
+        if (filterPills.length > 1 ||
+            (filterPills.isNotEmpty && state.records.length > filtered.length))
+          _textButton(
+            '查看全部',
+            fontSize: 12,
+            onTap: _clearRecordFilters,
+          ),
+        if (attentionCount > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: colors.warningSurface,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 13,
+                  color: colors.warning,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '需处理 $attentionCount',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: colors.warning,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Text(
+          '共 ${filtered.length} 条',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: colors.muted,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
+  }
+
   String _recordClassSummary(TemporaryAdjustmentRecord record) =>
       record.supervisionChange?.before.classNames.join('、') ??
       (record.changes.isEmpty
@@ -543,24 +673,86 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
         : summary;
   }
 
+  /// 调整记录列表专用的类型标签：带语义图标与圆角 6px，区别于课格内紧凑胶囊。
+  Widget _recordTypeBadge(String kind) {
+    final colors = context.appColors;
+    final (icon, bg, fg) = switch (kind) {
+      'swap' => (Icons.swap_horiz_rounded, colors.selection, colors.accent),
+      'move' => (
+        Icons.arrow_forward_rounded,
+        colors.selection,
+        colors.accent,
+      ),
+      'substitute' => (
+        Icons.person_outline_rounded,
+        colors.purple.withValues(alpha: _isDark ? .22 : .12),
+        colors.purple,
+      ),
+      supervisionSubstitutionKind => (
+        Icons.assignment_ind_outlined,
+        colors.warningSurface,
+        colors.warning,
+      ),
+      _ => (Icons.swap_horiz_rounded, colors.selection, colors.accent),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            _kindLabel(kind),
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _statusBadge(TemporaryAdjustmentRecord record) {
     final colors = context.appColors;
-    final (color, label) = record.cancelledAt != null
-        ? (colors.muted, '已取消')
+    final (fg, bg, label) = record.cancelledAt != null
+        ? (colors.muted, colors.tableHeader, '已取消')
         : record.needsAttention
-        ? (colors.warning, '需处理')
-        : (colors.success, '有效');
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 5),
-        Text(label, style: TextStyle(fontSize: 12.5, color: color)),
-      ],
+        ? (colors.warning, colors.warningSurface, '需处理')
+        : (colors.success, colors.successSurface, '有效');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              height: 1.2,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -579,21 +771,21 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 56,
-                  height: 56,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: colors.tableHeader,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     noRecordsYet
                         ? Icons.swap_horiz_rounded
                         : Icons.filter_alt_off_outlined,
-                    size: 26,
-                    color: colors.blue,
+                    size: 22,
+                    color: colors.muted,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 Text(
                   noRecordsYet ? '还没有调整记录' : '没有符合筛选条件的记录',
                   textAlign: TextAlign.center,
@@ -603,7 +795,7 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                     color: colors.ink,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   noRecordsYet
                       ? '确认一次调整后，变更课次与原因会显示在这里。'
@@ -611,11 +803,11 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
-                    height: 1.6,
+                    height: 1.5,
                     color: colors.inkSecondary,
                   ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 20),
                 noRecordsYet
                     ? AppPrimaryButton(
                         onPressed: () => setState(() => _records = false),
@@ -646,32 +838,16 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) => Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 1280,
-            maxHeight: constraints.maxHeight,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (var i = 0; i < records.length; i++)
-                Container(
-                  decoration: i == records.length - 1
-                      ? null
-                      : BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: colors.border),
-                          ),
-                        ),
-                  child: _recordRow(records[i]),
-                ),
-            ],
-          ),
-        ),
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      itemCount: records.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        indent: 20,
+        endIndent: 20,
+        color: colors.tableDivider,
       ),
+      itemBuilder: (context, index) => _recordRow(records[index]),
     );
   }
 
@@ -688,15 +864,41 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
     final colors = context.appColors;
     final cancelled = record.cancelledAt != null;
     final className = _recordClassSummary(record);
-    final title = Text(
-      '$className · ${_recordDateSummary(record)}',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 13.5,
-        fontWeight: FontWeight.w500,
-        color: colors.ink,
-      ),
+    final dateSummary = _recordDateSummary(record);
+    final title = Row(
+      children: [
+        if (className.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: colors.tableHeader,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text(
+              className,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colors.ink,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Expanded(
+          child: Text(
+            dateSummary,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: colors.ink,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ],
     );
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -704,22 +906,30 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
         Text(
           _recordChangeSummary(record),
           style: TextStyle(
-            fontSize: 12.5,
+            fontSize: 13,
             height: 1.5,
             color: colors.inkSecondary,
           ),
         ),
         if (record.needsAttention)
           Padding(
-            padding: const EdgeInsets.only(top: 3),
+            padding: const EdgeInsets.only(top: 5),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 14, color: colors.warning),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 14,
+                  color: colors.warning,
+                ),
                 const SizedBox(width: 5),
                 Expanded(
                   child: Text(
                     '常规课表已变化，此调整需人工处理',
-                    style: TextStyle(fontSize: 12, color: colors.warning),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: colors.warning,
+                    ),
                   ),
                 ),
               ],
@@ -727,10 +937,20 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
           ),
         if (record.reason.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Text(
-              '原因：${record.reason}',
-              style: TextStyle(fontSize: 12, color: colors.muted),
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                Icon(Icons.notes_rounded, size: 13, color: colors.muted),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    '原因：${record.reason}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: colors.muted),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -739,12 +959,14 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
       mainAxisSize: MainAxisSize.min,
       children: [
         _textButton('详情', onTap: () => _showRecordDetails(record)),
-        if (!cancelled)
+        if (!cancelled) ...[
+          const SizedBox(width: 4),
           _textButton(
             '取消',
             color: colors.destructive,
             onTap: _saving ? null : () => _cancel(record),
           ),
+        ],
       ],
     );
 
@@ -758,7 +980,7 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                   children: [
                     Row(
                       children: [
-                        _typePill(record.kind),
+                        _recordTypeBadge(record.kind),
                         const SizedBox(width: 10),
                         Expanded(child: title),
                         const SizedBox(width: 8),
@@ -769,20 +991,22 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                       padding: const EdgeInsets.only(top: 8),
                       child: details,
                     ),
+                    const SizedBox(height: 4),
                     Align(alignment: Alignment.centerRight, child: actions),
                   ],
                 )
               : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _typePill(record.kind),
+                    _recordTypeBadge(record.kind),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [title, const SizedBox(height: 3), details],
+                        children: [title, const SizedBox(height: 5), details],
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     _statusBadge(record),
                     const SizedBox(width: 12),
                     actions,
@@ -790,9 +1014,17 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
                 ),
         );
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-          child: content,
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showRecordDetails(record),
+            hoverColor: colors.tableHeader.withValues(alpha: .65),
+            splashColor: colors.accent.withValues(alpha: .06),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: content,
+            ),
+          ),
         );
       },
     );
@@ -801,6 +1033,8 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
   Future<void> _showRecordDetails(TemporaryAdjustmentRecord record) async {
     final colors = context.appColors;
     final className = _recordClassSummary(record);
+    final cancelled = record.cancelledAt != null;
+    var shouldCancel = false;
     await showAppDialog(
       context: context,
       builder: (dialogContext) => AppDialog(
@@ -820,31 +1054,95 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  _recordTypeBadge(record.kind),
+                  const SizedBox(width: 8),
+                  _statusBadge(record),
+                  if (className.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.tableHeader,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        className,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: colors.ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
               if (record.supervisionChange != null)
-                Text(_recordChangeSummary(record)),
-              for (final change in record.changes)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.tableHeader,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child: Text(
-                    '${_lesson(change.before)}\n→ ${_lesson(change.after)}',
+                    _recordChangeSummary(record),
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 13,
                       height: 1.5,
-                      color: colors.inkSecondary,
+                      color: colors.ink,
                     ),
                   ),
                 ),
-              if (record.reason.isNotEmpty)
+              for (final change in record.changes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.tableHeader,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_lesson(change.before)}\n→ ${_lesson(change.after)}',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.55,
+                            color: colors.ink,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (record.reason.isNotEmpty) ...[
+                const SizedBox(height: 4),
                 Text(
                   '原因：${record.reason}',
-                  style: TextStyle(fontSize: 12, color: colors.muted),
+                  style: TextStyle(fontSize: 12.5, color: colors.inkSecondary),
                 ),
+              ],
               if (record.cancelledAt != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 _hintBox(const Text('此调整已取消，未应用在实际课表中。')),
               ],
               if (record.needsAttention) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 _hintBox(const Text('常规课表已变化，此调整需人工处理。'), tone: 'amber'),
               ],
             ],
@@ -855,6 +1153,17 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
             child: Row(
               children: [
+                if (!cancelled)
+                  _textButton(
+                    '取消此调整',
+                    color: colors.destructive,
+                    onTap: _saving
+                        ? null
+                        : () {
+                            shouldCancel = true;
+                            Navigator.pop(dialogContext);
+                          },
+                  ),
                 const Spacer(),
                 AppGhostButton(
                   onPressed: () => Navigator.pop(dialogContext),
@@ -866,6 +1175,9 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
         ],
       ),
     );
+    if (shouldCancel && mounted) {
+      await _cancel(record);
+    }
   }
 
   // ---------------------------------------------------------------- 记录筛选 / 导出 / 取消
