@@ -54,6 +54,8 @@ class _TemporaryAdjustmentsPageState
   String? _recordClass;
   String? _recordTeacher;
   DateTimeRange? _recordDates;
+  // 每次打开日期弹层自增，作为面板 key 强制重建，保证从最新 _recordDates 初始化。
+  int _datesPanelSession = 0;
   ActualLesson? _source;
   ActualLesson? _swapTarget;
   DateTime? _targetDate;
@@ -236,10 +238,10 @@ class _TemporaryAdjustmentsPageState
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Expanded(
             child: _records
-                ? _recordList(state)
+                ? _recordsContent(state)
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       if (constraints.maxWidth < 1040) {
@@ -299,6 +301,26 @@ class _TemporaryAdjustmentsPageState
       ),
     );
   }
+
+  /// 调整记录的内容面板：与「本周课表」同级的完整工作区，
+  /// 空态与记录列表都落在同一张表面里，避免标题浮在画布上。
+  Widget _recordsContent(TemporaryTimetableState state) => AppSectionPanel(
+    key: const ValueKey('temporary-adjustments-records-panel'),
+    title: '调整记录',
+    expandTitle: false,
+    trailing: Expanded(
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Text(
+          '共 ${_filteredRecords(state).length} 条',
+          style: TextStyle(fontSize: 12, color: context.appColors.muted),
+        ),
+      ),
+    ),
+    expandChild: true,
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: _recordList(state),
+  );
 
   Widget _timetablePanel(Widget grid, {required bool expandChild}) =>
       AppSectionPanel(

@@ -118,7 +118,7 @@ void main() {
     }
   });
 
-  testWidgets('统一工具条：四组控件同处一行，窄屏回退不溢出', (tester) async {
+  testWidgets('统一工具条：模式与操作同排，筛选独立成行且窄屏不溢出', (tester) async {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final state = _state();
@@ -136,26 +136,38 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    // 1400：完整四组（含日期区间）；1080：中等档（省日期区间）。
+    // 1400：完整日期区间；1080：中等宽度。两档都把「模式 + 操作」放上排，
+    // 「查看维度 + 时间范围」放下排，避免控件挤在同一行后换行成阶梯。
     for (final size in const [Size(1400, 900), Size(1080, 700)]) {
       await pumpAt(size);
-      final groups = [
-        find.text('实际课表'), // ① 页面模式
-        find.text('班级视图'), // ② 查看维度
-        find.textContaining('教学周'), // ③ 时间范围
-        find.text('导出'), // ④ 操作
-      ];
-      for (final group in groups) {
+      final topRow = [find.text('实际课表'), find.text('导出')];
+      final filterRow = [find.text('班级视图'), find.textContaining('教学周')];
+      for (final group in [...topRow, ...filterRow]) {
         expect(group, findsOneWidget, reason: '$size 下工具条控件缺失');
       }
-      final centers = groups.map((group) => tester.getCenter(group)).toList();
-      for (final center in centers) {
+      final topDy = topRow.map((group) => tester.getCenter(group).dy).toList();
+      final filterDy = filterRow
+          .map((group) => tester.getCenter(group).dy)
+          .toList();
+      for (final dy in topDy) {
         expect(
-          (center.dy - centers.first.dy).abs(),
+          (dy - topDy.first).abs(),
           lessThan(12),
-          reason: '$size 下四组未对齐在同一条工具条上',
+          reason: '$size 下模式与操作未在同一排',
         );
       }
+      for (final dy in filterDy) {
+        expect(
+          (dy - filterDy.first).abs(),
+          lessThan(12),
+          reason: '$size 下筛选控件未在同一排',
+        );
+      }
+      expect(
+        filterDy.first - topDy.first,
+        greaterThan(24),
+        reason: '$size 下筛选行应与上排分离',
+      );
       expect(tester.takeException(), isNull, reason: '$size 下工具条布局溢出');
     }
 
@@ -167,7 +179,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('调整记录页头部复用统一工具条', (tester) async {
+  testWidgets('调整记录页头部复用统一工具条，空态居中成组', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -183,25 +195,37 @@ void main() {
     await tester.tap(find.text('调整记录'));
     await tester.pumpAndSettle();
 
-    // ① 页面模式 / ② 数据范围 / ③ 操作 三组都在同一条工具条上
-    final groups = [
-      find.text('实际课表'),
-      find.text('全部类型'),
-      find.text('显示已取消'),
-      find.text('导出'),
-    ];
-    for (final group in groups) {
-      expect(group, findsOneWidget, reason: '调整记录页工具条控件缺失');
+    // 上排：模式 + 操作；下排：筛选。
+    final topRow = [find.text('实际课表'), find.text('显示已取消'), find.text('导出')];
+    for (final group in topRow) {
+      expect(group, findsOneWidget, reason: '调整记录页上排控件缺失');
     }
-    final centers = groups.map((group) => tester.getCenter(group).dy).toList();
-    for (final dy in centers) {
-      expect(
-        (dy - centers.first).abs(),
-        lessThan(12),
-        reason: '调整记录页头部未对齐在同一条工具条上',
-      );
+    final topDy = topRow.map((group) => tester.getCenter(group).dy).toList();
+    for (final dy in topDy) {
+      expect((dy - topDy.first).abs(), lessThan(12), reason: '调整记录页上排未对齐');
     }
+    final filterDy = tester.getCenter(find.text('全部类型')).dy;
+    expect(filterDy - topDy.first, greaterThan(24), reason: '筛选行应与上排分离');
     expect(tester.takeException(), isNull, reason: '调整记录页头部布局溢出');
+
+    // 空态应在内容面板中水平居中，不再贴左上角。
+    final panel = find.byKey(
+      const ValueKey('temporary-adjustments-records-panel'),
+    );
+    expect(panel, findsOneWidget);
+    final panelRect = tester.getRect(panel);
+    final titleRect = tester.getRect(find.text('还没有调整记录'));
+    expect(
+      ((titleRect.left + titleRect.right) / 2 - panelRect.center.dx).abs(),
+      lessThan(12),
+      reason: '空态标题未水平居中',
+    );
+    expect(
+      titleRect.top,
+      greaterThan(panelRect.top + 40),
+      reason: '空态标题不应紧贴面板顶部',
+    );
+    expect(find.text('查看实际课表'), findsOneWidget);
     await tester.pumpAndSettle();
   });
 

@@ -1586,7 +1586,7 @@ class AppDateField extends StatelessWidget {
             // 而不是跳到范围下限（10 年前）。
             initial: value ?? boundedToday,
           ),
-          headerBuilder: _appDateFieldCalendarHeader,
+          headerBuilder: appDateFieldCalendarHeader,
         ),
         // 显式传 null 覆盖默认日历图标，同时让字段走与 AppTextFormField
         // 相同的前缀留白路径（非 null prefixBuilder 会把内容左边距清零，
@@ -1598,7 +1598,9 @@ class AppDateField extends StatelessWidget {
   }
 }
 
-Widget _appDateFieldCalendarHeader(
+/// AppDateField / AppDateRangeField 共用的 Forui 网格日历头部：
+/// 「YYYY年M月 / YYYY年」标签 + 上一页/下一页按钮。
+Widget appDateFieldCalendarHeader(
   BuildContext context,
   FGridCalendarController controller,
   FDateSelectionController<Object?> _,

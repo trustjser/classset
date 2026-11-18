@@ -569,46 +569,60 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
     final records = _filteredRecords(state).reversed.toList();
     if (records.isEmpty) {
       final noRecordsYet = state.records.isEmpty;
-      return Align(
-        alignment: Alignment.topLeft,
+      return Center(
         child: Padding(
-          padding: const EdgeInsets.only(top: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 940),
+            constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      noRecordsYet ? '还没有调整记录' : '没有符合筛选条件的记录',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: colors.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      noRecordsYet
-                          ? '确认一次调整后，变更课次与原因会显示在这里。'
-                          : '当前筛选范围内没有调整记录。',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.5,
-                        color: colors.inkSecondary,
-                      ),
-                    ),
-                  ],
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: colors.tableHeader,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(
+                    noRecordsYet
+                        ? Icons.swap_horiz_rounded
+                        : Icons.filter_alt_off_outlined,
+                    size: 26,
+                    color: colors.blue,
+                  ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 18),
+                Text(
+                  noRecordsYet ? '还没有调整记录' : '没有符合筛选条件的记录',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colors.ink,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  noRecordsYet
+                      ? '确认一次调整后，变更课次与原因会显示在这里。'
+                      : '当前筛选范围内没有调整记录，可调整条件后重试。',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: colors.inkSecondary,
+                  ),
+                ),
+                const SizedBox(height: 22),
                 noRecordsYet
                     ? AppPrimaryButton(
                         onPressed: () => setState(() => _records = false),
                         child: const Text('查看实际课表'),
                       )
                     : Wrap(
+                        alignment: WrapAlignment.center,
                         spacing: 8,
                         runSpacing: 4,
                         children: [
@@ -901,17 +915,6 @@ extension _TemporaryAdjustmentsRecords on _TemporaryAdjustmentsPageState {
       return false;
     }
     return true;
-  }
-
-  Future<void> _selectRecordDates() async {
-    final term = _data!.snapshot.term;
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: term.firstTeachingWeekStart!,
-      lastDate: term.teachingWeekEnd(term.teachingWeekCount)!,
-      initialDateRange: _recordDates,
-    );
-    if (range != null && mounted) setState(() => _recordDates = range);
   }
 
   Future<void> _export(TemporaryExportKind kind) {

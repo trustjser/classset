@@ -210,14 +210,45 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     ),
   );
 
-  /// 统一工具条的分组竖线：1px × 20px，与 32px 控件共用中线。
-  /// 用比卡片描边略深的 _borderStrong，否则 1px 线在白底上几乎看不见。
-  Widget _toolbarDivider() => Container(
-    width: 1,
-    height: 20,
-    margin: const EdgeInsets.symmetric(horizontal: 5),
-    color: _borderStrong,
-  );
+  /// 统一工具条：上排「页面模式 + 操作」，下排「筛选条件」，同处一张卡片。
+  /// 把筛选器从 Tab 行里拆出来，避免 6 个控件挤在一行后日期被压成阶梯状。
+  Widget _unifiedToolbar(
+    TemporaryTimetableState state, {
+    required List<Widget> filters,
+    required List<Widget> actions,
+  }) {
+    return _toolbarShell(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 48,
+            child: Row(
+              children: [
+                _tabsSegment(state, tabHeight: 48, compactCount: true),
+                const Spacer(),
+                for (var index = 0; index < actions.length; index++) ...[
+                  if (index > 0) const SizedBox(width: 8),
+                  actions[index],
+                ],
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 9, 0, 11),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [_secLabel('筛选'), ...filters],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// [tabHeight] 让同一组 Tab 既能放进 38px 的记录工具条，
   /// 也能撑满 48px 的统一工具条；[compactCount] 用纯数字徽标。
@@ -774,223 +805,255 @@ extension _TemporaryAdjustmentsCommon on _TemporaryAdjustmentsPageState {
     );
   }
 
-  /// 统一工具条（对应 design/temp_course_adjustments_header_refresh.html）：
-  /// 与内容卡片同款圆角表面，按 页面模式 → 查看维度 → 时间范围 → 操作
-  /// 从左到右分四组，组间 1px 竖线，右侧只留一个对齐块。
-  /// 窄屏时中间两组在同一张卡片内用 Wrap 换行，不再散成三条通栏横带。
+  /// 统一工具条（实际课表页）：上排 Tab + 导出，下排视角 / 班级教师 / 周次。
+  /// 控件与交互保持原样，只把层级拆成两行并留足呼吸空间。
   Widget _scheduleToolbar(TemporaryTimetableState state, DateTime start) {
-    return _toolbarShell(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final singleRow = width >= 820;
-          final fullWeek = width >= 1060;
-          if (!singleRow) {
-            // 极窄窗口不能把中间组塞进 Expanded：Wrap 会把子 Row 压到
-            // 几十像素并导致内部溢出。改为整宽两行，但仍留在同一张圆角卡片里。
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    _tabsSegment(state, tabHeight: 48, compactCount: true),
-                    const Spacer(),
-                    _exportMenuButton(weekStart: start),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _viewSegment(),
-                    _teacherView
-                        ? _teacherSelect(state, width: 112)
-                        : _classSelect(state, width: 112),
-                    _weekNav(state, start, hideDateRange: true),
-                  ],
-                ),
-              ],
-            );
-          }
-          return SizedBox(
-            height: 48,
-            child: Row(
-              children: [
-                // ① 页面模式
-                _tabsSegment(state, tabHeight: 48, compactCount: true),
-                _toolbarDivider(),
-                // ② 查看维度
-                _viewSegment(),
-                const SizedBox(width: 6),
-                _teacherView
-                    ? _teacherSelect(state, width: fullWeek ? 148 : 108)
-                    : _classSelect(state, width: fullWeek ? 148 : 108),
-                const Spacer(),
-                // ③ 时间范围：中等宽度档省掉日期区间，保证单行放得下
-                _weekNav(state, start, hideDateRange: !fullWeek),
-                _toolbarDivider(),
-                // ④ 操作
-                _exportMenuButton(weekStart: start),
-              ],
-            ),
-          );
-        },
-      ),
+    return _unifiedToolbar(
+      state,
+      filters: [
+        _viewSegment(),
+        _teacherView
+            ? _teacherSelect(state, width: 148)
+            : _classSelect(state, width: 148),
+        _weekNav(state, start),
+      ],
+      actions: [_exportMenuButton(weekStart: start)],
     );
   }
 
-  /// 调整记录页复用与实际课表页同构的 48px 统一工具条：
-  /// ① 页面模式（Tab） → ② 数据范围（记录筛选，窄屏可在同一白底块内换行）
-  /// → ③ 操作（显示已取消 + 导出，右侧唯一对齐块）。
+  /// 调整记录页复用统一的两层工具条：上排 Tab + 操作，下排筛选项。
   /// 筛选控件、文案与交互保持原样，只重排层级，避免 Tab 与六个筛选器挤在一行。
   Widget _recordsToolbar(TemporaryTimetableState state) {
-    final colors = context.appColors;
-    final filters = [
-      _selectField(
-        width: 122,
-        hint: '全部类型',
-        searchHint: '搜索类型',
-        items: const {
-          '全部类型': null,
-          '换课': 'swap',
-          '移课': 'move',
-          '代课': 'substitute',
-          '带班替班': supervisionSubstitutionKind,
-        },
-        value: _recordType,
-        onChanged: (value) => setState(() => _recordType = value),
-      ),
-      _selectField(
-        width: 112,
-        hint: '全部状态',
-        searchHint: '搜索状态',
-        items: const {
-          '全部状态': null,
-          '有效': 'active',
-          '需处理': 'invalid',
-          '已取消': 'cancelled',
-        },
-        value: _recordStatus,
-        onChanged: (value) => setState(() => _recordStatus = value),
-      ),
-      _selectField(
-        width: 132,
-        hint: '全部班级',
-        searchHint: '搜索班级',
-        items: {
-          '全部班级': null,
-          for (final c in state.snapshot.classes) c.name: c.id,
-        },
-        value: _recordClass,
-        onChanged: (value) => setState(() => _recordClass = value),
-      ),
-      _selectField(
-        width: 132,
-        hint: '全部教师',
-        searchHint: '搜索教师',
-        items: {
-          '全部教师': null,
-          for (final teacher in state.snapshot.teachers)
-            teacher.displayName: teacher.id,
-        },
-        value: _recordTeacher,
-        onChanged: (value) => setState(() => _recordTeacher = value),
-      ),
-      InkWell(
-        onTap: _selectRecordDates,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            // 与 compact 筛选器一致的浅灰底无边框样式。
-            color: colors.tableHeader,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _recordDates == null
-                    ? '全部日期'
-                    : '${_date(_recordDates!.start)} 至 ${_date(_recordDates!.end)}',
-                style: TextStyle(fontSize: 12.5, color: colors.inkSecondary),
-              ),
-            ],
-          ),
-        ),
-      ),
-      if (_recordDates != null)
-        _textButton(
-          '清除日期',
-          onTap: () => setState(() => _recordDates = null),
-          fontSize: 12.5,
-        ),
-    ];
-    return _toolbarShell(
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 48),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // 筛选控件一行约需 620px，加上 Tab(≈180)、两条竖线(≈26)、
-            // 右侧操作块(≈200)，真正能单行排完至少要 ≈1020px。
-            // 低于这个宽度时 Expanded 会把筛选 Wrap 压成阶梯状两行，
-            // 更窄时甚至只剩几十像素导致子 Row 溢出；改为整宽两行：
-            // 行1 Tab + 操作，行2 筛选器（Wrap 自适应），仍在同一张圆角卡片内。
-            if (constraints.maxWidth < 1020) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      _tabsSegment(state, tabHeight: 48, compactCount: true),
-                      const Spacer(),
-                      _showCancelledToggle(),
-                      const SizedBox(width: 8),
-                      _exportMenuButton(),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: filters,
-                  ),
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ① 页面模式：与实际课表页完全同构
-                _tabsSegment(state, tabHeight: 48, compactCount: true),
-                _toolbarDivider(),
-                // ② 数据范围：筛选条件，窄一点时在同一张卡片内换行
-                Expanded(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: filters,
-                  ),
-                ),
-                _toolbarDivider(),
-                // ③ 操作：右侧唯一对齐块
-                _showCancelledToggle(),
-                const SizedBox(width: 8),
-                _exportMenuButton(),
-              ],
-            );
+    return _unifiedToolbar(
+      state,
+      filters: [
+        _selectField(
+          width: 122,
+          hint: '全部类型',
+          searchHint: '搜索类型',
+          items: const {
+            '全部类型': null,
+            '换课': 'swap',
+            '移课': 'move',
+            '代课': 'substitute',
+            '带班替班': supervisionSubstitutionKind,
           },
+          value: _recordType,
+          onChanged: (value) => setState(() => _recordType = value),
+        ),
+        _selectField(
+          width: 112,
+          hint: '全部状态',
+          searchHint: '搜索状态',
+          items: const {
+            '全部状态': null,
+            '有效': 'active',
+            '需处理': 'invalid',
+            '已取消': 'cancelled',
+          },
+          value: _recordStatus,
+          onChanged: (value) => setState(() => _recordStatus = value),
+        ),
+        _selectField(
+          width: 132,
+          hint: '全部班级',
+          searchHint: '搜索班级',
+          items: {
+            '全部班级': null,
+            for (final c in state.snapshot.classes) c.name: c.id,
+          },
+          value: _recordClass,
+          onChanged: (value) => setState(() => _recordClass = value),
+        ),
+        _selectField(
+          width: 132,
+          hint: '全部教师',
+          searchHint: '搜索教师',
+          items: {
+            '全部教师': null,
+            for (final teacher in state.snapshot.teachers)
+              teacher.displayName: teacher.id,
+          },
+          value: _recordTeacher,
+          onChanged: (value) => setState(() => _recordTeacher = value),
+        ),
+        _recordDatesField(),
+        if (_recordDates != null)
+          _textButton(
+            '清除日期',
+            onTap: () => setState(() => _recordDates = null),
+            fontSize: 12.5,
+          ),
+      ],
+      actions: [_showCancelledToggle(), _exportMenuButton()],
+    );
+  }
+
+  /// 「全部日期」筛选 chip：点击弹出 Forui 网格日历（FCalendar）做范围选择。
+  /// 可选范围限定在本学期教学周（首周周一 ~ 末周周日）。
+  /// 每次打开都自增 session 作为面板 key 强制重建，保证从最新 [_recordDates] 初始化。
+  Widget _recordDatesField() {
+    final colors = context.appColors;
+    final term = _data!.snapshot.term;
+    return FPopover(
+      constraints: const FPortalConstraints(maxWidth: 320),
+      spacing: const .spacing(6),
+      popoverAnchor: .topLeft,
+      childAnchor: .bottomLeft,
+      popoverBuilder: (context, popoverController) => _RecordDatesPanel(
+        key: ValueKey(_datesPanelSession),
+        initial: _recordDates,
+        first: term.firstTeachingWeekStart!,
+        last: term.teachingWeekEnd(term.teachingWeekCount)!,
+        onClear: () => setState(() => _recordDates = null),
+        onConfirm: (range) => setState(() => _recordDates = range),
+        onClose: popoverController.hide,
+      ),
+      builder: (context, popoverController, child) => MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            _datesPanelSession++;
+            popoverController.toggle();
+          },
+          child: child,
+        ),
+      ),
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          // 与 compact 筛选器一致的浅灰底无边框样式。
+          color: colors.tableHeader,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _recordDates == null
+                  ? '全部日期'
+                  : '${_date(_recordDates!.start)} 至 ${_date(_recordDates!.end)}',
+              style: TextStyle(fontSize: 12.5, color: colors.inkSecondary),
+            ),
+          ],
         ),
       ),
     );
   }
 
   // ---------------------------------------------------------------- 页面骨架
+}
+
+/// 「全部日期」范围选择面板：Forui 网格日历（范围选择）+ 清除 / 确定按钮。
+/// FCalendar 以 UTC 日粒度交互，选择值在提交前转回本地日期（00:00）。
+class _RecordDatesPanel extends StatefulWidget {
+  const _RecordDatesPanel({
+    required this.initial,
+    required this.first,
+    required this.last,
+    required this.onClear,
+    required this.onConfirm,
+    required this.onClose,
+    super.key,
+  });
+
+  /// 当前已应用的筛选范围；null 表示「全部日期」。
+  final DateTimeRange? initial;
+  final DateTime first;
+  final DateTime last;
+  final VoidCallback onClear;
+  final void Function(DateTimeRange range) onConfirm;
+  final VoidCallback onClose;
+
+  @override
+  State<_RecordDatesPanel> createState() => _RecordDatesPanelState();
+}
+
+class _RecordDatesPanelState extends State<_RecordDatesPanel> {
+  /// 面板内的进行中选择（本地日粒度）；null 表示未选。
+  (DateTime, DateTime)? _range;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    _range = initial == null ? null : (initial.start, initial.end);
+  }
+
+  DateTime _toUtc(DateTime date) =>
+      DateTime.utc(date.year, date.month, date.day);
+  DateTime _toLocal(DateTime date) => DateTime(date.year, date.month, date.day);
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final boundedToday = todayDate.isBefore(widget.first)
+        ? widget.first
+        : todayDate.isAfter(widget.last)
+        ? widget.last
+        : todayDate;
+    final selected = _range == null
+        ? null
+        : (_toUtc(_range!.$1), _toUtc(_range!.$2));
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 296,
+            height: 340,
+            child: FCalendar.grid(
+              control: FGridCalendarControl(
+                start: _toUtc(widget.first),
+                end: _toUtc(widget.last),
+                today: _toUtc(boundedToday),
+                // 打开时定位到已选范围起点，否则定位到「今天」（夹在可选范围内）。
+                initial: _toUtc(_range?.$1 ?? boundedToday),
+              ),
+              selectionControl: FDateSelectionControl.liftedRange(
+                value: selected,
+                onChange: (value) => setState(() {
+                  _range = value == null
+                      ? null
+                      : (_toLocal(value.$1), _toLocal(value.$2));
+                }),
+              ),
+              headerBuilder: appDateFieldCalendarHeader,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              AppGhostButton(
+                onPressed: () {
+                  widget.onClear();
+                  widget.onClose();
+                },
+                child: const Text('清除'),
+              ),
+              const SizedBox(width: 8),
+              AppPrimaryButton(
+                onPressed: _range == null
+                    ? null
+                    : () {
+                        widget.onConfirm(
+                          DateTimeRange(start: _range!.$1, end: _range!.$2),
+                        );
+                        widget.onClose();
+                      },
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
