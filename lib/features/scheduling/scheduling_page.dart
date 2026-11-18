@@ -1921,12 +1921,18 @@ class _CollapsibleStageState extends State<_CollapsibleStage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        _expanded
-                            ? Icons.keyboard_arrow_down
-                            : Icons.keyboard_arrow_right,
-                        size: 18,
-                        color: context.appColors.inkSecondary,
+                      AnimatedRotation(
+                        turns: _expanded ? 0.25 : 0.0,
+                        duration: AppTheme.motionDuration(
+                          context,
+                          AppTheme.feedbackDuration,
+                        ),
+                        curve: AppTheme.entranceCurve,
+                        child: Icon(
+                          Icons.keyboard_arrow_right,
+                          size: 18,
+                          color: context.appColors.inkSecondary,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Flexible(
@@ -1964,10 +1970,23 @@ class _CollapsibleStageState extends State<_CollapsibleStage> {
             ),
           ],
         ),
-        if (_expanded) ...[
-          Divider(height: 1, color: context.appColors.border),
-          widget.child,
-        ],
+        AnimatedSize(
+          duration: AppTheme.motionDuration(
+            context,
+            AppTheme.transitionDuration,
+          ),
+          curve: AppTheme.transitionCurve,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Divider(height: 1, color: context.appColors.border),
+                    widget.child,
+                  ],
+                )
+              : const SizedBox(width: double.infinity),
+        ),
       ],
     ),
   );
@@ -2601,16 +2620,25 @@ class _CollapsibleReportItemState extends State<_CollapsibleReportItem> {
             ),
           ),
         ),
-        if (_expanded)
-          Padding(
-            padding: const EdgeInsets.only(left: 32, top: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final blocker in widget.blockers) Text('• $blocker'),
-              ],
-            ),
+        AnimatedSize(
+          duration: AppTheme.motionDuration(
+            context,
+            AppTheme.transitionDuration,
           ),
+          curve: AppTheme.transitionCurve,
+          alignment: Alignment.topLeft,
+          child: _expanded
+              ? Padding(
+                  padding: const EdgeInsets.only(left: 32, top: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final blocker in widget.blockers) Text('• $blocker'),
+                    ],
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
       ],
     ),
   );

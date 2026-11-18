@@ -4,16 +4,24 @@ import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/features/workbench/workbench_data.dart';
 import 'package:flutter/material.dart';
 
-/// 「新学期排课准备」：进度条 + 6 步指示器。
+/// 「新学期排课准备」：进度条 + 6 步指示器（仅已解锁步骤支持点击回看，严格遵守级联解锁）。
 class PreparationStepsCard extends StatelessWidget {
-  const PreparationStepsCard({required this.summary, super.key});
+  const PreparationStepsCard({
+    required this.summary,
+    this.selectedStep,
+    this.onSelectStep,
+    super.key,
+  });
 
   final WorkbenchSummary summary;
+  final PreparationStep? selectedStep;
+  final ValueChanged<PreparationStep>? onSelectStep;
 
   @override
   Widget build(BuildContext context) {
     final doneCount = completedPreparationCount(summary);
     final currentStep = currentPreparationStep(summary);
+    final activeStep = selectedStep ?? currentStep;
     final total = PreparationStep.values.length;
     return AppSurface(
       child: Padding(
@@ -29,10 +37,21 @@ class PreparationStepsCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                AppBadge(
-                  label: '$doneCount / $total 完成',
-                  foreground: context.appColors.inkSecondary,
-                  background: context.appColors.tableHeader,
+                AnimatedSwitcher(
+                  duration: AppTheme.motionDuration(
+                    context,
+                    AppTheme.feedbackDuration,
+                  ),
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(doneCount),
+                    child: AppBadge(
+                      label: '$doneCount / $total 完成',
+                      foreground: context.appColors.inkSecondary,
+                      background: context.appColors.tableHeader,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -47,9 +66,23 @@ class PreparationStepsCard extends StatelessWidget {
                   for (final step in PreparationStep.values) ...[
                     if (step.number > 1) const SizedBox(width: 8),
                     Expanded(
-                      child: _StepIndicator(
-                        step: step,
-                        status: _statusOf(step, doneCount, currentStep),
+                      child: Builder(
+                        builder: (context) {
+                          final status = _statusOf(
+                            step,
+                            doneCount,
+                            currentStep,
+                          );
+                          final unlocked = status != _StepStatus.locked;
+                          return _StepIndicator(
+                            step: step,
+                            status: status,
+                            isSelected: step == activeStep,
+                            onTap: unlocked && onSelectStep != null
+                                ? () => onSelectStep!(step)
+                                : null,
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -85,8 +118,11 @@ class _PreparationProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TweenAnimationBuilder<double>(
     tween: Tween<double>(begin: 0, end: total == 0 ? 0 : done / total),
-    duration: const Duration(milliseconds: 300),
-    curve: Curves.easeOutCubic,
+    duration: AppTheme.motionDuration(
+      context,
+      const Duration(milliseconds: 300),
+    ),
+    curve: AppTheme.entranceCurve,
     builder: (context, value, _) => ClipRRect(
       key: const Key('preparation-progress'),
       borderRadius: BorderRadius.circular(4),
@@ -114,67 +150,136 @@ class _PreparationProgress extends StatelessWidget {
   );
 }
 
-class _StepIndicator extends StatelessWidget {
-  const _StepIndicator({required this.step, required this.status});
+class _StepIndicator extends StatefulWidget {
+  const _StepIndicator({
+    required this.step,
+    required this.status,
+    required this.isSelected,
+    this.onTap,
+  });
 
   final PreparationStep step;
   final _StepStatus status;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  @override
+  State<_StepIndicator> createState() => _StepIndicatorState();
+}
+
+class _StepIndicatorState extends State<_StepIndicator> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final isCurrent = status == _StepStatus.current;
-    final titleColor = switch (status) {
-      _StepStatus.done => context.appColors.inkSecondary,
+    final isCurrent = widget.status == _StepStatus.current;
+    final isDone = widget.status == _StepStatus.done;
+    final isLocked = widget.status == _StepStatus.locked;
+    final canTap = !isLocked && widget.onTap != null;
+    final isHighlighted = widget.isSelected || isCurrent;
+    final titleColor = switch (widget.status) {
+      _StepStatus.done =>
+        widget.isSelected ? context.appColors.ink : context.appColors.inkSecondary,
       _StepStatus.current => context.appColors.ink,
       _StepStatus.locked => context.appColors.muted,
     };
-    final statusText = switch (status) {
+    final statusText = switch (widget.status) {
       _StepStatus.done => '已完成',
       _StepStatus.current => '当前步骤',
       _StepStatus.locked => '完成前一步后解锁',
     };
-    final statusColor = switch (status) {
+    final statusColor = switch (widget.status) {
       _StepStatus.done => context.appColors.success,
       _StepStatus.current => context.appColors.blue,
       _StepStatus.locked => context.appColors.muted,
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        color: isCurrent
-            ? context.appColors.selectedBlue
-            : context.appColors.tableHeader,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final transitionDuration = AppTheme.motionDuration(
+      context,
+      AppTheme.transitionDuration,
+    );
+    final baseBackground = widget.isSelected || isCurrent
+        ? context.appColors.selectedBlue
+        : isDone
+        ? Color.alphaBlend(
+            context.appColors.success.withValues(alpha: 0.05),
+            context.appColors.tableHeader,
+          )
+        : context.appColors.tableHeader;
+    final backgroundColor = canTap && _hovered
+        ? Color.alphaBlend(
+            context.appColors.blue.withValues(alpha: 0.05),
+            baseBackground,
+          )
+        : baseBackground;
+    final borderColor = widget.isSelected
+        ? context.appColors.blue.withValues(
+            alpha: canTap && _hovered ? 0.52 : 0.38,
+          )
+        : isCurrent
+        ? context.appColors.blue.withValues(alpha: 0.28)
+        : isDone
+        ? context.appColors.success.withValues(
+            alpha: canTap && _hovered ? 0.36 : 0.22,
+          )
+        : context.appColors.blue.withValues(alpha: 0);
+
+    return MouseRegion(
+      cursor: canTap ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: canTap ? (_) => setState(() => _hovered = true) : null,
+      onExit: canTap ? (_) => setState(() => _hovered = false) : null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: canTap ? widget.onTap : null,
+        child: AnimatedContainer(
+          duration: transitionDuration,
+          curve: AppTheme.entranceCurve,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _StepDot(number: step.number, status: status),
-              const SizedBox(width: 7),
-              Expanded(
+              Row(
+                children: [
+                  _StepDot(number: widget.step.number, status: widget.status),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: transitionDuration,
+                      curve: AppTheme.entranceCurve,
+                      style: TextStyle(
+                        color: titleColor,
+                        fontSize: 12,
+                        fontWeight: isHighlighted
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                      child: Text(
+                        widget.step.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              AnimatedDefaultTextStyle(
+                duration: transitionDuration,
+                curve: AppTheme.entranceCurve,
+                style: TextStyle(color: statusColor, fontSize: 10.5),
                 child: Text(
-                  step.title,
+                  statusText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: titleColor,
-                    fontSize: 12,
-                    fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w500,
-                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 5),
-          Text(
-            statusText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: statusColor, fontSize: 10.5),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -189,56 +294,60 @@ class _StepDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const size = 20.0;
-    if (status == _StepStatus.done) {
-      return Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: context.appColors.success,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          Icons.check_rounded,
-          size: 13,
-          color: Theme.of(context).colorScheme.onPrimary,
-        ),
-      );
-    }
-    if (status == _StepStatus.current) {
-      return Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: context.appColors.blue,
-          shape: BoxShape.circle,
-        ),
-        child: Text(
-          '$number',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onPrimary,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-    }
-    return Container(
+    final colors = context.appColors;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    final backgroundColor = switch (status) {
+      _StepStatus.done => colors.success,
+      _StepStatus.current => colors.blue,
+      _StepStatus.locked => colors.blue.withValues(alpha: 0),
+    };
+    final borderColor = switch (status) {
+      _StepStatus.done => colors.success,
+      _StepStatus.current => colors.blue,
+      _StepStatus.locked => colors.border,
+    };
+    return AnimatedContainer(
+      duration: AppTheme.motionDuration(context, AppTheme.transitionDuration),
+      curve: AppTheme.entranceCurve,
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
+        color: backgroundColor,
         shape: BoxShape.circle,
-        border: Border.all(color: context.appColors.border),
+        border: Border.all(color: borderColor),
       ),
-      child: Text(
-        '$number',
-        style: TextStyle(
-          color: context.appColors.muted,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+      child: AnimatedSwitcher(
+        duration: AppTheme.motionDuration(context, AppTheme.feedbackDuration),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.72, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: AppTheme.entranceCurve),
+            ),
+            child: child,
+          ),
         ),
+        child: status == _StepStatus.done
+            ? Icon(
+                Icons.check_rounded,
+                key: const ValueKey('done'),
+                size: 13,
+                color: onPrimary,
+              )
+            : Text(
+                '$number',
+                key: ValueKey('step-$number-${status.name}'),
+                style: TextStyle(
+                  color: status == _StepStatus.current
+                      ? onPrimary
+                      : colors.muted,
+                  fontSize: 11,
+                  fontWeight: status == _StepStatus.current
+                      ? FontWeight.w700
+                      : FontWeight.w600,
+                ),
+              ),
       ),
     );
   }

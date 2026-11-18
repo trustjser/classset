@@ -358,7 +358,16 @@ class AppEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 42, color: context.appColors.muted),
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: context.appColors.selection,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 24, color: context.appColors.accent),
+          ),
           const SizedBox(height: 12),
           Text(
             title,
@@ -399,7 +408,7 @@ class AppHelpTooltip extends StatelessWidget {
   );
 }
 
-class AppSummaryMetricCard extends StatelessWidget {
+class AppSummaryMetricCard extends StatefulWidget {
   const AppSummaryMetricCard({
     required this.label,
     required this.value,
@@ -414,30 +423,75 @@ class AppSummaryMetricCard extends StatelessWidget {
   final Color? valueColor;
 
   @override
-  Widget build(BuildContext context) => AppSurface(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(
-        children: [
-          Icon(icon, size: 19, color: context.appColors.accent),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelSmall),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall
-                      ?.copyWith(color: valueColor ?? context.appColors.ink),
-                ),
-              ],
+  State<AppSummaryMetricCard> createState() => _AppSummaryMetricCardState();
+}
+
+class _AppSummaryMetricCardState extends State<AppSummaryMetricCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => setState(() => _hovered = true),
+    onExit: (_) => setState(() => _hovered = false),
+    child: AnimatedContainer(
+      duration: AppTheme.motionDuration(context, AppTheme.feedbackDuration),
+      curve: AppTheme.entranceCurve,
+      decoration: BoxDecoration(
+        color: _hovered
+            ? Color.alphaBlend(
+                context.appColors.accent.withValues(alpha: 0.03),
+                context.appColors.surface,
+              )
+            : context.appColors.surface,
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+        border: Border.all(
+          color: _hovered
+              ? context.appColors.accent.withValues(alpha: 0.28)
+              : context.appColors.accent.withValues(alpha: 0),
+        ),
+        boxShadow: context.appColors.cardShadow,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            Icon(widget.icon, size: 19, color: context.appColors.accent),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.label,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedSwitcher(
+                    duration: AppTheme.motionDuration(
+                      context,
+                      AppTheme.feedbackDuration,
+                    ),
+                    transitionBuilder: (child, animation) =>
+                        FadeTransition(opacity: animation, child: child),
+                    child: Align(
+                      key: ValueKey<String>(widget.value),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        widget.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: widget.valueColor ?? context.appColors.ink,
+                          fontFeatures: const [ui.FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );
@@ -1281,7 +1335,22 @@ Future<T?> showAppDialog<T>({
       ui.BlendMode.srcOver,
     ),
   ),
-  builder: (context, style, animation) => builder(context),
+  builder: (context, style, animation) {
+    final child = builder(context);
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: AppTheme.entranceCurve,
+      reverseCurve: AppTheme.exitCurve,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
+        child: child,
+      ),
+    );
+  },
 );
 
 /// 右侧贴边抽屉：基于 Forui [showFSheet]（side: FLayout.rtl，全高）。

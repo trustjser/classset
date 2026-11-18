@@ -3228,51 +3228,64 @@ class _LessonTimePanel extends StatelessWidget {
             onDelete: onDeleteCommonPeriod,
           ),
         ),
-      for (var index = 0; index < periods.length; index++) ...[
-        if (collapsedGroups.contains(periods[index].id))
-          _PeriodGroupHeaderCollapsed(
-            period: periods[index],
-            visual: periodVisualFor(context, periods[index].name, index),
-            timeInputs: timeInputs,
-            onExpand: () => onToggleGroup(periods[index].id),
-          )
-        else ...[
-          _PeriodGroupHeader(
-            period: periods[index],
-            visual: periodVisualFor(context, periods[index].name, index),
-            onCollapse: () => onToggleGroup(periods[index].id),
+      for (var index = 0; index < periods.length; index++)
+        AnimatedSize(
+          key: ValueKey('period-group-${periods[index].id}'),
+          duration: AppTheme.motionDuration(
+            context,
+            AppTheme.transitionDuration,
           ),
-          for (final time in periods[index].times) ...[
-            _CommonDropTarget(
-              anchor: '${periods[index].id}_${time.lessonIndex}',
-              onMove: onMoveCommonPeriod,
-              child: _LessonTimeRow(
-                period: periods[index],
-                time: time,
-                timeInputs: timeInputs,
-                revision: revision,
-                onChanged: onTimeChanged,
-              ),
-            ),
-            for (final common in commonPeriods.where(
-              (item) =>
-                  item.insertAfterLessonId ==
-                  '${periods[index].id}_${time.lessonIndex}',
-            ))
-              _CommonDropTarget(
-                anchor: common.insertAfterLessonId,
-                beforeId: common.id,
-                onMove: onMoveCommonPeriod,
-                child: _CommonPeriodRow(
-                  period: common,
-                  onChanged: onCommonPeriodTimeChanged,
-                  onRename: onRenameCommonPeriod,
-                  onDelete: onDeleteCommonPeriod,
+          curve: AppTheme.transitionCurve,
+          alignment: Alignment.topCenter,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (collapsedGroups.contains(periods[index].id))
+                _PeriodGroupHeaderCollapsed(
+                  period: periods[index],
+                  visual: periodVisualFor(context, periods[index].name, index),
+                  timeInputs: timeInputs,
+                  onExpand: () => onToggleGroup(periods[index].id),
+                )
+              else ...[
+                _PeriodGroupHeader(
+                  period: periods[index],
+                  visual: periodVisualFor(context, periods[index].name, index),
+                  onCollapse: () => onToggleGroup(periods[index].id),
                 ),
-              ),
-          ],
-        ],
-      ],
+                for (final time in periods[index].times) ...[
+                  _CommonDropTarget(
+                    anchor: '${periods[index].id}_${time.lessonIndex}',
+                    onMove: onMoveCommonPeriod,
+                    child: _LessonTimeRow(
+                      period: periods[index],
+                      time: time,
+                      timeInputs: timeInputs,
+                      revision: revision,
+                      onChanged: onTimeChanged,
+                    ),
+                  ),
+                  for (final common in commonPeriods.where(
+                    (item) =>
+                        item.insertAfterLessonId ==
+                        '${periods[index].id}_${time.lessonIndex}',
+                  ))
+                    _CommonDropTarget(
+                      anchor: common.insertAfterLessonId,
+                      beforeId: common.id,
+                      onMove: onMoveCommonPeriod,
+                      child: _CommonPeriodRow(
+                        period: common,
+                        onChanged: onCommonPeriodTimeChanged,
+                        onRename: onRenameCommonPeriod,
+                        onDelete: onDeleteCommonPeriod,
+                      ),
+                    ),
+                ],
+              ],
+            ],
+          ),
+        ),
     ];
     return AppSectionPanel(
       title: '节次与时间',

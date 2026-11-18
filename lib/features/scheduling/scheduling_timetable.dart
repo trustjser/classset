@@ -1012,7 +1012,9 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
   }
 }
 
-class _TimetableGrid extends StatelessWidget {
+typedef _HoveredCellCoord = ({int? weekday, String? rowKey, String? classId});
+
+class _TimetableGrid extends StatefulWidget {
   const _TimetableGrid({
     required this.snapshot,
     required this.commonPeriods,
@@ -1060,6 +1062,54 @@ class _TimetableGrid extends StatelessWidget {
     String? swapWithItemId,
   )
   onMove;
+
+  @override
+  State<_TimetableGrid> createState() => _TimetableGridState();
+}
+
+class _TimetableGridState extends State<_TimetableGrid> {
+  final ValueNotifier<_HoveredCellCoord> _hoveredCell = ValueNotifier((
+    weekday: null,
+    rowKey: null,
+    classId: null,
+  ));
+
+  SchedulingSnapshot get snapshot => widget.snapshot;
+  Map<String, List<CommonPeriod>> get commonPeriods => widget.commonPeriods;
+  List<ScheduleItem> get items => widget.items;
+  List<SupervisionOccurrence> get duties => widget.duties;
+  List<ScheduleItem> get allItems => widget.allItems;
+  _ScheduleView get view => widget.view;
+  String? get stageId => widget.stageId;
+  bool get classOverview => widget.classOverview;
+  int get weekday => widget.weekday;
+  _WeekView get week => widget.week;
+  String? get selectedClassId => widget.selectedClassId;
+  bool get editable => widget.editable;
+  ValueNotifier<String?> get draggedItemId => widget.draggedItemId;
+  ScrollController get scrollController => widget.scrollController;
+  GlobalKey get viewportKey => widget.viewportKey;
+  ManualMoveResult Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  get onPreviewMove => widget.onPreviewMove;
+  Future<ManualMoveResult> Function(
+    String itemId,
+    SchedulePosition? target,
+    String? swapWithItemId,
+  )
+  get onMove => widget.onMove;
+
+  @override
+  void dispose() {
+    _hoveredCell.dispose();
+    super.dispose();
+  }
+
+  String _rowCoordKey(_GridRow row) =>
+      '${row.stageId}:${row.periodTypeId}:${row.lessonIndex}';
 
   @override
   Widget build(BuildContext context) {
@@ -1159,156 +1209,134 @@ class _TimetableGrid extends StatelessWidget {
     for (final duty in duties) {
       dutiesByCell.putIfAbsent(duty.position.cellKey, () => []).add(duty);
     }
-    return Container(
-      decoration: _SchedulePalette.panel(context),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  '课表安排',
-                  style: TextStyle(
-                    color: context.appColors.ink,
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w700,
+    return RepaintBoundary(
+      child: Container(
+        decoration: _SchedulePalette.panel(context),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    '课表安排',
+                    style: TextStyle(
+                      color: context.appColors.ink,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    '${_viewLabel(view)} · ${_weekLabel(week)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      '${_viewLabel(view)} · ${_weekLabel(week)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.appColors.muted,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${items.length} 节课',
                     style: TextStyle(
                       color: context.appColors.muted,
                       fontSize: 12.5,
                     ),
                   ),
-                ),
-                const Spacer(),
-                Text(
-                  '${items.length} 节课',
-                  style: TextStyle(
-                    color: context.appColors.muted,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (days.isEmpty || orderedRows.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('尚未设置可上课的节次。请先完成作息设置。'),
-              )
-            else
-              LayoutBuilder(
-                builder: (context, constraints) => SingleChildScrollView(
-                  key: viewportKey,
-                  controller: scrollController,
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: math.max(constraints.maxWidth, 680),
-                    child: ValueListenableBuilder<String?>(
-                      valueListenable: draggedItemId,
-                      builder: (context, draggedId, _) {
-                        final tableRows = <TableRow>[
-                          TableRow(
-                            children: [
-                              _tableCell(context, '节次', header: true),
-                              for (final day in days)
-                                _tableCell(
-                                  context,
-                                  _dayLabel(day),
-                                  header: true,
-                                ),
-                            ],
-                          ),
-                        ];
-                        for (
-                          var index = 0;
-                          index < orderedRows.length;
-                          index++
-                        ) {
-                          final row = orderedRows[index];
-                          final stagePeriods =
-                              commonPeriods[row.stageId] ??
-                              const <CommonPeriod>[];
-                          final firstStageRow =
-                              firstRowByStage[row.stageId] == index;
-                          final lastStageRow =
-                              lastRowByStage[row.stageId] == index;
-                          if (firstStageRow) {
-                            for (final period in stagePeriods.where(
-                              (period) => period.insertAfterLessonId == null,
-                            )) {
-                              tableRows.add(
-                                _commonPeriodRow(
-                                  context,
-                                  period,
-                                  days.length,
-                                  routines.length > 1
-                                      ? stageNames[row.stageId]
-                                      : null,
-                                ),
-                              );
-                            }
-                          }
-                          tableRows.add(
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (days.isEmpty || orderedRows.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('尚未设置可上课的节次。请先完成作息设置。'),
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    key: viewportKey,
+                    controller: scrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: math.max(constraints.maxWidth, 680),
+                      child: ValueListenableBuilder<String?>(
+                        valueListenable: draggedItemId,
+                        builder: (context, draggedId, _) {
+                          final tableRows = <TableRow>[
                             TableRow(
                               children: [
-                                _periodCell(
-                                  context,
-                                  row,
-                                  stageName: routines.length > 1
-                                      ? stageNames[row.stageId]
-                                      : null,
-                                ),
+                                _tableCell(context, '节次', header: true),
                                 for (final day in days)
-                                  _dropCell(
-                                    context,
-                                    day,
-                                    row,
-                                    itemsByCell['${row.stageId}:$day:${row.periodTypeId}:${row.lessonIndex}'] ??
-                                        const [],
-                                    classNames,
-                                    subjectNames,
-                                    teacherNames,
-                                    draggedId,
-                                    cellDuties:
-                                        dutiesByCell['${row.stageId}:$day:${row.periodTypeId}:${row.lessonIndex}'] ??
-                                        const [],
-                                  ),
+                                  _weekdayHeaderCell(context, day),
                               ],
                             ),
-                          );
-                          final anchor =
-                              '${row.periodTypeId}_${row.lessonIndex}';
-                          for (final period in stagePeriods.where(
-                            (period) => period.insertAfterLessonId == anchor,
-                          )) {
+                          ];
+                          for (
+                            var index = 0;
+                            index < orderedRows.length;
+                            index++
+                          ) {
+                            final row = orderedRows[index];
+                            final stagePeriods =
+                                commonPeriods[row.stageId] ??
+                                const <CommonPeriod>[];
+                            final firstStageRow =
+                                firstRowByStage[row.stageId] == index;
+                            final lastStageRow =
+                                lastRowByStage[row.stageId] == index;
+                            if (firstStageRow) {
+                              for (final period in stagePeriods.where(
+                                (period) => period.insertAfterLessonId == null,
+                              )) {
+                                tableRows.add(
+                                  _commonPeriodRow(
+                                    context,
+                                    period,
+                                    days.length,
+                                    routines.length > 1
+                                        ? stageNames[row.stageId]
+                                        : null,
+                                  ),
+                                );
+                              }
+                            }
                             tableRows.add(
-                              _commonPeriodRow(
-                                context,
-                                period,
-                                days.length,
-                                routines.length > 1
-                                    ? stageNames[row.stageId]
-                                    : null,
+                              TableRow(
+                                children: [
+                                  _periodCell(
+                                    context,
+                                    row,
+                                    stageName: routines.length > 1
+                                        ? stageNames[row.stageId]
+                                        : null,
+                                  ),
+                                  for (final day in days)
+                                    _dropCell(
+                                      context,
+                                      day,
+                                      row,
+                                      itemsByCell['${row.stageId}:$day:${row.periodTypeId}:${row.lessonIndex}'] ??
+                                          const [],
+                                      classNames,
+                                      subjectNames,
+                                      teacherNames,
+                                      draggedId,
+                                      cellDuties:
+                                          dutiesByCell['${row.stageId}:$day:${row.periodTypeId}:${row.lessonIndex}'] ??
+                                          const [],
+                                    ),
+                                ],
                               ),
                             );
-                          }
-                          if (lastStageRow) {
+                            final anchor =
+                                '${row.periodTypeId}_${row.lessonIndex}';
                             for (final period in stagePeriods.where(
-                              (period) =>
-                                  period.insertAfterLessonId != null &&
-                                  !anchorsByStage[row.stageId]!.contains(
-                                    period.insertAfterLessonId,
-                                  ),
+                              (period) => period.insertAfterLessonId == anchor,
                             )) {
                               tableRows.add(
                                 _commonPeriodRow(
@@ -1321,25 +1349,84 @@ class _TimetableGrid extends StatelessWidget {
                                 ),
                               );
                             }
+                            if (lastStageRow) {
+                              for (final period in stagePeriods.where(
+                                (period) =>
+                                    period.insertAfterLessonId != null &&
+                                    !anchorsByStage[row.stageId]!.contains(
+                                      period.insertAfterLessonId,
+                                    ),
+                              )) {
+                                tableRows.add(
+                                  _commonPeriodRow(
+                                    context,
+                                    period,
+                                    days.length,
+                                    routines.length > 1
+                                        ? stageNames[row.stageId]
+                                        : null,
+                                  ),
+                                );
+                              }
+                            }
                           }
-                        }
-                        return Table(
-                          columnWidths: const {0: FixedColumnWidth(92)},
-                          defaultColumnWidth: const FlexColumnWidth(),
-                          defaultVerticalAlignment:
-                              TableCellVerticalAlignment.top,
-                          children: tableRows,
-                        );
-                      },
+                          return Table(
+                            columnWidths: const {0: FixedColumnWidth(92)},
+                            defaultColumnWidth: const FlexColumnWidth(),
+                            defaultVerticalAlignment:
+                                TableCellVerticalAlignment.top,
+                            children: tableRows,
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
+  Widget _weekdayHeaderCell(BuildContext context, int day) =>
+      ValueListenableBuilder<_HoveredCellCoord>(
+        valueListenable: _hoveredCell,
+        builder: (context, hovered, _) {
+          final highlighted = hovered.weekday == day;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(3, 3, 3, 3),
+            child: AnimatedContainer(
+              duration: AppTheme.motionDuration(
+                context,
+                AppTheme.feedbackDuration,
+              ),
+              curve: AppTheme.entranceCurve,
+              constraints: const BoxConstraints(minHeight: 34),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                color: highlighted
+                    ? context.appColors.selectedBlue
+                    : context.appColors.selectedBlue.withValues(alpha: 0),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                _dayLabel(day),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  height: 1.4,
+                  fontSize: 12,
+                  color: highlighted
+                      ? context.appColors.blue
+                      : context.appColors.inkSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          );
+        },
+      );
 
   Widget _tableCell(BuildContext context, String text, {bool header = false}) =>
       Padding(
@@ -1508,67 +1595,156 @@ class _TimetableGrid extends StatelessWidget {
                                     children: [
                                       _tableCell(context, '班级', header: true),
                                       for (final column in columns)
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                            horizontal: 4,
-                                          ),
-                                          child: Column(
-                                            children: [
-                                              Text(
-                                                column.common?.name ??
-                                                    lessonLabels['${column.lesson!.periodTypeId}_${column.lesson!.lessonIndex}'] ??
-                                                    '第 ${column.lesson!.lessonIndex} 节',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: context
-                                                      .appColors
-                                                      .inkSecondary,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
+                                        ValueListenableBuilder<_HoveredCellCoord>(
+                                          valueListenable: _hoveredCell,
+                                          builder: (context, hovered, _) {
+                                            final highlighted =
+                                                column.lesson != null &&
+                                                hovered.rowKey ==
+                                                    _rowCoordKey(
+                                                      column.lesson!,
+                                                    );
+                                            return Padding(
+                                              padding: const EdgeInsets.all(3),
+                                              child: AnimatedContainer(
+                                                duration:
+                                                    AppTheme.motionDuration(
+                                                      context,
+                                                      AppTheme.feedbackDuration,
+                                                    ),
+                                                curve: AppTheme.entranceCurve,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 6,
+                                                      horizontal: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: highlighted
+                                                      ? context
+                                                            .appColors
+                                                            .selectedBlue
+                                                      : context
+                                                            .appColors
+                                                            .selectedBlue
+                                                            .withValues(
+                                                              alpha: 0,
+                                                            ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    Text(
+                                                      column.common?.name ??
+                                                          lessonLabels['${column.lesson!.periodTypeId}_${column.lesson!.lessonIndex}'] ??
+                                                          '第 ${column.lesson!.lessonIndex} 节',
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: TextStyle(
+                                                        color: highlighted
+                                                            ? context
+                                                                  .appColors
+                                                                  .blue
+                                                            : context
+                                                                  .appColors
+                                                                  .inkSecondary,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                    if (column
+                                                            .lesson
+                                                            ?.startMinute
+                                                        case final minute?)
+                                                      Text(
+                                                        _minuteLabel(minute),
+                                                        style: TextStyle(
+                                                          color: highlighted
+                                                              ? context
+                                                                    .appColors
+                                                                    .blue
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.85,
+                                                                    )
+                                                              : context
+                                                                    .appColors
+                                                                    .muted,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                    if (column
+                                                            .common
+                                                            ?.startLabel
+                                                        case final start?)
+                                                      Text(
+                                                        start,
+                                                        style: TextStyle(
+                                                          color: context
+                                                              .appColors
+                                                              .muted,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                               ),
-                                              if (column.lesson?.startMinute
-                                                  case final minute?)
-                                                Text(
-                                                  _minuteLabel(minute),
-                                                  style: TextStyle(
-                                                    color:
-                                                        context.appColors.muted,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                              if (column.common?.startLabel
-                                                  case final start?)
-                                                Text(
-                                                  start,
-                                                  style: TextStyle(
-                                                    color:
-                                                        context.appColors.muted,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
+                                            );
+                                          },
                                         ),
                                     ],
                                   ),
                                   for (final schoolClass in classes)
                                     TableRow(
                                       children: [
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 12,
-                                            horizontal: 4,
-                                          ),
-                                          child: Text(
-                                            schoolClass.name,
-                                            style: TextStyle(
-                                              color: context.appColors.ink,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
+                                        ValueListenableBuilder<_HoveredCellCoord>(
+                                          valueListenable: _hoveredCell,
+                                          builder: (context, hovered, _) {
+                                            final highlighted =
+                                                hovered.classId ==
+                                                schoolClass.id;
+                                            return Padding(
+                                              padding: const EdgeInsets.all(3),
+                                              child: AnimatedContainer(
+                                                duration:
+                                                    AppTheme.motionDuration(
+                                                      context,
+                                                      AppTheme.feedbackDuration,
+                                                    ),
+                                                curve: AppTheme.entranceCurve,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 9,
+                                                      horizontal: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: highlighted
+                                                      ? context
+                                                            .appColors
+                                                            .selectedBlue
+                                                      : context
+                                                            .appColors
+                                                            .selectedBlue
+                                                            .withValues(
+                                                              alpha: 0,
+                                                            ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  schoolClass.name,
+                                                  style: TextStyle(
+                                                    color: highlighted
+                                                        ? context.appColors.blue
+                                                        : context.appColors.ink,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         ),
                                         for (final column in columns)
                                           if (column.common
@@ -1697,46 +1873,76 @@ class _TimetableGrid extends StatelessWidget {
     BuildContext context,
     _GridRow row, {
     String? stageName,
-  }) => TableCell(
-    verticalAlignment: TableCellVerticalAlignment.fill,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(2, 3, 8, 3),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Tooltip(
-            message: stageName == null
-                ? _shortPeriodName(row.periodName)
-                : '$stageName · ${_shortPeriodName(row.periodName)}',
-            child: Text(
-              stageName == null
-                  ? _shortPeriodName(row.periodName)
-                  : '$stageName · ${_shortPeriodName(row.periodName)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: context.appColors.ink,
-                fontSize: stageName == null ? 12 : 11,
-                fontWeight: FontWeight.w600,
+  }) {
+    final rowKey = _rowCoordKey(row);
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.fill,
+      child: ValueListenableBuilder<_HoveredCellCoord>(
+        valueListenable: _hoveredCell,
+        builder: (context, hovered, _) {
+          final highlighted = hovered.rowKey == rowKey;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(2, 3, 6, 3),
+            child: AnimatedContainer(
+              duration: AppTheme.motionDuration(
+                context,
+                AppTheme.feedbackDuration,
+              ),
+              curve: AppTheme.entranceCurve,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              decoration: BoxDecoration(
+                color: highlighted
+                    ? context.appColors.selectedBlue
+                    : context.appColors.selectedBlue.withValues(alpha: 0),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tooltip(
+                    message: stageName == null
+                        ? _shortPeriodName(row.periodName)
+                        : '$stageName · ${_shortPeriodName(row.periodName)}',
+                    child: Text(
+                      stageName == null
+                          ? _shortPeriodName(row.periodName)
+                          : '$stageName · ${_shortPeriodName(row.periodName)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: highlighted
+                            ? context.appColors.blue
+                            : context.appColors.ink,
+                        fontSize: stageName == null ? 12 : 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Tooltip(
+                    message:
+                        '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
+                    child: Text(
+                      '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: highlighted
+                            ? context.appColors.blue.withValues(alpha: 0.85)
+                            : context.appColors.muted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Tooltip(
-            message:
-                '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
-            child: Text(
-              '第 ${row.lessonIndex} 节${row.startMinute == null ? '' : ' · ${_minuteLabel(row.startMinute!)}'}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: context.appColors.muted, fontSize: 11.5),
-            ),
-          ),
-        ],
+          );
+        },
       ),
-    ),
-  );
+    );
+  }
 
   TableRow _commonPeriodRow(
     BuildContext context,
@@ -1789,6 +1995,7 @@ class _TimetableGrid extends StatelessWidget {
     bool classOverviewCell = false,
     String? targetClassId,
   }) {
+    final rowKey = _rowCoordKey(row);
     Widget content() {
       final lessons = _lessonCell(
         context,
@@ -1798,14 +2005,30 @@ class _TimetableGrid extends StatelessWidget {
         teacherNames,
         classOverviewCell: classOverviewCell,
       );
-      if (cellDuties.isEmpty) return lessons;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (cellItems.isNotEmpty) lessons,
-          for (final duty in cellDuties)
-            _supervisionCell(context, duty, classNames, teacherNames),
-        ],
+      final inner = cellDuties.isEmpty
+          ? lessons
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (cellItems.isNotEmpty) lessons,
+                for (final duty in cellDuties)
+                  _supervisionCell(context, duty, classNames, teacherNames),
+              ],
+            );
+      return MouseRegion(
+        onEnter: (_) => _hoveredCell.value = (
+          weekday: weekday,
+          rowKey: rowKey,
+          classId: targetClassId,
+        ),
+        onExit: (_) {
+          if (_hoveredCell.value.weekday == weekday &&
+              _hoveredCell.value.rowKey == rowKey &&
+              _hoveredCell.value.classId == targetClassId) {
+            _hoveredCell.value = (weekday: null, rowKey: null, classId: null);
+          }
+        },
+        child: inner,
       );
     }
 
@@ -1985,6 +2208,9 @@ class _TimetableGrid extends StatelessWidget {
         decoration: BoxDecoration(
           color: subjectBackground,
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: subjectForeground.withValues(alpha: 0.16),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2151,20 +2377,28 @@ class _LessonDragHandleState extends State<_LessonDragHandle> {
 
   @override
   Widget build(BuildContext context) {
-    final lesson = Container(
+    final duration = AppTheme.motionDuration(
+      context,
+      AppTheme.feedbackDuration,
+    );
+    final lesson = AnimatedContainer(
+      duration: duration,
+      curve: AppTheme.entranceCurve,
       decoration: BoxDecoration(
-        color: _hovered ? context.appColors.blue.withValues(alpha: .08) : null,
+        color: _hovered
+            ? context.appColors.blue.withValues(alpha: .08)
+            : context.appColors.blue.withValues(alpha: 0),
         borderRadius: BorderRadius.circular(8),
       ),
-      foregroundDecoration: _hovered
-          ? BoxDecoration(
-              border: Border.all(
-                color: context.appColors.blue.withValues(alpha: .72),
-                width: 1.5,
-              ),
-              borderRadius: BorderRadius.circular(8),
-            )
-          : null,
+      foregroundDecoration: BoxDecoration(
+        border: Border.all(
+          color: _hovered
+              ? context.appColors.blue.withValues(alpha: .72)
+              : context.appColors.blue.withValues(alpha: 0),
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: widget.child,
     );
     return FPopoverMenu(
@@ -2228,31 +2462,42 @@ class _LessonDragHandleState extends State<_LessonDragHandle> {
             },
             feedback: Material(
               color: Colors.transparent,
-              child: Container(
-                width: 176,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.feedbackColor,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .12),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.98, end: 1.02),
+                duration: duration,
+                curve: AppTheme.entranceCurve,
+                builder: (context, scale, child) =>
+                    Transform.scale(scale: scale, child: child),
+                child: Container(
+                  width: 176,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.feedbackColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: context.appColors.blue.withValues(alpha: 0.45),
+                      width: 1.2,
                     ),
-                  ],
-                ),
-                child: Text(
-                  widget.label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.appColors.ink,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: .14),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    widget.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: context.appColors.ink,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -2425,55 +2670,69 @@ class _DropHintBubble extends StatelessWidget {
   final bool allowed;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          constraints: const BoxConstraints(maxWidth: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-          decoration: BoxDecoration(
-            color: context.appColors.surface,
-            border: Border.all(color: color.withValues(alpha: .55)),
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x26000000),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                allowed ? Icons.check_circle_outline : Icons.info_outline,
-                size: 16,
-                color: color,
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  message,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.appColors.ink,
-                    fontSize: 12,
-                    height: 1.35,
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    key: ValueKey<bool>(allowed),
+    tween: Tween<double>(begin: 0.0, end: 1.0),
+    duration: AppTheme.motionDuration(context, AppTheme.feedbackDuration),
+    curve: AppTheme.entranceCurve,
+    builder: (context, t, child) {
+      final dx = allowed ? 0.0 : math.sin(t * math.pi * 2) * (1.0 - t) * 3.0;
+      final dy = -4.0 * (1.0 - t);
+      return Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.translate(offset: Offset(dx, dy), child: child),
+      );
+    },
+    child: Material(
+      color: Colors.transparent,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxWidth: 250),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            decoration: BoxDecoration(
+              color: context.appColors.surface,
+              border: Border.all(color: color.withValues(alpha: .55)),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x26000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  allowed ? Icons.check_circle_outline : Icons.info_outline,
+                  size: 16,
+                  color: color,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    message,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: context.appColors.ink,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        CustomPaint(
-          size: const Size(12, 7),
-          painter: _BubbleTailPainter(color, context.appColors.surface),
-        ),
-      ],
+          CustomPaint(
+            size: const Size(12, 7),
+            painter: _BubbleTailPainter(color, context.appColors.surface),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -2608,60 +2867,71 @@ class _AllLessonsCellState extends State<_AllLessonsCell> {
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
-        SizedBox(
-          height: math.min(count * 46.0, 220.0),
-          child: ListView.builder(
-            itemCount: count,
-            itemBuilder: (context, index) {
-              final item = widget.items[index];
-              final label =
-                  '${_weekPrefix(item)}${widget.classNames[item.classId] ?? item.classId} · ${widget.subjectNames[item.subjectId] ?? item.subjectId}';
-              final detail =
-                  widget.teacherNames[item.teacherId] ?? item.teacherId;
-              final child = Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      Text(
-                        detail,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: context.appColors.inkSecondary,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
+        AnimatedSize(
+          duration: AppTheme.motionDuration(
+            context,
+            AppTheme.transitionDuration,
+          ),
+          curve: AppTheme.transitionCurve,
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            height: math.min(count * 46.0, 220.0),
+            child: ListView.builder(
+              itemCount: count,
+              itemBuilder: (context, index) {
+                final item = widget.items[index];
+                final label =
+                    '${_weekPrefix(item)}${widget.classNames[item.classId] ?? item.classId} · ${widget.subjectNames[item.subjectId] ?? item.subjectId}';
+                final detail =
+                    widget.teacherNames[item.teacherId] ?? item.teacherId;
+                final child = Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
                   ),
-                ),
-              );
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: !widget.editable
-                    ? child
-                    : _LessonDragHandle(
-                        item: item,
-                        label: label,
-                        feedbackColor: SubjectColors.cellBackground(
-                          context,
-                          item.subjectId,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11),
                         ),
-                        draggedItemId: widget.draggedItemId,
-                        onPreviewMove: widget.onPreviewMove,
-                        onMove: widget.onMove,
-                        child: child,
-                      ),
-              );
-            },
+                        Text(
+                          detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.appColors.inkSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: !widget.editable
+                      ? child
+                      : _LessonDragHandle(
+                          item: item,
+                          label: label,
+                          feedbackColor: SubjectColors.cellBackground(
+                            context,
+                            item.subjectId,
+                          ),
+                          draggedItemId: widget.draggedItemId,
+                          onPreviewMove: widget.onPreviewMove,
+                          onMove: widget.onMove,
+                          child: child,
+                        ),
+                );
+              },
+            ),
           ),
         ),
         if (widget.items.length > 3)

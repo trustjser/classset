@@ -51,10 +51,29 @@ class _WorkbenchContent extends ConsumerStatefulWidget {
 
 class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
   bool _seeding = false;
+  PreparationStep? _selectedStep;
+
+  @override
+  void didUpdateWidget(covariant _WorkbenchContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldCurrent = currentPreparationStep(oldWidget.summary);
+    final newCurrent = currentPreparationStep(widget.summary);
+    if (widget.term.id != oldWidget.term.id || oldCurrent != newCurrent) {
+      _selectedStep = null;
+    }
+  }
+
+  void _selectStep(PreparationStep step, PreparationStep currentStep) {
+    if (step.index > currentStep.index) return;
+    setState(() {
+      _selectedStep = step == currentStep ? null : step;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final step = currentPreparationStep(widget.summary);
+    final currentStep = currentPreparationStep(widget.summary);
+    final step = _selectedStep ?? currentStep;
     final copy = stepCopyFor(step, widget.summary);
     final onAction = switch (step) {
       PreparationStep.stagesAndClasses => () => _navigate(AppSection.classes),
@@ -82,13 +101,19 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
             ],
           ),
           const SizedBox(height: 20),
-          PreparationStepsCard(summary: widget.summary),
+          PreparationStepsCard(
+            summary: widget.summary,
+            selectedStep: step,
+            onSelectStep: (picked) => _selectStep(picked, currentStep),
+          ),
           const SizedBox(height: AppTheme.pageSectionGap),
           LayoutBuilder(
             builder: (context, constraints) {
               final hero = NextStepCard(
                 step: step,
                 copy: copy,
+                currentStep: currentStep,
+                onSelectStep: (picked) => _selectStep(picked, currentStep),
                 onAction: onAction,
               );
               final termCard = CurrentTermCard(
@@ -125,6 +150,8 @@ class _WorkbenchContentState extends ConsumerState<_WorkbenchContent> {
             builder: (context, constraints) {
               final completed = CompletedPreparationsCard(
                 summary: widget.summary,
+                selectedStep: _selectedStep,
+                onSelectStep: (picked) => _selectStep(picked, currentStep),
               );
               final localData = LocalDataCard(
                 onOpenGuide: () => showGettingStartedGuide(context),
