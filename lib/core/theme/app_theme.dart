@@ -252,6 +252,10 @@ abstract final class AppTheme {
   static const Duration feedbackDuration = Duration(milliseconds: 120);
   static const Duration transitionDuration = Duration(milliseconds: 180);
   static const Duration exitDuration = Duration(milliseconds: 120);
+  static const Curve entranceCurve = Curves.easeOutCubic;
+  static const Curve transitionCurve = Curves.easeInOutCubic;
+  static const Curve exitCurve = Curves.easeInCubic;
+  static const double pressedScale = 0.98;
 
   static Duration motionDuration(BuildContext context, Duration duration) =>
       MediaQuery.disableAnimationsOf(context) ? Duration.zero : duration;

@@ -761,14 +761,7 @@ class _Sidebar extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: context.appColors.success,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+                        _PersistedIndicator(lastPersistedAt: lastPersistedAt),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -782,7 +775,7 @@ class _Sidebar extends ConsumerWidget {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
                                 '数据保存在这台设备',
                                 maxLines: 1,
@@ -794,13 +787,20 @@ class _Sidebar extends ConsumerWidget {
                               ),
                               if (lastPersistedAt != null) ...[
                                 const SizedBox(height: 1),
-                                Text(
-                                  '最近保存 ${_savedTimeLabel(lastPersistedAt)}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: context.appColors.muted,
-                                    fontSize: 12,
+                                AnimatedSwitcher(
+                                  duration: AppTheme.motionDuration(
+                                    context,
+                                    AppTheme.feedbackDuration,
+                                  ),
+                                  child: Text(
+                                    '最近保存 ${_savedTimeLabel(lastPersistedAt)}',
+                                    key: ValueKey<DateTime>(lastPersistedAt),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: context.appColors.muted,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -819,14 +819,124 @@ class _Sidebar extends ConsumerWidget {
   }
 }
 
-class _SchoolIdentityCard extends ConsumerWidget {
+class _PersistedIndicator extends StatefulWidget {
+  const _PersistedIndicator({required this.lastPersistedAt});
+
+  final DateTime? lastPersistedAt;
+
+  @override
+  State<_PersistedIndicator> createState() => _PersistedIndicatorState();
+}
+
+class _PersistedIndicatorState extends State<_PersistedIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _haloAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 1.35,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 40,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.35,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+        weight: 60,
+      ),
+    ]).animate(_pulseController);
+
+    _haloAnimation = Tween<double>(
+      begin: 0.8,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeOut));
+  }
+
+  @override
+  void didUpdateWidget(_PersistedIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.lastPersistedAt != null &&
+        widget.lastPersistedAt != oldWidget.lastPersistedAt) {
+      if (!MediaQuery.disableAnimationsOf(context)) {
+        _pulseController.forward(from: 0.0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final scale = _pulseController.isAnimating
+            ? _scaleAnimation.value
+            : 1.0;
+        final haloAlpha = _pulseController.isAnimating
+            ? _haloAnimation.value
+            : 0.0;
+        return Container(
+          width: 14,
+          height: 14,
+          alignment: Alignment.center,
+          decoration: haloAlpha > 0.01
+              ? BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: context.appColors.success.withValues(
+                    alpha: haloAlpha * 0.35,
+                  ),
+                )
+              : null,
+          child: Transform.scale(
+            scale: scale,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: context.appColors.success,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SchoolIdentityCard extends ConsumerStatefulWidget {
   const _SchoolIdentityCard({required this.isCompact, required this.termTitle});
 
   final bool isCompact;
   final String termTitle;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SchoolIdentityCard> createState() =>
+      _SchoolIdentityCardState();
+}
+
+class _SchoolIdentityCardState extends ConsumerState<_SchoolIdentityCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
     final schoolName = ref.watch(schoolNameProvider).valueOrNull ?? '';
     final displayName = ref.watch(schoolDisplayNameProvider);
     final initial = schoolName.trim().isEmpty
@@ -835,68 +945,85 @@ class _SchoolIdentityCard extends ConsumerWidget {
 
     return Tooltip(
       message: '编辑学校名称',
-      child: f.FTappable(
-        semanticsLabel: '编辑学校名称，当前为$displayName',
-        onPress: () => _editSchoolName(context, ref, schoolName),
-        child: Container(
-          padding: EdgeInsets.all(isCompact ? 8 : 10),
-          decoration: BoxDecoration(
-            color: context.appColors.canvas,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: isCompact
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
-            children: [
-              Container(
-                width: 31,
-                height: 31,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: context.appColors.selectedBlue,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  initial,
-                  style: TextStyle(
-                    color: context.appColors.accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: f.FTappable(
+          semanticsLabel: '编辑学校名称，当前为$displayName',
+          onPress: () => _editSchoolName(context, ref, schoolName),
+          child: AnimatedContainer(
+            duration: AppTheme.motionDuration(
+              context,
+              AppTheme.feedbackDuration,
+            ),
+            curve: AppTheme.entranceCurve,
+            padding: EdgeInsets.all(widget.isCompact ? 8 : 10),
+            decoration: BoxDecoration(
+              color: _isHovered
+                  ? context.appColors.selection.withValues(alpha: 0.35)
+                  : context.appColors.canvas,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isHovered
+                    ? context.appColors.controlBorder.withValues(alpha: 0.5)
+                    : context.appColors.canvas,
               ),
-              if (!isCompact) ...[
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: context.appColors.ink,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        termTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: context.appColors.muted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+            ),
+            child: Row(
+              mainAxisAlignment: widget.isCompact
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Container(
+                  width: 31,
+                  height: 31,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: context.appColors.selectedBlue,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    initial,
+                    style: TextStyle(
+                      color: context.appColors.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
+                if (!widget.isCompact) ...[
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.appColors.ink,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          widget.termTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.appColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -972,7 +1099,7 @@ class _BrandLogo extends StatelessWidget {
   );
 }
 
-class _NavItem extends StatelessWidget {
+class _NavItem extends StatefulWidget {
   const _NavItem({
     required this.isCompact,
     required this.icon,
@@ -994,137 +1121,151 @@ class _NavItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_NavItem> createState() => _NavItemState();
+}
+
+class _NavItemState extends State<_NavItem> {
+  bool _isHovered = false;
+  bool _justLostSelection = false;
+
+  @override
+  void didUpdateWidget(_NavItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isSelected && !widget.isSelected) {
+      _justLostSelection = true;
+      _isHovered = false;
+    } else if (_justLostSelection) {
+      _justLostSelection = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final disabled = !enabled;
+    final disabled = !widget.enabled;
+    final colors = context.appColors;
+
     // 禁用态在正常弱化色上再降低强调，与可用项区分且不当作辅助文字使用。
-    final disabledColor = context.appColors.sidebarMuted.withValues(
-      alpha: 0.55,
-    );
+    final disabledColor = colors.sidebarMuted.withValues(alpha: 0.55);
     final iconColor = disabled
         ? disabledColor
-        : isSelected
-        ? context.appColors.accent
-        : context.appColors.sidebarMuted;
+        : widget.isSelected
+        ? colors.accent
+        : (_isHovered ? colors.ink : colors.sidebarMuted);
     final textColor = disabled
         ? disabledColor
-        : isSelected
-        ? context.appColors.accent
-        : context.appColors.sidebarText;
+        : widget.isSelected
+        ? colors.accent
+        : (_isHovered ? colors.ink : colors.sidebarText);
+
+    // 选中态使用固定的 sidebarActive；未选中态在 surface 与弱悬停底色之间平滑过渡。
+    // 严禁插值到 Colors.transparent（0x00000000），否则 RGB 归零插值会导致底色发黑、发灰。
+    final Color itemBgColor;
+    final Duration animationDuration;
+
+    if (disabled) {
+      itemBgColor = colors.surface;
+      animationDuration = Duration.zero;
+    } else if (widget.isSelected) {
+      itemBgColor = colors.sidebarActive;
+      animationDuration = Duration.zero;
+    } else if (_justLostSelection) {
+      // 刚刚失去选中的项立即恢复背景色，不执行滞后动画，彻底杜绝发灰或双高亮
+      itemBgColor = colors.surface;
+      animationDuration = Duration.zero;
+    } else if (_isHovered) {
+      itemBgColor = colors.sidebarActive.withValues(alpha: 0.45);
+      animationDuration = AppTheme.motionDuration(
+        context,
+        AppTheme.feedbackDuration,
+      );
+    } else {
+      itemBgColor = colors.surface;
+      animationDuration = AppTheme.motionDuration(
+        context,
+        AppTheme.feedbackDuration,
+      );
+    }
+
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 0),
+      padding: EdgeInsets.symmetric(horizontal: widget.isCompact ? 8 : 0),
       child: Tooltip(
         message: disabled
-            ? (disabledReason ?? '暂不可用')
-            : (isCompact ? label : ''),
-        child: f.FTappable(
-          semanticsLabel: label,
-          selected: isSelected,
-          onPress: disabled ? null : onTap,
-          child: Container(
-            height: 44,
-            padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 11),
-            decoration: BoxDecoration(
-              color: isSelected && !disabled
-                  ? context.appColors.sidebarActive
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisAlignment: isCompact
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                Icon(icon, size: 17, color: iconColor),
-                if (!isCompact) const SizedBox(width: 10),
-                if (!isCompact)
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 12,
-                        fontWeight: isSelected && !disabled
-                            ? FontWeight.w600
-                            : FontWeight.w500,
+            ? (widget.disabledReason ?? '暂不可用')
+            : (widget.isCompact ? widget.label : ''),
+        child: MouseRegion(
+          cursor: disabled
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          onEnter: (_) {
+            if (!_isHovered && mounted) {
+              setState(() => _isHovered = true);
+            }
+          },
+          onExit: (_) {
+            if (_isHovered && mounted) {
+              setState(() => _isHovered = false);
+            }
+          },
+          child: f.FTappable(
+            semanticsLabel: widget.label,
+            selected: widget.isSelected,
+            onPress: disabled ? null : widget.onTap,
+            child: AnimatedContainer(
+              duration: animationDuration,
+              curve: AppTheme.entranceCurve,
+              height: 44,
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.isCompact ? 0 : 11,
+              ),
+              decoration: BoxDecoration(
+                color: itemBgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: widget.isCompact
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.start,
+                children: [
+                  Icon(widget.icon, size: 17, color: iconColor),
+                  if (!widget.isCompact) const SizedBox(width: 10),
+                  if (!widget.isCompact)
+                    Expanded(
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 12,
+                          fontWeight: widget.isSelected && !disabled
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
                       ),
                     ),
-                  ),
-                if (!isCompact && label == '作息设置')
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.appColors.surface,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '分学段',
-                      style: TextStyle(
-                        color: context.appColors.muted,
-                        fontSize: 12,
+                  if (!widget.isCompact && widget.label == '作息设置')
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '分学段',
+                        style: TextStyle(color: colors.muted, fontSize: 12),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
-
-/// 尚未实现的导航项：置灰并提示后续版本提供。
-class _NavComingSoon extends StatelessWidget {
-  const _NavComingSoon({
-    required this.label,
-    required this.icon,
-    this.isCompact = false,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool isCompact;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 8),
-    child: Tooltip(
-      message: '「$label」将在后续版本提供',
-      child: SizedBox(
-        height: 40,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 11),
-          child: Row(
-            mainAxisAlignment: isCompact
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
-            children: [
-              Icon(icon, size: 17, color: context.appColors.sidebarMuted),
-              if (!isCompact) ...[
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: context.appColors.sidebarMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
 }
 
 class _TopBar extends ConsumerWidget {
@@ -1195,42 +1336,9 @@ class _TopBar extends ConsumerWidget {
                     onPressed: () => onSelectTerm(term.id),
                   ),
               ],
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth < 800 ? 220 : 320,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: context.appColors.surface,
-                  border: Border.all(color: context.appColors.border),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        activeTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: context.appColors.ink,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.expand_more_rounded,
-                      size: 15,
-                      color: context.appColors.muted,
-                    ),
-                  ],
-                ),
+              child: _TermSelectorButton(
+                maxWidth: constraints.maxWidth < 800 ? 220 : 320,
+                activeTitle: activeTitle,
               ),
             ),
             const Spacer(),
@@ -1247,6 +1355,72 @@ class _TopBar extends ConsumerWidget {
               tooltip: '当前主题：${themeMode.label}，点击切换',
               onPressed: onCycleThemeMode,
               iconSize: 17,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TermSelectorButton extends StatefulWidget {
+  const _TermSelectorButton({
+    required this.maxWidth,
+    required this.activeTitle,
+  });
+
+  final double maxWidth;
+  final String activeTitle;
+
+  @override
+  State<_TermSelectorButton> createState() => _TermSelectorButtonState();
+}
+
+class _TermSelectorButtonState extends State<_TermSelectorButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: AppTheme.motionDuration(context, AppTheme.feedbackDuration),
+        curve: AppTheme.entranceCurve,
+        constraints: BoxConstraints(maxWidth: widget.maxWidth),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: _isHovered
+              ? context.appColors.selection.withValues(alpha: 0.35)
+              : context.appColors.surface,
+          border: Border.all(
+            color: _isHovered
+                ? context.appColors.controlBorder
+                : context.appColors.border,
+          ),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                widget.activeTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: context.appColors.ink,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 15,
+              color: context.appColors.muted,
             ),
           ],
         ),

@@ -662,19 +662,26 @@ class AppNumberStepper extends StatelessWidget {
       child: SizedBox(
         width: 28,
         height: 30,
-        child: InkWell(
-          onTap: onTap,
-          child: Icon(
-            icon,
-            size: 15,
-            color: enabled
-                ? context.appColors.inkSecondary
-                : context.appColors.helpIcon,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            hoverColor: context.appColors.selection.withValues(alpha: 0.5),
+            onTap: onTap,
+            child: Icon(
+              icon,
+              size: 15,
+              color: enabled
+                  ? context.appColors.inkSecondary
+                  : context.appColors.helpIcon,
+            ),
           ),
         ),
       ),
     );
-    return Container(
+    return AnimatedContainer(
+      duration: AppTheme.motionDuration(context, AppTheme.feedbackDuration),
+      curve: AppTheme.entranceCurve,
       decoration: BoxDecoration(
         border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(8),
@@ -705,13 +712,36 @@ class AppNumberStepper extends StatelessWidget {
               // CJK 字形看起来浮起，见设计稿 .val small）。
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    color: context.appColors.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    height: 1,
+                AnimatedSwitcher(
+                  duration: AppTheme.motionDuration(
+                    context,
+                    AppTheme.feedbackDuration,
+                  ),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(0, 0.25),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: AppTheme.entranceCurve,
+                            ),
+                          ),
+                      child: child,
+                    ),
+                  ),
+                  child: Text(
+                    '$value',
+                    key: ValueKey<int>(value),
+                    style: TextStyle(
+                      color: context.appColors.ink,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      height: 1,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 1),
@@ -827,6 +857,7 @@ class AppOutlineButton extends StatelessWidget {
   const AppOutlineButton({
     required this.onPressed,
     required this.child,
+    this.isLoading = false,
     super.key,
   }) : icon = null;
 
@@ -834,18 +865,21 @@ class AppOutlineButton extends StatelessWidget {
     required this.onPressed,
     required this.icon,
     required Widget label,
+    this.isLoading = false,
     super.key,
   }) : child = label;
 
   final VoidCallback? onPressed;
   final Widget child;
   final Widget? icon;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) => _AppForuiButton(
     onPressed: onPressed,
     icon: icon,
     variant: .outline,
+    isLoading: isLoading,
     child: child,
   );
 }
@@ -855,6 +889,7 @@ class AppPrimaryButton extends StatelessWidget {
     required this.onPressed,
     required this.child,
     this.size = FButtonSizeVariant.sm,
+    this.isLoading = false,
     super.key,
   }) : icon = null;
 
@@ -863,6 +898,7 @@ class AppPrimaryButton extends StatelessWidget {
     required this.icon,
     required Widget label,
     this.size = FButtonSizeVariant.sm,
+    this.isLoading = false,
     super.key,
   }) : child = label;
 
@@ -870,6 +906,7 @@ class AppPrimaryButton extends StatelessWidget {
   final Widget child;
   final Widget? icon;
   final FButtonSizeVariant size;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) => _AppForuiButton(
@@ -877,6 +914,7 @@ class AppPrimaryButton extends StatelessWidget {
     icon: icon,
     variant: .primary,
     size: size,
+    isLoading: isLoading,
     child: child,
   );
 }
@@ -886,6 +924,7 @@ class AppGhostButton extends StatelessWidget {
     required this.onPressed,
     required this.child,
     this.size = FButtonSizeVariant.sm,
+    this.isLoading = false,
     super.key,
   }) : icon = null;
 
@@ -894,6 +933,7 @@ class AppGhostButton extends StatelessWidget {
     required this.icon,
     required Widget label,
     this.size = FButtonSizeVariant.sm,
+    this.isLoading = false,
     super.key,
   }) : child = label;
 
@@ -901,6 +941,7 @@ class AppGhostButton extends StatelessWidget {
   final Widget child;
   final Widget? icon;
   final FButtonSizeVariant size;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) => _AppForuiButton(
@@ -908,6 +949,7 @@ class AppGhostButton extends StatelessWidget {
     icon: icon,
     variant: .ghost,
     size: size,
+    isLoading: isLoading,
     child: child,
   );
 }
@@ -917,18 +959,21 @@ class AppDestructiveButton extends StatelessWidget {
     required this.onPressed,
     required this.child,
     this.size = FButtonSizeVariant.sm,
+    this.isLoading = false,
     super.key,
   });
 
   final VoidCallback? onPressed;
   final Widget child;
   final FButtonSizeVariant size;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) => _AppForuiButton(
     onPressed: onPressed,
     variant: .destructive,
     size: size,
+    isLoading: isLoading,
     child: child,
   );
 }
@@ -956,10 +1001,23 @@ class AppIconButton extends StatelessWidget {
     onPress: onPressed,
     semanticsLabel: tooltip,
     semanticsTooltip: tooltip,
-    child: Icon(
-      icon,
-      size: iconSize,
-      color: foregroundColor ?? context.appColors.muted,
+    child: AnimatedSwitcher(
+      duration: AppTheme.motionDuration(context, AppTheme.feedbackDuration),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(
+            CurvedAnimation(parent: animation, curve: AppTheme.entranceCurve),
+          ),
+          child: child,
+        ),
+      ),
+      child: Icon(
+        icon,
+        key: ValueKey(icon),
+        size: iconSize,
+        color: foregroundColor ?? context.appColors.muted,
+      ),
     ),
   );
 }
@@ -1044,24 +1102,31 @@ class AppSecondaryButton extends StatelessWidget {
   const AppSecondaryButton({
     required this.onPressed,
     required this.child,
+    this.isLoading = false,
     super.key,
   });
 
   final VoidCallback? onPressed;
   final Widget child;
+  final bool isLoading;
 
   @override
-  Widget build(BuildContext context) =>
-      _AppForuiButton(onPressed: onPressed, variant: .secondary, child: child);
+  Widget build(BuildContext context) => _AppForuiButton(
+    onPressed: onPressed,
+    variant: .secondary,
+    isLoading: isLoading,
+    child: child,
+  );
 }
 
-class _AppForuiButton extends StatelessWidget {
+class _AppForuiButton extends StatefulWidget {
   const _AppForuiButton({
     required this.onPressed,
     required this.child,
     required this.variant,
     this.size = FButtonSizeVariant.sm,
     this.icon,
+    this.isLoading = false,
   });
 
   final VoidCallback? onPressed;
@@ -1069,16 +1134,66 @@ class _AppForuiButton extends StatelessWidget {
   final Widget? icon;
   final FButtonVariant variant;
   final FButtonSizeVariant size;
+  final bool isLoading;
 
   @override
-  Widget build(BuildContext context) => FButton(
-    variant: variant,
-    size: size,
-    mainAxisSize: .min,
-    onPress: onPressed,
-    prefix: icon,
-    child: child,
-  );
+  State<_AppForuiButton> createState() => _AppForuiButtonState();
+}
+
+class _AppForuiButtonState extends State<_AppForuiButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveEnabled = widget.onPressed != null && !widget.isLoading;
+    final scale = (_isPressed && effectiveEnabled)
+        ? AppTheme.pressedScale
+        : 1.0;
+
+    Widget? prefix = widget.icon;
+    if (widget.isLoading) {
+      final spinnerColor = switch (widget.variant) {
+        FButtonVariant.primary => context.appColors.onAccent,
+        FButtonVariant.destructive => Colors.white,
+        _ => context.appColors.accent,
+      };
+      prefix = SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(strokeWidth: 2, color: spinnerColor),
+      );
+    }
+
+    final button = FButton(
+      variant: widget.variant,
+      size: widget.size,
+      mainAxisSize: .min,
+      onPress: effectiveEnabled ? widget.onPressed : null,
+      prefix: prefix,
+      child: widget.child,
+    );
+
+    return Listener(
+      onPointerDown: effectiveEnabled
+          ? (_) => setState(() => _isPressed = true)
+          : null,
+      onPointerUp: _isPressed
+          ? (_) => setState(() => _isPressed = false)
+          : null,
+      onPointerCancel: _isPressed
+          ? (_) => setState(() => _isPressed = false)
+          : null,
+      child: AnimatedScale(
+        scale: scale,
+        duration: AppTheme.motionDuration(
+          context,
+          const Duration(milliseconds: 80),
+        ),
+        curve: AppTheme.entranceCurve,
+        child: button,
+      ),
+    );
+  }
 }
 
 /// Forui dialog surface with a consistent title, body, and action layout.
