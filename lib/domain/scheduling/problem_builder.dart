@@ -50,6 +50,15 @@ class SchedulingProblem {
   int get totalItems =>
       fixedItems.length + units.fold(0, (n, u) => n + u.items.length);
 
+  ScheduleItem withClock(ScheduleItem item) {
+    final position = item.position;
+    if (position == null) return item;
+    final cell = positionsByClass[item.classId]
+        ?.where((candidate) => candidate.sameCell(position))
+        .firstOrNull;
+    return cell == null ? item : item.at(cell);
+  }
+
   /// 识别旧版课表中被单双周配对拆散的合班及其关联课组。
   bool hasInconsistentCombinedMeetings(List<ScheduleItem> items) {
     final byId = {for (final item in items) item.id: item};
@@ -556,10 +565,8 @@ class ProblemBuilder {
     final unitsById = <String, List<ScheduleItem>>{};
     for (final item in movable) {
       final meetingKey = meetingKeys[item.id];
-      final meetingId = meetingKey == null
-          ? item.meetingId
-          : meetingRoot(meetingKey);
-      final unitId = meetingKey == null ? item.id : meetingId!;
+      final meetingId = meetingKey == null ? null : meetingRoot(meetingKey);
+      final unitId = meetingId ?? item.id;
       unitsById
           .putIfAbsent(unitId, () => [])
           .add(

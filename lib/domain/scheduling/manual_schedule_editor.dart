@@ -28,6 +28,22 @@ class ManualMoveResult {
 class ManualScheduleEditor {
   const ManualScheduleEditor();
 
+  /// 在提交前用当前完整课表复查移动、撤销和重做的结果。
+  List<ScheduleBlocker> validateEdit({
+    required SchedulingProblem problem,
+    required List<ScheduleItem> before,
+    required List<ScheduleItem> after,
+    required Set<String> changedItemIds,
+  }) => _proposalBlockers(
+    problem,
+    before,
+    ManualMoveResult(
+      items: [for (final item in after) problem.withClock(item)],
+      blockers: const [],
+      changedItemIds: changedItemIds,
+    ),
+  );
+
   /// 检查当前课表中所有已排课组及全局硬性下限。
   ///
   /// 拖拽期间可传入同一 [snapshot] 预先构建的 [problem]，避免重复解析作息。
@@ -520,6 +536,16 @@ List<ScheduleBlocker> _proposalBlockers(
   for (final entry in changedGroups.entries) {
     final group = entry.value;
     if (group.every((item) => item.position == null)) continue;
+    if (group.any((item) => item.position == null)) {
+      blockers.add(
+        ScheduleBlocker(
+          code: 'meetingPartial',
+          message: '同一课组必须整组排入课表或移入暂放区。',
+          relatedIds: group.map((item) => item.id).toList(),
+        ),
+      );
+      continue;
+    }
     final groupIds = group.map((item) => item.id).toSet();
     final others = proposal.items
         .where((item) => !groupIds.contains(item.id))

@@ -23,8 +23,31 @@ import 'package:class_set/features/scheduling/scheduling_controller.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+Future<void> _saveMondayMinimum(
+  DriftSchoolRepository school,
+  int minimum,
+) async {
+  await school.saveScheduleConfiguration(
+    termId: 'repair',
+    preferences: const SchedulePreferences(),
+    conditions: [
+      ScheduleCondition(
+        id: 'monday-minimum',
+        termId: 'repair',
+        type: ScheduleConditionType.dailyLimit,
+        targetType: ScheduleConditionTarget.subject,
+        targetId: 'subject-repair',
+        weekday: 1,
+        minimum: minimum,
+      ),
+    ],
+  );
+}
+
 void main() {
-  test('一键腾挪写入数据库，撤销重做覆盖原课程和暂放课', () async {
+  Future<(db.AppDatabase, DriftSchoolRepository)> seedTwoLessonSchedule({
+    bool addHardMinimum = false,
+  }) async {
     final database = db.AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     final school = DriftSchoolRepository(database);
@@ -135,6 +158,7 @@ void main() {
         ),
       ],
     );
+    if (addHardMinimum) await _saveMondayMinimum(school, 3);
     for (final teacher in ['flexible', 'restricted']) {
       await database.customStatement(
         'INSERT INTO schedule_items '
@@ -163,6 +187,12 @@ void main() {
         ],
       );
     }
+
+    return (database, school);
+  }
+
+  test('一键腾挪写入数据库，撤销重做覆盖原课程和暂放课', () async {
+    final (_, school) = await seedTwoLessonSchedule();
     final controller = SchedulingController(school, 'repair');
     addTearDown(controller.dispose);
     await controller.refresh();
@@ -195,6 +225,119 @@ void main() {
     expect(controller.state.placementUnplaced.single.itemId, 'item-restricted');
     expect(controller.state.placementUnplaced.single.blockers, isNotEmpty);
     expect(controller.state.undoCount, 0);
+  });
+
+  test('手动提交拒绝无配对无合班的普通周课同格冲突', () async {
+    final (database, school) = await seedTwoLessonSchedule();
+    final scheduling = DriftSchedulingRepository(database, school);
+    final current = await scheduling.loadSchedulingSnapshot('repair');
+    final flexible = current.existingItems.singleWhere((item) => item.isPlaced);
+    final restricted = current.existingItems.singleWhere(
+      (item) => !item.isPlaced,
+    );
+    await expectLater(
+      scheduling.commitManualScheduleEdit(
+        termId: 'repair',
+        expectedFingerprint: current.inputFingerprint,
+        before: [restricted],
+        after: [restricted.at(flexible.position)],
+      ),
+      throwsStateError,
+    );
+    expect(
+      (await scheduling.loadSchedulingSnapshot('repair')).inputFingerprint,
+      current.inputFingerprint,
+    );
+  });
+
+  test('增量协调拒绝硬性下限缺口并保留待协调课表', () async {
+    final (database, school) = await seedTwoLessonSchedule();
+    final scheduling = DriftSchedulingRepository(database, school);
+    await _saveMondayMinimum(school, 3);
+    final current = await scheduling.loadSchedulingSnapshot('repair');
+    final baseline = (await scheduling.loadPendingSchedulingBaseline(
+      'repair',
+    ))!;
+    final preview = const ScheduleReconciler().preview(baseline, current);
+    expect(preview.canApply, isFalse);
+    await expectLater(
+      scheduling.commitScheduleReconciliation(
+        termId: 'repair',
+        expectedFingerprint: current.inputFingerprint,
+      ),
+      throwsStateError,
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('repair'), isNotNull);
+    expect(
+      (await scheduling.loadSchedulingSnapshot('repair')).inputFingerprint,
+      current.inputFingerprint,
+    );
+
+    await _saveMondayMinimum(school, 2);
+    final corrected = await scheduling.loadSchedulingSnapshot('repair');
+    final correctedPreview = const ScheduleReconciler().preview(
+      (await scheduling.loadPendingSchedulingBaseline('repair'))!,
+      corrected,
+    );
+    expect(correctedPreview.canApply, isTrue);
+    await scheduling.commitScheduleReconciliation(
+      termId: 'repair',
+      expectedFingerprint: correctedPreview.inputFingerprint,
+    );
+    final saved = await scheduling.loadSchedulingSnapshot('repair');
+    expect(saved.existingItems.where((item) => item.isPlaced), hasLength(2));
+    expect(await scheduling.loadPendingSchedulingBaseline('repair'), isNull);
+  });
+
+  test('自动排课拒绝硬性下限缺口并保留已有课表', () async {
+    final (database, school) = await seedTwoLessonSchedule(
+      addHardMinimum: true,
+    );
+    final scheduling = DriftSchedulingRepository(database, school);
+    final current = await scheduling.loadSchedulingSnapshot('repair');
+    expect(await scheduling.loadPendingSchedulingBaseline('repair'), isNull);
+    final run = const CourseScheduler().solve(
+      const ProblemBuilder().build(current),
+      config: const ScheduleRunConfig(
+        selectedClassIds: {'class-repair'},
+        seed: 7,
+        strength: ScheduleStrength.fast,
+      ),
+    );
+    expect(run.report.unmetHardRequirements, isNotEmpty);
+    await expectLater(
+      scheduling.commitScheduleRun(run, selectedClassIds: {'class-repair'}),
+      throwsStateError,
+    );
+    expect((await scheduling.watchSchedule('repair').first).latestRun, isNull);
+    expect(
+      (await scheduling.loadSchedulingSnapshot('repair')).inputFingerprint,
+      current.inputFingerprint,
+    );
+  });
+
+  test('已存旧课组标识会触发协调，确认后清除', () async {
+    final (database, school) = await seedTwoLessonSchedule();
+    final scheduling = DriftSchedulingRepository(database, school);
+    await database.customStatement(
+      "UPDATE schedule_items SET meeting_id = 'removed-pairing' WHERE term_id = 'repair'",
+    );
+    final current = await scheduling.loadSchedulingSnapshot('repair');
+    final baseline = await scheduling.loadPendingSchedulingBaseline('repair');
+    expect(
+      baseline?.existingItems.map((item) => item.meetingId),
+      everyElement('removed-pairing'),
+    );
+    await scheduling.commitScheduleReconciliation(
+      termId: 'repair',
+      expectedFingerprint: current.inputFingerprint,
+    );
+    expect(await scheduling.loadPendingSchedulingBaseline('repair'), isNull);
+    expect(
+      (await scheduling.loadSchedulingSnapshot('repair')).existingItems
+          .map((item) => item.meetingId),
+      everyElement(isNull),
+    );
   });
 
   test('读取排课快照包含已保存学期且指纹稳定', () async {

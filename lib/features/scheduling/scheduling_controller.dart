@@ -666,18 +666,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
 List<ScheduleItem> _withClock(
   List<ScheduleItem> items,
   SchedulingProblem problem,
-) => [
-  for (final item in items)
-    if (item.position case final position?)
-      item.at(
-        (problem.positionsByClass[item.classId] ?? const <SchedulePosition>[])
-                .where((candidate) => candidate.sameCell(position))
-                .firstOrNull ??
-            position,
-      )
-    else
-      item,
-];
+) => items.map(problem.withClock).toList();
 
 class _ManualEdit {
   const _ManualEdit(this.before, this.after);

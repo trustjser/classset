@@ -68,6 +68,34 @@ List<ScheduleItem> _completeCombinedMeetings(
   return run.items;
 }
 
+// 旧位置优先策略可能把唯一可用的格子留给可移动的课程。
+List<ScheduleItem> _repairHardRequirements(
+  SchedulingProblem problem,
+  List<ScheduleItem> items,
+  ConstraintEvaluator evaluator,
+) {
+  if (!problem.isReady ||
+      evaluator.unmetHardRequirements(problem, items).isEmpty) {
+    return items;
+  }
+  final run = CourseScheduler(evaluator: evaluator).solve(
+    problem,
+    config: ScheduleRunConfig(
+      selectedClassIds: problem.selectedClassIds,
+      seed: 7,
+      strength: ScheduleStrength.normal,
+    ),
+  );
+  if (run.report.unmetHardRequirements.isNotEmpty) return items;
+  final placedIds = {
+    for (final item in run.items)
+      if (item.isPlaced) item.id,
+  };
+  return items.any((item) => item.isPlaced && !placedIds.contains(item.id))
+      ? items
+      : run.items;
+}
+
 class ScheduleSettingChange {
   const ScheduleSettingChange(this.group, this.label, this.before, this.after);
 
@@ -195,11 +223,6 @@ class ScheduleReconciler {
             subjectId: assignment.subjectId,
             weekMode: assignment.weekMode,
             combinedGroupId: assignment.combinedLessonGroupId,
-            meetingId:
-                oldAssignment?.combinedLessonGroupId ==
-                    assignment.combinedLessonGroupId
-                ? old?.meetingId
-                : null,
             position: old?.position,
           ),
         );
@@ -275,10 +298,12 @@ class ScheduleReconciler {
         placed.addAll(chosen.placedItems);
       }
     }
-    final result = _completeCombinedMeetings(effective, problem, [
+    final combined = _completeCombinedMeetings(effective, problem, [
       ...placed,
       ...unplaced,
-    ])..sort((left, right) => left.id.compareTo(right.id));
+    ]);
+    final result = _repairHardRequirements(problem, combined, evaluator)
+      ..sort((left, right) => left.id.compareTo(right.id));
     final locksToRelease = <ScheduleLock>{};
     var kept = 0;
     var moved = 0;
@@ -357,7 +382,15 @@ class ScheduleReconciler {
       items: result,
       changes: _changes(baseline, effective),
       adjustments: adjustments,
-      checks: problem.checks,
+      checks: [
+        ...problem.checks,
+        for (final blocker in evaluator.unmetHardRequirements(problem, result))
+          SchedulePreflightCheck(
+            code: blocker.code,
+            message: blocker.message,
+            ready: false,
+          ),
+      ],
       keptCount: kept,
       movedCount: moved,
       unplacedCount: temporarilyUnplaced,

@@ -19,6 +19,7 @@ import 'package:class_set/domain/models/teacher_assignment.dart' as domain;
 import 'package:class_set/domain/models/supervision.dart';
 import 'package:class_set/domain/scheduling/actual_timetable.dart';
 import 'package:class_set/domain/scheduling/constraint_evaluator.dart';
+import 'package:class_set/domain/scheduling/manual_schedule_editor.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart' as domain;
 import 'package:class_set/domain/scheduling/supervision_validation.dart';
 import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
@@ -328,11 +329,11 @@ class DriftSchedulingRepository {
     )..where((entry) => entry.termId.equals(termId))).getSingleOrNull();
     if (row == null) {
       final snapshot = await loadSchedulingSnapshot(termId);
-      if (!_requiresCombinedReconciliation(snapshot)) return null;
+      if (!_requiresMeetingReconciliation(snapshot)) return null;
       // 仅记录旧课表供预览；确认前不改动任何课节或用户设置。
       await _database.transaction(() async {
         final current = await loadSchedulingSnapshot(termId);
-        if (_requiresCombinedReconciliation(current)) {
+        if (_requiresMeetingReconciliation(current)) {
           await captureReconciliationBaselineIfNeeded(termId);
         }
       });
@@ -346,12 +347,34 @@ class DriftSchedulingRepository {
     );
   }
 
-  bool _requiresCombinedReconciliation(domain.SchedulingSnapshot snapshot) =>
-      snapshot.combinedGroups.isNotEmpty &&
-      snapshot.existingItems.isNotEmpty &&
-      const ProblemBuilder()
-          .build(snapshot.copyWith(locks: const []))
-          .hasInconsistentCombinedMeetings(snapshot.existingItems);
+  bool _requiresMeetingReconciliation(domain.SchedulingSnapshot snapshot) {
+    if (snapshot.existingItems.isEmpty ||
+        (snapshot.combinedGroups.isEmpty &&
+            !snapshot.existingItems.any((item) => item.meetingId != null))) {
+      return false;
+    }
+    final problem = const ProblemBuilder().build(
+      snapshot.copyWith(locks: const []),
+    );
+    final expectedMeetings = {
+      for (final unit in problem.units)
+        for (final item in unit.items) item.id: item.meetingId,
+    };
+    // An old ID may differ from today's canonical ID, but its members
+    // must still belong to one meeting under the current rules.
+    final expectedByStoredMeeting = <String, String>{};
+    for (final item in snapshot.existingItems) {
+      final stored = item.meetingId;
+      if (stored == null || !expectedMeetings.containsKey(item.id)) continue;
+      final expected = expectedMeetings[item.id];
+      if (expected == null ||
+          expectedByStoredMeeting.putIfAbsent(stored, () => expected) !=
+              expected) {
+        return true;
+      }
+    }
+    return problem.hasInconsistentCombinedMeetings(snapshot.existingItems);
+  }
 
   // Only discard the baseline when every scheduling input and the timetable
   // still match it. Solver preferences that do not impose hard rules may vary.
@@ -377,7 +400,7 @@ class DriftSchedulingRepository {
     }
 
     if (signature(baseline) == signature(current) &&
-        !_requiresCombinedReconciliation(current)) {
+        !_requiresMeetingReconciliation(current)) {
       await (_database.delete(
         _database.scheduleReconciliationBaselines,
       )..where((row) => row.termId.equals(termId))).go();
@@ -435,7 +458,9 @@ class DriftSchedulingRepository {
     final current = supervisionRepair ?? actual;
     final preview = const ScheduleReconciler().preview(baseline, current);
     if (!preview.canApply) {
-      throw StateError('任课或作息资料仍有待处理项，请先完成设置');
+      throw StateError(
+        preview.checks.firstWhere((check) => !check.ready).message,
+      );
     }
     final backup = databasePath == null
         ? null
@@ -874,16 +899,19 @@ class DriftSchedulingRepository {
 
       final snapshot = await loadSchedulingSnapshot(termId);
       final changedIds = changed.map((item) => item.id).toSet();
-      _validateSupervisionPlacements(
-        snapshot,
-        changedIds.map((id) => afterById[id]!),
+      final editedItems = [
+        for (final item in currentItems) afterById[item.id] ?? item,
+      ];
+      final problem = const ProblemBuilder().build(snapshot);
+      final blockers = const ManualScheduleEditor().validateEdit(
+        problem: problem,
+        before: currentItems,
+        after: editedItems,
+        changedItemIds: changedIds,
       );
+      if (blockers.isNotEmpty) throw StateError(blockers.first.message);
       await _validateFutureSupervisionSubstitutions(
-        snapshot.copyWith(
-          existingItems: [
-            for (final item in currentItems) afterById[item.id] ?? item,
-          ],
-        ),
+        snapshot.copyWith(existingItems: editedItems),
       );
 
       final locks = await _loadLocks(termId);
@@ -1021,15 +1049,23 @@ class DriftSchedulingRepository {
       if (await _inputFingerprint() != run.inputFingerprint) {
         throw StateError('排课资料已改变，请重新检查并排课');
       }
+      final finalItems = [
+        for (final item in currentSnapshot.existingItems)
+          if (!selectedClassIds.contains(item.classId)) item,
+        ...selectedItems,
+      ];
+      final problem = const ProblemBuilder().build(
+        currentSnapshot,
+        selectedClassIds: selectedClassIds,
+      );
+      final unmet = const ConstraintEvaluator().unmetHardRequirements(
+        problem,
+        finalItems.map(problem.withClock).toList(),
+      );
+      if (unmet.isNotEmpty) throw StateError(unmet.first.message);
       _validateSupervisionPlacements(currentSnapshot, selectedItems);
       await _validateFutureSupervisionSubstitutions(
-        currentSnapshot.copyWith(
-          existingItems: [
-            for (final item in currentSnapshot.existingItems)
-              if (!selectedClassIds.contains(item.classId)) item,
-            ...selectedItems,
-          ],
-        ),
+        currentSnapshot.copyWith(existingItems: finalItems),
       );
       await (_database.delete(_database.scheduleItems)..where(
             (row) =>

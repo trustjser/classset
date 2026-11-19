@@ -13,6 +13,33 @@ import 'package:class_set/domain/scheduling/schedule_reconciler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('解除单双周配对后协调清除旧课组', () {
+    final fixture = combinedPairingSnapshot();
+    final baseline = fixture.copyWith(existingItems: _brokenItems(fixture));
+    final current = SchedulingSnapshot(
+      term: baseline.term,
+      inputFingerprint: 'removed-pairing',
+      stages: baseline.stages,
+      grades: baseline.grades,
+      classes: baseline.classes,
+      routines: baseline.routines,
+      subjects: baseline.subjects,
+      requirements: baseline.requirements,
+      teachers: baseline.teachers,
+      assignments: baseline.assignments,
+      combinedGroups: baseline.combinedGroups,
+      existingItems: baseline.existingItems,
+    );
+    final preview = const ScheduleReconciler().preview(baseline, current);
+    expect(preview.canApply, isTrue);
+    expect(
+      preview.items.where(
+        (item) => item.meetingId?.startsWith('pair:') == true,
+      ),
+      isEmpty,
+    );
+  });
+
   test('普通单双周配对协调不会无故互换原有课次', () {
     final base = combinedPairingSnapshot();
     final snapshot = base.copyWith(
