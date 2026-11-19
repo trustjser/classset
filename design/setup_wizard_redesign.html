@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>课集 ClassSet · 初始设置向导 UI 与交互动效预览</title>
+<style>
+  /* 晴空蓝 / 海盐青 / 云白墨灰 —— 严格遵循 design/DESIGN.md */
+  :root, [data-palette="sky"][data-mode="light"] {
+    --canvas: #F4F7FC;
+    --surface: #FFFFFF;
+    --table-header: #F3F5F9;
+    --ink: #202A3D;
+    --ink-secondary: #5E6B80;
+    --muted: #606F86;
+    --accent: #2864DC;
+    --on-accent: #FFFFFF;
+    --selection: #EAF1FF;
+    --border: #DCE3EF;
+    --control-border: #7E8BA3;
+    --success: #1F765E;
+    --success-surface: #E5F4ED;
+    --destructive: #B74752;
+    --destructive-surface: #FCECEF;
+  }
+  [data-palette="teal"][data-mode="light"] {
+    --canvas: #F2F9F9;
+    --surface: #FFFFFF;
+    --table-header: #F0F6F6;
+    --ink: #20373B;
+    --ink-secondary: #526F74;
+    --muted: #526F74;
+    --accent: #087D89;
+    --on-accent: #FFFFFF;
+    --selection: #EEF9F9;
+    --border: #D6E6E8;
+    --control-border: #748E94;
+    --success: #1F765E;
+    --success-surface: #E5F4ED;
+    --destructive: #B74752;
+    --destructive-surface: #FCECEF;
+  }
+  [data-palette="sky"][data-mode="dark"] {
+    --canvas: #111722;
+    --surface: #1B2433;
+    --table-header: #242E3F;
+    --ink: #EDF2FC;
+    --ink-secondary: #A6B4CC;
+    --muted: #9EAEC8;
+    --accent: #97BAFF;
+    --on-accent: #162B50;
+    --selection: #253957;
+    --border: #34425A;
+    --control-border: #7186A6;
+    --success: #78D8B4;
+    --success-surface: #193D35;
+    --destructive: #FFA4AE;
+    --destructive-surface: #472A36;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* 顶部预览切换条（仅用于样张审阅明暗与配色） */
+  .preview-toolbar {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--ink-secondary);
+    z-index: 20;
+  }
+  .preview-toolbar button {
+    border: 1px solid var(--border);
+    background: var(--table-header);
+    color: var(--ink);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .preview-toolbar button.active {
+    background: var(--selection);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* 向导主卡片 */
+  .wizard-card {
+    width: 100%;
+    max-width: 600px;
+    background: var(--surface);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    padding: 34px 40px 32px;
+    transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* 头部品牌与本地离线徽章 */
+  .brand-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+  .brand-logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #1C74E9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .brand-text {
+    margin-left: 10px;
+  }
+  .brand-text .name {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+  .brand-text .domain {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+  .local-pill {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--table-header);
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-secondary);
+  }
+  .local-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+
+  /* 步骤进度条与双步卡片 */
+  .step-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .step-meta-row .step-count {
+    font-weight: 600;
+  }
+  .progress-track-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .progress-seg {
+    flex: 1;
+    height: 4px;
+    border-radius: 3px;
+    background: var(--table-header);
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 120ms ease;
+  }
+  .progress-seg.active .progress-fill { width: 100%; background: var(--accent); }
+  .progress-seg.done .progress-fill { width: 100%; background: var(--success); }
+
+  .step-cards-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .wizard-step-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--table-header);
+    border: 1px solid transparent;
+    transition: all 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    user-select: none;
+  }
+  .wizard-step-card.current {
+    background: var(--selection);
+    border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .wizard-step-card.done {
+    background: color-mix(in srgb, var(--success) 5%, var(--table-header));
+    border-color: color-mix(in srgb, var(--success) 24%, transparent);
+    cursor: pointer;
+  }
+  .wizard-step-card.done:hover {
+    background: color-mix(in srgb, var(--accent) 6%, var(--table-header));
+    border-color: color-mix(in srgb, var(--success) 42%, transparent);
+  }
+  .wizard-step-card.locked {
+    border-color: color-mix(in srgb, var(--border) 45%, transparent);
+    cursor: default;
+  }
+  .step-circle {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    transition: all 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .wizard-step-card.current .step-circle {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .wizard-step-card.done .step-circle {
+    background: var(--success);
+    border-color: var(--success);
+    color: var(--on-accent);
+  }
+  .step-card-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .step-card-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .step-card-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wizard-step-card.locked .step-card-title {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .step-edit-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    display: none;
+  }
+  .wizard-step-card.done .step-edit-tag { display: inline; }
+  .step-card-sub {
+    font-size: 11px;
+    margin-top: 2px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wizard-step-card.current .step-card-sub { color: var(--accent); }
+  .wizard-step-card.done .step-card-sub { color: var(--success); }
+
+  /* 步骤面板方向性切换动效 */
+  .step-viewport {
+    position: relative;
+    overflow: hidden;
+  }
+  .step-panel {
+    animation: slideFadeIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .step-panel.back {
+    animation: slideFadeInBack 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes slideFadeIn {
+    from { opacity: 0; transform: translateX(22px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slideFadeInBack {
+    from { opacity: 0; transform: translateX(-22px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .step-title {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--ink);
+  }
+  .step-desc {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-secondary);
+    margin-top: 8px;
+  }
+
+  /* 第 1 步：学校名片实时预览卡 */
+  .school-preview-card {
+    margin-top: 22px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .school-preview-card.filled {
+    background: color-mix(in srgb, var(--accent) 4%, var(--canvas));
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+  .school-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: var(--selection);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: all 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .school-preview-card.filled .school-avatar {
+    background: var(--accent);
+    color: var(--on-accent);
+    transform: scale(1.02);
+  }
+  .school-preview-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .school-preview-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .school-preview-card.filled .school-preview-name {
+    color: var(--ink);
+  }
+  .school-preview-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--table-header);
+    color: var(--muted);
+  }
+  .badge.accent {
+    background: var(--selection);
+    color: var(--accent);
+  }
+
+  /* 表单控件 */
+  .field-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+  .field-label {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .text-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid var(--control-border);
+    background: var(--table-header);
+    color: var(--ink);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .text-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .suggestions-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .suggestions-label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .suggestion-pill {
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    background: var(--table-header);
+    border: 1px solid var(--border);
+    color: var(--ink-secondary);
+    cursor: pointer;
+    transition: all 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .suggestion-pill:hover {
+    border-color: var(--control-border);
+    background: color-mix(in srgb, var(--accent) 5%, var(--table-header));
+  }
+  .suggestion-pill.selected {
+    background: var(--selection);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* 第 2 步：分组容器与周期卡片 */
+  .form-group-box {
+    margin-top: 22px;
+    padding: 18px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--canvas) 65%, var(--surface));
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .labeled-row {
+    display: flex;
+    align-items: center;
+  }
+  .labeled-row .row-label {
+    width: 110px;
+    font-size: 13px;
+    color: var(--ink-secondary);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .labeled-row .row-field {
+    flex: 1;
+    min-width: 0;
+  }
+  .text-input.sm {
+    height: 35px;
+    font-size: 13px;
+    padding: 0 11px;
+  }
+  .stepper-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--ink-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 120ms ease, transform 80ms ease;
+  }
+  .step-icon-btn.plus { color: var(--accent); }
+  .step-icon-btn:hover { background: var(--table-header); }
+  .step-icon-btn:active { transform: scale(0.95); }
+  .week-number-box {
+    width: 46px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--table-header);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .cycle-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .cycle-card {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--table-header);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .cycle-card:hover {
+    border-color: var(--control-border);
+  }
+  .cycle-card.selected {
+    background: var(--selection);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 0.5px var(--accent);
+  }
+  .cycle-card-top {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .radio-dot {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 1.5px solid var(--control-border);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .cycle-card.selected .radio-dot {
+    border-color: var(--accent);
+  }
+  .cycle-card.selected .radio-dot::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .cycle-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .cycle-card-desc {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .cycle-card.selected .cycle-card-desc {
+    color: var(--ink-secondary);
+  }
+
+  /* 教学周历范围实时预览条 */
+  .term-range-bar {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--selection);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    transition: all 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .term-range-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .term-range-main {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .term-range-sub {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* 底部操作栏 */
+  .footer-actions {
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer-hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .btn {
+    height: 36px;
+    padding: 0 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: transform 80ms cubic-bezier(0.22, 1, 0.36, 1), opacity 120ms ease, background-color 120ms ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .btn-secondary {
+    background: var(--selection);
+    color: var(--ink);
+  }
+</style>
+</head>
+<body data-palette="sky" data-mode="light">
+
+<div class="preview-toolbar">
+  <span>配色与主题预览：</span>
+  <button id="btn-teal" onclick="setTheme('teal', 'light')">海盐青 · 浅色</button>
+  <button id="btn-sky" class="active" onclick="setTheme('sky', 'light')">晴空蓝 · 浅色</button>
+  <button id="btn-dark" onclick="setTheme('sky', 'dark')">夜空蓝 · 深色</button>
+</div>
+
+<div class="wizard-card">
+  <!-- 顶部品牌与离线状态 -->
+  <div class="brand-header">
+    <div class="brand-logo" aria-label="课集 Logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <rect x="4" y="3" width="14" height="16" rx="3" fill="white" fill-opacity="0.95"/>
+        <rect x="7" y="7" width="8" height="2.2" rx="1.1" fill="#1C74E9"/>
+        <rect x="7" y="11" width="5" height="2.2" rx="1.1" fill="#1C74E9"/>
+        <circle cx="15.5" cy="14.5" r="2.2" fill="#F59E0B"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <div class="name">课集</div>
+      <div class="domain">ClassSet.app</div>
+    </div>
+    <div class="local-pill">
+      <span class="local-dot"></span>
+      <span>本地数据 · 离线可用</span>
+    </div>
+  </div>
+
+  <!-- 步骤指示器 + 两步状态卡 -->
+  <div class="step-meta-row">
+    <span class="step-count" id="step-count-label">初始设置 · 第 1 步 / 共 2 步</span>
+    <span id="step-stage-label">填写学校信息</span>
+  </div>
+  <div class="progress-track-row">
+    <div class="progress-seg active" id="seg-1"><div class="progress-fill"></div></div>
+    <div class="progress-seg" id="seg-2"><div class="progress-fill"></div></div>
+  </div>
+  <div class="step-cards-row">
+    <div class="wizard-step-card current" id="step-card-1" onclick="handleStepCardClick(1)">
+      <div class="step-circle" id="step-circle-1">1</div>
+      <div class="step-card-body">
+        <div class="step-card-title-row">
+          <span class="step-card-title">学校信息</span>
+          <span class="step-edit-tag">修改</span>
+        </div>
+        <div class="step-card-sub" id="step-sub-1">当前步骤 · 可选填</div>
+      </div>
+    </div>
+    <div class="wizard-step-card locked" id="step-card-2">
+      <div class="step-circle" id="step-circle-2">2</div>
+      <div class="step-card-body">
+        <div class="step-card-title-row">
+          <span class="step-card-title">第一个学期</span>
+        </div>
+        <div class="step-card-sub" id="step-sub-2">完成第 1 步后继续</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 步骤内容视口 -->
+  <div class="step-viewport">
+    <!-- 第 1 步：学校名称 -->
+    <div id="panel-step-1" class="step-panel">
+      <h1 class="step-title">欢迎使用课集</h1>
+      <p class="step-desc">先告诉课集你的学校名称。也可以留空，稍后在左侧学校卡中补填。</p>
+
+      <div class="school-preview-card" id="school-preview-card">
+        <div class="school-avatar" id="school-avatar">校</div>
+        <div class="school-preview-info">
+          <div class="school-preview-name" id="school-preview-name">未命名学校</div>
+          <div class="school-preview-meta"><span id="preview-term-link">2026 学年 · 秋季学期</span> · 侧栏学校卡预览</div>
+        </div>
+        <span class="badge" id="school-status-badge">默认占位</span>
+      </div>
+
+      <div class="field-label-row">
+        <label class="field-label" for="school-input">学校名称</label>
+        <span class="badge">选填</span>
+      </div>
+      <input
+        id="school-input"
+        class="text-input"
+        type="text"
+        placeholder="如：青木实验小学"
+        oninput="onSchoolInput(this.value)"
+        onkeydown="if(event.key==='Enter') goToStep(2)"
+      />
+
+      <div class="suggestions-row">
+        <span class="suggestions-label">快捷示例：</span>
+        <button type="button" class="suggestion-pill" onclick="pickSchool('青木实验小学')">青木实验小学</button>
+        <button type="button" class="suggestion-pill" onclick="pickSchool('青木初级中学')">青木初级中学</button>
+        <button type="button" class="suggestion-pill" onclick="pickSchool('第一高级中学')">第一高级中学</button>
+        <button type="button" class="suggestion-pill" onclick="pickSchool('实验学校')">实验学校</button>
+      </div>
+
+      <div class="footer-actions">
+        <span class="footer-hint" id="step1-footer-hint">可留空直接进入下一步</span>
+        <button type="button" class="btn btn-primary" onclick="goToStep(2)">下一步</button>
+      </div>
+    </div>
+
+    <!-- 第 2 步：创建第一个学期 -->
+    <div id="panel-step-2" class="step-panel" style="display: none;">
+      <h1 class="step-title">创建第一个学期</h1>
+      <p class="step-desc">学期决定教学周与课表范围。新建后会自动带一个默认学段，可随时调整。</p>
+
+      <div class="form-group-box">
+        <div class="labeled-row">
+          <div class="row-label">学期名称</div>
+          <div class="row-field">
+            <input
+              id="term-title-input"
+              class="text-input sm"
+              type="text"
+              value="2026 学年 · 秋季学期"
+              oninput="updateTermPreview()"
+            />
+          </div>
+        </div>
+
+        <div class="labeled-row">
+          <div class="row-label">第 1 教学周起始</div>
+          <div class="row-field">
+            <input
+              id="term-start-input"
+              class="text-input sm"
+              type="date"
+              value="2026-09-01"
+              onchange="updateTermPreview()"
+            />
+          </div>
+        </div>
+
+        <div class="labeled-row">
+          <div class="row-label">总周数</div>
+          <div class="row-field">
+            <div class="stepper-row">
+              <button type="button" class="step-icon-btn" onclick="stepWeeks(-1)">−</button>
+              <div class="week-number-box" id="week-count-display">20</div>
+              <span style="font-size: 13px; font-weight: 500;">周</span>
+              <button type="button" class="step-icon-btn plus" onclick="stepWeeks(1)">＋</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="labeled-row" style="margin-top: 16px; align-items: flex-start;">
+        <div class="row-label" style="padding-top: 10px;">
+          <span>课表周期</span>
+          <span title="单双周交替时第 1 教学周固定为单周；每周相同则所有周使用同一套周课表。" style="cursor: help; color: var(--muted);">ⓘ</span>
+        </div>
+        <div class="row-field">
+          <div class="cycle-cards-grid">
+            <div class="cycle-card" id="cycle-every" onclick="selectCycle('every')">
+              <div class="cycle-card-top">
+                <span class="radio-dot"></span>
+                <span class="cycle-card-title">每周相同</span>
+              </div>
+              <div class="cycle-card-desc">所有教学周共用同一套周课表</div>
+            </div>
+            <div class="cycle-card selected" id="cycle-alt" onclick="selectCycle('alt')">
+              <div class="cycle-card-top">
+                <span class="radio-dot"></span>
+                <span class="cycle-card-title">单双周交替</span>
+              </div>
+              <div class="cycle-card-desc">第 1 周为单周，单双周按周次自动轮换</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="term-range-bar">
+        <div class="term-range-icon">📅</div>
+        <div>
+          <div class="term-range-main" id="term-range-dates">2026-09-01 至 2027-01-18</div>
+          <div class="term-range-sub" id="term-range-meta">共 20 个教学周 · 单双周交替（第 1 周为单周） · 默认创建 1 个学段</div>
+        </div>
+      </div>
+
+      <div class="footer-actions">
+        <button type="button" class="btn btn-secondary" onclick="goToStep(1)">上一步</button>
+        <button type="button" class="btn btn-primary">完成设置，进入工作台</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentStep = 1;
+  let weekCount = 20;
+  let cycleMode = 'alt';
+
+  function setTheme(palette, mode) {
+    document.body.setAttribute('data-palette', palette);
+    document.body.setAttribute('data-mode', mode);
+    document.getElementById('btn-teal').classList.toggle('active', palette === 'teal' && mode === 'light');
+    document.getElementById('btn-sky').classList.toggle('active', palette === 'sky' && mode === 'light');
+    document.getElementById('btn-dark').classList.toggle('active', mode === 'dark');
+  }
+
+  function onSchoolInput(val) {
+    const trimmed = val.trim();
+    const hasName = trimmed.length > 0;
+    const displayName = hasName ? trimmed : '未命名学校';
+    const initial = hasName ? Array.from(trimmed)[0] : '校';
+
+    document.getElementById('school-avatar').textContent = initial;
+    document.getElementById('school-preview-name').textContent = displayName;
+    document.getElementById('school-preview-card').classList.toggle('filled', hasName);
+
+    const badge = document.getElementById('school-status-badge');
+    badge.textContent = hasName ? '已填写' : '默认占位';
+    badge.classList.toggle('accent', hasName);
+
+    document.getElementById('step1-footer-hint').textContent = hasName
+      ? '按回车或点击下一步继续'
+      : '可留空直接进入下一步';
+
+    document.querySelectorAll('.suggestion-pill').forEach(btn => {
+      btn.classList.toggle('selected', btn.textContent === trimmed);
+    });
+  }
+
+  function pickSchool(name) {
+    const input = document.getElementById('school-input');
+    input.value = name;
+    onSchoolInput(name);
+    input.focus();
+  }
+
+  function handleStepCardClick(step) {
+    if (step === 1 && currentStep === 2) {
+      goToStep(1);
+    }
+  }
+
+  function goToStep(target) {
+    if (target === currentStep) return;
+    const isForward = target > currentStep;
+    currentStep = target;
+
+    const p1 = document.getElementById('panel-step-1');
+    const p2 = document.getElementById('panel-step-2');
+    const seg1 = document.getElementById('seg-1');
+    const seg2 = document.getElementById('seg-2');
+    const card1 = document.getElementById('step-card-1');
+    const card2 = document.getElementById('step-card-2');
+    const circle1 = document.getElementById('step-circle-1');
+    const sub1 = document.getElementById('step-sub-1');
+    const sub2 = document.getElementById('step-sub-2');
+
+    const schoolVal = document.getElementById('school-input').value.trim() || '未命名学校';
+    const termVal = document.getElementById('term-title-input').value.trim() || '新建第一个学期';
+
+    document.getElementById('step-count-label').textContent = `初始设置 · 第 ${currentStep} 步 / 共 2 步`;
+    document.getElementById('step-stage-label').textContent = currentStep === 1 ? '填写学校信息' : '配置学期日历';
+
+    if (currentStep === 2) {
+      p1.style.display = 'none';
+      p2.style.display = 'block';
+      p2.classList.toggle('back', !isForward);
+
+      seg1.className = 'progress-seg done';
+      seg2.className = 'progress-seg active';
+
+      card1.className = 'wizard-step-card done';
+      circle1.textContent = '✓';
+      sub1.textContent = schoolVal;
+
+      card2.className = 'wizard-step-card current';
+      sub2.textContent = termVal;
+      updateTermPreview();
+    } else {
+      p2.style.display = 'none';
+      p1.style.display = 'block';
+      p1.classList.toggle('back', !isForward);
+
+      seg1.className = 'progress-seg active';
+      seg2.className = 'progress-seg';
+
+      card1.className = 'wizard-step-card current';
+      circle1.textContent = '1';
+      sub1.textContent = '当前步骤 · 可选填';
+
+      card2.className = 'wizard-step-card locked';
+      sub2.textContent = '完成第 1 步后继续';
+    }
+  }
+
+  function stepWeeks(delta) {
+    weekCount = Math.min(52, Math.max(1, weekCount + delta));
+    document.getElementById('week-count-display').textContent = weekCount;
+    updateTermPreview();
+  }
+
+  function selectCycle(mode) {
+    cycleMode = mode;
+    document.getElementById('cycle-every').classList.toggle('selected', mode === 'every');
+    document.getElementById('cycle-alt').classList.toggle('selected', mode === 'alt');
+    updateTermPreview();
+  }
+
+  function updateTermPreview() {
+    const termTitle = document.getElementById('term-title-input').value.trim() || '新建第一个学期';
+    document.getElementById('preview-term-link').textContent = termTitle;
+    if (currentStep === 2) {
+      document.getElementById('step-sub-2').textContent = termTitle;
+    }
+    const startVal = document.getElementById('term-start-input').value;
+    const cycleText = cycleMode === 'alt' ? '单双周交替（第 1 周为单周）' : '每周使用同一套课表';
+    if (startVal) {
+      const start = new Date(startVal + 'T00:00:00');
+      const end = new Date(start.getTime() + (weekCount * 7 - 1) * 86400000);
+      const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+      document.getElementById('term-range-dates').textContent = `${startVal} 至 ${endStr}`;
+    } else {
+      document.getElementById('term-range-dates').textContent = '选择第 1 教学周起始日后自动推算学期范围';
+    }
+    document.getElementById('term-range-meta').textContent = `共 ${weekCount} 个教学周 · ${cycleText} · 默认创建 1 个学段`;
+  }
+</script>
+</body>
+</html>
