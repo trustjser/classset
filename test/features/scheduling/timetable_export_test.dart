@@ -148,6 +148,42 @@ void main() {
       .map((cell) => cell.value.toString())
       .join('|');
 
+  test('字号、字段和打印设置写入实际工作簿', () {
+    final books = buildTimetableWorkbooks(
+      snapshot,
+      items,
+      schoolName: '测试学校',
+      commonPeriods: common,
+      options: const TimetableExportOptions(
+        fontSize: 14,
+        showTeacher: false,
+        showTime: false,
+        printFit: TimetablePrintFit.width,
+      ),
+    );
+    final sheet = Excel.decodeBytes(books.classWorkbook).tables.values.first;
+    expect(text(sheet), contains('语文'));
+    expect(text(sheet), isNot(contains('李老师')));
+    expect(text(sheet), isNot(contains('08:00')));
+    expect(sheet.rows[2][1]?.cellStyle?.fontSize, 16);
+    for (final bytes in [
+      books.classWorkbook,
+      books.teacherWorkbook,
+      books.schoolWorkbook,
+    ]) {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final sheets = archive.files.where(
+        (file) => file.name.startsWith('xl/worksheets/sheet'),
+      );
+      expect(sheets, isNotEmpty);
+      for (final file in sheets) {
+        final xml = utf8.decode(file.content as List<int>);
+        expect(xml, contains('fitToPage="1"'));
+        expect(xml, contains('fitToWidth="1" fitToHeight="0"'));
+      }
+    }
+  });
+
   test('带班活动进入班级、教师和学校工作簿', () {
     const position = SchedulePosition(
       stageId: 's1',

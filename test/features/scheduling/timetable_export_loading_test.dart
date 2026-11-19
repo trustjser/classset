@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 
@@ -171,6 +172,14 @@ void main() {
     pending = Completer<FileSaveLocation?>();
     await tester.tap(find.text('导出/打印'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('打印设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('原始比例（Excel 默认）'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('每张表缩放至一页').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('横向打印'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('确认导出'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
@@ -192,6 +201,18 @@ void main() {
       '阳光学校_2027秋季学期_教师课表.xlsx',
       '阳光学校_2027秋季学期_学校总课表.xlsx',
     });
+    for (final workbook in archive.files) {
+      final sheets = ZipDecoder()
+          .decodeBytes(workbook.content as List<int>)
+          .files
+          .where((file) => file.name.startsWith('xl/worksheets/sheet'));
+      expect(sheets, isNotEmpty);
+      for (final sheet in sheets) {
+        final xml = utf8.decode(sheet.content as List<int>);
+        expect(xml, contains('orientation="portrait"'));
+        expect(xml, contains('fitToWidth="1" fitToHeight="1"'));
+      }
+    }
     expect(tester.takeException(), isNull);
   });
 }

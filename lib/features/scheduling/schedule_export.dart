@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:archive/archive.dart';
@@ -24,16 +25,32 @@ String _clock(int? minute) => minute == null
     ? ''
     : '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';
 
+enum TimetablePrintFit { original, width, page }
+
 /// Export options for the three timetable workbooks.
 class TimetableExportOptions {
   const TimetableExportOptions({
     this.teacherUnified = true,
     this.showTeacherStage = true,
     this.schoolWeekly = true,
+    this.fontSize = 10,
+    this.showTeacher = true,
+    this.showClass = true,
+    this.showTime = true,
+    this.showWeek = true,
+    this.printFit = TimetablePrintFit.original,
+    this.landscape = true,
   });
   final bool teacherUnified;
   final bool showTeacherStage;
   final bool schoolWeekly;
+  final int fontSize;
+  final bool showTeacher;
+  final bool showClass;
+  final bool showTime;
+  final bool showWeek;
+  final TimetablePrintFit printFit;
+  final bool landscape;
 }
 
 class TimetableWorkbooks {
@@ -66,8 +83,7 @@ class _ExportSlot {
   final CommonPeriod? common;
   String get time =>
       start == null || end == null ? '—' : '${_clock(start)}-${_clock(end)}';
-  String get header =>
-      common == null ? '$label\n$time' : '${common!.name}\n$time';
+  String header(bool showTime) => showTime ? '$label\n$time' : label;
 }
 
 /// Builds separate class, teacher and stage workbooks from the full timetable.
@@ -78,6 +94,10 @@ TimetableWorkbooks buildTimetableWorkbooks(
   required Map<String, List<CommonPeriod>> commonPeriods,
   required TimetableExportOptions options,
 }) {
+  final fontSize = options.fontSize.clamp(8, 18);
+  final sizeScale = fontSize > 10 ? fontSize / 10 : 1.0;
+  void rowHeight(Sheet sheet, int row, double height) =>
+      sheet.setRowHeight(row, height * sizeScale);
   final classes = Excel.createExcel();
   final teachers = Excel.createExcel();
   final school = Excel.createExcel();
@@ -199,6 +219,7 @@ TimetableWorkbooks buildTimetableWorkbooks(
   }
 
   String week(ScheduleItem item) => switch (item.weekMode) {
+    _ when !options.showWeek => '',
     WeekMode.weekly => '',
     WeekMode.odd => '单周 ',
     WeekMode.even => '双周 ',
@@ -286,7 +307,7 @@ TimetableWorkbooks buildTimetableWorkbooks(
     Border? edge,
   }) => CellStyle(
     fontFamily: '宋体',
-    fontSize: size,
+    fontSize: fontSize + size - 10,
     bold: bold,
     horizontalAlign: HorizontalAlign.Center,
     verticalAlign: VerticalAlign.Center,
@@ -342,7 +363,7 @@ TimetableWorkbooks buildTimetableWorkbooks(
   }
 
   void writeCommonRow(Sheet sheet, int row, _ExportSlot slot, List<int> days) {
-    put(sheet, row, 0, slot.time, gridSlotStyle);
+    put(sheet, row, 0, options.showTime ? slot.time : '', gridSlotStyle);
     var start = 0;
     while (start < days.length) {
       final active =
@@ -382,10 +403,10 @@ TimetableWorkbooks buildTimetableWorkbooks(
     if (framed && columns > 1) {
       sheet.setMergedCellStyle(cell(0, 0), selectedStyle);
     }
-    sheet.setRowHeight(0, 28);
-    sheet.setColumnWidth(0, 15);
+    rowHeight(sheet, 0, 28);
+    sheet.setColumnWidth(0, 15 * sizeScale);
     for (var col = 1; col < columns; col++) {
-      sheet.setColumnWidth(col, 18);
+      sheet.setColumnWidth(col, 18 * sizeScale);
     }
   }
 
@@ -420,15 +441,15 @@ TimetableWorkbooks buildTimetableWorkbooks(
     for (final slot in slots) {
       if (slot.common != null) {
         writeCommonRow(sheet, row, slot, days);
-        sheet.setRowHeight(row, 25);
+        rowHeight(sheet, row, 25);
         row++;
         continue;
       }
       sheet.merge(cell(row, 0), cell(row + 1, 0));
-      put(sheet, row, 0, slot.header, gridSlotStyle);
+      put(sheet, row, 0, slot.header(options.showTime), gridSlotStyle);
       sheet.setMergedCellStyle(cell(row, 0), gridSlotStyle);
-      sheet.setRowHeight(row, 25);
-      sheet.setRowHeight(row + 1, 15);
+      rowHeight(sheet, row, 25);
+      rowHeight(sheet, row + 1, 15);
       for (var d = 0; d < days.length; d++) {
         final day = days[d];
         final courses = atSlot(mine, slot, day);
@@ -454,8 +475,10 @@ TimetableWorkbooks buildTimetableWorkbooks(
           row + 1,
           d + 1,
           {
-            ...courses.map((item) => '${week(item)}${teacherName(item)}'),
-            ...duties.map(dutyTeacher),
+            if (options.showTeacher) ...[
+              ...courses.map((item) => '${week(item)}${teacherName(item)}'),
+              ...duties.map(dutyTeacher),
+            ],
           }.join('\n'),
           classDetailStyle,
         );
@@ -557,15 +580,15 @@ TimetableWorkbooks buildTimetableWorkbooks(
       }
       if (slot.common != null) {
         writeCommonRow(sheet, row, slot, days);
-        sheet.setRowHeight(row, 25);
+        rowHeight(sheet, row, 25);
         row++;
         continue;
       }
       sheet.merge(cell(row, 0), cell(row + 1, 0));
-      put(sheet, row, 0, slot.header, gridSlotStyle);
+      put(sheet, row, 0, slot.header(options.showTime), gridSlotStyle);
       sheet.setMergedCellStyle(cell(row, 0), gridSlotStyle);
-      sheet.setRowHeight(row, 25);
-      sheet.setRowHeight(row + 1, 15);
+      rowHeight(sheet, row, 25);
+      rowHeight(sheet, row + 1, 15);
       for (var d = 0; d < days.length; d++) {
         final found = [
           for (final entry in group) ...atSlot(mine, entry, days[d]),
@@ -592,11 +615,12 @@ TimetableWorkbooks buildTimetableWorkbooks(
           row + 1,
           d + 1,
           {
-            ...found.map(
-              (item) =>
-                  '${week(item)}${options.showTeacherStage && selectedStages.length > 1 ? '${stageNames[snapshot.stageIdForClass(item.classId)] ?? ''} · ' : ''}${className(item)}',
-            ),
-            ...duties.map(dutyClasses),
+            if (options.showClass)
+              ...found.map(
+                (item) =>
+                    '${week(item)}${options.showTeacherStage && selectedStages.length > 1 ? '${stageNames[snapshot.stageIdForClass(item.classId)] ?? ''} · ' : ''}${className(item)}',
+              ),
+            if (options.showClass) ...duties.map(dutyClasses),
           }.join('\n'),
           teacherDetailStyle,
         );
@@ -634,17 +658,23 @@ TimetableWorkbooks buildTimetableWorkbooks(
           sheet.merge(cell(row, 0), cell(row, slots.length));
         }
         put(sheet, row, 0, '星期${_weekday(day)}', headerStyle);
-        sheet.setRowHeight(row, 25);
+        rowHeight(sheet, row, 25);
         row++;
         put(sheet, row, 0, '班级', headerStyle);
         for (var col = 0; col < slots.length; col++) {
-          put(sheet, row, col + 1, slots[col].header, headerStyle);
+          put(
+            sheet,
+            row,
+            col + 1,
+            slots[col].header(options.showTime),
+            headerStyle,
+          );
         }
-        sheet.setRowHeight(row, 34);
+        rowHeight(sheet, row, 34);
         row++;
         for (final c in stageClasses) {
           put(sheet, row, 0, displayClassName(c.id), slotStyle);
-          sheet.setRowHeight(row, 42);
+          rowHeight(sheet, row, 42);
           for (var col = 0; col < slots.length; col++) {
             final slot = slots[col];
             if (slot.common != null) {
@@ -676,11 +706,17 @@ TimetableWorkbooks buildTimetableWorkbooks(
               found.isNotEmpty || duties.isNotEmpty
                   ? [
                       ...found.map(
-                        (item) => '${subject(item)}\n${teacherName(item)}',
+                        (item) => [
+                          subject(item),
+                          if (options.showTeacher) teacherName(item),
+                        ].join('\n'),
                       ),
                       ...duties.map(
-                        (duty) =>
-                            '${duty.post.name}\n${dutyTeacher(duty)}\n${dutyClasses(duty)}',
+                        (duty) => [
+                          duty.post.name,
+                          if (options.showTeacher) dutyTeacher(duty),
+                          if (options.showClass) dutyClasses(duty),
+                        ].join('\n'),
                       ),
                     ].join('\n')
                   : label ?? (available(slot, day) ? '' : '—'),
@@ -697,7 +733,10 @@ TimetableWorkbooks buildTimetableWorkbooks(
     if (book.tables.length == 1 && book.tables.containsKey('Sheet1')) {
       book.rename('Sheet1', '暂无课表');
     }
-    return book.encode() ?? (throw StateError('生成课表工作簿失败'));
+    final bytes = book.encode() ?? (throw StateError('生成课表工作簿失败'));
+    return options.printFit == TimetablePrintFit.original
+        ? bytes
+        : _withPrintSettings(bytes, options);
   }
 
   return TimetableWorkbooks(
@@ -705,6 +744,39 @@ TimetableWorkbooks buildTimetableWorkbooks(
     teacherWorkbook: finish(teachers),
     schoolWorkbook: finish(school),
   );
+}
+
+// excel 4.x does not expose page setup. Its generated worksheet has no
+// sheetPr, margins, or pageSetup, so insert them in OOXML schema order.
+List<int> _withPrintSettings(List<int> bytes, TimetableExportOptions options) {
+  final input = ZipDecoder().decodeBytes(bytes);
+  final output = Archive();
+  final height = options.printFit == TimetablePrintFit.page ? 1 : 0;
+  final orientation = options.landscape ? 'landscape' : 'portrait';
+  final worksheetPath = RegExp(r'^xl/worksheets/sheet[0-9]+\.xml$');
+  for (final file in input.files) {
+    if (!worksheetPath.hasMatch(file.name)) {
+      output.addFile(file);
+      continue;
+    }
+    final xml = utf8
+        .decode(file.content as List<int>)
+        .replaceFirstMapped(
+          RegExp(r'<worksheet\b[^>]*>'),
+          (match) =>
+              '${match[0]}<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>',
+        )
+        .replaceFirst(
+          '</worksheet>',
+          '<pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" '
+              'header="0.2" footer="0.2"/>'
+              '<pageSetup paperSize="9" orientation="$orientation" '
+              'fitToWidth="1" fitToHeight="$height"/></worksheet>',
+        );
+    final content = utf8.encode(xml);
+    output.addFile(ArchiveFile(file.name, content.length, content));
+  }
+  return ZipEncoder().encode(output) ?? (throw StateError('写入打印设置失败'));
 }
 
 /// 文件名中剔除系统不允许的字符，并保留可辨认的学校和学期名称。
