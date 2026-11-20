@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 
@@ -639,6 +640,15 @@ class ScheduleReconciliationBaselines extends Table {
   Set<Column<Object>> get primaryKey => {termId};
 }
 
+class PublishedSchedules extends Table {
+  TextColumn get termId =>
+      text().references(AcademicTerms, #id, onDelete: KeyAction.cascade)();
+  TextColumn get dataJson => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {termId};
+}
+
 /// 临时调代课记录；常规课表始终保留在 ScheduleItems 中。
 class TemporaryCourseAdjustments extends Table {
   TextColumn get id => text()();
@@ -710,6 +720,7 @@ class SupervisionPlanVersions extends Table {
     SchedulePreferences,
     ScheduleRunReports,
     ScheduleReconciliationBaselines,
+    PublishedSchedules,
     TemporaryCourseAdjustments,
     SupervisionDrafts,
     SupervisionPlanVersions,
@@ -721,7 +732,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -830,6 +841,12 @@ class AppDatabase extends _$AppDatabase {
       if (from < 18) {
         await migrator.createTable(supervisionDrafts);
         await migrator.createTable(supervisionPlanVersions);
+      }
+      if (from < 19 && to >= 19) {
+        await transaction(() async {
+          await migrator.createTable(publishedSchedules);
+          await DriftSchoolRepository(this).migratePublishedSchedules();
+        });
       }
     },
     beforeOpen: (details) async => customStatement('PRAGMA foreign_keys = ON'),

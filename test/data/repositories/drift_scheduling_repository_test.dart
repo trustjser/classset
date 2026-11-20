@@ -5,6 +5,7 @@ import 'package:class_set/data/database/app_database.dart' as db;
 import 'package:class_set/data/repositories/drift_scheduling_repository.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
 import 'package:class_set/domain/models/academic_term.dart';
+import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/schedule_lock.dart';
 import 'package:class_set/domain/models/schedule_condition.dart';
@@ -47,9 +48,11 @@ Future<void> _saveMondayMinimum(
 void main() {
   Future<(db.AppDatabase, DriftSchoolRepository)> seedTwoLessonSchedule({
     bool addHardMinimum = false,
+    db.AppDatabase? existingDatabase,
   }) async {
-    final database = db.AppDatabase(NativeDatabase.memory());
-    addTearDown(database.close);
+    final database =
+        existingDatabase ?? db.AppDatabase(NativeDatabase.memory());
+    if (existingDatabase == null) addTearDown(database.close);
     final school = DriftSchoolRepository(database);
     await school.saveTerm(
       AcademicTerm(
@@ -190,6 +193,102 @@ void main() {
 
     return (database, school);
   }
+
+  test('发布后草稿继续编辑，正式版只在再次确认发布时更新', () async {
+    final (_, school) = await seedTwoLessonSchedule();
+    final stage = (await school.watchStages('repair').first).first;
+    final common = CommonPeriod(
+      id: 'common-repair',
+      stageId: stage.id,
+      name: '课间活动',
+      insertAfterLessonId: null,
+      durationMinutes: 10,
+      startMinute: null,
+      endMinute: null,
+    );
+    await school.saveCommonPeriod(common);
+    final controller = SchedulingController(school, 'repair');
+    addTearDown(controller.dispose);
+    await controller.refresh();
+
+    expect(await school.loadPublishedSchedule('repair'), isNull);
+    await controller.publish();
+    expect(controller.state.error, isNull);
+    final first = (await school.loadPublishedSchedule('repair'))!;
+
+    expect(first.commonPeriods[stage.id]!.single.name, '课间活动');
+    await school.saveCommonPeriod(common.copyWith(name: '新课间活动'));
+    expect(await controller.placeUnplaced({'item-restricted'}), 1);
+    final draft = await school.loadSchedulingSnapshot('repair');
+    expect(draft.existingItems.where((item) => item.isPlaced), hasLength(2));
+    expect(
+      (await school.loadPublishedSchedule('repair'))!.snapshot.existingItems
+          .where((item) => item.isPlaced),
+      hasLength(1),
+    );
+    expect(
+      (await school.loadPublishedSchedule('repair'))!
+          .commonPeriods[stage.id]!
+          .single
+          .name,
+      '课间活动',
+    );
+    await expectLater(
+      school.publishSchedule(
+        termId: 'repair',
+        expectedFingerprint: first.snapshot.inputFingerprint,
+      ),
+      throwsStateError,
+    );
+
+    await controller.publish();
+    expect(controller.state.error, isNull);
+    final second = (await school.loadPublishedSchedule('repair'))!;
+    expect(
+      second.snapshot.existingItems.where((item) => item.isPlaced),
+      hasLength(2),
+    );
+
+    expect(second.commonPeriods[stage.id]!.single.name, '新课间活动');
+
+    await _saveMondayMinimum(school, 3);
+    await controller.refresh();
+    expect(controller.state.pendingBaseline, isNotNull);
+    await expectLater(
+      school.publishSchedule(
+        termId: 'repair',
+        expectedFingerprint: controller.state.currentSnapshot!.inputFingerprint,
+      ),
+      throwsStateError,
+    );
+    expect(
+      (await school.loadPublishedSchedule('repair'))!.snapshot.conditions,
+      isEmpty,
+    );
+  });
+
+  test('升级旧数据库保留课表为正式版，同时可继续编辑草稿', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'paike-schedule-v18-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/school.sqlite');
+    final legacy = db.AppDatabase.open(file);
+    await seedTwoLessonSchedule(existingDatabase: legacy);
+    await legacy.customStatement('DROP TABLE IF EXISTS published_schedules');
+    await legacy.customStatement('PRAGMA user_version = 18');
+    await legacy.close();
+
+    final database = db.AppDatabase.open(file);
+    addTearDown(database.close);
+    final school = DriftSchoolRepository(database);
+    final published = (await school.loadPublishedSchedule('repair'))!;
+    expect(
+      published.snapshot.existingItems.where((item) => item.isPlaced),
+      hasLength(1),
+    );
+    expect((await school.watchSchedule('repair').first).items, hasLength(2));
+  });
 
   test('一键腾挪写入数据库，撤销重做覆盖原课程和暂放课', () async {
     final (_, school) = await seedTwoLessonSchedule();

@@ -7,6 +7,7 @@ import 'package:class_set/data/repositories/drift_supervision_repository.dart';
 import 'package:class_set/data/repositories/drift_temporary_adjustment_repository.dart';
 import 'package:class_set/data/repositories/school_repository.dart';
 import 'package:class_set/domain/models/combined_lesson_group.dart' as domain;
+import 'package:class_set/domain/models/common_period.dart' as domain;
 import 'package:class_set/domain/models/school_structure.dart' as domain;
 import 'package:class_set/domain/models/schedule_condition.dart' as domain;
 import 'package:class_set/domain/models/schedule_item.dart' as domain;
@@ -665,6 +666,98 @@ class DriftSchedulingRepository {
       ),
       checkProgressConsistency: row.detectProgressConsistency,
     );
+  }
+
+  Future<PublishedTimetable?> loadPublishedSchedule(String termId) async {
+    final row = await (_database.select(
+      _database.publishedSchedules,
+    )..where((row) => row.termId.equals(termId))).getSingleOrNull();
+    if (row == null) return null;
+    final data = (jsonDecode(row.dataJson) as Map).cast<String, Object?>();
+    final commonPeriods = (data['commonPeriods'] as Map).cast<String, List>();
+    return PublishedTimetable(
+      snapshot: domain.SchedulingSnapshot.fromJson(
+        (data['snapshot'] as Map).cast<String, Object?>(),
+      ),
+      commonPeriods: {
+        for (final entry in commonPeriods.entries)
+          entry.key: [
+            for (final period in entry.value)
+              domain.CommonPeriod.fromJson(
+                (period as Map).cast<String, Object?>(),
+              ),
+          ],
+      },
+    );
+  }
+
+  Future<PublishedTimetable> publishSchedule({
+    required String termId,
+    required String expectedFingerprint,
+  }) => _database.transaction(() async {
+    if (await loadPendingSchedulingBaseline(termId) != null) {
+      throw StateError('请先完成草稿课表协调');
+    }
+    final draft = await loadSchedulingSnapshot(termId);
+    if (draft.inputFingerprint != expectedFingerprint) {
+      throw StateError('草稿或排课资料已变更，请刷新后重新确认发布');
+    }
+    if (!draft.existingItems.any((item) => item.isPlaced)) {
+      throw StateError('请先在草稿版安排课程');
+    }
+    final issues = await invalidPublishedSupervision(draft);
+    if (issues.isNotEmpty) throw StateError(issues.first);
+    _validateSupervisionPlacements(draft, draft.existingItems);
+    await _validateFutureSupervisionSubstitutions(draft);
+    return _savePublishedSchedule(draft);
+  });
+
+  Future<void> migratePublishedSchedules() async {
+    final rows = await _database
+        .customSelect(
+          'SELECT DISTINCT term_id FROM schedule_items WHERE stage_id IS NOT NULL '
+          'UNION SELECT term_id FROM schedule_reconciliation_baselines',
+        )
+        .get();
+    for (final row in rows) {
+      final termId = row.read<String>('term_id');
+      final baseline = await loadPendingSchedulingBaseline(termId);
+      final snapshot = baseline ?? await loadSchedulingSnapshot(termId);
+      if (snapshot.existingItems.any((item) => item.isPlaced)) {
+        await _savePublishedSchedule(snapshot);
+      }
+    }
+  }
+
+  Future<PublishedTimetable> _savePublishedSchedule(
+    domain.SchedulingSnapshot draft,
+  ) async {
+    final placed = draft.existingItems.where((item) => item.isPlaced);
+    final snapshot = draft.copyWith(
+      existingItems: placed.toList(),
+      locks: const [],
+    );
+    final commonPeriods = {
+      for (final stage in snapshot.stages)
+        stage.id: await _source.watchCommonPeriods(stage.id).first,
+    };
+    await _database
+        .into(_database.publishedSchedules)
+        .insertOnConflictUpdate(
+          PublishedSchedulesCompanion.insert(
+            termId: snapshot.term.id,
+            dataJson: jsonEncode({
+              'snapshot': snapshot.toJson(),
+              'commonPeriods': {
+                for (final entry in commonPeriods.entries)
+                  entry.key: entry.value
+                      .map((period) => period.toJson())
+                      .toList(),
+              },
+            }),
+          ),
+        );
+    return PublishedTimetable(snapshot: snapshot, commonPeriods: commonPeriods);
   }
 
   Stream<ScheduleViewData> watchSchedule(String termId) => _database

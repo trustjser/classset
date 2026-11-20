@@ -30,6 +30,16 @@ class ScheduleViewData {
   final ScheduleRun? latestRun;
 }
 
+class PublishedTimetable {
+  const PublishedTimetable({
+    required this.snapshot,
+    required this.commonPeriods,
+  });
+
+  final SchedulingSnapshot snapshot;
+  final Map<String, List<CommonPeriod>> commonPeriods;
+}
+
 class ScheduleCommitResult {
   const ScheduleCommitResult({this.backupWarning});
 
@@ -98,6 +108,13 @@ abstract interface class SchoolRepository {
   });
 
   Stream<ScheduleViewData> watchSchedule(String termId);
+
+  Future<PublishedTimetable?> loadPublishedSchedule(String termId);
+
+  Future<PublishedTimetable> publishSchedule({
+    required String termId,
+    required String expectedFingerprint,
+  });
 
   Future<void> saveScheduleConfiguration({
     required String termId,

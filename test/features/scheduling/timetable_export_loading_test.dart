@@ -138,7 +138,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('导出/打印'));
+    await tester.tap(find.text('导出'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认导出'));
     await tester.pump();
@@ -151,7 +151,7 @@ void main() {
     expect(find.text('正在导出课表，请稍候…'), findsNothing);
 
     pending = Completer<FileSaveLocation?>();
-    await tester.tap(find.text('导出/打印'));
+    await tester.tap(find.text('导出'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认导出'));
     await tester.pump();
@@ -170,7 +170,7 @@ void main() {
     addTearDown(() => directory.deleteSync(recursive: true));
     final outputFile = File.fromUri(directory.uri.resolve('export.zip'));
     pending = Completer<FileSaveLocation?>();
-    await tester.tap(find.text('导出/打印'));
+    await tester.tap(find.text('导出'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('打印设置'));
     await tester.pumpAndSettle();

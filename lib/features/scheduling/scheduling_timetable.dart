@@ -5,6 +5,7 @@ import 'package:class_set/core/theme/app_theme.dart';
 import 'package:class_set/core/theme/subject_colors.dart';
 import 'package:class_set/core/widgets/app_components.dart';
 import 'package:class_set/core/widgets/app_page_layout.dart';
+import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/common_period.dart';
 import 'package:class_set/domain/models/free_slot.dart';
 import 'package:class_set/domain/models/schedule_item.dart';
@@ -19,7 +20,212 @@ import 'package:class_set/domain/scheduling/manual_schedule_editor.dart';
 import 'package:class_set/domain/scheduling/scheduling_snapshot.dart';
 import 'package:class_set/features/scheduling/scheduling_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:forui/forui.dart';
+
+class _ToolbarWrap extends MultiChildRenderObjectWidget {
+  const _ToolbarWrap({
+    required super.children,
+    this.spacing = 10,
+    this.runSpacing = 8,
+    super.key,
+  });
+
+  final double spacing;
+  final double runSpacing;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderToolbarWrap(spacing, runSpacing);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderToolbarWrap renderObject,
+  ) {
+    renderObject
+      ..spacing = spacing
+      ..runSpacing = runSpacing;
+  }
+}
+
+class _ToolbarWrapParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _ToolbarRun {
+  const _ToolbarRun({
+    required this.firstIndex,
+    required this.lastIndex,
+    required this.height,
+  });
+
+  final int firstIndex;
+  final int lastIndex;
+  final double height;
+}
+
+class _RenderToolbarWrap extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _ToolbarWrapParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _ToolbarWrapParentData> {
+  _RenderToolbarWrap(this._spacing, this._runSpacing);
+
+  double _spacing;
+  double get spacing => _spacing;
+  set spacing(double value) {
+    if (_spacing == value) return;
+    _spacing = value;
+    markNeedsLayout();
+  }
+
+  double _runSpacing;
+  double get runSpacing => _runSpacing;
+  set runSpacing(double value) {
+    if (_runSpacing == value) return;
+    _runSpacing = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _ToolbarWrapParentData) {
+      child.parentData = _ToolbarWrapParentData();
+    }
+  }
+
+  List<RenderBox> _childrenInOrder() {
+    final result = <RenderBox>[];
+    RenderBox? child = firstChild;
+    while (child != null) {
+      result.add(child);
+      child = childAfter(child);
+    }
+    return result;
+  }
+
+  List<_ToolbarRun> _runsFor(List<Size> sizes, double availableWidth) {
+    if (sizes.isEmpty) return const [];
+    final runs = <_ToolbarRun>[];
+    var firstIndex = 0;
+    var runWidth = sizes.first.width;
+    var runHeight = sizes.first.height;
+
+    for (var index = 1; index < sizes.length; index++) {
+      final size = sizes[index];
+      final isFinalPairStart = index == sizes.length - 2;
+      final finalPairWidth = isFinalPairStart
+          ? size.width + _spacing + sizes[index + 1].width
+          : 0.0;
+      final keepFinalPairTogether =
+          isFinalPairStart &&
+          finalPairWidth <= availableWidth &&
+          runWidth + _spacing + finalPairWidth > availableWidth;
+      final childWouldOverflow =
+          runWidth + _spacing + size.width > availableWidth;
+
+      if (childWouldOverflow || keepFinalPairTogether) {
+        runs.add(
+          _ToolbarRun(
+            firstIndex: firstIndex,
+            lastIndex: index - 1,
+            height: runHeight,
+          ),
+        );
+        firstIndex = index;
+        runWidth = size.width;
+        runHeight = size.height;
+      } else {
+        runWidth += _spacing + size.width;
+        runHeight = math.max(runHeight, size.height);
+      }
+    }
+
+    runs.add(
+      _ToolbarRun(
+        firstIndex: firstIndex,
+        lastIndex: sizes.length - 1,
+        height: runHeight,
+      ),
+    );
+    return runs;
+  }
+
+  double _heightFor(List<_ToolbarRun> runs) {
+    if (runs.isEmpty) return 0;
+    var height = 0.0;
+    for (final run in runs) {
+      height += run.height;
+    }
+    return height + _runSpacing * (runs.length - 1);
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final childConstraints = BoxConstraints(
+      maxWidth: constraints.maxWidth,
+      maxHeight: constraints.maxHeight,
+    );
+    final sizes = [
+      for (final child in _childrenInOrder())
+        child.getDryLayout(childConstraints),
+    ];
+    final naturalWidth = sizes.isEmpty
+        ? 0.0
+        : sizes.fold<double>(0, (total, size) => total + size.width) +
+              _spacing * (sizes.length - 1);
+    final width = constraints.maxWidth.isFinite
+        ? constraints.maxWidth
+        : naturalWidth;
+    final runs = _runsFor(sizes, width);
+    return constraints.constrain(Size(width, _heightFor(runs)));
+  }
+
+  @override
+  void performLayout() {
+    final children = _childrenInOrder();
+    final childConstraints = BoxConstraints(
+      maxWidth: constraints.maxWidth,
+      maxHeight: constraints.maxHeight,
+    );
+    for (final child in children) {
+      child.layout(childConstraints, parentUsesSize: true);
+    }
+    final sizes = [for (final child in children) child.size];
+    final naturalWidth = sizes.isEmpty
+        ? 0.0
+        : sizes.fold<double>(0, (total, size) => total + size.width) +
+              _spacing * (sizes.length - 1);
+    final width = constraints.maxWidth.isFinite
+        ? constraints.maxWidth
+        : naturalWidth;
+    final runs = _runsFor(sizes, width);
+    size = constraints.constrain(Size(width, _heightFor(runs)));
+
+    var y = 0.0;
+    for (final run in runs) {
+      var x = 0.0;
+      for (var index = run.firstIndex; index <= run.lastIndex; index++) {
+        final child = children[index];
+        final childParentData = child.parentData! as _ToolbarWrapParentData;
+        final isLastChildOnSingleRun =
+            runs.length == 1 && index == children.length - 1;
+        childParentData.offset = Offset(
+          isLastChildOnSingleRun ? size.width - child.size.width : x,
+          y + (run.height - child.size.height) / 2,
+        );
+        x += child.size.width + _spacing;
+      }
+      y += run.height + _runSpacing;
+    }
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
+}
 
 enum _ScheduleView { schoolClass, teacher, all, room }
 
@@ -35,12 +241,102 @@ abstract final class _SchedulePalette {
   );
 }
 
+/// Compact options for switching the timetable's version or week.
+class ScheduleSegmentedControl<T> extends StatelessWidget {
+  const ScheduleSegmentedControl({
+    required this.label,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
+
+  final String label;
+  final List<(T, String)> options;
+  final T value;
+  final ValueChanged<T>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final change = onChanged;
+    return Semantics(
+      container: true,
+      label: label,
+      child: Material(
+        color: colors.tableHeader,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (option, text) in options)
+                Semantics(
+                  button: true,
+                  selected: option == value,
+                  enabled: change != null,
+                  child: Material(
+                    color: option == value
+                        ? colors.surface
+                        : Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      side: option == value
+                          ? BorderSide(color: colors.tableDivider)
+                          : BorderSide.none,
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      focusColor: colors.selection,
+                      onTap: change == null ? null : () => change(option),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 28),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          child: Align(
+                            widthFactor: 1,
+                            heightFactor: 1,
+                            child: Text(
+                              text,
+                              style: TextStyle(
+                                color: change == null
+                                    ? colors.inkSecondary.withValues(alpha: .6)
+                                    : option == value
+                                    ? colors.ink
+                                    : colors.inkSecondary,
+                                fontSize: 12.5,
+                                fontWeight: option == value
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The timetable remains visible while the solver runs, matching the design's
 /// toolbar, right rail and bottom task bar.
 class SchedulingTimetable extends StatefulWidget {
   const SchedulingTimetable({
     required this.snapshot,
+    this.classOrderIds,
     this.commonPeriods = const {},
+    this.readOnly = false,
+    this.versionControls = const [],
     required this.state,
     required this.onStart,
     required this.onRefresh,
@@ -62,6 +358,9 @@ class SchedulingTimetable extends StatefulWidget {
   });
 
   final SchedulingSnapshot snapshot;
+  final List<String>? classOrderIds;
+  final bool readOnly;
+  final List<Widget> versionControls;
   final Map<String, List<CommonPeriod>> commonPeriods;
   final SchedulingState state;
   final VoidCallback onStart;
@@ -204,15 +503,36 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
   @override
   Widget build(BuildContext context) {
     final snapshot = widget.snapshot;
+    final classes = [...snapshot.classes];
+    final classOrderIds = widget.classOrderIds;
+    if (classOrderIds != null) {
+      final classOrder = {
+        for (var index = 0; index < classOrderIds.length; index++)
+          classOrderIds[index]: index,
+      };
+      classes.sort((first, second) {
+        final firstOrder = classOrder[first.id];
+        final secondOrder = classOrder[second.id];
+        if (firstOrder != null || secondOrder != null) {
+          if (firstOrder == null) return 1;
+          if (secondOrder == null) return -1;
+          return firstOrder.compareTo(secondOrder);
+        }
+        final sortOrder = first.sortOrder.compareTo(second.sortOrder);
+        if (sortOrder != 0) return sortOrder;
+        final nameOrder = first.name.compareTo(second.name);
+        return nameOrder != 0 ? nameOrder : first.id.compareTo(second.id);
+      });
+    }
     final stageId = snapshot.stages.any((stage) => stage.id == _stageId)
         ? _stageId
         : null;
-    final classIds = snapshot.classes.map((item) => item.id).toSet();
+    final classIds = classes.map((item) => item.id).toSet();
     final teacherIds = snapshot.teachers.map((item) => item.id).toSet();
     final roomIds = snapshot.rooms.map((item) => item.id).toSet();
     final classId = classIds.contains(_classId)
         ? _classId
-        : snapshot.classes.firstOrNull?.id;
+        : classes.firstOrNull?.id;
     final teacherId = teacherIds.contains(_teacherId)
         ? _teacherId
         : snapshot.teachers.firstOrNull?.id;
@@ -259,6 +579,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         widget.state.status == SchedulingStatus.committing ||
         widget.state.status == SchedulingStatus.savingEdit;
     final editable =
+        !widget.readOnly &&
         widget.state.pendingBaseline == null &&
         (widget.state.status == SchedulingStatus.ready ||
             widget.state.status == SchedulingStatus.completed);
@@ -292,6 +613,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                             children: [
                               _toolbar(
                                 context,
+                                classes,
                                 classId,
                                 teacherId,
                                 roomId,
@@ -340,6 +662,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                                     onPreviewMove: widget.onPreviewMove,
                                     onMove: widget.onMove,
                                   );
+                                  if (widget.readOnly) return grid;
                                   final rail = _RightRail(
                                     snapshot: snapshot,
                                     stageId: _view == _ScheduleView.schoolClass
@@ -418,6 +741,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
 
   Widget _toolbar(
     BuildContext context,
+    List<ClassGroup> classes,
     String? classId,
     String? teacherId,
     String? roomId,
@@ -425,6 +749,8 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
     bool solving,
   ) {
     final snapshot = widget.snapshot;
+    final showWeekControls =
+        snapshot.term.cycleMode == AcademicTermCycle.alternating;
     final selectedStage = snapshot.stages
         .where((stage) => stage.id == _stageId)
         .firstOrNull;
@@ -469,7 +795,7 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
         key: const ValueKey('schedule-class-selector'),
         compact: true,
         items: _uniqueSelectorItems(
-          snapshot.classes.map(
+          classes.map(
             (item) => (
               '${_stageName(snapshot, item.id)} · ${_gradeName(snapshot, item.id)} ${item.name}',
               item.id,
@@ -523,34 +849,34 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
           _viewTab(context, entry.$1, entry.$2),
       ],
     );
-    final startButton = AppPrimaryButton.icon(
-      onPressed: solving || widget.state.pendingBaseline != null
-          ? null
-          : widget.onStart,
-      icon: const Icon(Icons.auto_awesome_outlined, size: 16),
-      label: const Text('自动排课'),
-    );
+    final actions = [
+      ...widget.versionControls,
+      if (!widget.readOnly)
+        AppPrimaryButton.icon(
+          onPressed: widget.state.busy || widget.state.pendingBaseline != null
+              ? null
+              : widget.onStart,
+          icon: const Icon(Icons.auto_awesome_outlined, size: 16),
+          label: const Text('自动排课'),
+        ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) => constraints.maxWidth >= 640
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(child: navigation),
-                    const SizedBox(width: 20),
-                    startButton,
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    navigation,
-                    const SizedBox(height: 16),
-                    startButton,
-                  ],
-                ),
+        OverflowBar(
+          spacing: 16,
+          overflowSpacing: 8,
+          alignment: MainAxisAlignment.spaceBetween,
+          children: [
+            navigation,
+            if (actions.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: actions,
+              ),
+          ],
         ),
         const SizedBox(height: 13),
         Divider(height: 1, color: context.appColors.border),
@@ -562,8 +888,8 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
             borderRadius: BorderRadius.circular(10),
             boxShadow: context.appColors.cardShadow,
           ),
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
+          child: _ToolbarWrap(
+            key: const ValueKey('schedule-toolbar-wrap'),
             spacing: 10,
             runSpacing: 8,
             children: [
@@ -595,55 +921,67 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                     ),
                   ],
                 ),
-                _toolbarDivider(),
               ],
-              if (_view == _ScheduleView.all) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final entry in const [
-                      (_AllScheduleLayout.timetable, '按课节'),
-                      (_AllScheduleLayout.classes, '按班级'),
-                    ])
-                      TextButton(
-                        onPressed: () => setState(() => _allLayout = entry.$1),
-                        style: TextButton.styleFrom(
-                          foregroundColor: _allLayout == entry.$1
-                              ? context.appColors.blue
-                              : context.appColors.inkSecondary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          textStyle: TextStyle(
-                            fontSize: 12,
-                            fontWeight: _allLayout == entry.$1
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+              if (_view == _ScheduleView.all)
+                _toolbarSection(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final entry in const [
+                            (_AllScheduleLayout.timetable, '按课节'),
+                            (_AllScheduleLayout.classes, '按班级'),
+                          ])
+                            TextButton(
+                              onPressed: () =>
+                                  setState(() => _allLayout = entry.$1),
+                              style: TextButton.styleFrom(
+                                foregroundColor: _allLayout == entry.$1
+                                    ? context.appColors.blue
+                                    : context.appColors.inkSecondary,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                minimumSize: const Size(0, 36),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textStyle: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: _allLayout == entry.$1
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                              child: Text(entry.$2),
+                            ),
+                        ],
+                      ),
+                      if (_allLayout == _AllScheduleLayout.classes) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 96,
+                          child: AppSelectField<int>(
+                            key: const ValueKey('schedule-weekday-selector'),
+                            compact: true,
+                            items: {
+                              for (var day = 1; day <= 7; day++)
+                                _dayLabel(day): day,
+                            },
+                            value: _weekday,
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => _weekday = value);
+                              }
+                            },
                           ),
                         ),
-                        child: Text(entry.$2),
-                      ),
-                  ],
-                ),
-                if (_allLayout == _AllScheduleLayout.classes)
-                  SizedBox(
-                    width: 96,
-                    child: AppSelectField<int>(
-                      key: const ValueKey('schedule-weekday-selector'),
-                      compact: true,
-                      items: {
-                        for (var day = 1; day <= 7; day++) _dayLabel(day): day,
-                      },
-                      value: _weekday,
-                      onChanged: (value) {
-                        if (value != null) setState(() => _weekday = value);
-                      },
-                    ),
+                      ],
+                    ],
                   ),
-                _toolbarDivider(),
-              ],
-              if (_view != _ScheduleView.all)
+                ),
+              if (_view == _ScheduleView.schoolClass)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -667,65 +1005,73 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                     ),
                   ],
                 ),
-              if (_view != _ScheduleView.all) _toolbarDivider(),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _controlLabel(context, '周别'),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: context.appColors.tableHeader,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final entry in const [
+              if (_view == _ScheduleView.teacher || _view == _ScheduleView.room)
+                _toolbarSection(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _controlLabel(context, switch (_view) {
+                        _ScheduleView.schoolClass => '班级',
+                        _ScheduleView.teacher => '教师',
+                        _ScheduleView.room => '场室',
+                        _ScheduleView.all => '',
+                      }),
+                      const SizedBox(width: 8),
+                      SizedBox(width: 175, child: selector),
+                    ],
+                  ),
+                ),
+              if (showWeekControls)
+                _toolbarSection(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _controlLabel(context, '周别'),
+                      const SizedBox(width: 8),
+                      ScheduleSegmentedControl<_WeekView>(
+                        label: '周别',
+                        options: const [
                           (_WeekView.merged, '合并'),
                           (_WeekView.odd, '单周'),
                           (_WeekView.even, '双周'),
-                        ])
-                          _weekSegment(entry.$1, entry.$2),
-                      ],
-                    ),
+                        ],
+                        value: _week,
+                        onChanged: (value) => setState(() => _week = value),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              _toolbarDivider(),
-              Wrap(
-                spacing: 2,
-                runSpacing: 4,
-                children: [
-                  AppGhostButton.icon(
-                    onPressed:
-                        solving ||
-                            widget.state.pendingBaseline != null ||
-                            widget.state.undoCount == 0
-                        ? null
-                        : widget.onUndo,
-                    icon: const Icon(Icons.undo, size: 16),
-                    label: const Text('撤销'),
+                ),
+              if (!widget.readOnly) ...[
+                _toolbarSection(
+                  Wrap(
+                    spacing: 2,
+                    runSpacing: 4,
+                    children: [
+                      AppGhostButton.icon(
+                        onPressed:
+                            solving ||
+                                widget.state.pendingBaseline != null ||
+                                widget.state.undoCount == 0
+                            ? null
+                            : widget.onUndo,
+                        icon: const Icon(Icons.undo, size: 16),
+                        label: const Text('撤销'),
+                      ),
+                      AppGhostButton.icon(
+                        onPressed:
+                            solving ||
+                                widget.state.pendingBaseline != null ||
+                                widget.state.redoCount == 0
+                            ? null
+                            : widget.onRedo,
+                        icon: const Icon(Icons.redo, size: 16),
+                        label: const Text('重做'),
+                      ),
+                    ],
                   ),
-                  AppGhostButton.icon(
-                    onPressed:
-                        solving ||
-                            widget.state.pendingBaseline != null ||
-                            widget.state.redoCount == 0
-                        ? null
-                        : widget.onRedo,
-                    icon: const Icon(Icons.redo, size: 16),
-                    label: const Text('重做'),
-                  ),
-                ],
-              ),
-              _toolbarDivider(),
-              Wrap(
-                spacing: 2,
-                runSpacing: 4,
-                children: [
-                  if (_view != _ScheduleView.room)
+                ),
+                if (_view != _ScheduleView.room)
+                  _toolbarSection(
                     Tooltip(
                       message: lockTooltip,
                       child: AppGhostButton.icon(
@@ -797,46 +1143,29 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
                         ),
                       ),
                     ),
-                ],
-              ),
-              _toolbarDivider(),
-              Wrap(
-                spacing: 2,
-                runSpacing: 4,
-                children: [
-                  AppGhostButton.icon(
-                    onPressed: solving || widget.state.pendingBaseline != null
-                        ? null
-                        : widget.onRefresh,
-                    icon: const Icon(Icons.fact_check_outlined, size: 16),
-                    label: const Text('检测'),
                   ),
+                _toolbarSection(
                   AppGhostButton.icon(
                     onPressed: solving ? null : widget.onRules,
                     icon: const Icon(Icons.tune_outlined, size: 16),
                     label: const Text('规则'),
                   ),
-                ],
-              ),
-              _toolbarDivider(),
-              Wrap(
-                spacing: 2,
-                runSpacing: 4,
-                children: [
-                  AppGhostButton.icon(
-                    onPressed:
-                        (!widget.state.items.any((item) => item.isPlaced) &&
-                                snapshot.visibleSupervision.isEmpty) ||
-                            widget.state.pendingBaseline != null
-                        ? null
-                        : () => widget.onExport(
-                            widget.state.items,
-                            '${_viewLabel(_view)}${_view != _ScheduleView.schoolClass && selectedStage != null ? ' · ${selectedStage.name}' : ''} · ${_weekLabel(_week)}${_view == _ScheduleView.all && _allLayout == _AllScheduleLayout.classes ? ' · ${_dayLabel(_weekday)}' : ''}',
-                          ),
-                    icon: const Icon(Icons.ios_share_outlined, size: 16),
-                    label: const Text('导出/打印'),
-                  ),
-                ],
+                ),
+              ],
+              _toolbarSection(
+                AppGhostButton.icon(
+                  onPressed:
+                      (!widget.state.items.any((item) => item.isPlaced) &&
+                              snapshot.visibleSupervision.isEmpty) ||
+                          widget.state.pendingBaseline != null
+                      ? null
+                      : () => widget.onExport(
+                          widget.state.items,
+                          '${_viewLabel(_view)}${_view != _ScheduleView.schoolClass && selectedStage != null ? ' · ${selectedStage.name}' : ''} · ${_weekLabel(_week)}${_view == _ScheduleView.all && _allLayout == _AllScheduleLayout.classes ? ' · ${_dayLabel(_weekday)}' : ''}',
+                        ),
+                  icon: const Icon(Icons.ios_share_outlined, size: 16),
+                  label: const Text('导出'),
+                ),
               ),
             ],
           ),
@@ -887,41 +1216,10 @@ class _SchedulingTimetableState extends State<SchedulingTimetable> {
   Widget _toolbarDivider() =>
       Container(width: 1, height: 20, color: context.appColors.border);
 
-  Widget _weekSegment(_WeekView value, String label) {
-    final selected = _week == value;
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      onTap: () => setState(() => _week = value),
-      child: Container(
-        height: 26,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: selected ? context.appColors.surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: selected
-              ? const [
-                  BoxShadow(
-                    color: Color(0x1F1F1E1A),
-                    blurRadius: 3,
-                    offset: Offset(0, 1),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected
-                ? context.appColors.ink
-                : context.appColors.inkSecondary,
-            fontSize: 12.5,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _toolbarSection(Widget child) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [_toolbarDivider(), const SizedBox(width: 8), child],
+  );
 
   Widget _taskBar(BuildContext context) {
     final state = widget.state;
@@ -1595,7 +1893,9 @@ class _TimetableGridState extends State<_TimetableGrid> {
                                     children: [
                                       _tableCell(context, '班级', header: true),
                                       for (final column in columns)
-                                        ValueListenableBuilder<_HoveredCellCoord>(
+                                        ValueListenableBuilder<
+                                          _HoveredCellCoord
+                                        >(
                                           valueListenable: _hoveredCell,
                                           builder: (context, hovered, _) {
                                             final highlighted =
@@ -1698,7 +1998,9 @@ class _TimetableGridState extends State<_TimetableGrid> {
                                   for (final schoolClass in classes)
                                     TableRow(
                                       children: [
-                                        ValueListenableBuilder<_HoveredCellCoord>(
+                                        ValueListenableBuilder<
+                                          _HoveredCellCoord
+                                        >(
                                           valueListenable: _hoveredCell,
                                           builder: (context, hovered, _) {
                                             final highlighted =
@@ -1869,11 +2171,7 @@ class _TimetableGridState extends State<_TimetableGrid> {
     return best?.label;
   }
 
-  Widget _periodCell(
-    BuildContext context,
-    _GridRow row, {
-    String? stageName,
-  }) {
+  Widget _periodCell(BuildContext context, _GridRow row, {String? stageName}) {
     final rowKey = _rowCoordKey(row);
     return TableCell(
       verticalAlignment: TableCellVerticalAlignment.fill,
@@ -2208,9 +2506,7 @@ class _TimetableGridState extends State<_TimetableGrid> {
         decoration: BoxDecoration(
           color: subjectBackground,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: subjectForeground.withValues(alpha: 0.16),
-          ),
+          border: Border.all(color: subjectForeground.withValues(alpha: 0.16)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

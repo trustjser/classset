@@ -6,6 +6,9 @@ import 'package:class_set/domain/models/stage_routine.dart';
 import 'package:class_set/data/database/app_database.dart' show AppDatabase;
 import 'package:class_set/data/providers/school_repository_provider.dart';
 import 'package:class_set/data/repositories/drift_school_repository.dart';
+import 'package:class_set/data/repositories/school_repository.dart';
+import 'package:class_set/domain/models/schedule_item.dart';
+import 'package:class_set/domain/models/schedule_position.dart';
 import 'package:class_set/domain/models/academic_term.dart';
 import 'package:class_set/domain/models/schedule_preferences.dart';
 import 'package:class_set/domain/models/schedule_condition.dart';
@@ -66,7 +69,259 @@ class _ReadyController extends SchedulingController {
   }
 }
 
+class _PublishedVersionController extends _ReadyController {
+  _PublishedVersionController(
+    super.repository,
+    super.snapshot,
+    SchedulingSnapshot published,
+  ) {
+    state = state.copyWith(
+      publishedSchedule: PublishedTimetable(
+        snapshot: published,
+        commonPeriods: const {},
+      ),
+    );
+  }
+}
+
+class _PublishController extends _ReadyController {
+  _PublishController(
+    DriftSchoolRepository repository,
+    SchedulingSnapshot snapshot,
+  ) : super(repository, snapshot) {
+    state = state.copyWith(items: snapshot.existingItems);
+  }
+
+  int publishCount = 0;
+
+  @override
+  Future<bool> publish({String? expectedFingerprint}) async {
+    expect(expectedFingerprint, state.snapshot!.inputFingerprint);
+    publishCount++;
+    state = state.copyWith(
+      publishedSchedule: PublishedTimetable(
+        snapshot: state.snapshot!.copyWith(
+          existingItems: state.items.where((item) => item.isPlaced).toList(),
+        ),
+        commonPeriods: const {},
+      ),
+    );
+    return true;
+  }
+}
+
 void main() {
+  testWidgets('正式版与草稿版班级课程表使用相同班级顺序', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = DriftSchoolRepository(database);
+    final term = AcademicTerm(
+      id: 't',
+      title: '学期',
+      academicYear: '2026',
+      semesterLabel: '秋',
+      firstTeachingWeekStart: null,
+      teachingWeekCount: 20,
+      createdAt: DateTime(2026),
+    );
+    const stages = [
+      SchoolStage(id: 'stage', termId: 't', name: '小学部', sortOrder: 0),
+    ];
+    const grades = [
+      GradeGroup(id: 'grade', stageId: 'stage', name: '一年级', sortOrder: 0),
+    ];
+    const firstClass = ClassGroup(
+      id: 'class-1',
+      gradeId: 'grade',
+      name: '一班',
+      sortOrder: 0,
+    );
+    const secondClass = ClassGroup(
+      id: 'class-2',
+      gradeId: 'grade',
+      name: '二班',
+      sortOrder: 1,
+    );
+    final draft = SchedulingSnapshot(
+      term: term,
+      inputFingerprint: 'draft',
+      stages: stages,
+      grades: grades,
+      classes: const [secondClass, firstClass],
+    );
+    final published = SchedulingSnapshot(
+      term: term,
+      inputFingerprint: 'published',
+      stages: stages,
+      grades: grades,
+      classes: const [firstClass, secondClass],
+    );
+    final controller = _PublishedVersionController(
+      repository,
+      draft,
+      published,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        schoolRepositoryProvider.overrideWithValue(repository),
+        schedulingControllerProvider('t').overrideWith((ref) => controller),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          builder: (context, child) => f.FTheme(
+            data: AppTheme.foruiFor(false),
+            child: f.FToaster(child: child!),
+          ),
+          home: const Scaffold(body: SchedulingPage(termId: 't')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selector = find.byKey(const ValueKey('schedule-class-selector'));
+    List<String> optionIds() =>
+        tester.widget<AppSelectField<String>>(selector).items.values.toList();
+
+    expect(optionIds(), ['class-2', 'class-1']);
+    await tester.tap(find.text('草稿版'));
+    await tester.pumpAndSettle();
+    expect(optionIds(), ['class-2', 'class-1']);
+  });
+
+  testWidgets('确认发布后切换到只读正式版，草稿仍可继续排课', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = DriftSchoolRepository(database);
+    const placed = ScheduleItem(
+      id: 'placed',
+      termId: 't',
+      assignmentId: 'assignment',
+      classId: 'class',
+      teacherId: 'teacher',
+      subjectId: 'subject',
+      weekMode: WeekMode.weekly,
+      position: SchedulePosition(
+        stageId: 'stage',
+        weekday: 1,
+        periodTypeId: 'period',
+        lessonIndex: 1,
+      ),
+    );
+    final snapshot = SchedulingSnapshot(
+      term: AcademicTerm(
+        id: 't',
+        title: '学期',
+        academicYear: '2026',
+        semesterLabel: '秋',
+        firstTeachingWeekStart: null,
+        teachingWeekCount: 20,
+        createdAt: DateTime(2026),
+      ),
+      inputFingerprint: 'draft',
+      existingItems: [
+        placed,
+        const ScheduleItem(
+          id: 'unplaced',
+          termId: 't',
+          assignmentId: 'assignment',
+          classId: 'class',
+          teacherId: 'teacher',
+          subjectId: 'subject',
+          weekMode: WeekMode.weekly,
+        ),
+      ],
+    );
+    final controller = _PublishController(repository, snapshot);
+    final container = ProviderContainer(
+      overrides: [
+        schoolRepositoryProvider.overrideWithValue(repository),
+        schedulingControllerProvider('t').overrideWith((ref) => controller),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          builder: (context, child) => f.FTheme(
+            data: AppTheme.foruiFor(false),
+            child: f.FToaster(child: child!),
+          ),
+          home: const Scaffold(body: SchedulingPage(termId: 't')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('正式版'));
+    await tester.pumpAndSettle();
+    expect(find.text('尚未发布正式课表'), findsOneWidget);
+    expect(find.text('自动排课'), findsNothing);
+    await tester.tap(find.text('前往草稿排课'));
+    await tester.pumpAndSettle();
+    expect(find.text('自动排课'), findsOneWidget);
+    final courseTab = find.text('班级课程表');
+    final versionTab = find.text('草稿版');
+    final versionControl = find.byKey(
+      const ValueKey('schedule-version-control'),
+    );
+    expect(tester.getSize(versionControl).height, lessThanOrEqualTo(34));
+    expect(
+      find.ancestor(
+        of: find.text('发布为正式版'),
+        matching: find.byType(AppGhostButton),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.getCenter(versionTab).dy,
+      closeTo(tester.getCenter(courseTab).dy, 12),
+    );
+    expect(
+      tester.getTopLeft(versionTab).dx,
+      greaterThan(tester.getTopRight(courseTab).dx),
+    );
+
+    tester.view.physicalSize = const Size(460, 900);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('正式版').hitTestable(), findsOneWidget);
+    expect(find.text('发布为正式版').hitTestable(), findsOneWidget);
+
+    await tester.tap(find.text('发布为正式版'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('还有 1 节暂放课程'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(controller.publishCount, 0);
+
+    await tester.tap(find.text('发布为正式版'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认发布'));
+    await tester.pumpAndSettle();
+    expect(controller.publishCount, 1);
+    expect(find.text('仅供查看和导出'), findsOneWidget);
+    expect(find.text('自动排课'), findsNothing);
+    expect(find.text('规则'), findsNothing);
+    expect(find.text('导出'), findsOneWidget);
+
+    await tester.tap(find.text('草稿版'));
+    await tester.pumpAndSettle();
+    expect(find.text('自动排课'), findsOneWidget);
+  });
+
   testWidgets('待协调时可以继续查看和编辑规则，并主动打开或关闭协调', (tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1;

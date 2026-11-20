@@ -49,6 +49,7 @@ class SchedulingState {
     this.currentSnapshot,
     this.reconciliationPreview,
     this.reconciling = false,
+    this.publishedSchedule,
   });
 
   final SchedulingStatus status;
@@ -69,6 +70,17 @@ class SchedulingState {
   final SchedulingSnapshot? currentSnapshot;
   final ScheduleReconciliationPreview? reconciliationPreview;
   final bool reconciling;
+  final PublishedTimetable? publishedSchedule;
+
+  bool get busy =>
+      reconciling ||
+      status == SchedulingStatus.loading ||
+      status == SchedulingStatus.solving ||
+      status == SchedulingStatus.committing ||
+      status == SchedulingStatus.savingEdit;
+
+  bool get canPublish =>
+      !busy && pendingBaseline == null && items.any((item) => item.isPlaced);
 
   List<SchedulePreflightCheck> get checks => problem?.checks ?? const [];
   bool get canStart =>
@@ -98,6 +110,7 @@ class SchedulingState {
     Object? currentSnapshot = _notProvided,
     Object? reconciliationPreview = _notProvided,
     bool? reconciling,
+    PublishedTimetable? publishedSchedule,
   }) => SchedulingState(
     status: status ?? this.status,
     snapshot: identical(snapshot, _notProvided)
@@ -131,6 +144,7 @@ class SchedulingState {
         ? this.reconciliationPreview
         : reconciliationPreview as ScheduleReconciliationPreview?,
     reconciling: reconciling ?? this.reconciling,
+    publishedSchedule: publishedSchedule ?? this.publishedSchedule,
   );
 }
 
@@ -173,6 +187,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
           : state.selectedClassIds;
       final problem = _builder.build(snapshot, selectedClassIds: selected);
       final view = await _repository.watchSchedule(termId).first;
+      final published = await _repository.loadPublishedSchedule(termId);
       if (!mounted || version != _requestVersion) return;
       state = state.copyWith(
         status: SchedulingStatus.ready,
@@ -180,6 +195,7 @@ class SchedulingController extends StateNotifier<SchedulingState> {
         problem: problem,
         selectedClassIds: selected,
         run: view.latestRun,
+        publishedSchedule: published,
         progress: null,
         backupWarning: null,
         items: _withClock(snapshot.existingItems, problem),
@@ -200,6 +216,31 @@ class SchedulingController extends StateNotifier<SchedulingState> {
           error: '加载排课资料失败：$error',
         );
       }
+    }
+  }
+
+  Future<bool> publish({String? expectedFingerprint}) async {
+    final snapshot = state.snapshot;
+    if (snapshot == null || !state.canPublish) return false;
+    final status = state.status;
+    state = state.copyWith(status: SchedulingStatus.committing, error: null);
+    try {
+      final published = await _repository.publishSchedule(
+        termId: termId,
+        expectedFingerprint: expectedFingerprint ?? snapshot.inputFingerprint,
+      );
+      if (!mounted) return false;
+      state = state.copyWith(
+        status: SchedulingStatus.ready,
+        progress: null,
+        publishedSchedule: published,
+      );
+      return true;
+    } on Object catch (error) {
+      if (mounted) {
+        state = state.copyWith(status: status, error: '发布课表失败：$error');
+      }
+      return false;
     }
   }
 

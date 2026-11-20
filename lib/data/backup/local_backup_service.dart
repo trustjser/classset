@@ -150,7 +150,9 @@ class LocalBackupService {
     final canMigrate =
         (details.schemaVersion == 16 && database.schemaVersion == 17) ||
         (const {16, 17}.contains(details.schemaVersion) &&
-            database.schemaVersion == 18);
+            database.schemaVersion == 18) ||
+        (const {16, 17, 18}.contains(details.schemaVersion) &&
+            database.schemaVersion == 19);
     if (details.schemaVersion != stored.schemaVersion ||
         (details.schemaVersion != database.schemaVersion && !canMigrate)) {
       throw StateError('备份数据库版本与当前应用不一致。');

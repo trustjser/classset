@@ -2,6 +2,24 @@ import 'package:class_set/data/database/app_database.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+void _createLegacyScheduleTables(void Function(String) execute) {
+  execute('''
+    CREATE TABLE schedule_items (
+      id TEXT NOT NULL PRIMARY KEY,
+      term_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      stage_id TEXT
+    )
+  ''');
+  execute('''
+    CREATE TABLE schedule_reconciliation_baselines (
+      term_id TEXT NOT NULL PRIMARY KEY,
+      snapshot_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  ''');
+}
+
 void main() {
   test('v16 升级创建临时调整表并保留原课表', () async {
     final database = AppDatabase(
@@ -10,12 +28,10 @@ void main() {
           connection.execute(
             'CREATE TABLE academic_terms (id TEXT NOT NULL PRIMARY KEY)',
           );
-          connection.execute(
-            'CREATE TABLE schedule_items (id TEXT NOT NULL PRIMARY KEY, subject_id TEXT NOT NULL)',
-          );
+          _createLegacyScheduleTables(connection.execute);
           connection.execute("INSERT INTO academic_terms (id) VALUES ('term')");
           connection.execute(
-            "INSERT INTO schedule_items (id, subject_id) VALUES ('lesson', 'math')",
+            "INSERT INTO schedule_items (id, term_id, subject_id) VALUES ('lesson', 'term', 'math')",
           );
           connection.execute('PRAGMA user_version = 16');
         },
@@ -45,6 +61,7 @@ void main() {
           connection.execute(
             "INSERT INTO common_periods (id, stage_id, name, duration_minutes) VALUES ('a', 's', '课间', 15)",
           );
+          _createLegacyScheduleTables(connection.execute);
           connection.execute('PRAGMA user_version = 15');
         },
       ),

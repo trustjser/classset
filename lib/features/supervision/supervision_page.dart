@@ -178,6 +178,7 @@ class _SupervisionEditorState extends ConsumerState<_SupervisionEditor> {
   @override
   void initState() {
     super.initState();
+    _viewVersionDate = _latestVersion(widget.versions)?.effectiveDate;
     _guard = ref.read(draftNavigationGuardProvider);
     _guard.register(
       owner: this,

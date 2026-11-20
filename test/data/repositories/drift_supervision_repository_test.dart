@@ -33,6 +33,14 @@ void main() {
           connection.execute(
             "INSERT INTO temporary_course_adjustments VALUES ('original', 'move')",
           );
+          connection.execute(
+            'CREATE TABLE schedule_items '
+            '(id TEXT NOT NULL PRIMARY KEY, term_id TEXT NOT NULL, stage_id TEXT)',
+          );
+          connection.execute(
+            'CREATE TABLE schedule_reconciliation_baselines '
+            '(term_id TEXT NOT NULL PRIMARY KEY, snapshot_json TEXT NOT NULL, created_at INTEGER NOT NULL)',
+          );
           connection.execute('PRAGMA user_version = 17');
         },
       ),

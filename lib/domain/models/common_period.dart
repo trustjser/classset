@@ -31,6 +31,28 @@ class CommonPeriod {
       startMinute == null ? null : _formatMinutes(startMinute!);
   String? get endLabel => endMinute == null ? null : _formatMinutes(endMinute!);
 
+  factory CommonPeriod.fromJson(Map<String, Object?> json) => CommonPeriod(
+    id: json['id'] as String,
+    stageId: json['stageId'] as String,
+    name: json['name'] as String,
+    insertAfterLessonId: json['insertAfterLessonId'] as String?,
+    durationMinutes: json['durationMinutes'] as int,
+    startMinute: json['startMinute'] as int?,
+    endMinute: json['endMinute'] as int?,
+    sortOrder: json['sortOrder'] as int,
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'stageId': stageId,
+    'name': name,
+    'insertAfterLessonId': insertAfterLessonId,
+    'durationMinutes': durationMinutes,
+    'startMinute': startMinute,
+    'endMinute': endMinute,
+    'sortOrder': sortOrder,
+  };
+
   CommonPeriod copyWith({
     String? name,
     String? insertAfterLessonId,

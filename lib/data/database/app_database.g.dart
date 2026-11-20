@@ -14871,6 +14871,226 @@ class ScheduleReconciliationBaselinesCompanion
   }
 }
 
+class $PublishedSchedulesTable extends PublishedSchedules
+    with TableInfo<$PublishedSchedulesTable, PublishedSchedule> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PublishedSchedulesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _termIdMeta = const VerificationMeta('termId');
+  @override
+  late final GeneratedColumn<String> termId = GeneratedColumn<String>(
+    'term_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES academic_terms (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _dataJsonMeta = const VerificationMeta(
+    'dataJson',
+  );
+  @override
+  late final GeneratedColumn<String> dataJson = GeneratedColumn<String>(
+    'data_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [termId, dataJson];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'published_schedules';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PublishedSchedule> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('term_id')) {
+      context.handle(
+        _termIdMeta,
+        termId.isAcceptableOrUnknown(data['term_id']!, _termIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_termIdMeta);
+    }
+    if (data.containsKey('data_json')) {
+      context.handle(
+        _dataJsonMeta,
+        dataJson.isAcceptableOrUnknown(data['data_json']!, _dataJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dataJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {termId};
+  @override
+  PublishedSchedule map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PublishedSchedule(
+      termId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}term_id'],
+      )!,
+      dataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data_json'],
+      )!,
+    );
+  }
+
+  @override
+  $PublishedSchedulesTable createAlias(String alias) {
+    return $PublishedSchedulesTable(attachedDatabase, alias);
+  }
+}
+
+class PublishedSchedule extends DataClass
+    implements Insertable<PublishedSchedule> {
+  final String termId;
+  final String dataJson;
+  const PublishedSchedule({required this.termId, required this.dataJson});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['term_id'] = Variable<String>(termId);
+    map['data_json'] = Variable<String>(dataJson);
+    return map;
+  }
+
+  PublishedSchedulesCompanion toCompanion(bool nullToAbsent) {
+    return PublishedSchedulesCompanion(
+      termId: Value(termId),
+      dataJson: Value(dataJson),
+    );
+  }
+
+  factory PublishedSchedule.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PublishedSchedule(
+      termId: serializer.fromJson<String>(json['termId']),
+      dataJson: serializer.fromJson<String>(json['dataJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'termId': serializer.toJson<String>(termId),
+      'dataJson': serializer.toJson<String>(dataJson),
+    };
+  }
+
+  PublishedSchedule copyWith({String? termId, String? dataJson}) =>
+      PublishedSchedule(
+        termId: termId ?? this.termId,
+        dataJson: dataJson ?? this.dataJson,
+      );
+  PublishedSchedule copyWithCompanion(PublishedSchedulesCompanion data) {
+    return PublishedSchedule(
+      termId: data.termId.present ? data.termId.value : this.termId,
+      dataJson: data.dataJson.present ? data.dataJson.value : this.dataJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PublishedSchedule(')
+          ..write('termId: $termId, ')
+          ..write('dataJson: $dataJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(termId, dataJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PublishedSchedule &&
+          other.termId == this.termId &&
+          other.dataJson == this.dataJson);
+}
+
+class PublishedSchedulesCompanion extends UpdateCompanion<PublishedSchedule> {
+  final Value<String> termId;
+  final Value<String> dataJson;
+  final Value<int> rowid;
+  const PublishedSchedulesCompanion({
+    this.termId = const Value.absent(),
+    this.dataJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PublishedSchedulesCompanion.insert({
+    required String termId,
+    required String dataJson,
+    this.rowid = const Value.absent(),
+  }) : termId = Value(termId),
+       dataJson = Value(dataJson);
+  static Insertable<PublishedSchedule> custom({
+    Expression<String>? termId,
+    Expression<String>? dataJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (termId != null) 'term_id': termId,
+      if (dataJson != null) 'data_json': dataJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PublishedSchedulesCompanion copyWith({
+    Value<String>? termId,
+    Value<String>? dataJson,
+    Value<int>? rowid,
+  }) {
+    return PublishedSchedulesCompanion(
+      termId: termId ?? this.termId,
+      dataJson: dataJson ?? this.dataJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (termId.present) {
+      map['term_id'] = Variable<String>(termId.value);
+    }
+    if (dataJson.present) {
+      map['data_json'] = Variable<String>(dataJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PublishedSchedulesCompanion(')
+          ..write('termId: $termId, ')
+          ..write('dataJson: $dataJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $TemporaryCourseAdjustmentsTable extends TemporaryCourseAdjustments
     with
         TableInfo<$TemporaryCourseAdjustmentsTable, TemporaryCourseAdjustment> {
@@ -15905,6 +16125,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ScheduleRunReportsTable(this);
   late final $ScheduleReconciliationBaselinesTable
   scheduleReconciliationBaselines = $ScheduleReconciliationBaselinesTable(this);
+  late final $PublishedSchedulesTable publishedSchedules =
+      $PublishedSchedulesTable(this);
   late final $TemporaryCourseAdjustmentsTable temporaryCourseAdjustments =
       $TemporaryCourseAdjustmentsTable(this);
   late final $SupervisionDraftsTable supervisionDrafts =
@@ -15977,6 +16199,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     schedulePreferences,
     scheduleRunReports,
     scheduleReconciliationBaselines,
+    publishedSchedules,
     temporaryCourseAdjustments,
     supervisionDrafts,
     supervisionPlanVersions,
@@ -16439,6 +16662,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'academic_terms',
         limitUpdateKind: UpdateKind.delete,
       ),
+      result: [TableUpdate('published_schedules', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'academic_terms',
+        limitUpdateKind: UpdateKind.delete,
+      ),
       result: [
         TableUpdate('temporary_course_adjustments', kind: UpdateKind.delete),
       ],
@@ -16800,6 +17030,27 @@ final class $$AcademicTermsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleReconciliationBaselinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PublishedSchedulesTable, List<PublishedSchedule>>
+  _publishedSchedulesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.publishedSchedules,
+        aliasName: 'academic_terms__id__published_schedules__term_id',
+      );
+
+  $$PublishedSchedulesTableProcessedTableManager get publishedSchedulesRefs {
+    final manager = $$PublishedSchedulesTableTableManager(
+      $_db,
+      $_db.publishedSchedules,
+    ).filter((f) => f.termId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _publishedSchedulesRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -17305,6 +17556,31 @@ class $$AcademicTermsTableFilterComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
+    return f(composer);
+  }
+
+  Expression<bool> publishedSchedulesRefs(
+    Expression<bool> Function($$PublishedSchedulesTableFilterComposer f) f,
+  ) {
+    final $$PublishedSchedulesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.publishedSchedules,
+      getReferencedColumn: (t) => t.termId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PublishedSchedulesTableFilterComposer(
+            $db: $db,
+            $table: $db.publishedSchedules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
     return f(composer);
   }
 
@@ -17864,6 +18140,32 @@ class $$AcademicTermsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> publishedSchedulesRefs<T extends Object>(
+    Expression<T> Function($$PublishedSchedulesTableAnnotationComposer a) f,
+  ) {
+    final $$PublishedSchedulesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.publishedSchedules,
+          getReferencedColumn: (t) => t.termId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$PublishedSchedulesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.publishedSchedules,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> temporaryCourseAdjustmentsRefs<T extends Object>(
     Expression<T> Function(
       $$TemporaryCourseAdjustmentsTableAnnotationComposer a,
@@ -17976,6 +18278,7 @@ class $$AcademicTermsTableTableManager
             bool schedulePreferencesRefs,
             bool scheduleRunReportsRefs,
             bool scheduleReconciliationBaselinesRefs,
+            bool publishedSchedulesRefs,
             bool temporaryCourseAdjustmentsRefs,
             bool supervisionDraftsRefs,
             bool supervisionPlanVersionsRefs,
@@ -18061,6 +18364,7 @@ class $$AcademicTermsTableTableManager
                 schedulePreferencesRefs = false,
                 scheduleRunReportsRefs = false,
                 scheduleReconciliationBaselinesRefs = false,
+                publishedSchedulesRefs = false,
                 temporaryCourseAdjustmentsRefs = false,
                 supervisionDraftsRefs = false,
                 supervisionPlanVersionsRefs = false,
@@ -18084,6 +18388,7 @@ class $$AcademicTermsTableTableManager
                     if (scheduleRunReportsRefs) db.scheduleRunReports,
                     if (scheduleReconciliationBaselinesRefs)
                       db.scheduleReconciliationBaselines,
+                    if (publishedSchedulesRefs) db.publishedSchedules,
                     if (temporaryCourseAdjustmentsRefs)
                       db.temporaryCourseAdjustments,
                     if (supervisionDraftsRefs) db.supervisionDrafts,
@@ -18407,6 +18712,27 @@ class $$AcademicTermsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (publishedSchedulesRefs)
+                        await $_getPrefetchedData<
+                          AcademicTerm,
+                          $AcademicTermsTable,
+                          PublishedSchedule
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AcademicTermsTableReferences
+                              ._publishedSchedulesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AcademicTermsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).publishedSchedulesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.termId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (temporaryCourseAdjustmentsRefs)
                         await $_getPrefetchedData<
                           AcademicTerm,
@@ -18506,6 +18832,7 @@ typedef $$AcademicTermsTableProcessedTableManager =
         bool schedulePreferencesRefs,
         bool scheduleRunReportsRefs,
         bool scheduleReconciliationBaselinesRefs,
+        bool publishedSchedulesRefs,
         bool temporaryCourseAdjustmentsRefs,
         bool supervisionDraftsRefs,
         bool supervisionPlanVersionsRefs,
@@ -36724,6 +37051,280 @@ typedef $$ScheduleReconciliationBaselinesTableProcessedTableManager =
       ScheduleReconciliationBaseline,
       PrefetchHooks Function({bool termId})
     >;
+typedef $$PublishedSchedulesTableCreateCompanionBuilder =
+    PublishedSchedulesCompanion Function({
+      required String termId,
+      required String dataJson,
+      Value<int> rowid,
+    });
+typedef $$PublishedSchedulesTableUpdateCompanionBuilder =
+    PublishedSchedulesCompanion Function({
+      Value<String> termId,
+      Value<String> dataJson,
+      Value<int> rowid,
+    });
+
+final class $$PublishedSchedulesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PublishedSchedulesTable,
+          PublishedSchedule
+        > {
+  $$PublishedSchedulesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AcademicTermsTable _termIdTable(_$AppDatabase db) => db.academicTerms
+      .createAlias('published_schedules__term_id__academic_terms__id');
+
+  $$AcademicTermsTableProcessedTableManager get termId {
+    final $_column = $_itemColumn<String>('term_id')!;
+
+    final manager = $$AcademicTermsTableTableManager(
+      $_db,
+      $_db.academicTerms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_termIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PublishedSchedulesTableFilterComposer
+    extends Composer<_$AppDatabase, $PublishedSchedulesTable> {
+  $$PublishedSchedulesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AcademicTermsTableFilterComposer get termId {
+    final $$AcademicTermsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableFilterComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PublishedSchedulesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PublishedSchedulesTable> {
+  $$PublishedSchedulesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AcademicTermsTableOrderingComposer get termId {
+    final $$AcademicTermsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableOrderingComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PublishedSchedulesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PublishedSchedulesTable> {
+  $$PublishedSchedulesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get dataJson =>
+      $composableBuilder(column: $table.dataJson, builder: (column) => column);
+
+  $$AcademicTermsTableAnnotationComposer get termId {
+    final $$AcademicTermsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.termId,
+      referencedTable: $db.academicTerms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AcademicTermsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.academicTerms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PublishedSchedulesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PublishedSchedulesTable,
+          PublishedSchedule,
+          $$PublishedSchedulesTableFilterComposer,
+          $$PublishedSchedulesTableOrderingComposer,
+          $$PublishedSchedulesTableAnnotationComposer,
+          $$PublishedSchedulesTableCreateCompanionBuilder,
+          $$PublishedSchedulesTableUpdateCompanionBuilder,
+          (PublishedSchedule, $$PublishedSchedulesTableReferences),
+          PublishedSchedule,
+          PrefetchHooks Function({bool termId})
+        > {
+  $$PublishedSchedulesTableTableManager(
+    _$AppDatabase db,
+    $PublishedSchedulesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PublishedSchedulesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PublishedSchedulesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PublishedSchedulesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> termId = const Value.absent(),
+                Value<String> dataJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PublishedSchedulesCompanion(
+                termId: termId,
+                dataJson: dataJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String termId,
+                required String dataJson,
+                Value<int> rowid = const Value.absent(),
+              }) => PublishedSchedulesCompanion.insert(
+                termId: termId,
+                dataJson: dataJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PublishedSchedulesTable, PublishedSchedule>(
+                    table,
+                  ),
+                  $$PublishedSchedulesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({termId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (termId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.termId,
+                        referencedTable: $$PublishedSchedulesTableReferences
+                            ._termIdTable(db),
+                        referencedColumn: $$PublishedSchedulesTableReferences
+                            ._termIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PublishedSchedulesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PublishedSchedulesTable,
+      PublishedSchedule,
+      $$PublishedSchedulesTableFilterComposer,
+      $$PublishedSchedulesTableOrderingComposer,
+      $$PublishedSchedulesTableAnnotationComposer,
+      $$PublishedSchedulesTableCreateCompanionBuilder,
+      $$PublishedSchedulesTableUpdateCompanionBuilder,
+      (PublishedSchedule, $$PublishedSchedulesTableReferences),
+      PublishedSchedule,
+      PrefetchHooks Function({bool termId})
+    >;
 typedef $$TemporaryCourseAdjustmentsTableCreateCompanionBuilder =
     TemporaryCourseAdjustmentsCompanion Function({
       required String id,
@@ -37767,6 +38368,8 @@ class $AppDatabaseManager {
         _db,
         _db.scheduleReconciliationBaselines,
       );
+  $$PublishedSchedulesTableTableManager get publishedSchedules =>
+      $$PublishedSchedulesTableTableManager(_db, _db.publishedSchedules);
   $$TemporaryCourseAdjustmentsTableTableManager
   get temporaryCourseAdjustments =>
       $$TemporaryCourseAdjustmentsTableTableManager(

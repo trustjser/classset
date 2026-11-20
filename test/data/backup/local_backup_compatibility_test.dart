@@ -22,6 +22,7 @@ void main() {
     await legacy.customStatement('DROP TABLE temporary_course_adjustments');
     await legacy.customStatement('DROP TABLE supervision_drafts');
     await legacy.customStatement('DROP TABLE supervision_plan_versions');
+    await legacy.customStatement('DROP TABLE published_schedules');
     await legacy.customStatement(
       "INSERT INTO app_settings (id, school_name) VALUES (1, '旧数据')",
     );

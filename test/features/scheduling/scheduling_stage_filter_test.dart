@@ -347,7 +347,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('数学'), findsOneWidget);
     expect(find.text('自习'), findsOneWidget);
-    await tester.tap(find.text('导出/打印'));
+    await tester.tap(find.text('导出'));
     await tester.pumpAndSettle();
     expect(exported?.map((item) => item.id), ['c']);
     expect(exportTitle, contains('初中部'));

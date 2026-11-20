@@ -47,13 +47,27 @@ class SchedulingPage extends ConsumerStatefulWidget {
 class _SchedulingPageState extends ConsumerState<SchedulingPage> {
   bool _showReconciliation = false;
   bool _exporting = false;
+  bool? _showPublished;
+
+  @override
+  void didUpdateWidget(covariant SchedulingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.termId != widget.termId) {
+      _showPublished = null;
+      _showReconciliation = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(schedulingControllerProvider(widget.termId));
     final controller = ref.read(
       schedulingControllerProvider(widget.termId).notifier,
     );
-    final snapshot = state.snapshot;
+    final published = state.publishedSchedule;
+    final showPublished = _showPublished ?? (published != null);
+    final snapshot =
+        (showPublished ? published?.snapshot : null) ?? state.snapshot;
     if (snapshot == null) {
       return ListView(
         padding: AppPageLayout.insetsOf(context),
@@ -67,15 +81,42 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
         ],
       );
     }
-    final pending = state.pendingBaseline;
+    final pending = showPublished ? null : state.pendingBaseline;
     final current = state.currentSnapshot;
-    final commonPeriods = <String, List<CommonPeriod>>{
-      for (final stage in snapshot.stages)
-        stage.id:
-            ref.watch(commonPeriodsProvider(stage.id)).valueOrNull ?? const [],
-    };
+    final commonPeriods = showPublished
+        ? published?.commonPeriods ?? const <String, List<CommonPeriod>>{}
+        : <String, List<CommonPeriod>>{
+            for (final stage in snapshot.stages)
+              stage.id:
+                  ref.watch(commonPeriodsProvider(stage.id)).valueOrNull ??
+                  const [],
+          };
+    final versionControls = <Widget>[
+      ScheduleSegmentedControl<bool>(
+        key: const ValueKey('schedule-version-control'),
+        label: '课表版本',
+        options: const [(true, '正式版'), (false, '草稿版')],
+        value: showPublished,
+        onChanged: state.busy
+            ? null
+            : (selected) => setState(() {
+                _showPublished = selected;
+                _showReconciliation = false;
+              }),
+      ),
+      if (showPublished && published != null)
+        Text('仅供查看和导出', style: Theme.of(context).textTheme.bodySmall),
+      if (!showPublished)
+        AppGhostButton.icon(
+          icon: const Icon(Icons.publish_outlined, size: 16),
+          onPressed: state.canPublish
+              ? () => unawaited(_confirmPublish(state, controller))
+              : null,
+          label: const Text('发布为正式版'),
+        ),
+    ];
     return CallbackShortcuts(
-      bindings: pending == null
+      bindings: !showPublished && pending == null
           ? {
               const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): () =>
                   unawaited(controller.undo()),
@@ -171,36 +212,72 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
                       ),
                     ),
                   ),
-                Expanded(
-                  child: SchedulingTimetable(
-                    snapshot: snapshot,
-                    commonPeriods: commonPeriods,
-                    state: state,
-                    onStart: () =>
-                        unawaited(_showStartDialog(state, controller)),
-                    onRefresh: () => unawaited(controller.detect()),
-                    onRules: () => unawaited(_showRulesDialog(controller)),
-                    onReport: () =>
-                        unawaited(_showReportDialog(state, snapshot)),
-                    onDetectionReport: () =>
-                        unawaited(_showDetectionDialog(state)),
-                    onCancel: controller.cancel,
-                    onDone: () => unawaited(controller.refresh()),
-                    onExport: (items, title) =>
-                        unawaited(_showExportDialog(snapshot, state.items)),
-                    onPreviewMove: controller.previewMove,
-                    onMove: controller.move,
-                    onPlaceUnplaced: controller.placeUnplaced,
-                    onUndo: () => unawaited(controller.undo()),
-                    onRedo: () => unawaited(controller.redo()),
-                    onSetLock: (lock, enabled) =>
-                        controller.setLock(lock, enabled: enabled),
-                    onSetAllLocks: (enabled) =>
-                        controller.setAllClassLocks(enabled: enabled),
-                    onSetClassLocks: (ids, enabled) =>
-                        controller.setClassLocks(ids, enabled: enabled),
+                if (showPublished && published == null)
+                  Expanded(
+                    child: ListView(
+                      padding: AppPageLayout.insetsOf(context),
+                      children: [
+                        Wrap(children: versionControls),
+                        const SizedBox(height: 16),
+                        AppSectionPanel(
+                          title: '尚未发布正式课表',
+                          child: AppSecondaryButton(
+                            onPressed: () =>
+                                setState(() => _showPublished = false),
+                            child: const Text('前往草稿排课'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: SchedulingTimetable(
+                      snapshot: snapshot,
+                      classOrderIds: (state.snapshot ?? snapshot).classes
+                          .map((schoolClass) => schoolClass.id)
+                          .toList(),
+                      commonPeriods: commonPeriods,
+                      state: showPublished
+                          ? SchedulingState(
+                              status: SchedulingStatus.ready,
+                              items: snapshot.existingItems,
+                            )
+                          : state,
+                      readOnly: showPublished,
+                      versionControls: versionControls,
+                      onStart: () =>
+                          unawaited(_showStartDialog(state, controller)),
+                      onRefresh: () => unawaited(controller.detect()),
+                      onRules: () => unawaited(_showRulesDialog(controller)),
+                      onReport: () =>
+                          unawaited(_showReportDialog(state, snapshot)),
+                      onDetectionReport: () =>
+                          unawaited(_showDetectionDialog(state)),
+                      onCancel: controller.cancel,
+                      onDone: () => unawaited(controller.refresh()),
+                      onExport: (items, title) => unawaited(
+                        _showExportDialog(
+                          snapshot,
+                          showPublished ? items : state.items,
+                          publishedPeriods: showPublished
+                              ? commonPeriods
+                              : null,
+                        ),
+                      ),
+                      onPreviewMove: controller.previewMove,
+                      onMove: controller.move,
+                      onPlaceUnplaced: controller.placeUnplaced,
+                      onUndo: () => unawaited(controller.undo()),
+                      onRedo: () => unawaited(controller.redo()),
+                      onSetLock: (lock, enabled) =>
+                          controller.setLock(lock, enabled: enabled),
+                      onSetAllLocks: (enabled) =>
+                          controller.setAllClassLocks(enabled: enabled),
+                      onSetClassLocks: (ids, enabled) =>
+                          controller.setClassLocks(ids, enabled: enabled),
+                    ),
                   ),
-                ),
               ],
             ),
             if (_showReconciliation && pending != null && current != null)
@@ -229,6 +306,44 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmPublish(
+    SchedulingState state,
+    SchedulingController controller,
+  ) async {
+    final fingerprint = state.snapshot!.inputFingerprint;
+    final unplaced = state.items.where((item) => !item.isPlaced).length;
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AppDialog(
+        title: AppDialogTitle(
+          title: '发布为正式版',
+          onClose: () => Navigator.pop(dialogContext),
+        ),
+        content: Text(
+          '${state.publishedSchedule == null ? '将当前草稿中的已安排课程发布为正式课表。' : '当前草稿中的已安排课程将替换现有正式课表。'}'
+          '${unplaced == 0 ? '' : ' 还有 $unplaced 节暂放课程，这些课程会留在草稿中。'}',
+        ),
+        actions: [
+          AppSecondaryButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          AppPrimaryButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('确认发布'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final success = await controller.publish(expectedFingerprint: fingerprint);
+    if (mounted && success) {
+      setState(() => _showPublished = true);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('正式课表已发布')));
+    }
   }
 
   Future<void> _showStartDialog(
@@ -770,10 +885,25 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
     _ => '周日',
   };
 
+  Future<Map<String, List<CommonPeriod>>> _loadExportPeriods(
+    SchedulingSnapshot snapshot,
+  ) async {
+    final repository = ref.read(schoolRepositoryProvider);
+    final results = await Future.wait([
+      for (final stage in snapshot.stages)
+        repository.watchCommonPeriods(stage.id).first,
+    ]);
+    return {
+      for (var i = 0; i < snapshot.stages.length; i++)
+        snapshot.stages[i].id: results[i],
+    };
+  }
+
   Future<void> _showExportDialog(
     SchedulingSnapshot snapshot,
-    List<ScheduleItem> items,
-  ) async {
+    List<ScheduleItem> items, {
+    Map<String, List<CommonPeriod>>? publishedPeriods,
+  }) async {
     if (_exporting) return;
     final options = await showAppDialog<TimetableExportOptions>(
       context: context,
@@ -791,14 +921,9 @@ class _SchedulingPageState extends ConsumerState<SchedulingPage> {
         name,
       );
       if (location == null || !mounted) return;
-      final results = await Future.wait([
-        for (final stage in snapshot.stages)
-          repository.watchCommonPeriods(stage.id).first,
-      ]);
-      final commonPeriods = {
-        for (var i = 0; i < snapshot.stages.length; i++)
-          snapshot.stages[i].id: results[i],
-      };
+      final commonPeriods =
+          publishedPeriods ?? await _loadExportPeriods(snapshot);
+
       final bytes = await buildTimetableZipAsync(
         snapshot,
         items,

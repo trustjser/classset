@@ -39,6 +39,7 @@
 | `schedule_reconciliation_baselines` | term ID、旧排课快照、创建时间 | 待协调期间保留旧课表，带班学期快照含旧日历 |
 | `temporary_course_adjustments` | stable ID、term ID、类型、变更 JSON、原因、创建和撤销时间 | 正课调代沿用课次数组，带班替班使用岗位和自然日的前后状态 |
 | `supervision_drafts` | term ID、带班草稿 JSON | 一学期一份草稿，正文包含格式版本、草稿修订号、岗位、规则和指派 |
+| `published_schedules` | term ID、正式课表及公共时段 JSON | 每学期一份，仅确认发布时替换。草稿仍保存在 `schedule_items`。 |
 | `supervision_plan_versions` | term ID、生效日、已确认方案 JSON | 学期和生效日唯一，快照保留岗位的来源班、活动、人员名称和时钟 |
 
 ### 范围与级联
@@ -52,7 +53,7 @@
 
 ## 迁移
 
-当前 `schemaVersion` 为 18。v2 新增 `calendar_exceptions`、`free_slots`、`common_periods`；v3 增加学期周期；v4 新增科目与需求；v5 新增科目预设与课程配对；v6～v7 增加科目课节约束及连堂字段；v8 新增公共场室、场室分配、同科并发上限；v9～v11 增加教师、任课、分组与教师预设；v12 新增应用设置；v13 将科目归属到学期；v14 新增自动排课的课节、锁定、条件、偏好与运行报告五张表及索引。v15 增加课表协调快照，v16 增加公共时段排序，v17 新增临时调代记录。v18 增加带班草稿和有效版本表，旧免任课及调代课数据按原格式读取。升级均通过 `AppDatabase.migration.onUpgrade` 显式迁移，不清空数据库。
+当前 `schemaVersion` 为 19。v2 新增 `calendar_exceptions`、`free_slots`、`common_periods`；v3 增加学期周期；v4 新增科目与需求；v5 新增科目预设与课程配对；v6～v7 增加科目课节约束及连堂字段；v8 新增公共场室、场室分配、同科并发上限；v9～v11 增加教师、任课、分组与教师预设；v12 新增应用设置；v13 将科目归属到学期；v14 新增自动排课的课节、锁定、条件、偏好与运行报告五张表及索引。v15 增加课表协调快照，v16 增加公共时段排序，v17 新增临时调代记录。v18 增加带班草稿和有效版本表，旧免任课及调代课数据按原格式读取。v19 新增正式课表快照，并将已有课表的已安排课程保留为首份正式版。升级均通过 `AppDatabase.migration.onUpgrade` 显式迁移，不清空数据库。
 
 科目节数需求按年级整体替换保存（`replaceGradeRequirements`：先删该年级全部需求行再批量插入，一个事务）；删除科目时其名下需求由外键级联清理。节数仅接受非负整数；周模式 weekly/odd/even 中录入数字表示「一个实际出现周」的节数，容量按单双周分别校验。
 

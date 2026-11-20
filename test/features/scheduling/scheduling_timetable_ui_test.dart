@@ -22,9 +22,11 @@ void main() {
     WidgetTester tester, {
     bool withUnplaced = false,
     bool longClassName = false,
+    AcademicTermCycle cycleMode = AcademicTermCycle.alternating,
     Future<int?> Function(Set<String>)? onPlaceUnplaced,
     void Function(List<ScheduleItem>, String)? onExport,
     VoidCallback? onReport,
+    VoidCallback? onRefresh,
   }) async {
     tester.view.physicalSize = const Size(1180, 850);
     tester.view.devicePixelRatio = 1;
@@ -57,6 +59,7 @@ void main() {
         firstTeachingWeekStart: null,
         teachingWeekCount: 20,
         createdAt: DateTime(2026),
+        cycleMode: cycleMode,
       ),
       inputFingerprint: 'test',
       stages: const [
@@ -138,7 +141,7 @@ void main() {
               status: SchedulingStatus.ready,
             ),
             onStart: () {},
-            onRefresh: () {},
+            onRefresh: onRefresh ?? () {},
             onRules: () {},
             onReport: onReport ?? () {},
             onDetectionReport: () {},
@@ -158,6 +161,32 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('检测结果保留重新检测入口，工具栏不重复显示检测', (tester) async {
+    var refreshCount = 0;
+    await mount(tester, onRefresh: () => refreshCount++);
+
+    expect(find.text('检测'), findsNothing);
+    expect(find.text('规则'), findsOneWidget);
+    expect(find.text('重新检测'), findsOneWidget);
+
+    await tester.tap(find.text('重新检测'));
+    await tester.pumpAndSettle();
+
+    expect(refreshCount, 1);
+  });
+
+  testWidgets('周别筛选仅在单双周交替学期显示', (tester) async {
+    await mount(tester, cycleMode: AcademicTermCycle.everyWeek);
+    expect(find.text('周别'), findsNothing);
+    expect(find.text('单周'), findsNothing);
+    expect(find.text('双周'), findsNothing);
+
+    await mount(tester, cycleMode: AcademicTermCycle.alternating);
+    expect(find.text('周别'), findsOneWidget);
+    expect(find.text('单周'), findsOneWidget);
+    expect(find.text('双周'), findsOneWidget);
+  });
 
   testWidgets('班级选择和节次时间悬停显示完整内容', (tester) async {
     await mount(tester, longClassName: true);
@@ -220,9 +249,60 @@ void main() {
   testWidgets('导出入口传入全部课程而非当前班级筛选', (tester) async {
     List<ScheduleItem>? requested;
     await mount(tester, onExport: (items, title) => requested = items);
-    await tester.tap(find.text('导出/打印'));
+    await tester.tap(find.text('导出'));
     await tester.pumpAndSettle();
     expect(requested, hasLength(26));
+  });
+
+  testWidgets('工具栏单行时导出靠右，空间不足时自然换行', (tester) async {
+    await mount(tester);
+    tester.view.physicalSize = const Size(1600, 850);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('总课程表'));
+    await tester.pumpAndSettle();
+
+    final toolbar = find.byKey(const ValueKey('schedule-toolbar-wrap'));
+    final exportButton = find
+        .ancestor(of: find.text('导出'), matching: find.byType(AppGhostButton))
+        .first;
+    final stageSelector = find.byKey(const ValueKey('schedule-stage-selector'));
+    final gapBetweenControls =
+        tester.getTopLeft(find.text('按课节')).dx -
+        tester.getTopRight(stageSelector).dx;
+    expect(gapBetweenControls, lessThan(96));
+    final wideToolbarHeight = tester.getSize(toolbar).height;
+    expect(
+      tester.getTopRight(exportButton).dx,
+      closeTo(tester.getTopRight(toolbar).dx, 1),
+    );
+
+    tester.view.physicalSize = const Size(820, 850);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(toolbar).height, greaterThan(wideToolbarHeight));
+    expect(
+      tester.getCenter(find.text('规则')).dy,
+      closeTo(tester.getCenter(find.text('导出')).dy, 2),
+    );
+    expect(
+      tester.getTopLeft(find.text('导出')).dx,
+      greaterThan(tester.getTopRight(find.text('规则')).dx),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('总课表布局切换按钮保持紧凑高度', (tester) async {
+    await mount(tester);
+    await tester.tap(find.text('总课程表'));
+    await tester.pumpAndSettle();
+
+    for (final label in ['按课节', '按班级']) {
+      final button = find.ancestor(
+        of: find.text(label),
+        matching: find.byType(TextButton),
+      );
+      expect(button, findsOneWidget);
+      expect(tester.getSize(button).height, lessThanOrEqualTo(36));
+    }
   });
 
   testWidgets('一键放入失败后仍可查看未排原因报告', (tester) async {

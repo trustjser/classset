@@ -304,6 +304,22 @@ class DriftSchoolRepository implements SchoolRepository {
     expectedFingerprint: expectedFingerprint,
   );
 
+  Future<void> migratePublishedSchedules() =>
+      _scheduling.migratePublishedSchedules();
+
+  @override
+  Future<PublishedTimetable?> loadPublishedSchedule(String termId) =>
+      _scheduling.loadPublishedSchedule(termId);
+
+  @override
+  Future<PublishedTimetable> publishSchedule({
+    required String termId,
+    required String expectedFingerprint,
+  }) => _scheduling.publishSchedule(
+    termId: termId,
+    expectedFingerprint: expectedFingerprint,
+  );
+
   @override
   Stream<ScheduleViewData> watchSchedule(String termId) =>
       _scheduling.watchSchedule(termId);
