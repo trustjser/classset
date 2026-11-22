@@ -1,0 +1,23 @@
+[package]
+name = "class_set"
+version = "0.2.0"
+description = "课集 (ClassSet) - 本地课表与排课课务工作台"
+authors = ["ClassSet Team"]
+edition = "2021"
+
+[lib]
+name = "class_set_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio"] }
+tokio = { version = "1", features = ["sync"] }

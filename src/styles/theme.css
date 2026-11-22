@@ -1,0 +1,348 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   课集 ClassSet · 三套内置配色 × 明暗双模式语义 Token (严格对齐 design/DESIGN.md)
+   ========================================================================== */
+
+:root,
+:root[data-palette="sky"][data-theme-mode="light"] {
+  --color-canvas: #F4F7FC;
+  --color-surface: #FFFFFF;
+  --color-table-header: #F3F5F9;
+  --color-ink: #202A3D;
+  --color-ink-secondary: #5E6B80;
+  --color-muted: #606F86;
+  --color-accent: #2864DC;
+  --color-on-accent: #FFFFFF;
+  --color-selection: #EAF1FF;
+  --color-sidebar-active: #EAF1FF;
+  --color-sidebar-text: #5E6B80;
+  --color-sidebar-muted: #606F86;
+  --color-border: #DCE3EF;
+  --color-control-border: #7E8BA3;
+  --color-table-divider: #E6EBF4;
+  --color-purple: #6E5AAC;
+  --color-success: #1F765E;
+  --color-success-surface: #E5F4ED;
+  --color-warning: #875D18;
+  --color-warning-surface: #FFF4DD;
+  --color-destructive: #B74752;
+  --color-destructive-surface: #FCECEF;
+  --color-dialog-barrier: rgba(17, 27, 45, 0.4);
+  color-scheme: light;
+}
+
+:root[data-palette="sky"][data-theme-mode="dark"] {
+  --color-canvas: #111722;
+  --color-surface: #1B2433;
+  --color-table-header: #242E3F;
+  --color-ink: #EDF2FC;
+  --color-ink-secondary: #A6B4CC;
+  --color-muted: #9EAEC8;
+  --color-accent: #97BAFF;
+  --color-on-accent: #162B50;
+  --color-selection: #253957;
+  --color-sidebar-active: #253957;
+  --color-sidebar-text: #A6B4CC;
+  --color-sidebar-muted: #9EAEC8;
+  --color-border: #34425A;
+  --color-control-border: #7186A6;
+  --color-table-divider: #303C52;
+  --color-purple: #C3B3F5;
+  --color-success: #78D8B4;
+  --color-success-surface: #193D35;
+  --color-warning: #F0CC83;
+  --color-warning-surface: #423824;
+  --color-destructive: #FFA4AE;
+  --color-destructive-surface: #472A36;
+  --color-dialog-barrier: rgba(8, 16, 30, 0.7);
+  color-scheme: dark;
+}
+
+/* 海盐青 (Teal) - 浅色 */
+:root[data-palette="teal"][data-theme-mode="light"] {
+  --color-canvas: #F2F9F9;
+  --color-surface: #FFFFFF;
+  --color-table-header: #F0F6F6;
+  --color-ink: #20373B;
+  --color-ink-secondary: #526F74;
+  --color-muted: #526F74;
+  --color-accent: #087D89;
+  --color-on-accent: #FFFFFF;
+  --color-selection: #EEF9F9;
+  --color-sidebar-active: #EEF9F9;
+  --color-sidebar-text: #526F74;
+  --color-sidebar-muted: #526F74;
+  --color-border: #D6E6E8;
+  --color-control-border: #748E94;
+  --color-table-divider: #E2ECEE;
+  --color-purple: #6E5AAC;
+  --color-success: #1F765E;
+  --color-success-surface: #E5F4ED;
+  --color-warning: #875D18;
+  --color-warning-surface: #FFF4DD;
+  --color-destructive: #B74752;
+  --color-destructive-surface: #FCECEF;
+  --color-dialog-barrier: rgba(17, 27, 45, 0.4);
+  color-scheme: light;
+}
+
+/* 海盐青 (Teal) - 深色 */
+:root[data-palette="teal"][data-theme-mode="dark"] {
+  --color-canvas: #101C20;
+  --color-surface: #1B2A30;
+  --color-table-header: #26373D;
+  --color-ink: #E6F4F5;
+  --color-ink-secondary: #A0BEC4;
+  --color-muted: #A0BEC4;
+  --color-accent: #78D7D6;
+  --color-on-accent: #103A3D;
+  --color-selection: #244347;
+  --color-sidebar-active: #244347;
+  --color-sidebar-text: #A0BEC4;
+  --color-sidebar-muted: #A0BEC4;
+  --color-border: #31464E;
+  --color-control-border: #718E99;
+  --color-table-divider: #2B4149;
+  --color-purple: #C3B3F5;
+  --color-success: #78D8B4;
+  --color-success-surface: #193D35;
+  --color-warning: #F0CC83;
+  --color-warning-surface: #423824;
+  --color-destructive: #FFA4AE;
+  --color-destructive-surface: #472A36;
+  --color-dialog-barrier: rgba(8, 16, 30, 0.7);
+  color-scheme: dark;
+}
+
+/* 云白墨灰 (Cloud) - 浅色 */
+:root[data-palette="cloud"][data-theme-mode="light"] {
+  --color-canvas: #F6F7F9;
+  --color-surface: #FFFFFF;
+  --color-table-header: #F1F3F6;
+  --color-ink: #242B38;
+  --color-ink-secondary: #626D7E;
+  --color-muted: #626D7E;
+  --color-accent: #3E4F6D;
+  --color-on-accent: #FFFFFF;
+  --color-selection: #EAF0F8;
+  --color-sidebar-active: #EAF0F8;
+  --color-sidebar-text: #626D7E;
+  --color-sidebar-muted: #626D7E;
+  --color-border: #DEE3EA;
+  --color-control-border: #7B8596;
+  --color-table-divider: #E6EAF0;
+  --color-purple: #6E5AAC;
+  --color-success: #1F765E;
+  --color-success-surface: #E5F4ED;
+  --color-warning: #875D18;
+  --color-warning-surface: #FFF4DD;
+  --color-destructive: #B74752;
+  --color-destructive-surface: #FCECEF;
+  --color-dialog-barrier: rgba(17, 27, 45, 0.4);
+  color-scheme: light;
+}
+
+/* 云白墨灰 (Cloud) - 深色 */
+:root[data-palette="cloud"][data-theme-mode="dark"] {
+  --color-canvas: #15181E;
+  --color-surface: #21262F;
+  --color-table-header: #2A303A;
+  --color-ink: #EEF0F5;
+  --color-ink-secondary: #ACB5C4;
+  --color-muted: #ACB5C4;
+  --color-accent: #BDCEE9;
+  --color-on-accent: #263447;
+  --color-selection: #303D51;
+  --color-sidebar-active: #303D51;
+  --color-sidebar-text: #ACB5C4;
+  --color-sidebar-muted: #ACB5C4;
+  --color-border: #3B424F;
+  --color-control-border: #7D899C;
+  --color-table-divider: #333B48;
+  --color-purple: #C3B3F5;
+  --color-success: #78D8B4;
+  --color-success-surface: #193D35;
+  --color-warning: #F0CC83;
+  --color-warning-surface: #423824;
+  --color-destructive: #FFA4AE;
+  --color-destructive-surface: #472A36;
+  --color-dialog-barrier: rgba(8, 16, 30, 0.7);
+  color-scheme: dark;
+}
+
+@layer base {
+  body {
+    font-feature-settings: "tnum" on, "lnum" on;
+    margin: 0;
+    user-select: none;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+  }
+
+  ::selection,
+  input::selection,
+  textarea::selection {
+    color: var(--color-on-accent);
+    background-color: var(--color-accent);
+  }
+}
+
+.app-work-area {
+  container-name: work-area;
+  container-type: inline-size;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.app-shell-frame {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-sidebar {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.app-sidebar-status {
+  flex: 0 0 auto;
+}
+
+.tauri-macos .app-sidebar-brand {
+  padding-top: 32px;
+}
+
+.app-top-bar {
+  display: flex;
+  min-height: 56px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-inline: 16px;
+  padding-block: 8px;
+}
+
+.app-toolbar-leading {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-toolbar-page {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-term-context {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--color-ink-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.app-runtime-badge {
+  white-space: nowrap;
+}
+
+.app-main-content {
+  padding: 16px;
+}
+
+.app-shell-main {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+@container work-area (max-width: 640px) {
+  .app-top-bar {
+    gap: 6px;
+  }
+
+  .app-toolbar-leading {
+    gap: 8px;
+  }
+
+  .app-term-context {
+    flex-basis: 72px;
+    max-width: 160px;
+  }
+
+  .app-toolbar-actions {
+    gap: 4px;
+    margin-left: 0;
+  }
+
+  .app-runtime-badge {
+    display: none;
+  }
+}
+
+.app-view-enter {
+  animation: app-view-enter 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes app-view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar {
+    transition: none;
+  }
+
+  .app-view-enter {
+    animation: none;
+  }
+
+  .workbench-progress-fill {
+    transition: none;
+  }
+}

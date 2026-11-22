@@ -11,3 +11,5 @@ node_modules
 /build/
 .agents
 .agent
+
+src-tauri/target

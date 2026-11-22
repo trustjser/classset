@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"课集桌面端默认权限配置（支持 SQLite 本地数据库、文件导入导出对话框）","local":true,"windows":["main"],"permissions":["core:default","core:window:allow-set-theme","core:window:allow-start-dragging","sql:default","sql:allow-load","sql:allow-execute","sql:allow-select","sql:allow-close","dialog:default","fs:default"]}}
