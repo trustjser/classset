@@ -99,6 +99,7 @@ export const SubjectsPage: React.FC = () => {
   const clipboardCache = useRef('');
   const matrixCellRefs = useRef(new Map<string, HTMLButtonElement>());
   const matrixScrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollShadow, setScrollShadow] = useState({ left: false, right: false });
   const dragPointer = useRef<{ x: number; y: number } | null>(null);
   const [dragSelecting, setDragSelecting] = useState(false);
   const [inlineEditor, setInlineEditor] = useState<{ key: string; value: string } | null>(null);
@@ -149,14 +150,21 @@ export const SubjectsPage: React.FC = () => {
   const classesForGrade = (gradeId: string) => sortByOrder(classes.filter((item) => item.gradeId === gradeId));
   const valueFor = (subjectId: string, schoolClass: ClassGroup) =>
     lessonDrafts[requirementKey(subjectId, schoolClass.id)] ?? valuesForClass(subjectRequirements, subjectId, schoolClass);
+  const savedValues = useMemo(() => {
+    const values: Record<string, LessonValues> = {};
+    for (const subject of activeSubjects) for (const schoolClass of classes) {
+      values[requirementKey(subject.id, schoolClass.id)] = valuesForClass(subjectRequirements, subject.id, schoolClass);
+    }
+    return values;
+  }, [activeSubjects, classes, subjectRequirements]);
   const allValues = useMemo(() => {
     const values: Record<string, LessonValues> = {};
     for (const subject of activeSubjects) for (const schoolClass of classes) {
       const key = requirementKey(subject.id, schoolClass.id);
-      values[key] = lessonDrafts[key] ?? valuesForClass(subjectRequirements, subject.id, schoolClass);
+      values[key] = lessonDrafts[key] ?? savedValues[key] ?? EMPTY_LESSONS;
     }
     return values;
-  }, [activeSubjects, classes, lessonDrafts, subjectRequirements]);
+  }, [activeSubjects, classes, lessonDrafts, savedValues]);
   const gradeCapacities = useMemo(() => Object.fromEntries(shownGrades.map((grade) => [grade.id,
     summarizeGradeCapacity(grade, sortByOrder(classes.filter((item) => item.gradeId === grade.id)),
       activeSubjects.map((item) => item.id), allValues, routinesByStage[grade.stageId],
@@ -252,6 +260,23 @@ export const SubjectsPage: React.FC = () => {
     return () => { window.removeEventListener('pointerdown', close); window.removeEventListener('keydown', escape); };
   }, [presetMenu]);
 
+  function updateScrollShadow() {
+    const el = matrixScrollRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 1;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setScrollShadow((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }
+
+  useEffect(() => {
+    updateScrollShadow();
+    const el = matrixScrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateScrollShadow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [shownGrades.length, activeSubjects.length]);
+
   useEffect(() => {
     setSelectedMatrixCells([]);
     setActiveMatrixCell(null);
@@ -273,13 +298,10 @@ export const SubjectsPage: React.FC = () => {
       const edge = 36;
       if (pointer.x < rect.left + edge) wrapper.scrollLeft -= 12;
       else if (pointer.x > rect.right - edge) wrapper.scrollLeft += 12;
-      const root = wrapper.closest<HTMLElement>('.app-shell-main');
-      const scrollTarget = root ?? document.scrollingElement;
-      const vertical = root?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
-      if (scrollTarget && pointer.y < vertical.top + edge) scrollTarget.scrollTop -= 12;
-      else if (scrollTarget && pointer.y > vertical.bottom - edge) scrollTarget.scrollTop += 12;
+      if (pointer.y < rect.top + 56) wrapper.scrollTop -= 12;
+      else if (pointer.y > rect.bottom - 96) wrapper.scrollTop += 12;
       const x = Math.max(rect.left + 2, Math.min(rect.right - 2, pointer.x));
-      const y = Math.max(vertical.top + 2, Math.min(vertical.bottom - 2, pointer.y));
+      const y = Math.max(rect.top + 2, Math.min(rect.bottom - 2, pointer.y));
       const element = document.elementFromPoint(x, y)?.closest<HTMLButtonElement>('[data-matrix-row]');
       if (!element) return;
       const row = Number(element.dataset.matrixRow), column = Number(element.dataset.matrixColumn);
@@ -303,12 +325,31 @@ export const SubjectsPage: React.FC = () => {
     setSelectedMatrixCells(rectangleKeys(activeSubjects, shownGrades, anchor, { row, column }));
     setActiveMatrixCell(matrixCellKey(activeSubjects[row].id, shownGrades[column].id));
   }
+  function stageLessonChanges(nextValues: Record<string, LessonValues>, candidateKeys: string[]): string[] {
+    const nextDrafts = { ...nextValues };
+    const nextEdited = new Set(editedCells);
+    const changed: string[] = [];
+    for (const key of candidateKeys) {
+      const nextVal = nextDrafts[key] ?? EMPTY_LESSONS;
+      const baseVal = savedValues[key] ?? EMPTY_LESSONS;
+      if (nextVal.weekly === baseVal.weekly && nextVal.odd === baseVal.odd && nextVal.even === baseVal.even) {
+        delete nextDrafts[key];
+        nextEdited.delete(key);
+      } else {
+        nextEdited.add(key);
+        changed.push(key);
+      }
+    }
+    setLessonDrafts(nextDrafts);
+    setEditedCells([...nextEdited]);
+    return changed;
+  }
   function applyBatch(input: string) {
     const result = applyMatrixCells(selectedMatrixCells, input, classes, lessonDrafts, alternating);
     if (result.error) { setMessage(result.error); return false; }
-    setLessonDrafts(result.values);
-    setEditedCells((keys) => [...new Set([...keys, ...result.changedKeys])]);
-    setBatchOpen(false); setMessage(`已暂存 ${result.cellCount} 个格子的节数`);
+    const changed = stageLessonChanges(result.values, result.changedKeys);
+    setBatchOpen(false);
+    setMessage(changed.length ? `已暂存 ${result.cellCount} 个格子的节数` : '');
     return true;
   }
   function pasteMatrix(text: string) {
@@ -316,9 +357,8 @@ export const SubjectsPage: React.FC = () => {
     const result = pasteMatrixGrid(text, selectionAnchorCell.current ?? selectedMatrixCells[0],
       selectedMatrixCells, activeSubjects, shownGrades, classes, lessonDrafts, alternating);
     if (result.error) { setMessage(result.error); return; }
-    setLessonDrafts(result.values);
-    setEditedCells((keys) => [...new Set([...keys, ...result.changedKeys])]);
-    setMessage(`已粘贴 ${result.cellCount} 个格子`);
+    const changed = stageLessonChanges(result.values, result.changedKeys);
+    if (changed.length) setMessage(`已粘贴 ${result.cellCount} 个格子`);
   }
   function copyMatrix() {
     const text = copyMatrixText(selectedMatrixCells, activeSubjects, shownGrades, classes, allValues);
@@ -385,22 +425,21 @@ export const SubjectsPage: React.FC = () => {
   }
   function commitInlineEdit() {
     if (!inlineEditor) return;
-    const result = applyMatrixCells([inlineEditor.key], inlineEditor.value, classes, lessonDrafts, alternating);
+    const key = inlineEditor.key;
+    const result = applyMatrixCells([key], inlineEditor.value, classes, lessonDrafts, alternating);
     setInlineEditor(null);
     if (result.error) setMessage(result.error);
     else {
-      setLessonDrafts(result.values);
-      setEditedCells((keys) => [...new Set([...keys, ...result.changedKeys])]);
-      setMessage('节数已暂存，点击保存后生效');
+      const changed = stageLessonChanges(result.values, result.changedKeys);
+      if (changed.length) setMessage('节数已暂存，点击保存后生效');
     }
-    focusMatrixCell(inlineEditor.key);
+    focusMatrixCell(key);
   }
   function clearMatrixSelection() {
     if (!selectedMatrixCells.length) return;
     const result = applyMatrixCells(selectedMatrixCells, '', classes, lessonDrafts, alternating);
-    setLessonDrafts(result.values);
-    setEditedCells((keys) => [...new Set([...keys, ...result.changedKeys])]);
-    setMessage(`已清空 ${result.cellCount} 个格子，点击保存后生效`);
+    const changed = stageLessonChanges(result.values, result.changedKeys);
+    if (changed.length) setMessage(`已清空 ${result.cellCount} 个格子，点击保存后生效`);
   }
   function handleMatrixKey(event: React.KeyboardEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
@@ -958,11 +997,9 @@ export const SubjectsPage: React.FC = () => {
       ? `${currentScopeStage?.name ?? '学段'} (${scopeGrades.length})`
       : `${currentScopeStage?.name ?? '学段'} · ${shownGrades.length}/${scopeGrades.length} 年级`;
 
-  return <section className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3">
+  return <section className="flex h-[calc(100dvh-88px)] min-h-[420px] flex-col gap-4">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3">
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-        <span className="whitespace-nowrap text-[14px] font-semibold text-ink">科目节数</span>
-        <span className="hidden text-[12px] text-ink-secondary sm:inline">{activeSubjects.length} 个科目 · {grades.length} 个年级</span>
         <Popover>
           <PopoverTrigger asChild>
             <button
@@ -1026,18 +1063,11 @@ export const SubjectsPage: React.FC = () => {
         <Button size="sm" disabled={!hasChanges || saving} onClick={() => void save()}><Save className="h-4 w-4" />{saving ? '保存中' : '保存'}</Button>
       </div>
     </div>
-    <div className="min-w-0 overflow-hidden rounded-card bg-surface">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-surface">
         {activeSubjects.length === 0 ? <div className="py-16 text-center text-ink-secondary"><p className="font-medium text-ink">暂无科目</p><p className="mt-1 text-[13px]">添加科目后，可为各年级设置每周节数。</p></div> :
-          <><div className="flex min-h-12 flex-wrap items-center gap-x-1 gap-y-1 border-b border-table-divider px-3 py-2" aria-live="polite">
-            {selectedMatrixCells.length ? <>
-              <span className="mr-2 whitespace-nowrap text-[12px] font-medium text-ink-secondary">已选 {selectedMatrixCells.length} 格</span>
-              <Button variant="ghost" size="sm" onClick={() => { setBatchValue(''); setMessage(''); setBatchOpen(true); }}><Pencil className="h-3.5 w-3.5" />统一设置</Button>
-              <Button variant="ghost" size="sm" onClick={copyMatrix}><Copy className="h-3.5 w-3.5" />复制</Button>
-              <Button variant="ghost" size="sm" onClick={() => void pasteFromClipboard()}><ClipboardPaste className="h-3.5 w-3.5" />粘贴</Button>
-              <Button variant="ghost" size="sm" onClick={clearMatrixSelection}><Eraser className="h-3.5 w-3.5" />清空</Button>
-            </> : <span className="text-[12px] text-ink-secondary">选择格子后可批量设置；拖动可框选多个格子。</span>}
-          </div>
-          <div className="select-none overflow-x-auto" ref={matrixScrollRef}
+          <>
+          <div className="min-h-0 flex-1 select-none overflow-auto" ref={matrixScrollRef}
+            onScroll={updateScrollShadow}
             onKeyDown={handleMatrixKey}
             onPointerMove={(event) => { if (dragAnchor.current) dragPointer.current = { x: event.clientX, y: event.clientY }; }}
             onPaste={(event) => {
@@ -1045,15 +1075,15 @@ export const SubjectsPage: React.FC = () => {
             if (!selectedMatrixCells.length) return;
             event.preventDefault(); pasteMatrix(event.clipboardData.getData('text/plain'));
           }}>
-            <table className="w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + shownGrades.length * 112 + 160 }}>
-              <colgroup><col style={{ width: 160 }} />{shownGrades.map((grade) => <col key={grade.id} />)}<col style={{ width: 160 }} /></colgroup>
-              <thead><tr className="text-ink-secondary">
-                <th className="sticky left-0 z-20 border-b border-border bg-surface px-4 py-4 text-left text-[12px] font-semibold">科目</th>
-                {shownGrades.map((grade) => <th key={grade.id} className="border-b border-border px-2 py-4 text-center text-[12px] font-semibold text-primary">{grade.name}</th>)}
-                <th className="sticky right-0 z-20 border-b border-border bg-surface px-3 py-4 text-left text-[12px] font-semibold">科目高级设置</th>
+            <table className="w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + shownGrades.length * 112 + 120 }}>
+              <colgroup><col style={{ width: 160 }} />{shownGrades.map((grade) => <col key={grade.id} />)}<col style={{ width: 120 }} /></colgroup>
+              <thead className="sticky top-0 z-20 bg-surface"><tr className="text-ink-secondary">
+                <th className={`sticky left-0 top-0 z-30 border-b border-border bg-surface px-4 py-4 text-left text-[12px] font-semibold after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${scrollShadow.left ? 'after:opacity-100' : 'after:opacity-0'}`}>科目</th>
+                {shownGrades.map((grade) => <th key={grade.id} className="border-b border-border bg-surface px-2 py-4 text-center text-[12px] font-semibold text-primary">{grade.name}</th>)}
+                <th className={`sticky right-0 top-0 z-30 border-b border-border bg-surface px-3 py-4 text-left text-[12px] font-semibold before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-2.5 before:bg-gradient-to-l before:from-slate-900/[0.07] before:to-transparent before:transition-opacity before:duration-150 ${scrollShadow.right ? 'before:opacity-100' : 'before:opacity-0'}`}>科目高级设置</th>
               </tr></thead>
               <tbody>{activeSubjects.map((subject, rowIndex) => <tr key={subject.id} className="group h-[46px] hover:bg-table-header/50">
-                <th className="sticky left-0 z-10 bg-surface px-4 text-left font-normal group-hover:bg-table-header"
+                <th className={`sticky left-0 z-10 bg-surface px-4 text-left font-normal group-hover:bg-table-header after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${scrollShadow.left ? 'after:opacity-100' : 'after:opacity-0'}`}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     setContextMenu(null);
@@ -1111,25 +1141,27 @@ export const SubjectsPage: React.FC = () => {
                       onClick={() => { if (!dragged.current) startInlineEdit(matrixCellKey(subject.id, grade.id)); }}
                       onContextMenu={(event) => openMatrixContextMenu(event, matrixCellKey(subject.id, grade.id))}
                       aria-label={`${subject.name} ${grade.name} 节数 ${text}`}
-                      className={`min-h-10 w-full select-none rounded-[8px] border px-2 text-center tabular-nums transition-colors ${selected ? 'border-primary bg-selection text-primary' : changed ? 'border-primary/50 bg-selection/50 text-primary' : 'border-transparent text-ink hover:border-border hover:bg-table-header'} ${text === '各班不同' ? 'text-[12px]' : 'font-medium'}`}>
-                      {group.length ? text === '0' ? '—' : text : '—'}</button>}</td>;
+                      className={`min-h-10 w-full select-none rounded-[8px] border px-2 text-center tabular-nums transition-colors ${selected ? 'border-primary bg-selection text-primary' : changed ? 'border-transparent bg-selection/50 text-primary hover:border-border' : 'border-transparent text-ink hover:border-border hover:bg-table-header'} ${text === '各班不同' ? 'text-[12px]' : 'font-medium'}`}>
+                      {!group.length || text === '0'
+                        ? <span className={selected || changed ? '' : 'text-ink-secondary opacity-45'}>—</span>
+                        : text}</button>}</td>;
                 })}
-                <td className="sticky right-0 z-10 bg-surface px-3 text-left group-hover:bg-table-header"><button type="button" onClick={() => openPreset(subject.id)}
+                <td className={`sticky right-0 z-10 bg-surface px-3 text-left group-hover:bg-table-header before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-2.5 before:bg-gradient-to-l before:from-slate-900/[0.07] before:to-transparent before:transition-opacity before:duration-150 ${scrollShadow.right ? 'before:opacity-100' : 'before:opacity-0'}`}><button type="button" onClick={() => openPreset(subject.id)}
                   className="min-h-10 w-full rounded-[7px] px-1 text-left text-[12px] text-ink-secondary hover:bg-selection hover:text-primary"
                   title="编辑科目预设、课节限制与行课场室">{advancedSummary(subject.id) || '—'}</button></td>
               </tr>)}</tbody>
-              <tfoot className="text-[12px]"><tr><th className="sticky left-0 z-10 border-t border-b border-border bg-surface px-4 py-2 text-left font-semibold text-ink-secondary">容量校验</th>
-                {shownGrades.map((grade) => { const capacity = gradeCapacities[grade.id]; return <td key={grade.id} className="border-t border-b border-border px-2 py-2 text-center">
+              <tfoot className="sticky bottom-0 z-20 bg-surface text-[12px] shadow-[0_-1px_0_var(--color-border)]"><tr><th className={`sticky left-0 z-30 border-b border-border bg-surface px-4 py-2 text-left font-semibold text-ink-secondary after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${scrollShadow.left ? 'after:opacity-100' : 'after:opacity-0'}`}>容量校验</th>
+                {shownGrades.map((grade) => { const capacity = gradeCapacities[grade.id]; return <td key={grade.id} className="border-b border-border bg-surface px-2 py-2 text-center">
                   <span title={capacity ? `${capacity.className}：需求 ${capacity.weekly + Math.max(capacity.odd, capacity.even)} 节，课位 ${capacity.available}` : '尚无班级或作息，暂不能校验'}
                     className={`inline-flex items-center gap-1 font-medium ${capacity?.excess ? 'text-destructive' : capacity ? 'text-emerald-700' : 'text-ink-secondary'}`}>
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />{capacity?.excess ? `超 ${capacity.excess} 节` : capacity ? '通过' : '待校验'}</span></td>; })}
-                <td className="sticky right-0 z-10 border-t border-b border-border bg-surface" /></tr>
-                <tr><th className="sticky left-0 z-10 bg-surface px-4 py-2 text-left font-semibold text-ink-secondary">班级周课时</th>
-                  {shownGrades.map((grade) => { const capacity = gradeCapacities[grade.id]; return <td key={grade.id} className="px-2 py-2 text-center tabular-nums">
+                <td className={`sticky right-0 z-30 border-b border-border bg-surface before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-2.5 before:bg-gradient-to-l before:from-slate-900/[0.07] before:to-transparent before:transition-opacity before:duration-150 ${scrollShadow.right ? 'before:opacity-100' : 'before:opacity-0'}`} /></tr>
+                <tr><th className={`sticky left-0 z-30 bg-surface px-4 py-2 text-left font-semibold text-ink-secondary after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${scrollShadow.left ? 'after:opacity-100' : 'after:opacity-0'}`}>班级周课时</th>
+                  {shownGrades.map((grade) => { const capacity = gradeCapacities[grade.id]; return <td key={grade.id} className="bg-surface px-2 py-2 text-center tabular-nums">
                     {capacity ? <span title={`${capacity.className}：每周 ${capacity.weekly} 节，课位 ${capacity.available}`} className="inline-flex min-w-14 flex-col items-center leading-tight">
                       <strong className="text-[13px] text-ink">{capacity.weekly}{alternating && (capacity.odd || capacity.even) ? <small className="ml-1 font-normal text-ink-secondary">单{capacity.odd} 双{capacity.even}</small> : null}</strong>
                       <span className="my-1 h-px w-full bg-border" /><span className="text-ink-secondary">{capacity.available}</span></span> : '—'}</td>; })}
-                  <td className="sticky right-0 z-10 bg-surface" /></tr></tfoot>
+                  <td className={`sticky right-0 z-30 bg-surface before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-2.5 before:bg-gradient-to-l before:from-slate-900/[0.07] before:to-transparent before:transition-opacity before:duration-150 ${scrollShadow.right ? 'before:opacity-100' : 'before:opacity-0'}`} /></tr></tfoot>
             </table>
           </div></>}
       </div>
