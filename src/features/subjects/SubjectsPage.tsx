@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type {
   ClassGroup, ScopeType, Subject, SubjectLessonConstraint, SubjectPairing,
@@ -950,11 +951,71 @@ export const SubjectsPage: React.FC = () => {
     <Button className="mt-4" onClick={() => setSelectedSection('classes')}>前往班级与学段</Button>
   </div>;
 
+  const currentScopeStage = stages.find((stage) => stage.id === scopeStageId);
+  const scopeFilterLabel = scopeStageId === 'all'
+    ? `全校 (${grades.length})`
+    : visibleGradeIds === null || shownGrades.length === scopeGrades.length
+      ? `${currentScopeStage?.name ?? '学段'} (${scopeGrades.length})`
+      : `${currentScopeStage?.name ?? '学段'} · ${shownGrades.length}/${scopeGrades.length} 年级`;
+
   return <section className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3">
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-2.5">
         <span className="whitespace-nowrap text-[14px] font-semibold text-ink">科目节数</span>
         <span className="hidden text-[12px] text-ink-secondary sm:inline">{activeSubjects.length} 个科目 · {grades.length} 个年级</span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label="筛选学段与年级"
+              className="inline-flex h-8 items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 text-[12px] font-medium text-ink transition-colors hover:border-control-border hover:bg-table-header focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="text-ink-secondary">范围</span>
+              <span className="whitespace-nowrap">{scopeFilterLabel}</span>
+              <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 text-ink-secondary" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 p-2">
+            <p className="mb-1.5 px-2.5 py-1 text-[11px] font-semibold text-ink-secondary">学段与年级</p>
+            <button
+              type="button"
+              className={`flex w-full items-center justify-between rounded-[9px] px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${scopeStageId === 'all' ? 'bg-selection font-semibold text-primary' : 'text-ink hover:bg-table-header'}`}
+              onClick={() => { setScopeStageId('all'); setVisibleGradeIds(null); }}
+            >
+              <span>全校</span>
+              <span className="text-[11.5px] text-ink-secondary tabular-nums">{grades.length}</span>
+            </button>
+            {sortByOrder(stages).map((stage) => {
+              const group = sortByOrder(grades.filter((grade) => grade.stageId === stage.id));
+              const selected = scopeStageId === stage.id;
+              return <div key={stage.id} className="mt-0.5">
+                <button
+                  type="button"
+                  className={`flex w-full items-center gap-1.5 rounded-[9px] px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${selected ? 'bg-selection font-semibold text-primary' : 'text-ink hover:bg-table-header'}`}
+                  onClick={() => { setScopeStageId(stage.id); setVisibleGradeIds(null); }}
+                >
+                  {selected ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                  <span className="flex-1 truncate">{stage.name}</span>
+                  <span className="text-[11.5px] text-ink-secondary tabular-nums">{group.length}</span>
+                </button>
+                {selected && group.length > 0 && <div className="ml-5 mt-0.5 space-y-0.5 border-l border-border pl-2">
+                  {group.map((grade) => <label key={grade.id} className="flex cursor-pointer items-center gap-2 rounded-[7px] px-2 py-1 text-[12px] text-ink-secondary hover:bg-table-header hover:text-ink">
+                    <input
+                      type="checkbox"
+                      className="accent-primary"
+                      checked={visibleGradeIds === null || visibleGradeIds.includes(grade.id)}
+                      onChange={() => setVisibleGradeIds((ids) => {
+                        const current = ids ?? group.map((item) => item.id);
+                        return current.includes(grade.id) ? current.filter((id) => id !== grade.id) : [...current, grade.id];
+                      })}
+                    />
+                    <span className="truncate">{grade.name}</span>
+                  </label>)}
+                </div>}
+              </div>;
+            })}
+          </PopoverContent>
+        </Popover>
         {hasChanges && <Badge variant="warning">未保存</Badge>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -965,33 +1026,7 @@ export const SubjectsPage: React.FC = () => {
         <Button size="sm" disabled={!hasChanges || saving} onClick={() => void save()}><Save className="h-4 w-4" />{saving ? '保存中' : '保存'}</Button>
       </div>
     </div>
-    {message && <p role="status" className="rounded-[10px] bg-table-header px-4 py-2 text-[13px] text-ink-secondary">{message}</p>}
-    <div className="grid items-start gap-4 xl:grid-cols-[232px_minmax(0,1fr)]">
-      <aside className="rounded-card bg-surface p-4">
-        <p className="mb-3 px-2 text-[12px] font-semibold text-ink-secondary">学段与年级</p>
-        <button className={`w-full rounded-[9px] px-3 py-2 text-left text-[13px] ${scopeStageId === 'all' ? 'bg-selection text-primary font-semibold' : 'text-ink hover:bg-table-header'}`}
-          onClick={() => { setScopeStageId('all'); setVisibleGradeIds(null); }}>全校 <span className="float-right text-ink-secondary">{grades.length}</span></button>
-        {sortByOrder(stages).map((stage) => {
-          const group = sortByOrder(grades.filter((grade) => grade.stageId === stage.id));
-          return <div key={stage.id} className="mt-1">
-            <button className={`flex w-full items-center gap-2 rounded-[9px] px-3 py-2 text-left text-[13px] ${scopeStageId === stage.id ? 'bg-selection text-primary font-semibold' : 'text-ink hover:bg-table-header'}`}
-              onClick={() => { setScopeStageId(stage.id); setVisibleGradeIds(null); }}>
-              {scopeStageId === stage.id ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              <span className="flex-1">{stage.name}</span><span className="text-ink-secondary">{group.length}</span>
-            </button>
-            {scopeStageId === stage.id && <div className="ml-6 border-l border-border pl-2">
-              {group.map((grade) => <label key={grade.id} className="flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-[12.5px] text-ink-secondary hover:bg-table-header">
-                <input type="checkbox" className="accent-primary" checked={visibleGradeIds === null || visibleGradeIds.includes(grade.id)}
-                  onChange={() => setVisibleGradeIds((ids) => {
-                    const current = ids ?? group.map((item) => item.id);
-                    return current.includes(grade.id) ? current.filter((id) => id !== grade.id) : [...current, grade.id];
-                  })} />{grade.name}</label>)}
-            </div>}
-          </div>;
-        })}
-        <p className="mt-4 border-t border-border px-2 pt-3 text-[12px] leading-5 text-ink-secondary">单击格子直接编辑；拖动框选后可批量清空、复制、粘贴或统一设置。方向键移动，Enter 编辑，Delete 清空。{alternating ? '单双周格式：每周|单周|双周。' : ''}</p>
-      </aside>
-      <div className="min-w-0 overflow-hidden rounded-card bg-surface">
+    <div className="min-w-0 overflow-hidden rounded-card bg-surface">
         {activeSubjects.length === 0 ? <div className="py-16 text-center text-ink-secondary"><p className="font-medium text-ink">暂无科目</p><p className="mt-1 text-[13px]">添加科目后，可为各年级设置每周节数。</p></div> :
           <><div className="flex min-h-12 flex-wrap items-center gap-x-1 gap-y-1 border-b border-table-divider px-3 py-2" aria-live="polite">
             {selectedMatrixCells.length ? <>
@@ -1098,7 +1133,6 @@ export const SubjectsPage: React.FC = () => {
             </table>
           </div></>}
       </div>
-    </div>
 
     <Dialog open={subjectDialog !== null} onOpenChange={(open) => !open && setSubjectDialog(null)}><DialogContent className="max-h-[90vh] max-w-[560px] overflow-y-auto">
       <DialogHeader><DialogTitle>{subjectDialog === 'new' ? '添加科目' : '编辑科目'}</DialogTitle><DialogDescription>名称用于课表，简称用于紧凑视图。新科目节数默认为 0。</DialogDescription></DialogHeader>

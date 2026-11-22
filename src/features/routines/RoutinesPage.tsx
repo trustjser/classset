@@ -33,6 +33,7 @@ import {
   completeRoutinePeriodTypes,
   formatRoutinePeriods,
   formatRoutineTeachingDays,
+  getPeriodAccentColor,
   WEEKDAY_SHORT_NAMES,
 } from '@/domain/routineUtils';
 import { useAppStore } from '@/store/useAppStore';
@@ -58,12 +59,6 @@ const WEEKDAYS = [
     short,
     label: `周${short}`,
   })),
-] as const;
-
-const PERIOD_ACCENTS = [
-  'var(--color-accent)',
-  'var(--color-success)',
-  'var(--color-purple)',
 ] as const;
 
 function createDefaultRoutine(stageId: string): StageRoutine {
@@ -367,13 +362,12 @@ function PeriodCountControl({
   index: number;
   onChange: (count: number) => void;
 }) {
-  const accent = PERIOD_ACCENTS[index % PERIOD_ACCENTS.length];
+  const accent = getPeriodAccentColor(period.name, index);
   return (
     <div className="flex items-center gap-3 border-t border-table-divider py-3 first:border-0 first:pt-0 last:pb-0">
       <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13.5px] font-semibold text-ink">{period.name}</div>
-        <div className="mt-0.5 text-[11.5px] text-ink-secondary">每天默认节数</div>
+        <div className="whitespace-nowrap text-[13.5px] font-semibold text-ink">{period.name}</div>
       </div>
       <div className="flex h-9 items-center overflow-hidden rounded-control border border-border bg-surface">
         <button
@@ -875,8 +869,8 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
         </div>
       )}
 
-      <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,2fr)] min-[1440px]:grid-cols-[minmax(320px,0.95fr)_minmax(500px,1.9fr)_minmax(280px,0.85fr)]">
-        <div className="min-w-0 space-y-4">
+      <div className="routines-layout-grid">
+        <div className="routines-col-left space-y-4">
           <FreeSlotScopeTree
             stages={termStages}
             grades={termGrades}
@@ -890,17 +884,16 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
             }}
           />
 
-          <Card className="p-5">
+          <Card className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-[15px] font-semibold text-ink">上课日</h2>
-                <p className="mt-1 text-[12px] text-ink-secondary">
-                  {formatRoutineTeachingDays(routine)} · {activeTeachingDayCount} 天
-                </p>
               </div>
-              <Badge variant="secondary">每周</Badge>
+              <Badge className="shrink-0 whitespace-nowrap" variant="secondary">
+                学段
+              </Badge>
             </div>
-            <div className="mt-4 grid grid-cols-7 gap-1.5 sm:gap-2">
+            <div className="mt-4 flex flex-wrap gap-1.5">
               {WEEKDAYS.map(({ weekday, short, label }) => {
                 const day = routine.teachingDays.find((item) => item.weekday === weekday);
                 const selected = Boolean(day?.isTeachingDay);
@@ -909,7 +902,7 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
                     key={weekday}
                     aria-label={`${label}${selected ? '，上课日' : '，休息日'}`}
                     aria-pressed={selected}
-                    className={`flex h-10 min-w-0 items-center justify-center rounded-control border text-[12px] font-medium transition-[background-color,border-color,color,transform] duration-feedback active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`flex h-9 min-w-[34px] flex-1 basis-[34px] items-center justify-center whitespace-nowrap rounded-control border px-1 text-[12px] font-medium transition-[background-color,border-color,color,transform] duration-feedback active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       selected
                         ? 'border-primary/25 bg-selection text-primary'
                         : 'border-border bg-surface text-ink-secondary hover:bg-table-header'
@@ -933,15 +926,14 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
             </div>
           </Card>
 
-          <Card className="p-5">
+          <Card className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-[15px] font-semibold text-ink">每天节数</h2>
-                <p className="mt-1 text-[12px] text-ink-secondary">
-                  每日共 {totalDailyLessons} 节，按时段分别设置。
-                </p>
               </div>
-              <Badge variant="secondary">0–9 节</Badge>
+              <Badge className="shrink-0 whitespace-nowrap" variant="secondary">
+                学段
+              </Badge>
             </div>
             <div className="mt-4">
               {routine.periodTypes.map((period, index) => (
@@ -967,58 +959,58 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
           scope={activeScope}
           runHistory={runHistory}
           onUpdateRoutine={updateRoutine}
-          className="lg:col-start-2 lg:row-start-1 lg:row-span-2 min-[1440px]:col-start-auto min-[1440px]:row-start-auto min-[1440px]:row-span-1"
+          className="routines-col-center"
         />
 
-        <Card className="min-w-0 p-4 lg:col-start-1 lg:row-start-2 min-[1440px]:col-start-auto min-[1440px]:row-start-auto">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-[15px] font-semibold text-ink">节次时间</h2>
-                <p className="mt-1 text-[12px] text-ink-secondary">
-                  时间用于课表展示；暂不设置时可留空。
-                </p>
-              </div>
-              <Clock3 aria-hidden="true" className="mt-0.5 h-4 w-4 text-ink-secondary" />
+        <Card className="routines-col-right p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[15px] font-semibold text-ink">节次时间</h2>
+              <p className="mt-1 text-[12px] text-ink-secondary">
+                时间用于课表展示；暂不设置时可留空。
+              </p>
             </div>
+            <Clock3 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-ink-secondary" />
+          </div>
 
-            <div className="mt-4 space-y-4">
-              {routine.periodTypes.map((period, periodIndex) => {
-                const times = routine.lessonTimes
-                  .filter((time) => time.periodTypeId === period.id)
-                  .sort((a, b) => a.lessonIndex - b.lessonIndex);
-                const activeTimes = times.filter(
-                  (time) => time.lessonIndex <= period.defaultLessonCount
-                );
-                if (activeTimes.length === 0) return null;
-                return (
-                  <section className="border-t border-table-divider pt-3 first:border-0 first:pt-0" key={period.id}>
-                    <div className="mb-2 flex items-center gap-2 text-[12.5px] font-semibold text-ink">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PERIOD_ACCENTS[periodIndex % PERIOD_ACCENTS.length] }} />
-                      {period.name}
-                      <span className="font-normal text-ink-secondary">
-                        {activeTimes.length} 节
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-[minmax(44px,0.7fr)_minmax(72px,1fr)_minmax(72px,1fr)] gap-x-1.5 pb-1 text-[10.5px] text-ink-secondary">
-                      <span>课次</span>
-                      <span>开始</span>
-                      <span>结束</span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {activeTimes.map((time) => (
-                        <LessonTimeRow
-                          key={`${period.id}:${time.lessonIndex}`}
-                          period={period}
-                          time={time}
-                          onChange={changeLessonTime}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          </Card>
+          <div className="mt-4 space-y-4">
+            {routine.periodTypes.map((period, periodIndex) => {
+              const times = routine.lessonTimes
+                .filter((time) => time.periodTypeId === period.id)
+                .sort((a, b) => a.lessonIndex - b.lessonIndex);
+              const activeTimes = times.filter(
+                (time) => time.lessonIndex <= period.defaultLessonCount
+              );
+              if (activeTimes.length === 0) return null;
+              return (
+                <section className="border-t border-table-divider pt-3 first:border-0 first:pt-0" key={period.id}>
+                  <div className="mb-2 flex items-center gap-2 whitespace-nowrap text-[12.5px] font-semibold text-ink">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: getPeriodAccentColor(period.name, periodIndex) }} />
+                    <span>{period.name}</span>
+                    <span className="font-normal text-ink-secondary">
+                      {activeTimes.length} 节
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[44px_minmax(92px,1fr)_minmax(92px,1fr)] gap-x-1.5 pb-1 text-[10.5px] text-ink-secondary">
+                    <span className="whitespace-nowrap">课次</span>
+                    <span>开始</span>
+                    <span>结束</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {activeTimes.map((time) => (
+                      <LessonTimeRow
+                        key={`${period.id}:${time.lessonIndex}`}
+                        period={period}
+                        time={time}
+                        onChange={changeLessonTime}
+                      />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </Card>
       </div>
 
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
@@ -1184,21 +1176,21 @@ function LessonTimeRow({
   ) => void;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(44px,0.7fr)_minmax(72px,1fr)_minmax(72px,1fr)] items-center gap-x-1.5">
-      <span className="truncate text-[12px] font-medium text-ink">
+    <div className="grid grid-cols-[44px_minmax(92px,1fr)_minmax(92px,1fr)] items-center gap-x-1.5">
+      <span className="whitespace-nowrap text-[12px] font-medium text-ink">
         {time.label || `第${time.lessonIndex}节`}
       </span>
       <TimePicker
         ariaLabel={`${period.name} ${time.label}开始时间`}
         allowClear
-        className="h-8 px-2 text-center text-[12px] tabular-nums"
+        className="h-8 gap-1 px-1.5 text-[12px] tabular-nums"
         onChange={(value) => onChange(period.id, time.lessonIndex, 'startMinute', value)}
         value={minuteToTime(time.startMinute)}
       />
       <TimePicker
         ariaLabel={`${period.name} ${time.label}结束时间`}
         allowClear
-        className="h-8 px-2 text-center text-[12px] tabular-nums"
+        className="h-8 gap-1 px-1.5 text-[12px] tabular-nums"
         onChange={(value) => onChange(period.id, time.lessonIndex, 'endMinute', value)}
         value={minuteToTime(time.endMinute)}
       />

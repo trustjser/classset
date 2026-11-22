@@ -34,7 +34,7 @@ import type {
   ScopeType,
   StageRoutine,
 } from '@/domain/models';
-import { WEEKDAY_SHORT_NAMES } from '@/domain/routineUtils';
+import { getPeriodAccentColor, WEEKDAY_SHORT_NAMES } from '@/domain/routineUtils';
 import { useAppStore } from '@/store/useAppStore';
 
 const FREE_SLOT_LABELS = [
@@ -78,7 +78,13 @@ interface GridCell {
 }
 
 type RoutineMatrixRow =
-  | { type: 'lesson'; period: LessonPeriodType; lessonIndex: number }
+  | {
+      type: 'lesson';
+      period: LessonPeriodType;
+      lessonIndex: number;
+      dayLessonNumber: number;
+      periodIndex: number;
+    }
   | { type: 'common'; commonPeriod: CommonPeriod };
 
 interface MatrixPoint {
@@ -383,15 +389,21 @@ export function FreeSlotEditor({
     .filter((day) => day.isTeachingDay)
     .map((day) => day.weekday)
     .sort((a, b) => a - b);
-  const lessonRows = routine.periodTypes
+  const sortedPeriods = routine.periodTypes
     .slice()
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .flatMap((period) =>
-      Array.from({ length: period.defaultLessonCount }, (_, index) => ({
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  let dayLessonCursor = 0;
+  const lessonRows = sortedPeriods.flatMap((period, periodIndex) =>
+    Array.from({ length: period.defaultLessonCount }, (_, index) => {
+      dayLessonCursor += 1;
+      return {
         period,
         lessonIndex: index + 1,
-      }))
-    );
+        dayLessonNumber: dayLessonCursor,
+        periodIndex,
+      };
+    })
+  );
   const commonPeriods = (routine.commonPeriods ?? [])
     .filter((period) => period.stageId === routine.stageId)
     .slice()
@@ -403,7 +415,13 @@ export function FreeSlotEditor({
     insertedCommonPeriodIds.add(period.id);
   }
   for (const row of lessonRows) {
-    matrixRows.push({ type: 'lesson', period: row.period, lessonIndex: row.lessonIndex });
+    matrixRows.push({
+      type: 'lesson',
+      period: row.period,
+      lessonIndex: row.lessonIndex,
+      dayLessonNumber: row.dayLessonNumber,
+      periodIndex: row.periodIndex,
+    });
     const lessonId = `${row.period.id}_${row.lessonIndex}`;
     for (const period of commonPeriods.filter((item) => item.insertAfterLessonId === lessonId)) {
       matrixRows.push({ type: 'common', commonPeriod: period });
@@ -888,6 +906,7 @@ export function FreeSlotEditor({
           <div className="min-w-0">
             <h2 className="text-[15px] font-semibold text-ink">免任课与公共时段</h2>
           </div>
+          <Badge variant="secondary">{allSlots.length}</Badge>
         </div>
 
         <div className="mt-4 min-w-0">
@@ -939,7 +958,7 @@ export function FreeSlotEditor({
                     <tr
                       data-common-drop-anchor="__first__"
                     >
-                      <th className={'sticky left-0 z-[1] w-[90px] border-b border-table-divider bg-table-header px-2.5 py-2.5 font-medium ' + (dropTarget?.kind === 'first' ? 'border-b-2 border-b-primary' : '')}>
+                      <th className={'sticky left-0 z-[1] w-[74px] border-b border-table-divider bg-table-header px-2.5 py-2.5 font-medium ' + (dropTarget?.kind === 'first' ? 'border-b-2 border-b-primary' : '')}>
                         节次
                       </th>
                       {teachingDays.map((weekday) => (
@@ -965,7 +984,8 @@ export function FreeSlotEditor({
                         );
                       }
 
-                      const { period, lessonIndex } = row;
+                      const { period, lessonIndex, dayLessonNumber, periodIndex } = row;
+                      const periodAccent = getPeriodAccentColor(period.name, periodIndex);
                       const lessonId = `${period.id}_${lessonIndex}`;
                       const showLessonDropLine = dropTarget?.kind === 'lesson' && dropTarget.id === lessonId;
                       return (
@@ -973,9 +993,12 @@ export function FreeSlotEditor({
                           data-common-drop-anchor={lessonId}
                           key={period.id + ':' + lessonIndex}
                         >
-                          <th className={'sticky left-0 z-[1] border-b border-table-divider bg-surface px-3 py-2 text-[11.5px] font-medium text-ink ' + (showLessonDropLine ? 'border-b-2 border-b-primary' : '')}>
-                            <span className="text-ink-secondary">{period.name}</span>
-                            <span className="ml-1">第{lessonIndex}节</span>
+                          <th
+                            className={'sticky left-0 z-[1] whitespace-nowrap border-b border-table-divider bg-surface px-3 py-2 text-[11.5px] font-semibold tabular-nums ' + (showLessonDropLine ? 'border-b-2 border-b-primary' : '')}
+                            style={{ color: periodAccent }}
+                            title={`${period.name} 第${lessonIndex}节`}
+                          >
+                            第{dayLessonNumber}节
                           </th>
                           {teachingDays.map((weekday, colIndex) => {
                             const cell: GridCell = { period, weekday, lessonIndex };
@@ -1354,7 +1377,7 @@ export function FreeSlotScopeTree({
   return (
     <Card className="min-w-0 p-3 sm:p-4">
       <p className="px-1.5 pb-2 text-[10.5px] font-semibold tracking-wide text-ink-secondary">
-        免任课范围
+        范围
       </p>
       <div className="space-y-0.5">
         {stages.map((stage) => {

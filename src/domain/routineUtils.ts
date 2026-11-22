@@ -95,3 +95,30 @@ export function formatRoutineSummary(routine?: StageRoutine): string {
     formatRoutinePeriods(routine, '未设时段', ' + '),
   ].join(' · ');
 }
+
+const PERIOD_ACCENT_PRESETS = [
+  'var(--color-purple)',
+  'var(--color-accent)',
+  'var(--color-success)',
+  'var(--color-ink-secondary)',
+] as const;
+
+/**
+ * 与 Flutter 端 `periodVisualFor` 保持一致的时段配色：
+ * 早上/早读 = 紫，上午 = 蓝，下午 = 绿，晚上 = 深灰；自定义时段在四套预设间轮换。
+ */
+export function getPeriodAccentColor(periodName: string, index: number): string {
+  switch (periodName) {
+    case '早上':
+    case '早读':
+      return PERIOD_ACCENT_PRESETS[0];
+    case '上午':
+      return PERIOD_ACCENT_PRESETS[1];
+    case '下午':
+      return PERIOD_ACCENT_PRESETS[2];
+    case '晚上':
+      return PERIOD_ACCENT_PRESETS[3];
+    default:
+      return PERIOD_ACCENT_PRESETS[index % PERIOD_ACCENT_PRESETS.length];
+  }
+}

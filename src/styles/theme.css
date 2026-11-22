@@ -346,3 +346,60 @@
     transition: none;
   }
 }
+
+/* 作息设置三列自适应布局：基于 work-area 容器宽度，尽量展示 3 列并保证左右两列不折行压缩 */
+.routines-layout-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.routines-col-left,
+.routines-col-center,
+.routines-col-right {
+  min-width: 0;
+}
+
+@container work-area (min-width: 700px) and (max-width: 979.98px) {
+  .routines-layout-grid {
+    grid-template-columns: minmax(276px, 0.9fr) minmax(0, 1.85fr);
+  }
+
+  .routines-col-left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .routines-col-right {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .routines-col-center {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+@container work-area (min-width: 980px) {
+  .routines-layout-grid {
+    grid-template-columns: minmax(256px, 0.85fr) minmax(404px, 1.75fr) minmax(272px, 0.9fr);
+  }
+
+  .routines-col-left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .routines-col-center {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .routines-col-right {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}

@@ -17,16 +17,33 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    host: host || 'localhost',
     hmr: host
       ? {
           protocol: 'ws',
           host,
           port: 1421,
         }
-      : undefined,
+      : {
+          protocol: 'ws',
+          host: 'localhost',
+        },
     watch: {
-      ignored: ['**/src-tauri/**', '**/build/**', '**/.dart_tool/**'],
+      usePolling: true,
+      interval: 300,
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/src-tauri/**',
+        '**/build/**',
+        '**/dist/**',
+        '**/.dart_tool/**',
+        '**/macos/**',
+        '**/linux/**',
+        '**/windows/**',
+        '**/lib/**',
+        '**/website/**',
+      ],
     },
   },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
