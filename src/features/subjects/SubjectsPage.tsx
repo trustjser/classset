@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, Eraser, MoreHorizontal, Pencil, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -141,9 +142,13 @@ export const SubjectsPage: React.FC = () => {
     ...savedSubjects.filter((item) => !deletedIds.includes(item.id)).map((item) => subjectDrafts[item.id] ?? item),
     ...Object.values(subjectDrafts).filter((item) => !savedSubjects.some((saved) => saved.id === item.id)),
   ]), [savedSubjects, subjectDrafts, deletedIds]);
-  const scopeGrades = useMemo(() => sortByOrder(grades.filter((item) =>
-    scopeStageId === 'all' || item.stageId === scopeStageId
-  )), [grades, scopeStageId]);
+  const scopeGrades = useMemo(() => {
+    const stageOrder = new Map(stages.map((stage) => [stage.id, stage.sortOrder]));
+    return grades
+      .filter((item) => scopeStageId === 'all' || item.stageId === scopeStageId)
+      .slice()
+      .sort((a, b) => (stageOrder.get(a.stageId) ?? 0) - (stageOrder.get(b.stageId) ?? 0) || a.sortOrder - b.sortOrder);
+  }, [grades, stages, scopeStageId]);
   const shownGrades = useMemo(() => scopeGrades.filter((item) =>
     visibleGradeIds === null || visibleGradeIds.includes(item.id)
   ), [scopeGrades, visibleGradeIds]);
@@ -1037,11 +1042,9 @@ export const SubjectsPage: React.FC = () => {
                 </button>
                 {selected && group.length > 0 && <div className="ml-5 mt-0.5 space-y-0.5 border-l border-border pl-2">
                   {group.map((grade) => <label key={grade.id} className="flex cursor-pointer items-center gap-2 rounded-[7px] px-2 py-1 text-[12px] text-ink-secondary hover:bg-table-header hover:text-ink">
-                    <input
-                      type="checkbox"
-                      className="accent-primary"
+                    <Checkbox
                       checked={visibleGradeIds === null || visibleGradeIds.includes(grade.id)}
-                      onChange={() => setVisibleGradeIds((ids) => {
+                      onCheckedChange={() => setVisibleGradeIds((ids) => {
                         const current = ids ?? group.map((item) => item.id);
                         return current.includes(grade.id) ? current.filter((id) => id !== grade.id) : [...current, grade.id];
                       })}

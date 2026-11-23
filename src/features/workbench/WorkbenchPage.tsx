@@ -9,6 +9,7 @@ import type { WorkbenchProgress } from './workbenchModel';
 import './workbench.css';
 
 type WorkbenchTerm = {
+  id: string;
   title: string;
   firstTeachingWeekStart: string | null;
   teachingWeekCount: number;
@@ -18,6 +19,7 @@ interface WorkbenchPageProps {
   activeTerm: WorkbenchTerm | null;
   summary: WorkbenchSummary | null;
   onNavigate: (section: AppSection) => void;
+  onSeedDemoData: () => Promise<void>;
 }
 
 const getStepBadge = (completed: boolean, available: boolean) => {
@@ -30,7 +32,10 @@ export const WorkbenchPage: React.FC<WorkbenchPageProps> = ({
   activeTerm,
   summary,
   onNavigate,
+  onSeedDemoData,
 }) => {
+  const [seeding, setSeeding] = React.useState(false);
+  const [seedMessage, setSeedMessage] = React.useState('');
   const hasTerm = activeTerm !== null;
   const progress: WorkbenchProgress = getWorkbenchProgress(hasTerm, summary);
   const nextStep = progress.steps.find(
@@ -68,25 +73,59 @@ export const WorkbenchPage: React.FC<WorkbenchPageProps> = ({
             >
               排课准备
             </h2>
-            <div className="flex w-full max-w-[320px] items-center gap-3 sm:w-[320px]">
-              <span className="shrink-0 text-[12.5px] tabular-nums text-ink-secondary">
-                {progress.completeCount} / {progress.totalCount} 项
-              </span>
-              <div
-                aria-label="排课准备进度"
-                aria-valuemax={progress.totalCount}
-                aria-valuemin={0}
-                aria-valuenow={progress.completeCount}
-                aria-valuetext={`已完成 ${progress.completeCount} 项，共 ${progress.totalCount} 项`}
-                className="workbench-progress-track flex-1"
-                role="progressbar"
-              >
-                <span
-                  className="workbench-progress-fill"
-                  style={{ transform: `scaleX(${completion})` }}
-                />
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {activeTerm && (
+                <Button
+                  disabled={seeding}
+                  onClick={async () => {
+                    setSeeding(true);
+                    setSeedMessage('');
+                    try {
+                      await onSeedDemoData();
+                      setSeedMessage('已生成演示数据：小学 36 个班、初中 24 个班，并配置作息、科目和教师任课。');
+                    } catch (error) {
+                      setSeedMessage(`生成演示数据失败：${error instanceof Error ? error.message : String(error)}`);
+                    } finally {
+                      setSeeding(false);
+                    }
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+                  {seeding ? '正在生成…' : '演示数据'}
+                </Button>
+              )}
+              <div className="flex w-full max-w-[320px] items-center gap-3 sm:w-[320px]">
+                <span className="shrink-0 text-[12.5px] tabular-nums text-ink-secondary">
+                  {progress.completeCount} / {progress.totalCount} 项
+                </span>
+                <div
+                  aria-label="排课准备进度"
+                  aria-valuemax={progress.totalCount}
+                  aria-valuemin={0}
+                  aria-valuenow={progress.completeCount}
+                  aria-valuetext={`已完成 ${progress.completeCount} 项，共 ${progress.totalCount} 项`}
+                  className="workbench-progress-track flex-1"
+                  role="progressbar"
+                >
+                  <span
+                    className="workbench-progress-fill"
+                    style={{ transform: `scaleX(${completion})` }}
+                  />
+                </div>
               </div>
             </div>
+            {seedMessage && (
+              <p
+                className="w-full text-[12.5px] text-ink-secondary"
+                role="status"
+                aria-live="polite"
+              >
+                {seedMessage}
+              </p>
+            )}
           </div>
 
           <ol className="workbench-step-list">

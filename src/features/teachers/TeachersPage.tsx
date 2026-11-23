@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, MoreHorizontal, Plus, Search, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, MoreHorizontal, Plus, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -60,6 +61,9 @@ export const TeachersPage: React.FC = () => {
   const assignmentFileRef = useRef<HTMLInputElement>(null);
   const classMatrixRef = useRef<HTMLDivElement | null>(null);
   const [classScrollLeft, setClassScrollLeft] = useState(false);
+  const [scopeStageId, setScopeStageId] = useState<string>('all');
+  const [scopeGradeId, setScopeGradeId] = useState<string>('all');
+  const [visibleClassIds, setVisibleClassIds] = useState<string[] | null>(null);
   const courseExpansionInitialized = useRef(false);
 
   const reload = useCallback(async () => {
@@ -101,6 +105,13 @@ export const TeachersPage: React.FC = () => {
     const stageA = stages.find((item) => item.id === gradeA?.stageId), stageB = stages.find((item) => item.id === gradeB?.stageId);
     return (stageA?.sortOrder ?? 0) - (stageB?.sortOrder ?? 0) || (gradeA?.sortOrder ?? 0) - (gradeB?.sortOrder ?? 0) || a.sortOrder - b.sortOrder;
   }), [classes, gradeById, stages]);
+  const shownClasses = useMemo(() => sortedClasses.filter((item) => {
+    const grade = gradeById.get(item.gradeId);
+    if (scopeStageId !== 'all' && grade?.stageId !== scopeStageId) return false;
+    if (scopeGradeId !== 'all' && item.gradeId !== scopeGradeId) return false;
+    if (visibleClassIds !== null && !visibleClassIds.includes(item.id)) return false;
+    return true;
+  }), [sortedClasses, gradeById, scopeStageId, scopeGradeId, visibleClassIds]);
   const sortedTeachers = useMemo(() => byOrder(teachers).filter((item) => teacherName(item).toLowerCase().includes(query.toLowerCase())), [teachers, query]);
   const teacherOptions = useMemo(() => byOrder(teachers).map((item) => ({
     value: item.id,
@@ -126,7 +137,7 @@ export const TeachersPage: React.FC = () => {
     const observer = new ResizeObserver(updateClassScrollShadow);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [view, sortedClasses.length, subjects.length, updateClassScrollShadow]);
+  }, [view, shownClasses.length, subjects.length, updateClassScrollShadow]);
   const run = async (operation: () => Promise<void>) => {
     setBusy(true); setError('');
     try { await operation(); await reload(); }
@@ -252,11 +263,91 @@ export const TeachersPage: React.FC = () => {
   if (presetOwner) return <TeacherPresetPage key={`${presetOwner.kind}:${presetOwner.id ?? ''}`} termId={activeTermId} owner={presetOwner} teachers={teachers} groups={groups} members={members}
     onBack={() => { window.location.hash = '#/teachers'; setPresetOwner(null); }} />;
 
+  const currentScopeStage = stages.find((item) => item.id === scopeStageId);
+  const currentScopeGrade = grades.find((item) => item.id === scopeGradeId);
+  const stageClassTotal = sortedClasses.filter((item) => gradeById.get(item.gradeId)?.stageId === scopeStageId).length;
+  const gradeClassTotal = sortedClasses.filter((item) => item.gradeId === scopeGradeId).length;
+  const scopeFilterLabel = scopeStageId === 'all'
+    ? `全校 (${sortedClasses.length})`
+    : scopeGradeId === 'all'
+      ? `${currentScopeStage?.name ?? '学段'} (${stageClassTotal})`
+      : visibleClassIds === null || shownClasses.length === gradeClassTotal
+        ? `${currentScopeStage?.name ?? ''} · ${currentScopeGrade?.name ?? '年级'} (${gradeClassTotal})`
+        : `${currentScopeGrade?.name ?? '年级'} · ${shownClasses.length}/${gradeClassTotal} 班`;
   const menuItem = 'block w-full cursor-pointer rounded-md px-3 py-2 text-left text-[13px] text-ink outline-none hover:bg-selection focus:bg-selection';
   const leftStickyShadow = `after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${classScrollLeft ? 'after:opacity-100' : 'after:opacity-0'}`;
   return <div className="flex h-[calc(100dvh-88px)] min-h-[420px] flex-col gap-4">
     <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-card border border-border bg-surface px-5 py-3">
-      <strong className="mr-auto text-[16px] text-ink">教师任课</strong>
+      {view === 'class' && <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="筛选学段、年级与班级"
+            className="inline-flex h-8 items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 text-[12px] font-medium text-ink transition-colors hover:border-control-border hover:bg-table-header focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="text-ink-secondary">范围</span>
+            <span className="whitespace-nowrap">{scopeFilterLabel}</span>
+            <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 text-ink-secondary" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="max-h-[70vh] w-64 overflow-y-auto p-2">
+          <p className="mb-1.5 px-2.5 py-1 text-[11px] font-semibold text-ink-secondary">学段、年级与班级</p>
+          <button
+            type="button"
+            className={`flex w-full items-center justify-between rounded-[9px] px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${scopeStageId === 'all' ? 'bg-selection font-semibold text-primary' : 'text-ink hover:bg-table-header'}`}
+            onClick={() => { setScopeStageId('all'); setScopeGradeId('all'); setVisibleClassIds(null); }}
+          >
+            <span>全校</span>
+            <span className="text-[11.5px] text-ink-secondary tabular-nums">{sortedClasses.length}</span>
+          </button>
+          {byOrder(stages).map((stage) => {
+            const stageGrades = byOrder(grades.filter((grade) => grade.stageId === stage.id));
+            const stageCount = sortedClasses.filter((item) => gradeById.get(item.gradeId)?.stageId === stage.id).length;
+            const stageSelected = scopeStageId === stage.id;
+            return <div key={stage.id} className="mt-0.5">
+              <button
+                type="button"
+                className={`flex w-full items-center gap-1.5 rounded-[9px] px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${stageSelected && scopeGradeId === 'all' ? 'bg-selection font-semibold text-primary' : stageSelected ? 'font-semibold text-ink hover:bg-table-header' : 'text-ink hover:bg-table-header'}`}
+                onClick={() => { setScopeStageId(stage.id); setScopeGradeId('all'); setVisibleClassIds(null); }}
+              >
+                {stageSelected ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                <span className="flex-1 truncate">{stage.name}</span>
+                <span className="text-[11.5px] text-ink-secondary tabular-nums">{stageCount}</span>
+              </button>
+              {stageSelected && stageGrades.length > 0 && <div className="ml-5 mt-0.5 space-y-0.5 border-l border-border pl-2">
+                {stageGrades.map((grade) => {
+                  const gradeClasses = sortedClasses.filter((item) => item.gradeId === grade.id);
+                  const gradeSelected = scopeGradeId === grade.id;
+                  return <div key={grade.id}>
+                    <button
+                      type="button"
+                      className={`flex w-full items-center gap-1.5 rounded-[7px] px-2 py-1 text-left text-[12px] transition-colors ${gradeSelected ? 'bg-selection font-semibold text-primary' : 'text-ink-secondary hover:bg-table-header hover:text-ink'}`}
+                      onClick={() => { setScopeStageId(stage.id); setScopeGradeId(grade.id); setVisibleClassIds(null); }}
+                    >
+                      {gradeSelected ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                      <span className="flex-1 truncate">{grade.name}</span>
+                      <span className="text-[11px] text-ink-secondary tabular-nums">{gradeClasses.length}</span>
+                    </button>
+                    {gradeSelected && gradeClasses.length > 0 && <div className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+                      {gradeClasses.map((schoolClass) => <label key={schoolClass.id} className="flex cursor-pointer items-center gap-2 rounded-[7px] px-2 py-1 text-[12px] text-ink-secondary hover:bg-table-header hover:text-ink">
+                        <Checkbox
+                          checked={visibleClassIds === null || visibleClassIds.includes(schoolClass.id)}
+                          onCheckedChange={() => setVisibleClassIds((ids) => {
+                            const current = ids ?? gradeClasses.map((item) => item.id);
+                            return current.includes(schoolClass.id) ? current.filter((id) => id !== schoolClass.id) : [...current, schoolClass.id];
+                          })}
+                        />
+                        <span className="truncate">{schoolClass.name}</span>
+                      </label>)}
+                    </div>}
+                  </div>;
+                })}
+              </div>}
+            </div>;
+          })}
+        </PopoverContent>
+      </Popover>}
+      <div className="mr-auto" />
       {view === 'teacher' && <label className="relative w-48"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-ink-secondary"/><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按姓名查找教师" className="pl-8" /></label>}
       <Button variant="ghost" className="text-primary" onClick={() => view === 'group' ? openGroup('new') : setBatchOpen(true)}><Plus className="mr-1.5 h-4 w-4"/>{view === 'group' ? '新增分组' : '添加任课'}</Button>
       <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost">更多 <ChevronDown className="ml-1 h-4 w-4"/></Button></DropdownMenu.Trigger>
@@ -281,9 +372,9 @@ export const TeachersPage: React.FC = () => {
     <input ref={assignmentFileRef} type="file" accept=".xlsx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importAssignments(file); event.target.value = ''; }}/>
     {error && <div role="alert" className="shrink-0 rounded-control bg-destructive-surface px-4 py-2 text-[13px] text-destructive">{error}</div>}
     {view === 'teacher' && (() => { const combined = new Map<string, TeacherAssignment[]>(); for (const row of assignments) if (row.combinedLessonGroupId) combined.set(row.combinedLessonGroupId, [...(combined.get(row.combinedLessonGroupId) ?? []), row]); const groupRows = [...combined.values()]; return groupRows.length ? <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-control border border-primary bg-selection px-4 py-2 text-[12px] text-ink"><Users className="h-4 w-4 text-primary"/><span>已设置 {groupRows.length} 组合班课 · 涉及 {groupRows.reduce((sum, rows) => sum + new Set(rows.map((item) => item.classId)).size, 0)} 个班级、{new Set(groupRows.map((rows) => rows[0].teacherId)).size} 位教师</span><Button variant="outline" size="sm" onClick={() => { setCombineTeacherId(null); setCombineTab('all'); setCombineOpen(true); }}>查看全部</Button></div> : null; })()}
-    {view === 'class' && <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-surface">{!subjects.length ? <div className="p-8 text-center text-ink-secondary">请先设置科目节数。</div> : <div className="min-h-0 flex-1 overflow-auto" ref={classMatrixRef} onScroll={updateClassScrollShadow}><table className="w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + sortedClasses.length * 190 }}><thead className="sticky top-0 z-20 bg-surface"><tr className="text-ink-secondary"><th className={`sticky left-0 top-0 z-30 w-[160px] min-w-[160px] border-b border-border bg-surface px-4 py-4 text-left text-[12px] font-semibold ${leftStickyShadow}`}>科目</th>{sortedClasses.map((item) => <th key={item.id} className="min-w-[190px] border-b border-border bg-surface px-2 py-4 text-center text-[12px] font-semibold text-primary">{className(item)}</th>)}</tr></thead><tbody>{byOrder(subjects).map((subject) => {
-      const modes = (['odd', 'even'] as const).filter((mode) => sortedClasses.some((item) => valuesForClass(subjectRequirements, subject.id, item)[mode] > 0));
-      return <tr key={subject.id} className="group h-[46px] hover:bg-table-header"><th className={`sticky left-0 z-10 w-[160px] min-w-[160px] border-b border-table-divider bg-surface px-4 text-left font-normal group-hover:bg-table-header ${leftStickyShadow}`}><div className="flex items-center gap-2"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: getSubjectColor(subject.id, resolvedDark).foreground }}/><span className="min-w-0 flex-1 truncate font-semibold text-ink" title={subject.name}>{subject.name}</span>{modes.map((mode) => <span key={mode} className="shrink-0 rounded bg-selection px-1 text-[10px] font-normal text-ink-secondary">{modeLabels[mode]}</span>)}</div></th>{sortedClasses.map((schoolClass) => {
+    {view === 'class' && <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-surface">{!subjects.length ? <div className="p-8 text-center text-ink-secondary">请先设置科目节数。</div> : !shownClasses.length ? <div className="p-8 text-center text-ink-secondary">当前筛选范围内暂无班级。</div> : <div className="min-h-0 flex-1 overflow-auto" ref={classMatrixRef} onScroll={updateClassScrollShadow}><table className="w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + shownClasses.length * 190 }}><thead className="sticky top-0 z-20 bg-surface"><tr className="text-ink-secondary"><th className={`sticky left-0 top-0 z-30 w-[160px] min-w-[160px] border-b border-border bg-surface px-4 py-4 text-left text-[12px] font-semibold ${leftStickyShadow}`}>科目</th>{shownClasses.map((item) => { const gradeName = gradeById.get(item.gradeId)?.name; return <th key={item.id} className="min-w-[190px] border-b border-border bg-surface px-2 py-4 text-center text-[12px] font-semibold text-primary"><div className="inline-flex max-w-full items-center justify-center gap-1.5">{gradeName && <span className="shrink-0 rounded bg-selection px-1.5 py-0.5 text-[10.5px] font-medium text-ink-secondary">{gradeName}</span>}<span className="truncate" title={item.name}>{item.name}</span></div></th>; })}</tr></thead><tbody>{byOrder(subjects).map((subject) => {
+      const modes = (['odd', 'even'] as const).filter((mode) => shownClasses.some((item) => valuesForClass(subjectRequirements, subject.id, item)[mode] > 0));
+      return <tr key={subject.id} className="group h-[46px] hover:bg-table-header"><th className={`sticky left-0 z-10 w-[160px] min-w-[160px] border-b border-table-divider bg-surface px-4 text-left font-normal group-hover:bg-table-header ${leftStickyShadow}`}><div className="flex items-center gap-2"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: getSubjectColor(subject.id, resolvedDark).foreground }}/><span className="min-w-0 flex-1 truncate font-semibold text-ink" title={subject.name}>{subject.name}</span>{modes.map((mode) => <span key={mode} className="shrink-0 rounded bg-selection px-1 text-[10px] font-normal text-ink-secondary">{modeLabels[mode]}</span>)}</div></th>{shownClasses.map((schoolClass) => {
         const required = valuesForClass(subjectRequirements, subject.id, schoolClass);
         const rows = assignments.filter((item) => item.classId === schoolClass.id && item.subjectId === subject.id && item.teacherId);
         return <td key={schoolClass.id} className="h-[46px] min-w-[190px] border-b border-table-divider p-0 text-center"><AssignmentCellPopover className={className(schoolClass)} subjectName={subject.name} assignments={rows} teachers={teachers} required={required} error={error} disabled={!Object.values(required).some((value) => value > 0)} onSave={(drafts) => saveCell(schoolClass.id, subject.id, drafts)}/></td>;

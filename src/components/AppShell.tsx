@@ -35,8 +35,10 @@ import { SubjectsPage } from '@/features/subjects/SubjectsPage';
 import { TeachersPage } from '@/features/teachers/TeachersPage';
 import { TermPage } from '@/features/terms/TermPage';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
+import { seedDemoData } from '@/features/workbench/demoData';
 import { SCHEMA_VERSION } from '@/adapter/db/schemaV19';
 import { useAppStore } from '@/store/useAppStore';
+import { schoolRepository } from '@/repository/schoolRepository';
 import { PALETTE_OPTIONS } from '@/styles/subjectColors';
 import { AppearanceDialog } from './AppearanceDialog';
 import { SchoolNameDialog } from './SchoolNameDialog';
@@ -533,6 +535,11 @@ export const AppShell: React.FC = () => {
                   <WorkbenchPage
                     activeTerm={activeTerm}
                     onNavigate={setSelectedSection}
+                    onSeedDemoData={async () => {
+                      if (!activeTerm) return;
+                      await seedDemoData(schoolRepository, activeTerm.id);
+                      await useAppStore.getState().refreshTermData(activeTerm.id);
+                    }}
                     summary={summary}
                   />
                 ) : selectedSection === 'terms' ? (
