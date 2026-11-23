@@ -30,12 +30,31 @@ export function combinedLessonCandidates(assignments: TeacherAssignment[], teach
 
 export function remainingCourses(classes: ClassGroup[], subjects: Subject[], requirements: SubjectRequirement[], assignments: TeacherAssignment[]): UnassignedCourse[] {
   const courses: UnassignedCourse[] = [];
+  const defaults = new Map<string, Partial<Record<WeekMode, number>>>();
+  const overrides = new Map<string, Partial<Record<WeekMode, number>>>();
+  for (const row of requirements) {
+    const key = row.classId === null
+      ? `${row.subjectId}:${row.gradeId}`
+      : `${row.subjectId}:${row.classId}`;
+    const target = row.classId === null ? defaults : overrides;
+    const values = target.get(key) ?? {};
+    values[row.weekMode] = row.lessonCount;
+    target.set(key, values);
+  }
+  const assignedCounts = new Map<string, number>();
+  for (const item of assignments) {
+    if (!item.teacherId) continue;
+    const key = `${item.classId}:${item.subjectId}:${item.weekMode}`;
+    assignedCounts.set(key, (assignedCounts.get(key) ?? 0) + item.lessonCount);
+  }
   for (const schoolClass of classes) for (const subject of subjects) {
-    const values = valuesForClass(requirements, subject.id, schoolClass);
+    const values = {
+      ...defaults.get(`${subject.id}:${schoolClass.gradeId}`),
+      ...overrides.get(`${subject.id}:${schoolClass.id}`),
+    };
     for (const weekMode of ['weekly', 'odd', 'even'] as const) {
-      const required = values[weekMode];
-      const assigned = assignments.filter((item) => item.classId === schoolClass.id && item.subjectId === subject.id && item.weekMode === weekMode && item.teacherId)
-        .reduce((sum, item) => sum + item.lessonCount, 0);
+      const required = values[weekMode] ?? 0;
+      const assigned = assignedCounts.get(`${schoolClass.id}:${subject.id}:${weekMode}`) ?? 0;
       if (required > assigned) courses.push({ classId: schoolClass.id, subjectId: subject.id, weekMode, remainingLessons: required - assigned });
     }
   }

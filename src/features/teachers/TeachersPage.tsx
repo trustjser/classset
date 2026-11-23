@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, MoreHorizontal, Plus, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,7 +16,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { assignmentError, remainingCourses, teacherWeeklyLoad } from './teacherLogic';
 import { TeacherPresetPage } from './TeacherPresetPage';
 import { buildAssignmentsWorkbook, buildTeachersWorkbook, parseAssignmentsWorkbook, parseTeachersWorkbook } from './teacherWorkbook';
-import { AssignmentCellPopover, type AssignmentDraft } from './AssignmentCellPopover';
+import { AssignmentCellPopover, AssignmentEditorDialog, type AssignmentDraft } from './AssignmentCellPopover';
 import { CombinedLessonWorkspace } from './CombinedLessonWorkspace';
 import { valuesForClass } from '@/features/subjects/subjectLogic';
 import { getSubjectColor } from '@/styles/subjectColors';
@@ -36,6 +37,7 @@ export const TeachersPage: React.FC = () => {
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
   const [groups, setGroups] = useState<TeacherGroup[]>([]);
   const [members, setMembers] = useState<TeacherGroupMember[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -64,6 +66,20 @@ export const TeachersPage: React.FC = () => {
   const [scopeStageId, setScopeStageId] = useState<string>('all');
   const [scopeGradeId, setScopeGradeId] = useState<string>('all');
   const [visibleClassIds, setVisibleClassIds] = useState<string[] | null>(null);
+  const [dragOverTeacherId, setDragOverTeacherId] = useState<string | null>(null);
+  const [dragOverUnassigned, setDragOverUnassigned] = useState(false);
+  const [courseEditor, setCourseEditor] = useState<{ classId: string; subjectId: string; initialDrafts: AssignmentDraft[] } | null>(null);
+  const [activeDrag, setActiveDrag] = useState<
+    | { kind: 'course'; courseIndex: number; label: string; x: number; y: number }
+    | { kind: 'assignment'; assignmentId: string; label: string; x: number; y: number }
+    | null
+  >(null);
+  const pendingDragRef = useRef<
+    | { kind: 'course'; courseIndex: number; label: string; startX: number; startY: number }
+    | { kind: 'assignment'; assignmentId: string; label: string; startX: number; startY: number }
+    | null
+  >(null);
+  const suppressCourseClickRef = useRef(false);
   const courseExpansionInitialized = useRef(false);
 
   const reload = useCallback(async () => {
@@ -76,7 +92,14 @@ export const TeachersPage: React.FC = () => {
     useAppStore.setState({ teachers: nextTeachers });
     await refreshTermData(activeTermId);
   }, [activeTermId, refreshTermData]);
-  useEffect(() => { void reload().catch((cause) => setError(String(cause))); }, [reload]);
+  useEffect(() => {
+    let current = true;
+    setLoading(true);
+    void reload()
+      .catch((cause) => { if (current) setError(String(cause)); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [reload]);
   useEffect(() => {
     const sync = () => setPresetOwner(presetOwnerFromRoute());
     window.addEventListener('hashchange', sync);
@@ -91,9 +114,41 @@ export const TeachersPage: React.FC = () => {
   const classById = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
   const subjectById = useMemo(() => new Map(subjects.map((item) => [item.id, item])), [subjects]);
   const teacherById = useMemo(() => new Map(teachers.map((item) => [item.id, item])), [teachers]);
-  const className = (schoolClass: ClassGroup) => `${gradeById.get(schoolClass.gradeId)?.name ?? ''}${schoolClass.name}`;
+  const assignmentsByTeacher = useMemo(() => {
+    const grouped = new Map<string, TeacherAssignment[]>();
+    for (const assignment of assignments) {
+      if (!assignment.teacherId) continue;
+      const rows = grouped.get(assignment.teacherId);
+      if (rows) rows.push(assignment);
+      else grouped.set(assignment.teacherId, [assignment]);
+    }
+    return grouped;
+  }, [assignments]);
+  const assignmentsByClassSubject = useMemo(() => {
+    const grouped = new Map<string, TeacherAssignment[]>();
+    for (const assignment of assignments) {
+      const key = `${assignment.classId}:${assignment.subjectId}`;
+      const rows = grouped.get(key);
+      if (rows) rows.push(assignment);
+      else grouped.set(key, [assignment]);
+    }
+    return grouped;
+  }, [assignments]);
+  const className = (schoolClass: ClassGroup) => {
+    const gradeName = gradeById.get(schoolClass.gradeId)?.name ?? '';
+    return gradeName && !schoolClass.name.startsWith(gradeName) ? `${gradeName}${schoolClass.name}` : schoolClass.name;
+  };
   const teacherName = (teacher: Teacher) => `${teacher.name}${teacher.displayQualifier ? ` · ${teacher.displayQualifier}` : ''}`;
   const courses = useMemo(() => remainingCourses(classes, subjects, subjectRequirements, assignments), [classes, subjects, subjectRequirements, assignments]);
+  const coursesByClass = useMemo(() => {
+    const grouped = new Map<string, typeof courses>();
+    for (const course of courses) {
+      const rows = grouped.get(course.classId);
+      if (rows) rows.push(course);
+      else grouped.set(course.classId, [course]);
+    }
+    return grouped;
+  }, [courses]);
   useEffect(() => {
     if (!courseExpansionInitialized.current && courses.length) {
       setExpandedCourseClasses([courses[0].classId]);
@@ -194,19 +249,92 @@ export const TeachersPage: React.FC = () => {
     if (message) throw new Error(message);
     await schoolRepository.addTeacherAssignments(activeTermId, next); setBatchOpen(false);
   });
-  const assignCourse = (teacherId: string, course: (typeof courses)[number]) => void run(async () => {
+  const assignCourse = useCallback((teacherId: string, course: (typeof courses)[number]) => void run(async () => {
     if (!activeTermId) return;
     const item: TeacherAssignment = { id: newId(), termId: activeTermId, teacherId, classId: course.classId, subjectId: course.subjectId,
       weekMode: course.weekMode, lessonCount: course.remainingLessons, sortOrder: assignments.length, combinedLessonGroupId: null };
     const message = assignmentError([item], classes, subjects, subjectRequirements, assignments); if (message) throw new Error(message);
     await schoolRepository.addTeacherAssignments(activeTermId, [item]);
-  });
-  const transfer = (assignment: TeacherAssignment, teacherId: string | null) => void run(async () => {
+  }), [activeTermId, classes, subjects, subjectRequirements, assignments]);
+  const transfer = useCallback((assignment: TeacherAssignment, teacherId: string | null) => void run(async () => {
     if (!activeTermId) return;
     const all = assignments.filter((item) => item.classId === assignment.classId && item.subjectId === assignment.subjectId);
     await schoolRepository.replaceTeacherAssignments({ termId: activeTermId, classId: assignment.classId, subjectId: assignment.subjectId,
       assignments: all.map((item) => item.id === assignment.id ? { ...item, teacherId } : item) });
-  });
+  }), [activeTermId, assignments]);
+  const openCourseAssignmentEditor = (classId: string, subjectId: string, prefill?: { weekMode: WeekMode; lessonCount: number }) => {
+    const existing = assignments
+      .filter((item) => item.classId === classId && item.subjectId === subjectId && item.teacherId)
+      .map<AssignmentDraft>((item) => ({
+        id: item.id,
+        teacherId: item.teacherId ?? '',
+        weekMode: item.weekMode,
+        lessonCount: item.lessonCount,
+        combinedLessonGroupId: item.combinedLessonGroupId,
+      }));
+    const initialDrafts = prefill
+      ? [...existing, { teacherId: '', weekMode: prefill.weekMode, lessonCount: prefill.lessonCount }]
+      : existing;
+    setError('');
+    setCourseEditor({ classId, subjectId, initialDrafts });
+  };
+  useEffect(() => {
+    if (view !== 'teacher') return;
+    const hitTest = (x: number, y: number) => {
+      const el = document.elementFromPoint(x, y);
+      const teacherEl = el?.closest<HTMLElement>('[data-teacher-drop-id]');
+      if (teacherEl?.dataset.teacherDropId) return { teacherId: teacherEl.dataset.teacherDropId, unassigned: false };
+      if (el?.closest('[data-unassigned-drop]')) return { teacherId: null, unassigned: true };
+      return { teacherId: null, unassigned: false };
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      const pending = pendingDragRef.current;
+      if (!pending) return;
+      if (!suppressCourseClickRef.current) {
+        if (Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) < 6) return;
+        suppressCourseClickRef.current = true;
+      }
+      const nextDrag = pending.kind === 'course'
+        ? { kind: 'course' as const, courseIndex: pending.courseIndex, label: pending.label, x: event.clientX, y: event.clientY }
+        : { kind: 'assignment' as const, assignmentId: pending.assignmentId, label: pending.label, x: event.clientX, y: event.clientY };
+      setActiveDrag(nextDrag);
+      const hit = hitTest(event.clientX, event.clientY);
+      setDragOverTeacherId(hit.teacherId);
+      setDragOverUnassigned(pending.kind === 'assignment' && hit.unassigned);
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      const pending = pendingDragRef.current;
+      if (!pending) return;
+      pendingDragRef.current = null;
+      const didDrag = suppressCourseClickRef.current;
+      setActiveDrag(null);
+      setDragOverTeacherId(null);
+      setDragOverUnassigned(false);
+      if (didDrag) {
+        window.setTimeout(() => { suppressCourseClickRef.current = false; }, 0);
+        const hit = hitTest(event.clientX, event.clientY);
+        if (hit.teacherId) {
+          if (pending.kind === 'course') {
+            const course = courses[pending.courseIndex];
+            if (course) assignCourse(hit.teacherId, course);
+          } else {
+            const assignment = assignments.find((item) => item.id === pending.assignmentId);
+            if (assignment && assignment.teacherId !== hit.teacherId) transfer(assignment, hit.teacherId);
+          }
+        } else if (hit.unassigned && pending.kind === 'assignment' && activeTermId) {
+          void run(async () => { await schoolRepository.deleteTeacherAssignments(activeTermId, [pending.assignmentId]); });
+        }
+      }
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [view, courses, assignments, activeTermId, assignCourse, transfer]);
   const downloadWorkbook = async (kind: 'teachers' | 'assignments') => {
     try {
       const bytes = kind === 'teachers' ? await buildTeachersWorkbook(teachers, groups, members, subjects)
@@ -278,6 +406,14 @@ export const TeachersPage: React.FC = () => {
   const leftStickyShadow = `after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${classScrollLeft ? 'after:opacity-100' : 'after:opacity-0'}`;
   return <div className="flex h-[calc(100dvh-88px)] min-h-[420px] flex-col gap-4">
     <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-card border border-border bg-surface px-5 py-3">
+      {/* <strong className="mr-auto text-[16px] text-ink">教师任课</strong> */}
+      <Tabs value={view} onValueChange={(next) => setView(next as 'class' | 'teacher' | 'group')}>
+        <TabsList aria-label="教师任课视图">
+          <TabsTrigger value="class">班级</TabsTrigger>
+          <TabsTrigger value="teacher">教师</TabsTrigger>
+          <TabsTrigger value="group">分组</TabsTrigger>
+        </TabsList>
+      </Tabs>
       {view === 'class' && <Popover>
         <PopoverTrigger asChild>
           <button
@@ -349,7 +485,7 @@ export const TeachersPage: React.FC = () => {
       </Popover>}
       <div className="mr-auto" />
       {view === 'teacher' && <label className="relative w-48"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-ink-secondary"/><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按姓名查找教师" className="pl-8" /></label>}
-      <Button variant="ghost" className="text-primary" onClick={() => view === 'group' ? openGroup('new') : setBatchOpen(true)}><Plus className="mr-1.5 h-4 w-4"/>{view === 'group' ? '新增分组' : '添加任课'}</Button>
+      <Button variant="ghost" className="text-primary" onClick={() => { if (view === 'group') { openGroup('new'); } else { setBatchTeacherId(''); setBatchSubjectId(''); setBatchClassIds([]); setBatchMode('weekly'); setBatchCount(1); setBatchOpen(true); } }}><Plus className="mr-1.5 h-4 w-4"/>{view === 'group' ? '新增分组' : '添加任课'}</Button>
       <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost">更多 <ChevronDown className="ml-1 h-4 w-4"/></Button></DropdownMenu.Trigger>
         <DropdownMenu.Portal><DropdownMenu.Content align="end" className="z-50 min-w-44 rounded-control border border-border bg-surface p-1 shadow-md">
           <DropdownMenu.Item className={menuItem} onSelect={() => openPreset('teacher')}>教师预排</DropdownMenu.Item>
@@ -360,31 +496,118 @@ export const TeachersPage: React.FC = () => {
           <DropdownMenu.Item className={menuItem} onSelect={() => void downloadWorkbook('teachers')}>下载教师模板</DropdownMenu.Item>
           <DropdownMenu.Item className={menuItem} onSelect={() => void downloadWorkbook('assignments')}>下载任课模板</DropdownMenu.Item>
         </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
-      <Tabs value={view} onValueChange={(next) => setView(next as 'class' | 'teacher' | 'group')}>
-        <TabsList aria-label="教师任课视图">
-          <TabsTrigger value="class">班级</TabsTrigger>
-          <TabsTrigger value="teacher">教师</TabsTrigger>
-          <TabsTrigger value="group">分组</TabsTrigger>
-        </TabsList>
-      </Tabs>
     </div>
     <input ref={teacherFileRef} type="file" accept=".xlsx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importTeachers(file); event.target.value = ''; }}/>
     <input ref={assignmentFileRef} type="file" accept=".xlsx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importAssignments(file); event.target.value = ''; }}/>
     {error && <div role="alert" className="shrink-0 rounded-control bg-destructive-surface px-4 py-2 text-[13px] text-destructive">{error}</div>}
     {view === 'teacher' && (() => { const combined = new Map<string, TeacherAssignment[]>(); for (const row of assignments) if (row.combinedLessonGroupId) combined.set(row.combinedLessonGroupId, [...(combined.get(row.combinedLessonGroupId) ?? []), row]); const groupRows = [...combined.values()]; return groupRows.length ? <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-control border border-primary bg-selection px-4 py-2 text-[12px] text-ink"><Users className="h-4 w-4 text-primary"/><span>已设置 {groupRows.length} 组合班课 · 涉及 {groupRows.reduce((sum, rows) => sum + new Set(rows.map((item) => item.classId)).size, 0)} 个班级、{new Set(groupRows.map((rows) => rows[0].teacherId)).size} 位教师</span><Button variant="outline" size="sm" onClick={() => { setCombineTeacherId(null); setCombineTab('all'); setCombineOpen(true); }}>查看全部</Button></div> : null; })()}
-    {view === 'class' && <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-surface">{!subjects.length ? <div className="p-8 text-center text-ink-secondary">请先设置科目节数。</div> : !shownClasses.length ? <div className="p-8 text-center text-ink-secondary">当前筛选范围内暂无班级。</div> : <div className="min-h-0 flex-1 overflow-auto" ref={classMatrixRef} onScroll={updateClassScrollShadow}><table className="w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + shownClasses.length * 190 }}><thead className="sticky top-0 z-20 bg-surface"><tr className="text-ink-secondary"><th className={`sticky left-0 top-0 z-30 w-[160px] min-w-[160px] border-b border-border bg-surface px-4 py-4 text-left text-[12px] font-semibold ${leftStickyShadow}`}>科目</th>{shownClasses.map((item) => { const gradeName = gradeById.get(item.gradeId)?.name; return <th key={item.id} className="min-w-[190px] border-b border-border bg-surface px-2 py-4 text-center text-[12px] font-semibold text-primary"><div className="inline-flex max-w-full items-center justify-center gap-1.5">{gradeName && <span className="shrink-0 rounded bg-selection px-1.5 py-0.5 text-[10.5px] font-medium text-ink-secondary">{gradeName}</span>}<span className="truncate" title={item.name}>{item.name}</span></div></th>; })}</tr></thead><tbody>{byOrder(subjects).map((subject) => {
+    {loading && <div className="flex min-h-0 flex-1 items-center justify-center rounded-card bg-surface" role="status" aria-live="polite"><div className="flex items-center gap-3 text-[13px] text-ink-secondary"><span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary motion-reduce:animate-none" />正在加载教师任课数据…</div></div>}
+    {!loading && view === 'class' && <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-surface">{!subjects.length ? <div className="p-8 text-center text-ink-secondary">请先设置科目节数。</div> : !shownClasses.length ? <div className="p-8 text-center text-ink-secondary">当前筛选范围内暂无班级。</div> : <div className="min-h-0 flex-1 overflow-auto" ref={classMatrixRef} onScroll={updateClassScrollShadow}><table className="w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + shownClasses.length * 190 }}><thead className="sticky top-0 z-20 bg-surface"><tr className="text-ink-secondary"><th className={`sticky left-0 top-0 z-30 w-[160px] min-w-[160px] border-b border-border bg-surface px-4 py-4 text-left text-[12px] font-semibold ${leftStickyShadow}`}>科目</th>{shownClasses.map((item) => { const gradeName = gradeById.get(item.gradeId)?.name; return <th key={item.id} className="min-w-[190px] border-b border-border bg-surface px-2 py-4 text-center text-[12px] font-semibold text-primary"><div className="inline-flex max-w-full items-center justify-center gap-1.5">{gradeName && <span className="shrink-0 rounded bg-selection px-1.5 py-0.5 text-[10.5px] font-medium text-ink-secondary">{gradeName}</span>}<span className="truncate" title={item.name}>{item.name}</span></div></th>; })}</tr></thead><tbody>{byOrder(subjects).map((subject) => {
       const modes = (['odd', 'even'] as const).filter((mode) => shownClasses.some((item) => valuesForClass(subjectRequirements, subject.id, item)[mode] > 0));
       return <tr key={subject.id} className="group h-[46px] hover:bg-table-header"><th className={`sticky left-0 z-10 w-[160px] min-w-[160px] border-b border-table-divider bg-surface px-4 text-left font-normal group-hover:bg-table-header ${leftStickyShadow}`}><div className="flex items-center gap-2"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: getSubjectColor(subject.id, resolvedDark).foreground }}/><span className="min-w-0 flex-1 truncate font-semibold text-ink" title={subject.name}>{subject.name}</span>{modes.map((mode) => <span key={mode} className="shrink-0 rounded bg-selection px-1 text-[10px] font-normal text-ink-secondary">{modeLabels[mode]}</span>)}</div></th>{shownClasses.map((schoolClass) => {
         const required = valuesForClass(subjectRequirements, subject.id, schoolClass);
-        const rows = assignments.filter((item) => item.classId === schoolClass.id && item.subjectId === subject.id && item.teacherId);
+        const rows = (assignmentsByClassSubject.get(`${schoolClass.id}:${subject.id}`) ?? []).filter((item) => item.teacherId);
         return <td key={schoolClass.id} className="h-[46px] min-w-[190px] border-b border-table-divider p-0 text-center"><AssignmentCellPopover className={className(schoolClass)} subjectName={subject.name} assignments={rows} teachers={teachers} required={required} error={error} disabled={!Object.values(required).some((value) => value > 0)} onSave={(drafts) => saveCell(schoolClass.id, subject.id, drafts)}/></td>;
       })}</tr>;
     })}</tbody></table></div>}</div>}
-    {view === 'teacher' && <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]"><div className="min-h-0 overflow-y-auto rounded-card bg-surface"><div className="sticky top-0 z-10 grid grid-cols-[minmax(100px,1fr)_minmax(180px,2fr)_90px_48px] border-b border-border bg-surface px-5 py-3 text-[12px] text-ink-secondary"><span>教师</span><span>任课安排</span><span>周均节数</span><span>操作</span></div>{sortedTeachers.map((teacher) => {
-      const rows = assignments.filter((item) => item.teacherId === teacher.id); const expanded = expandedTeachers.includes(teacher.id);
-      return <div key={teacher.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const payload = event.dataTransfer.getData('text/plain'); if (payload.startsWith('assignment:')) { const assignment = assignments.find((item) => item.id === payload.slice(11)); if (assignment) transfer(assignment, teacher.id); } else if (payload.startsWith('course:')) { const course = courses[Number(payload.slice(7))]; if (course) assignCourse(teacher.id, course); } }} className="border-b border-table-divider last:border-0"><div className="grid grid-cols-[minmax(100px,1fr)_minmax(180px,2fr)_90px_48px] items-center gap-2 px-5 py-3 text-[13px] text-ink"><strong>{teacherName(teacher)}</strong><button className="text-left" onClick={() => setExpandedTeachers(expanded ? expandedTeachers.filter((id) => id !== teacher.id) : [...expandedTeachers, teacher.id])}>{rows.length} 项任课 · {[...new Set(rows.map((item) => subjectById.get(item.subjectId)?.name))].filter(Boolean).join('、') || '暂无任课'} {new Set(rows.map((item) => item.combinedLessonGroupId).filter(Boolean)).size > 0 && `· ${new Set(rows.map((item) => item.combinedLessonGroupId).filter(Boolean)).size} 组合班`} <ChevronDown className={`inline h-3.5 w-3.5 ${expanded ? 'rotate-180' : ''}`}/></button><span>{teacherWeeklyLoad(rows)} 节</span><DropdownMenu.Root><DropdownMenu.Trigger asChild><button aria-label={`${teacher.name}操作`}><MoreHorizontal className="h-5 w-5"/></button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="z-50 min-w-36 rounded-control border border-border bg-surface p-1 shadow-md"><DropdownMenu.Item className={menuItem} onSelect={() => openTeacher(teacher)}>编辑教师</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => { setBatchTeacherId(teacher.id); setBatchOpen(true); }}>添加任课</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => { setCombineTeacherId(teacher.id); setCombineTab('create'); setCombineOpen(true); }}>合班</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => openPreset('teacher', teacher.id)}>教师预排</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => void run(async () => { if (window.confirm(`删除${teacher.name}？全部学期的任课将退回未分配。`)) await schoolRepository.deleteTeacher(teacher.id); })}>删除教师</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root></div>{expanded && <div className="space-y-1 bg-table-header px-5 py-2">{rows.map((item) => <div key={item.id} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', `assignment:${item.id}`)} className="flex flex-wrap items-center gap-2 rounded-control bg-surface px-3 py-2 text-[12px] text-ink"><span>{classById.get(item.classId) ? className(classById.get(item.classId)!) : '未知班级'} · {subjectById.get(item.subjectId)?.name ?? '未知科目'} · {modeLabels[item.weekMode]} {item.lessonCount} 节{item.combinedLessonGroupId ? ' · 合班' : ''}</span><div className="ml-auto w-40"><SearchableSelect ariaLabel="调整任课教师" value={item.teacherId ?? '__unassigned__'} onValueChange={(value) => transfer(item, value === '__unassigned__' ? null : value)} options={[{ value: '__unassigned__', label: '未分配' }, ...teacherOptions]} placeholder="未分配" searchPlaceholder="搜索教师…" triggerClassName="h-8" /></div><button className="text-destructive" onClick={() => void run(async () => { if (window.confirm('删除这项任课？')) await schoolRepository.deleteTeacherAssignments(activeTermId, [item.id]); })}>删除</button></div>)}</div>}</div>;
-    })}{!sortedTeachers.length && <div className="p-8 text-center text-ink-secondary">还没有教师。点击“更多 → 新增教师”开始。</div>}</div><aside className="flex min-h-0 flex-col rounded-card bg-surface p-4"><div className="mb-3 flex shrink-0 items-center justify-between text-[13px] font-semibold text-ink"><span>未分配课程</span><span className="text-ink-secondary">{courses.length} 门</span></div><div className="min-h-0 flex-1 divide-y divide-table-divider overflow-y-auto">{sortedClasses.map((schoolClass) => { const own = courses.filter((course) => course.classId === schoolClass.id); if (!own.length) return null; const expanded = expandedCourseClasses.includes(schoolClass.id); return <div key={schoolClass.id}><button className="flex w-full items-center justify-between py-2 text-left text-[12px] text-ink" onClick={() => setExpandedCourseClasses(expanded ? expandedCourseClasses.filter((id) => id !== schoolClass.id) : [...expandedCourseClasses, schoolClass.id])}><strong>{className(schoolClass)}</strong><span className="flex items-center gap-1 text-ink-secondary">{own.length} 门 <ChevronDown className={`h-3.5 w-3.5 ${expanded ? 'rotate-180' : ''}`}/></span></button>{expanded && <div className="space-y-1 pb-2">{own.map((course) => <div key={`${course.subjectId}-${course.weekMode}`} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', `course:${courses.indexOf(course)}`)} className="rounded-control px-2 py-1.5 text-[12px] text-ink-secondary hover:bg-selection"><div className="flex items-center justify-between gap-2"><span>{subjectById.get(course.subjectId)?.name}（{modeLabels[course.weekMode]}） · {course.remainingLessons} 节</span><span className="cursor-grab text-ink-secondary">⠿</span></div><div className="mt-1"><SearchableSelect ariaLabel="分配未分配课程" value="" onValueChange={(value) => value && assignCourse(value, course)} options={teacherOptions} placeholder="分配给教师…" searchPlaceholder="搜索教师…" triggerClassName="h-8 w-full" /></div></div>)}</div>}</div>; })}{!courses.length && <div className="py-12 text-center text-[12px] text-ink-secondary">课程已全部分配</div>}</div></aside></div>}
-    {view === 'group' && <div className="min-h-0 flex-1 overflow-y-auto rounded-card bg-surface"><div className="sticky top-0 z-10 grid grid-cols-[minmax(160px,2fr)_minmax(150px,1fr)_auto] border-b border-border bg-surface px-5 py-3 text-[12px] text-ink-secondary"><span>分组信息</span><span>分组成员</span><span>操作</span></div>{byOrder(groups).map((group) => { const groupMembers = members.filter((item) => item.groupId === group.id); return <div key={group.id} className="grid grid-cols-[minmax(160px,2fr)_minmax(150px,1fr)_auto] items-start gap-4 border-b border-table-divider px-5 py-5 text-[13px]"><div><strong className="text-ink">{group.name}</strong><p className="mt-1 text-ink-secondary">{group.description || '暂无说明'}</p></div><div><strong>{groupMembers.length} 名教师</strong><p className="mt-1 text-ink-secondary">{groupMembers.map((item) => teacherById.get(item.teacherId)?.name).filter(Boolean).join('、') || '尚未添加成员'}</p></div><div className="flex flex-wrap items-center gap-3"><button onClick={() => openMembers(group)} className="inline-flex items-center gap-1 text-primary"><Users className="h-4 w-4"/>维护成员</button><button onClick={() => openPreset('group', group.id)} className="text-primary">分组预排</button><DropdownMenu.Root><DropdownMenu.Trigger asChild><button aria-label={`${group.name}操作`}><MoreHorizontal className="h-5 w-5"/></button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="z-50 rounded-control border border-border bg-surface p-1 shadow-md"><DropdownMenu.Item className={menuItem} onSelect={() => openGroup(group)}>编辑分组</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => void run(async () => { if (window.confirm(`删除「${group.name}」及成员和预排规则？`)) await schoolRepository.deleteTeacherGroup(group.id); })}>删除分组</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root></div></div>; })}{!groups.length && <div className="p-8 text-center text-ink-secondary">还没有教师分组。点击“新增分组”开始。</div>}</div>}
+    {!loading && view === 'teacher' && <div className={`grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px] ${activeDrag ? 'select-none' : ''}`}><div className="min-h-0 overflow-y-auto rounded-card bg-surface"><div className="sticky top-0 z-10 grid grid-cols-[minmax(120px,1fr)_minmax(240px,2.2fr)_90px_48px] border-b border-border bg-surface px-5 py-3 text-[12px] text-ink-secondary"><span>教师</span><span>任课安排</span><span>周均节数</span><span>操作</span></div>{sortedTeachers.map((teacher) => {
+      const rows = assignmentsByTeacher.get(teacher.id) ?? [];
+      const expanded = expandedTeachers.includes(teacher.id);
+      const combinedCount = new Set(rows.map((item) => item.combinedLessonGroupId).filter(Boolean)).size;
+      const isDragOver = dragOverTeacherId === teacher.id;
+      return <div key={teacher.id}
+        data-teacher-drop-id={teacher.id}
+        className={`border-b border-table-divider transition-colors last:border-0 ${isDragOver ? 'bg-selection' : ''}`}>
+        <div className="grid grid-cols-[minmax(120px,1fr)_minmax(240px,2.2fr)_90px_48px] items-start gap-2 px-5 py-3.5 text-[13px] text-ink">
+          <strong className="pt-0.5 font-semibold text-ink">{teacherName(teacher)}</strong>
+          <div className="min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                {rows.length > 0 ? <>
+                  <div className="font-semibold text-ink">{rows.length} 项任课</div>
+                  <div className="mt-0.5 truncate text-[12px] text-ink-secondary">{[...new Set(rows.map((item) => subjectById.get(item.subjectId)?.name))].filter(Boolean).join('、')}{combinedCount > 0 ? ` · ${combinedCount} 组合班` : ''}</div>
+                </> : <div className="pt-0.5 text-ink-secondary">暂无任课</div>}
+              </div>
+              {rows.length > 0 && <button type="button" onClick={() => setExpandedTeachers(expanded ? expandedTeachers.filter((id) => id !== teacher.id) : [...expandedTeachers, teacher.id])} className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-ink-secondary transition-colors hover:bg-table-header hover:text-ink">
+                <span>{expanded ? '收起' : '展开'}</span>
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+              </button>}
+            </div>
+            {expanded && rows.length > 0 && <div className="mt-2.5 space-y-1 border-t border-table-divider pt-2.5">{rows.map((item) => {
+              const subjectLabel = subjectById.get(item.subjectId)?.name ?? '未知科目';
+              const classLabel = classById.get(item.classId) ? className(classById.get(item.classId)!) : '未知班级';
+              const itemText = `${subjectLabel} · ${classLabel} · ${item.lessonCount} 节${item.weekMode !== 'weekly' ? `（${modeLabels[item.weekMode]}）` : ''}${item.combinedLessonGroupId ? ' · 合班' : ''}`;
+              return <div key={item.id}
+                role="button"
+                tabIndex={0}
+                onPointerDown={(event) => {
+                  if (event.button !== 0 || (event.target instanceof Element && event.target.closest('button'))) return;
+                  pendingDragRef.current = { kind: 'assignment', assignmentId: item.id, label: itemText, startX: event.clientX, startY: event.clientY };
+                }}
+                onClick={() => {
+                  if (suppressCourseClickRef.current) return;
+                  openCourseAssignmentEditor(item.classId, item.subjectId);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openCourseAssignmentEditor(item.classId, item.subjectId);
+                  }
+                }}
+                title="点击重新分配任课，或拖拽至其他教师/未分配课程列表"
+                className="group/item flex cursor-grab items-center gap-2 rounded-md px-2 py-1 text-[12.5px] text-ink transition-colors hover:bg-selection active:cursor-grabbing">
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: getSubjectColor(item.subjectId, resolvedDark).foreground }} />
+                <span className="min-w-0 flex-1 truncate">{itemText}</span>
+                <button type="button" aria-label="移出任课" onClick={(event) => { event.stopPropagation(); void run(async () => { await schoolRepository.deleteTeacherAssignments(activeTermId, [item.id]); }); }} className="rounded px-1 text-[11px] text-ink-secondary opacity-0 transition-opacity hover:text-destructive group-hover/item:opacity-100 focus:opacity-100">移出</button>
+              </div>;
+            })}</div>}
+          </div>
+          <span className="pt-0.5 tabular-nums font-medium text-ink">{teacherWeeklyLoad(rows)} 节</span>
+          <div className="pt-0.5">
+            <DropdownMenu.Root><DropdownMenu.Trigger asChild><button aria-label={`${teacher.name}操作`}><MoreHorizontal className="h-5 w-5"/></button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="z-50 min-w-36 rounded-control border border-border bg-surface p-1 shadow-md"><DropdownMenu.Item className={menuItem} onSelect={() => openTeacher(teacher)}>编辑教师</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => { setBatchTeacherId(teacher.id); setBatchSubjectId(''); setBatchClassIds([]); setBatchMode('weekly'); setBatchCount(1); setBatchOpen(true); }}>添加任课</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => { setCombineTeacherId(teacher.id); setCombineTab('create'); setCombineOpen(true); }}>合班</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => openPreset('teacher', teacher.id)}>教师预排</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => void run(async () => { if (window.confirm(`删除${teacher.name}？全部学期的任课将退回未分配。`)) await schoolRepository.deleteTeacher(teacher.id); })}>删除教师</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+          </div>
+        </div>
+      </div>;
+    })}{!sortedTeachers.length && <div className="p-8 text-center text-ink-secondary">还没有教师。点击“更多 → 新增教师”开始。</div>}</div>
+    <aside
+      data-unassigned-drop="true"
+      className={`flex min-h-0 flex-col rounded-card border bg-surface p-4 transition-colors ${dragOverUnassigned ? 'border-primary bg-selection' : 'border-transparent'}`}
+    >
+      <div className="mb-3 flex shrink-0 items-center justify-between">
+        <span className="text-[14px] font-semibold text-ink">未分配课程</span>
+        <span className="rounded-full bg-warning-surface px-2 py-0.5 text-[11.5px] font-medium text-warning tabular-nums">{courses.length} 门</span>
+      </div>
+      <div className="min-h-0 flex-1 divide-y divide-table-divider overflow-y-auto">{sortedClasses.map((schoolClass) => {
+        const own = coursesByClass.get(schoolClass.id) ?? [];
+        if (!own.length) return null;
+        const expanded = expandedCourseClasses.includes(schoolClass.id);
+        return <div key={schoolClass.id} className="py-1 first:pt-0">
+          <button type="button" className="flex w-full items-center justify-between py-2 text-left text-[13px] text-ink" onClick={() => setExpandedCourseClasses(expanded ? expandedCourseClasses.filter((id) => id !== schoolClass.id) : [...expandedCourseClasses, schoolClass.id])}>
+            <strong>{className(schoolClass)}</strong>
+            <span className="flex items-center gap-1 text-[12px] text-ink-secondary">{own.length} 门 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} /></span>
+          </button>
+          {expanded && <div className="space-y-0.5 pb-2">{own.map((course) => {
+            const label = `${subjectById.get(course.subjectId)?.name ?? ''}${course.weekMode !== 'weekly' ? `（${modeLabels[course.weekMode]}）` : ''} · ${course.remainingLessons} 节`;
+            const courseIndex = courses.indexOf(course);
+            return <button key={`${course.subjectId}-${course.weekMode}`} type="button"
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                pendingDragRef.current = { kind: 'course', courseIndex, label: `${className(schoolClass)} · ${label}`, startX: event.clientX, startY: event.clientY };
+              }}
+              onClick={() => {
+                if (suppressCourseClickRef.current) return;
+                openCourseAssignmentEditor(course.classId, course.subjectId, { weekMode: course.weekMode, lessonCount: course.remainingLessons });
+              }}
+              title="点击分配任课教师，或拖拽至左侧教师行"
+              className="flex w-full cursor-grab items-center justify-between gap-2 rounded-control px-2.5 py-2 text-left text-[12.5px] text-ink transition-colors hover:bg-selection active:cursor-grabbing">
+              <span className="truncate">{label}</span>
+              <span className="shrink-0 text-ink-secondary">⠿</span>
+            </button>;
+          })}</div>}
+        </div>;
+      })}{!courses.length && <div className="py-12 text-center text-[12px] text-ink-secondary">课程已全部分配</div>}</div>
+    </aside></div>}
+    {!loading && view === 'group' && <div className="min-h-0 flex-1 overflow-y-auto rounded-card bg-surface"><div className="sticky top-0 z-10 grid grid-cols-[minmax(160px,2fr)_minmax(150px,1fr)_auto] border-b border-border bg-surface px-5 py-3 text-[12px] text-ink-secondary"><span>分组信息</span><span>分组成员</span><span>操作</span></div>{byOrder(groups).map((group) => { const groupMembers = members.filter((item) => item.groupId === group.id); return <div key={group.id} className="grid grid-cols-[minmax(160px,2fr)_minmax(150px,1fr)_auto] items-start gap-4 border-b border-table-divider px-5 py-5 text-[13px]"><div><strong className="text-ink">{group.name}</strong><p className="mt-1 text-ink-secondary">{group.description || '暂无说明'}</p></div><div><strong>{groupMembers.length} 名教师</strong><p className="mt-1 text-ink-secondary">{groupMembers.map((item) => teacherById.get(item.teacherId)?.name).filter(Boolean).join('、') || '尚未添加成员'}</p></div><div className="flex flex-wrap items-center gap-3"><button onClick={() => openMembers(group)} className="inline-flex items-center gap-1 text-primary"><Users className="h-4 w-4"/>维护成员</button><button onClick={() => openPreset('group', group.id)} className="text-primary">分组预排</button><DropdownMenu.Root><DropdownMenu.Trigger asChild><button aria-label={`${group.name}操作`}><MoreHorizontal className="h-5 w-5"/></button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="z-50 rounded-control border border-border bg-surface p-1 shadow-md"><DropdownMenu.Item className={menuItem} onSelect={() => openGroup(group)}>编辑分组</DropdownMenu.Item><DropdownMenu.Item className={menuItem} onSelect={() => void run(async () => { if (window.confirm(`删除「${group.name}」及成员和预排规则？`)) await schoolRepository.deleteTeacherGroup(group.id); })}>删除分组</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root></div></div>; })}{!groups.length && <div className="p-8 text-center text-ink-secondary">还没有教师分组。点击“新增分组”开始。</div>}</div>}
 
     <Dialog open={teacherEditor !== null} onOpenChange={(open) => !open && setTeacherEditor(null)}><DialogContent><DialogHeader><DialogTitle>{teacherEditor === 'new' ? '新增教师' : '编辑教师'}</DialogTitle><DialogDescription>教师在不同学期共用；科目标签用于筛选。</DialogDescription></DialogHeader><div className="space-y-3 text-[13px] text-ink"><label className="block">姓名<Input value={teacherForm.name} onChange={(event) => setTeacherForm({ ...teacherForm, name: event.target.value })} autoFocus /></label><label className="block">简称<Input value={teacherForm.shortName} onChange={(event) => setTeacherForm({ ...teacherForm, shortName: event.target.value })}/></label><label className="block">区分说明<Input value={teacherForm.displayQualifier} onChange={(event) => setTeacherForm({ ...teacherForm, displayQualifier: event.target.value })}/></label><div>任教学科<div className="mt-2 flex max-h-40 flex-wrap gap-2 overflow-auto">{subjects.map((subject) => <label key={subject.id} className="inline-flex cursor-pointer items-center gap-2 rounded-control border border-border px-2.5 py-1.5 hover:bg-selection"><Checkbox checked={teacherForm.subjectIds.includes(subject.id)} onCheckedChange={(checked) => setTeacherForm({ ...teacherForm, subjectIds: checked === true ? [...teacherForm.subjectIds, subject.id] : teacherForm.subjectIds.filter((id) => id !== subject.id) })}/><span>{subject.name}</span></label>)}</div></div></div><DialogFooter><Button variant="outline" onClick={() => setTeacherEditor(null)}>取消</Button><Button onClick={saveTeacher} disabled={busy}>保存教师</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={groupEditor !== null} onOpenChange={(open) => !open && setGroupEditor(null)}><DialogContent><DialogHeader><DialogTitle>{groupEditor === 'new' ? '新增分组' : '编辑分组'}</DialogTitle></DialogHeader><div className="space-y-3 text-[13px]"><label className="block">分组名称<Input value={groupForm.name} onChange={(event) => setGroupForm({ ...groupForm, name: event.target.value })} autoFocus/></label><label className="block">说明<Input value={groupForm.description} onChange={(event) => setGroupForm({ ...groupForm, description: event.target.value })}/></label></div><DialogFooter><Button variant="outline" onClick={() => setGroupEditor(null)}>取消</Button><Button onClick={saveGroup} disabled={busy}>保存分组</Button></DialogFooter></DialogContent></Dialog>
@@ -393,5 +616,32 @@ export const TeachersPage: React.FC = () => {
     <CombinedLessonWorkspace open={combineOpen} onOpenChange={setCombineOpen} initialTeacherId={combineTeacherId} initialTab={combineTab} error={error} assignments={assignments} teachers={teachers} classes={classes} subjects={subjects}
       onCombine={async (ids) => { try { await schoolRepository.setCombinedTeacherAssignments(activeTermId, ids, newId()); await reload(); return true; } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); return false; } }}
       onSplit={async (groupId) => { try { const ids = assignments.filter((item) => item.combinedLessonGroupId === groupId).map((item) => item.id); await schoolRepository.setCombinedTeacherAssignments(activeTermId, ids, null); await reload(); return true; } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); return false; } }}/>
+    {courseEditor && (() => {
+      const targetClass = classById.get(courseEditor.classId);
+      const targetSubject = subjectById.get(courseEditor.subjectId);
+      if (!targetClass || !targetSubject) return null;
+      return (
+        <AssignmentEditorDialog
+          open
+          onOpenChange={(open) => { if (!open) setCourseEditor(null); }}
+          className={className(targetClass)}
+          subjectName={targetSubject.name}
+          initialDrafts={courseEditor.initialDrafts}
+          teachers={teachers}
+          required={valuesForClass(subjectRequirements, targetSubject.id, targetClass)}
+          error={error}
+          onSave={(drafts) => saveCell(courseEditor.classId, courseEditor.subjectId, drafts)}
+        />
+      );
+    })()}
+    {activeDrag && createPortal(
+      <div
+        className="pointer-events-none fixed z-[120] rounded-control border border-primary bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink shadow-lg"
+        style={{ left: activeDrag.x + 12, top: activeDrag.y + 12 }}
+      >
+        {activeDrag.label}
+      </div>,
+      document.body,
+    )}
   </div>;
 };
