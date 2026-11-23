@@ -98,6 +98,7 @@ interface AppState {
   setPalette: (palette: AppPalette) => void;
   setMode: (mode: AppAppearanceMode) => void;
   cycleThemeMode: () => void;
+  setSidebarExpanded: (expanded: boolean) => void;
   toggleSidebar: () => void;
   setSelectedSection: (section: AppSection) => void;
   setSubjectDraftDirty: (dirty: boolean) => void;
@@ -252,7 +253,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   palette: initialAppearance.palette,
   mode: initialAppearance.mode,
   resolvedDark: initialDark,
-  sidebarExpanded: true,
+  sidebarExpanded: typeof window !== 'undefined' ? window.innerWidth >= 1080 : true,
   selectedSection: getSectionFromLocation(),
   schoolName: '',
   activeTermId: null,
@@ -381,6 +382,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().setMode(next);
   },
 
+  setSidebarExpanded: (expanded) => set({ sidebarExpanded: expanded }),
   toggleSidebar: () => set((s) => ({ sidebarExpanded: !s.sidebarExpanded })),
 
   setSelectedSection: (section) => {

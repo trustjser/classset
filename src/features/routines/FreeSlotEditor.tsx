@@ -1031,12 +1031,12 @@ export function FreeSlotEditor({
                                     className={
                                       'flex h-10 w-full items-center justify-center rounded-md border px-2 text-center text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
                                       (isInSelectionRange(rowIndex, colIndex)
-                                        ? 'border-primary bg-selection text-primary ring-2 ring-primary/45'
+                                        ? 'border-primary bg-selection text-primary ring-1 ring-primary'
                                         : marker
                                           ? marker.label === '不上课'
-                                            ? 'border-border bg-table-header text-ink-secondary'
-                                            : 'border-destructive/20 bg-destructive-surface text-destructive'
-                                          : 'border-border/80 bg-surface text-ink hover:border-primary/35 hover:bg-selection/45')
+                                            ? 'border-border bg-table-header text-ink-secondary hover:border-control-border hover:bg-selection'
+                                            : 'border-table-divider bg-destructive-surface text-destructive hover:border-destructive hover:brightness-95'
+                                          : 'border-border bg-surface text-ink hover:border-primary hover:bg-selection')
                                     }
                                     data-col-index={colIndex}
                                     data-matrix-cell="true"

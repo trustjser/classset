@@ -41,6 +41,7 @@ import {
   TeacherAssignment,
   TeacherGroup,
   TeacherGroupMember,
+  TeacherGroupPreset,
   TeacherPreset,
   TemporaryCourseAdjustment,
   WorkbenchSummary,
@@ -72,6 +73,7 @@ interface FallbackStore {
   teacherGroupMembers: TeacherGroupMember[];
   teacherAssignments: TeacherAssignment[];
   teacherPresets: TeacherPreset[];
+  teacherGroupPresets: TeacherGroupPreset[];
   publicRooms: PublicRoom[];
   scheduleItems: ScheduleItem[];
   scheduleLocks: ScheduleLock[];
@@ -294,6 +296,9 @@ function deleteFallbackScopeReferences(
       constraint.scopeType !== scopeType || !scopeIds.has(constraint.scopeId)
   );
   store.teacherPresets = store.teacherPresets.filter(
+    (preset) => preset.scopeType !== scopeType || !scopeIds.has(preset.scopeId)
+  );
+  store.teacherGroupPresets = store.teacherGroupPresets.filter(
     (preset) => preset.scopeType !== scopeType || !scopeIds.has(preset.scopeId)
   );
   if (scopeType === 'class') {
@@ -593,6 +598,16 @@ function cloneFallbackTerm(
       scopeId,
     });
   }
+  for (const preset of [...store.teacherGroupPresets]) {
+    const groupId = groupIds.get(preset.groupId);
+    if (!groupId) continue;
+    const stageId = stageIds.get(preset.stageId);
+    const periodTypeId = periodIds.get(preset.periodTypeId);
+    const scopeId = mapScopeId(preset.scopeType, preset.scopeId, targetTerm.id, stageIds, gradeIds, classIds);
+    if (stageId && periodTypeId && scopeId) {
+      store.teacherGroupPresets.push({ ...preset, id: copyId(), groupId, stageId, periodTypeId, scopeId });
+    }
+  }
 
   store.teachers = store.teachers.map((teacher) => {
     const subjectIdsForTeacher = (teacher.subjectIds ?? [])
@@ -641,6 +656,7 @@ function createEmptyFallbackStore(): FallbackStore {
     teacherGroupMembers: [],
     teacherAssignments: [],
     teacherPresets: [],
+    teacherGroupPresets: [],
     publicRooms: [],
     scheduleItems: [],
     scheduleLocks: [],
@@ -2584,12 +2600,22 @@ export class SchoolRepository {
         display_qualifier: string;
         sort_order: number;
       }>('SELECT * FROM teachers ORDER BY sort_order ASC');
+      const tags = await this.adapter.select<{ teacher_id: string; subject_id: string }>(
+        'SELECT teacher_id, subject_id FROM teacher_subject_tags'
+      );
+      const subjectIdsByTeacher = new Map<string, string[]>();
+      for (const tag of tags) {
+        const ids = subjectIdsByTeacher.get(tag.teacher_id) ?? [];
+        ids.push(tag.subject_id);
+        subjectIdsByTeacher.set(tag.teacher_id, ids);
+      }
       return rows.map((r) => ({
         id: r.id,
         name: r.name,
         shortName: r.short_name,
         displayQualifier: r.display_qualifier,
         sortOrder: r.sort_order,
+        subjectIds: subjectIdsByTeacher.get(r.id) ?? [],
       }));
     }
     return this.loadFallback().teachers;
@@ -2609,12 +2635,96 @@ export class SchoolRepository {
                sort_order = excluded.sort_order`,
             [tch.id, tch.name, tch.shortName, tch.displayQualifier, tch.sortOrder]
           );
+          if (tch.subjectIds !== undefined) {
+            await tx.execute('DELETE FROM teacher_subject_tags WHERE teacher_id = ?', [tch.id]);
+            for (const subjectId of new Set(tch.subjectIds)) {
+              await tx.execute(
+                'INSERT INTO teacher_subject_tags (teacher_id, subject_id) VALUES (?, ?)',
+                [tch.id, subjectId]
+              );
+            }
+          }
         }
       });
       return;
     }
     const store = this.loadFallback();
-    store.teachers = teachers;
+    store.teachers = [...store.teachers.filter((item) => !teachers.some((next) => next.id === item.id)), ...teachers];
+    this.saveFallback(store);
+  }
+
+  async deleteTeacher(teacherId: string): Promise<void> {
+    if (this.useSqlEngine) {
+      await this.adapter.execute('DELETE FROM teachers WHERE id = ?', [teacherId]);
+      return;
+    }
+    const store = this.loadFallback();
+    store.teachers = store.teachers.filter((item) => item.id !== teacherId);
+    store.teacherAssignments = store.teacherAssignments.map((item) => item.teacherId === teacherId ? { ...item, teacherId: null } : item);
+    store.teacherGroupMembers = store.teacherGroupMembers.filter((item) => item.teacherId !== teacherId);
+    store.teacherPresets = store.teacherPresets.filter((item) => item.teacherId !== teacherId);
+    this.saveFallback(store);
+  }
+
+  async loadTeacherGroups(termId: string): Promise<TeacherGroup[]> {
+    if (this.useSqlEngine) {
+      const rows = await this.adapter.select<{ id: string; term_id: string; name: string; description: string; sort_order: number }>(
+        'SELECT * FROM teacher_groups WHERE term_id = ? ORDER BY sort_order, name', [termId]
+      );
+      return rows.map((row) => ({ id: row.id, termId: row.term_id, name: row.name, description: row.description, sortOrder: row.sort_order }));
+    }
+    return this.loadFallback().teacherGroups.filter((group) => group.termId === termId);
+  }
+
+  async saveTeacherGroup(group: TeacherGroup): Promise<void> {
+    if (this.useSqlEngine) {
+      await this.adapter.execute(
+        `INSERT INTO teacher_groups (id, term_id, name, description, sort_order) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, sort_order = excluded.sort_order`,
+        [group.id, group.termId, group.name, group.description, group.sortOrder]
+      );
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherGroups = [...store.teacherGroups.filter((item) => item.id !== group.id), group];
+    this.saveFallback(store);
+  }
+
+  async deleteTeacherGroup(groupId: string): Promise<void> {
+    if (this.useSqlEngine) {
+      await this.adapter.execute('DELETE FROM teacher_groups WHERE id = ?', [groupId]);
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherGroups = store.teacherGroups.filter((item) => item.id !== groupId);
+    store.teacherGroupMembers = store.teacherGroupMembers.filter((item) => item.groupId !== groupId);
+    store.teacherGroupPresets = store.teacherGroupPresets.filter((item) => item.groupId !== groupId);
+    this.saveFallback(store);
+  }
+
+  async loadTeacherGroupMembers(termId: string): Promise<TeacherGroupMember[]> {
+    if (this.useSqlEngine) {
+      const rows = await this.adapter.select<{ group_id: string; teacher_id: string }>(
+        'SELECT m.group_id, m.teacher_id FROM teacher_group_members m JOIN teacher_groups g ON g.id = m.group_id WHERE g.term_id = ?', [termId]
+      );
+      return rows.map((row) => ({ groupId: row.group_id, teacherId: row.teacher_id }));
+    }
+    const groups = new Set(this.loadFallback().teacherGroups.filter((item) => item.termId === termId).map((item) => item.id));
+    return this.loadFallback().teacherGroupMembers.filter((item) => groups.has(item.groupId));
+  }
+
+  async replaceTeacherGroupMembers(groupId: string, members: TeacherGroupMember[]): Promise<void> {
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await tx.execute('DELETE FROM teacher_group_members WHERE group_id = ?', [groupId]);
+        for (const teacherId of new Set(members.map((item) => item.teacherId))) {
+          await tx.execute('INSERT INTO teacher_group_members (group_id, teacher_id) VALUES (?, ?)', [groupId, teacherId]);
+        }
+      });
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherGroupMembers = [...store.teacherGroupMembers.filter((item) => item.groupId !== groupId), ...members];
     this.saveFallback(store);
   }
 
@@ -2646,22 +2756,68 @@ export class SchoolRepository {
     return this.loadFallback().teacherAssignments.filter((a) => a.termId === termId);
   }
 
+  private async validateTeacherAssignmentCapacity(termId: string, proposed: TeacherAssignment[], retained: TeacherAssignment[]): Promise<void> {
+    if (!proposed.length) return;
+    const [classes, subjects, teachers, requirements] = await Promise.all([
+      this.loadClassesForTerm(termId), this.loadSubjects(termId), this.loadTeachers(), this.loadSubjectRequirements(termId),
+    ]);
+    const classById = new Map(classes.map((item) => [item.id, item]));
+    const subjectIds = new Set(subjects.map((item) => item.id));
+    const teacherIds = new Set(teachers.map((item) => item.id));
+    const ids = new Set<string>();
+    for (const item of proposed) {
+      if (item.termId !== termId || !classById.has(item.classId) || !subjectIds.has(item.subjectId) ||
+        item.teacherId && !teacherIds.has(item.teacherId) || !Number.isInteger(item.lessonCount) || item.lessonCount <= 0 || ids.has(item.id)) {
+        throw new Error('任课分配记录、教师、科目或节数无效');
+      }
+      ids.add(item.id);
+    }
+    for (const item of proposed.filter((row) => !!row.teacherId)) {
+      const schoolClass = classById.get(item.classId)!;
+      const specific = requirements.filter((row) => row.classId === item.classId && row.subjectId === item.subjectId);
+      const scoped = specific.length ? specific : requirements.filter((row) => row.classId === null && row.gradeId === schoolClass.gradeId && row.subjectId === item.subjectId);
+      const demand = scoped.find((row) => row.weekMode === item.weekMode)?.lessonCount ?? 0;
+      if (demand <= 0) throw new Error('该班级科目与周模式尚未设置节数需求，不能分配任课');
+      const total = [...retained, ...proposed].filter((row) => row.teacherId && row.classId === item.classId && row.subjectId === item.subjectId && row.weekMode === item.weekMode)
+        .reduce((sum, row) => sum + row.lessonCount, 0);
+      if (total > demand) throw new Error(`任课总节数超过需求（${total}/${demand}），请先调整分配`);
+    }
+  }
+
   async replaceTeacherAssignments(params: {
     termId: string;
     classId: string;
     subjectId: string;
     assignments: TeacherAssignment[];
   }): Promise<void> {
+    const previous = await this.loadTeacherAssignments(params.termId);
+    const currentCell = previous.filter((item) => item.classId === params.classId && item.subjectId === params.subjectId);
+    const nextById = new Map(params.assignments.map((item) => [item.id, item]));
+    const unchanged = currentCell.length === params.assignments.length && currentCell.every((item) => {
+      const next = nextById.get(item.id);
+      return next && item.teacherId === next.teacherId && item.weekMode === next.weekMode &&
+        item.lessonCount === next.lessonCount && item.sortOrder === next.sortOrder &&
+        item.combinedLessonGroupId === next.combinedLessonGroupId;
+    });
+    if (unchanged) return;
+    const clearGroups = new Set(currentCell.map((item) => item.combinedLessonGroupId).filter((id): id is string => !!id));
+    await this.validateTeacherAssignmentCapacity(params.termId, params.assignments,
+      previous.filter((item) => item.classId !== params.classId || item.subjectId !== params.subjectId));
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
-        await tx.execute(
-          'DELETE FROM teacher_assignments WHERE term_id = ? AND class_id = ? AND subject_id = ?',
-          [params.termId, params.classId, params.subjectId]
-        );
+        for (const groupId of clearGroups) {
+          await tx.execute('UPDATE teacher_assignments SET combined_lesson_group_id = NULL WHERE term_id = ? AND combined_lesson_group_id = ?', [params.termId, groupId]);
+        }
+        const oldIds = currentCell.map((item) => item.id);
+        const nextIds = new Set(params.assignments.map((item) => item.id));
+        for (const id of oldIds) if (!nextIds.has(id)) await tx.execute('DELETE FROM teacher_assignments WHERE id = ?', [id]);
         for (const a of params.assignments) {
           await tx.execute(
             `INSERT INTO teacher_assignments (id, term_id, teacher_id, subject_id, class_id, week_mode, lesson_count, sort_order, combined_lesson_group_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET teacher_id = excluded.teacher_id, week_mode = excluded.week_mode,
+               lesson_count = excluded.lesson_count, sort_order = excluded.sort_order,
+               combined_lesson_group_id = excluded.combined_lesson_group_id`,
             [
               a.id,
               params.termId,
@@ -2671,7 +2827,7 @@ export class SchoolRepository {
               a.weekMode,
               a.lessonCount,
               a.sortOrder,
-              a.combinedLessonGroupId,
+              clearGroups.size ? null : a.combinedLessonGroupId,
             ]
           );
         }
@@ -2679,6 +2835,7 @@ export class SchoolRepository {
       return;
     }
     const store = this.loadFallback();
+    store.teacherAssignments = store.teacherAssignments.map((item) => item.termId === params.termId && item.combinedLessonGroupId && clearGroups.has(item.combinedLessonGroupId) ? { ...item, combinedLessonGroupId: null } : item);
     store.teacherAssignments = store.teacherAssignments
       .filter(
         (a) =>
@@ -2688,7 +2845,131 @@ export class SchoolRepository {
             a.subjectId === params.subjectId
           )
       )
-      .concat(params.assignments);
+      .concat(params.assignments.map((item) => clearGroups.size ? { ...item, combinedLessonGroupId: null } : item));
+    this.saveFallback(store);
+  }
+
+  async addTeacherAssignments(termId: string, assignments: TeacherAssignment[]): Promise<void> {
+    if (assignments.some((item) => item.termId !== termId || item.lessonCount <= 0 || !item.teacherId)) {
+      throw new Error('任课信息不完整');
+    }
+    const existing = await this.loadTeacherAssignments(termId);
+    if (assignments.some((item) => existing.some((row) => row.id === item.id))) throw new Error('任课 ID 重复');
+    await this.validateTeacherAssignmentCapacity(termId, assignments, existing);
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        for (const item of assignments) {
+          await tx.execute(
+            `INSERT INTO teacher_assignments (id, term_id, teacher_id, subject_id, class_id, week_mode, lesson_count, sort_order, combined_lesson_group_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [item.id, termId, item.teacherId, item.subjectId, item.classId, item.weekMode, item.lessonCount, item.sortOrder, item.combinedLessonGroupId]
+          );
+        }
+      });
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherAssignments.push(...assignments);
+    this.saveFallback(store);
+  }
+
+  async deleteTeacherAssignments(termId: string, assignmentIds: string[]): Promise<void> {
+    if (!assignmentIds.length) return;
+    const deleted = new Set(assignmentIds);
+    const groupIds = new Set((await this.loadTeacherAssignments(termId)).filter((item) => deleted.has(item.id)).map((item) => item.combinedLessonGroupId).filter((id): id is string => !!id));
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        for (const groupId of groupIds) await tx.execute('UPDATE teacher_assignments SET combined_lesson_group_id = NULL WHERE term_id = ? AND combined_lesson_group_id = ?', [termId, groupId]);
+        for (const id of assignmentIds) {
+          await tx.execute('DELETE FROM teacher_assignments WHERE term_id = ? AND id = ?', [termId, id]);
+        }
+      });
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherAssignments = store.teacherAssignments.filter((item) => item.termId !== termId || !deleted.has(item.id)).map((item) => item.termId === termId && item.combinedLessonGroupId && groupIds.has(item.combinedLessonGroupId) ? { ...item, combinedLessonGroupId: null } : item);
+    this.saveFallback(store);
+  }
+
+  async setCombinedTeacherAssignments(termId: string, assignmentIds: string[], groupId: string | null): Promise<void> {
+    const all = await this.loadTeacherAssignments(termId);
+    const ids = new Set(assignmentIds);
+    const selected = all.filter((item) => ids.has(item.id));
+    if (selected.length !== ids.size) throw new Error('合班任课不存在');
+    if (!groupId) {
+      const groupIds = new Set(selected.map((item) => item.combinedLessonGroupId).filter((id): id is string => !!id));
+      for (const item of all) if (item.combinedLessonGroupId && groupIds.has(item.combinedLessonGroupId)) ids.add(item.id);
+    }
+    if (groupId) {
+      if (selected.length < 2 || new Set(selected.map((item) => item.classId)).size !== selected.length ||
+        selected.some((item) => !item.teacherId || !!item.combinedLessonGroupId) ||
+        new Set(selected.map((item) => `${item.teacherId}:${item.subjectId}:${item.weekMode}:${item.lessonCount}`)).size !== 1) {
+        throw new Error('合班必须选择不同班级、同一教师、科目、周模式和节数的未合班任课');
+      }
+    }
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        for (const id of ids) {
+          await tx.execute('UPDATE teacher_assignments SET combined_lesson_group_id = ? WHERE term_id = ? AND id = ?', [groupId, termId, id]);
+        }
+      });
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherAssignments = store.teacherAssignments.map((item) => item.termId === termId && ids.has(item.id) ? { ...item, combinedLessonGroupId: groupId } : item);
+    this.saveFallback(store);
+  }
+
+  async loadTeacherPresets(termId: string): Promise<TeacherPreset[]> {
+    if (this.useSqlEngine) {
+      const rows = await this.adapter.select<{ id: string; term_id: string; teacher_id: string; scope_type: ScopeType; scope_id: string; stage_id: string; weekday: number; period_type_id: string; lesson_index: number; week_mode: TeacherPreset['weekMode']; value: TeacherPreset['value'] }>(
+        'SELECT * FROM teacher_presets WHERE term_id = ?', [termId]
+      );
+      return rows.map((row) => ({ id: row.id, termId: row.term_id, teacherId: row.teacher_id, scopeType: row.scope_type, scopeId: row.scope_id, stageId: row.stage_id, weekday: row.weekday, periodTypeId: row.period_type_id, lessonIndex: row.lesson_index, weekMode: row.week_mode, value: row.value }));
+    }
+    return this.loadFallback().teacherPresets.filter((item) => item.termId === termId);
+  }
+
+  async replaceTeacherPresets(termId: string, teacherId: string, presets: TeacherPreset[]): Promise<void> {
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await tx.execute('DELETE FROM teacher_presets WHERE term_id = ? AND teacher_id = ?', [termId, teacherId]);
+        for (const item of presets) {
+          await tx.execute(`INSERT INTO teacher_presets (id, term_id, teacher_id, scope_type, scope_id, stage_id, weekday, period_type_id, lesson_index, week_mode, value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [item.id, termId, teacherId, item.scopeType, item.scopeId, item.stageId, item.weekday, item.periodTypeId, item.lessonIndex, item.weekMode, item.value]);
+        }
+      });
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherPresets = [...store.teacherPresets.filter((item) => item.termId !== termId || item.teacherId !== teacherId), ...presets];
+    this.saveFallback(store);
+  }
+
+  async loadTeacherGroupPresets(termId: string): Promise<TeacherGroupPreset[]> {
+    if (this.useSqlEngine) {
+      const rows = await this.adapter.select<{ id: string; group_id: string; scope_type: ScopeType; scope_id: string; stage_id: string; weekday: number; period_type_id: string; lesson_index: number; week_mode: TeacherGroupPreset['weekMode']; value: TeacherGroupPreset['value'] }>(
+        'SELECT p.* FROM teacher_group_presets p JOIN teacher_groups g ON g.id = p.group_id WHERE g.term_id = ?', [termId]
+      );
+      return rows.map((row) => ({ id: row.id, groupId: row.group_id, scopeType: row.scope_type, scopeId: row.scope_id, stageId: row.stage_id, weekday: row.weekday, periodTypeId: row.period_type_id, lessonIndex: row.lesson_index, weekMode: row.week_mode, value: row.value }));
+    }
+    const groups = new Set(this.loadFallback().teacherGroups.filter((item) => item.termId === termId).map((item) => item.id));
+    return this.loadFallback().teacherGroupPresets.filter((item) => groups.has(item.groupId));
+  }
+
+  async replaceTeacherGroupPresets(groupId: string, presets: TeacherGroupPreset[]): Promise<void> {
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await tx.execute('DELETE FROM teacher_group_presets WHERE group_id = ?', [groupId]);
+        for (const item of presets) {
+          await tx.execute(`INSERT INTO teacher_group_presets (id, group_id, scope_type, scope_id, stage_id, weekday, period_type_id, lesson_index, week_mode, value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [item.id, groupId, item.scopeType, item.scopeId, item.stageId, item.weekday, item.periodTypeId, item.lessonIndex, item.weekMode, item.value]);
+        }
+      });
+      return;
+    }
+    const store = this.loadFallback();
+    store.teacherGroupPresets = [...store.teacherGroupPresets.filter((item) => item.groupId !== groupId), ...presets];
     this.saveFallback(store);
   }
 

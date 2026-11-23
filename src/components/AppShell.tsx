@@ -32,6 +32,7 @@ import type { AppSection, TemporaryCourseAdjustment } from '@/domain/models';
 import { ClassesPage } from '@/features/classes/ClassesPage';
 import { RoutinesPage } from '@/features/routines/RoutinesPage';
 import { SubjectsPage } from '@/features/subjects/SubjectsPage';
+import { TeachersPage } from '@/features/teachers/TeachersPage';
 import { TermPage } from '@/features/terms/TermPage';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
 import { SCHEMA_VERSION } from '@/adapter/db/schemaV19';
@@ -159,6 +160,7 @@ export const AppShell: React.FC = () => {
     setPalette,
     setMode,
     cycleThemeMode,
+    setSidebarExpanded,
     toggleSidebar,
     setSelectedSection,
     updateSchoolName,
@@ -188,6 +190,29 @@ export const AppShell: React.FC = () => {
     return () =>
       window.removeEventListener('hashchange', syncSectionFromLocation);
   }, [setSelectedSection]);
+
+  const autoCollapsedRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(max-width: 1079px)');
+    const applyBreakpoint = (narrow: boolean) => {
+      const expanded = useAppStore.getState().sidebarExpanded;
+      if (narrow) {
+        if (expanded) {
+          autoCollapsedRef.current = true;
+          setSidebarExpanded(false);
+        }
+      } else if (autoCollapsedRef.current) {
+        autoCollapsedRef.current = false;
+        setSidebarExpanded(true);
+      }
+    };
+    applyBreakpoint(mql.matches);
+    const onChange = (event: MediaQueryListEvent) => applyBreakpoint(event.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [setSidebarExpanded]);
 
   useEffect(() => {
     if (previousSection.current === selectedSection) return;
@@ -245,7 +270,7 @@ export const AppShell: React.FC = () => {
             ? 'opacity-45 cursor-not-allowed text-sidebar-muted'
             : isSelected
             ? 'bg-sidebar-active text-primary font-semibold'
-            : 'text-sidebar-text hover:bg-selection/45 hover:text-ink font-medium'
+            : 'text-sidebar-text hover:bg-table-header hover:text-ink font-medium'
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
@@ -321,7 +346,7 @@ export const AppShell: React.FC = () => {
                     type="button"
                     aria-label={`${schoolName || '学校'}，编辑学校名称`}
                     onClick={() => setSchoolNameDialogOpen(true)}
-                    className={`w-full rounded-control bg-canvas hover:bg-selection/35 border border-transparent hover:border-control-border/50 flex items-center text-left transition-colors duration-feedback ${
+                    className={`w-full rounded-control bg-canvas hover:bg-table-header border border-transparent hover:border-border flex items-center text-left transition-colors duration-feedback ${
                       sidebarExpanded
                         ? 'p-2.5 gap-2.5'
                         : 'justify-center p-1'
@@ -405,7 +430,10 @@ export const AppShell: React.FC = () => {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={toggleSidebar}
+                    onClick={() => {
+                      autoCollapsedRef.current = false;
+                      toggleSidebar();
+                    }}
                     aria-label={sidebarExpanded ? '收起侧边栏' : '展开侧边栏'}
                     className="h-9 w-9 shrink-0"
                   >
@@ -515,6 +543,8 @@ export const AppShell: React.FC = () => {
                   <RoutinesPage onOpenClasses={() => setSelectedSection('classes')} />
                 ) : selectedSection === 'subjects' ? (
                   <SubjectsPage />
+                ) : selectedSection === 'teachers' ? (
+                  <TeachersPage />
                 ) : selectedSection === 'temporaryAdjustments' ? (
                   <TemporaryAdjustmentsPage adjustments={adjustments} />
                 ) : (

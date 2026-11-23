@@ -1381,7 +1381,7 @@ export const SubjectsPage: React.FC = () => {
                     aria-label={(day === null ? '每天' : WEEKDAY_NAMES[day - 1]) + field}
                     value={local ?? ''} placeholder={effective === null ? '' : String(effective)}
                     onChange={(event) => updateConstraint(day, field, event.target.value)}
-                    className={'h-8 min-w-0 rounded-[5px] px-1 text-center text-[12px] ' + (compact ? 'w-7 shrink-0 border-0 bg-selection' : 'bg-selection')} />;
+                    className={'h-8 min-w-0 rounded-[5px] px-1 text-center border-none text-[12px] ' + (compact ? 'w-7 shrink-0 border-0 bg-transparent' : 'bg-transparent')} />;
                 };
                 return <>
                   <p className="text-[12px] leading-5 text-ink-secondary">左侧“每天”值应用于所有上课日；星期输入覆盖该日对应字段。每日连堂按同一天、同一时段内的相邻双节组数计算，连续 3 节计 2 次。每周连堂上下限为全周总量，单双周共用。空白继承上级范围或“每天”设置，0 表示不设下限 / 不允许上限。</p>
@@ -1389,7 +1389,7 @@ export const SubjectsPage: React.FC = () => {
                     <table className="w-full min-w-[570px] table-fixed border-collapse text-[12px]">
                       <thead><tr className="bg-table-header"><th className="w-[88px] border border-table-divider px-2 py-2 text-left text-ink-secondary">每天</th>
                         {weekdays.map((day) => <th key={day} className="border border-table-divider py-2 text-ink-secondary">{WEEKDAY_NAMES[day - 1]}</th>)}</tr></thead>
-                      <tbody>{DAILY_CONSTRAINT_ROWS.map(([field, label, unit]) => <tr key={field} className="bg-selection">
+                      <tbody>{DAILY_CONSTRAINT_ROWS.map(([field, label, unit]) => <tr key={field} className="">
                         <th className="border border-table-divider px-1 text-left text-[11px] font-medium text-ink-secondary">
                           <div className="flex items-center gap-0.5"><span className="w-9 shrink-0 whitespace-nowrap text-[10px]">{label}</span>{constraintInput(null, field, true)}<span className="shrink-0">{unit}</span></div>
                         </th>

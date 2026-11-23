@@ -598,11 +598,6 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
     () => classes.filter((group) => termGradeIds.has(group.gradeId)),
     [classes, termGradeIds]
   );
-  const activeTeachingDayCount =
-    routine?.teachingDays.filter((day) => day.isTeachingDay).length ?? 0;
-  const totalDailyLessons =
-    routine?.periodTypes.reduce((total, period) => total + period.defaultLessonCount, 0) ?? 0;
-
   const updateRoutine = (
     updater: (current: StageRoutine) => StageRoutine,
     historyLabel = '修改作息'
