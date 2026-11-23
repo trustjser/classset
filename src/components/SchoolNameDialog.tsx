@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -59,11 +58,8 @@ export const SchoolNameDialog: React.FC<SchoolNameDialogProps> = ({
       }}
     >
       <DialogContent className="max-w-sm">
-        <DialogHeader>
+        <DialogHeader className="border-b-0 pb-0">
           <DialogTitle>编辑学校名称</DialogTitle>
-          <DialogDescription>
-            保存后会立即更新侧栏中的学校信息。
-          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
@@ -87,7 +83,7 @@ export const SchoolNameDialog: React.FC<SchoolNameDialogProps> = ({
             />
             <p
               id="school-name-hint"
-              className="text-[11px] leading-5 text-muted"
+              className="text-[12px] leading-5 text-ink-secondary"
             >
               留空将显示“未命名学校”。
             </p>
@@ -102,7 +98,7 @@ export const SchoolNameDialog: React.FC<SchoolNameDialogProps> = ({
             </p>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="border-t-0 pt-0">
             <Button
               type="button"
               variant="ghost"

@@ -3,11 +3,13 @@ import {
   Check,
   Copy,
   Clock3,
+  GripVertical,
   Minus,
   Plus,
   Redo2,
   RotateCcw,
   Save,
+  Trash2,
   Undo2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type {
+  CommonPeriod,
   FreeSlot,
   LessonPeriodType,
   LessonTime,
@@ -185,6 +188,14 @@ interface RoutineHistoryState {
   termId: string;
   undo: RoutineHistoryEntry[];
   redo: RoutineHistoryEntry[];
+}
+
+interface CommonPeriodDropTarget {
+  kind: 'lesson' | 'period';
+  id: string;
+  edge: 'before' | 'after';
+  anchor: string | null;
+  targetPeriodId?: string;
 }
 
 function minuteToTime(value: number | null): string {
@@ -428,6 +439,8 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const historyRef = useRef<RoutineHistoryState>({ termId: '', undo: [], redo: [] });
+  const commonPeriodDragRef = useRef<{ id: string; pointerId: number } | null>(null);
+  const [commonDropTarget, setCommonDropTarget] = useState<CommonPeriodDropTarget | null>(null);
   const [historyDepth, setHistoryDepth] = useState({ undo: 0, redo: 0 });
 
   const selectedStage =
@@ -645,6 +658,148 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
     }));
   };
 
+  const changeCommonPeriodTime = (
+    periodId: string,
+    field: 'startMinute' | 'endMinute',
+    value: string
+  ) => {
+    const nextValue = timeToMinute(value);
+    const existing = routine?.commonPeriods?.find((period) => period.id === periodId);
+    if (!existing) return;
+    const nextStart = field === 'startMinute' ? nextValue : existing.startMinute;
+    const nextEnd = field === 'endMinute' ? nextValue : existing.endMinute;
+    if (nextStart !== null && nextEnd !== null && nextStart >= nextEnd) return;
+    updateRoutine((current) => ({
+      ...current,
+      commonPeriods: (current.commonPeriods ?? []).map((period) =>
+        period.id === periodId
+          ? { ...period, [field]: nextValue }
+          : period
+      ),
+    }), '修改公共时段时间');
+  };
+
+  const moveCommonPeriodToPosition = (
+    periodId: string,
+    nextAnchor: string | null,
+    targetId?: string,
+    after = false
+  ) => {
+    if (periodId === targetId) return;
+    updateRoutine((current) => {
+      const periods = current.commonPeriods ?? [];
+      const moving = periods.find((period) => period.id === periodId);
+      if (!moving) return current;
+
+      const previousAnchor = moving.insertAfterLessonId;
+      const nextGroup = periods
+        .filter((period) => period.id !== periodId && period.insertAfterLessonId === nextAnchor)
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+      const targetIndex = targetId ? nextGroup.findIndex((period) => period.id === targetId) : -1;
+      const insertIndex = targetIndex < 0 ? nextGroup.length : targetIndex + (after ? 1 : 0);
+      nextGroup.splice(insertIndex, 0, {
+        ...moving,
+        insertAfterLessonId: nextAnchor,
+      });
+
+      const reordered = new Map(
+        nextGroup.map((period, sortOrder) => [period.id, { ...period, sortOrder }])
+      );
+      if (previousAnchor !== nextAnchor) {
+        periods
+          .filter((period) => period.id !== periodId && period.insertAfterLessonId === previousAnchor)
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+          .forEach((period, sortOrder) => reordered.set(period.id, { ...period, sortOrder }));
+      }
+      return {
+        ...current,
+        commonPeriods: periods.map((period) => reordered.get(period.id) ?? period),
+      };
+    }, '调整公共时段位置');
+  };
+
+  const deleteCommonPeriod = (period: CommonPeriod) => {
+    if (globalThis.confirm?.(`删除公共时段「${period.name}」？`) === false) return;
+    updateRoutine((current) => ({
+      ...current,
+      commonPeriods: (current.commonPeriods ?? []).filter((item) => item.id !== period.id),
+    }), `删除公共时段「${period.name}」`);
+  };
+
+  const commonPeriodDropTargetAt = (clientX: number, clientY: number) => {
+    const element = document
+      .elementFromPoint(clientX, clientY)
+      ?.closest<HTMLElement>('[data-common-drop-lesson], [data-common-drop-period]');
+    if (!element) return null;
+    const bounds = element.getBoundingClientRect();
+    const edge: 'before' | 'after' = clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+    if (element.dataset.commonDropPeriod) {
+      const anchorValue = element.dataset.commonDropAnchor;
+      return {
+        kind: 'period' as const,
+        id: element.dataset.commonDropPeriod,
+        targetPeriodId: element.dataset.commonDropPeriod,
+        anchor: anchorValue && anchorValue !== '__first__' ? anchorValue : null,
+        edge,
+      };
+    }
+    const lessonId = element.dataset.commonDropLesson;
+    if (!lessonId) return null;
+    const anchorValue = edge === 'before'
+      ? element.dataset.commonDropBeforeAnchor
+      : element.dataset.commonDropAfterAnchor;
+    return {
+      kind: 'lesson' as const,
+      id: lessonId,
+      anchor: anchorValue && anchorValue !== '__first__' ? anchorValue : null,
+      edge,
+    };
+  };
+
+  const startCommonPeriodPointerDrag = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    periodId: string
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    commonPeriodDragRef.current = { id: periodId, pointerId: event.pointerId };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const updateCommonPeriodPointerDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = commonPeriodDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setCommonDropTarget(commonPeriodDropTargetAt(event.clientX, event.clientY));
+  };
+
+  const finishCommonPeriodPointerDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = commonPeriodDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const target = commonPeriodDropTargetAt(event.clientX, event.clientY);
+    if (target) {
+      moveCommonPeriodToPosition(
+        drag.id,
+        target.anchor,
+        target.targetPeriodId,
+        target.edge === 'after'
+      );
+    }
+    commonPeriodDragRef.current = null;
+    setCommonDropTarget(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const cancelCommonPeriodPointerDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = commonPeriodDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    commonPeriodDragRef.current = null;
+    setCommonDropTarget(null);
+  };
+
   const saveNow = async () => {
     if (!routine || !isDirty) return;
     setSaving(true);
@@ -756,6 +911,29 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
   }
 
   if (!routine || !selectedStage) return null;
+
+  const commonPeriodsByAnchor = new Map<string | null, CommonPeriod[]>();
+  for (const period of routine.commonPeriods ?? []) {
+    const group = commonPeriodsByAnchor.get(period.insertAfterLessonId) ?? [];
+    group.push(period);
+    commonPeriodsByAnchor.set(period.insertAfterLessonId, group);
+  }
+  for (const group of commonPeriodsByAnchor.values()) {
+    group.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+  const previousLessonById = new Map<string, string | null>();
+  let previousLessonId: string | null = null;
+  for (const period of routine.periodTypes) {
+    for (let lessonIndex = 1; lessonIndex <= period.defaultLessonCount; lessonIndex++) {
+      const lessonId = `${period.id}_${lessonIndex}`;
+      previousLessonById.set(lessonId, previousLessonId);
+      previousLessonId = lessonId;
+    }
+  }
+  const validLessonIds = new Set(previousLessonById.keys());
+  const orphanCommonPeriods = (routine.commonPeriods ?? []).filter(
+    (period) => period.insertAfterLessonId !== null && !validLessonIds.has(period.insertAfterLessonId)
+  );
 
   return (
     <div className="space-y-4">
@@ -969,6 +1147,20 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
           </div>
 
           <div className="mt-4 space-y-4">
+            {(commonPeriodsByAnchor.get(null) ?? []).map((period) => (
+              <CommonPeriodTimeRow
+                key={period.id}
+                period={period}
+                dropAnchor={null}
+                onTimeChange={changeCommonPeriodTime}
+                onDelete={deleteCommonPeriod}
+                dropEdge={commonDropTarget?.kind === 'period' && commonDropTarget.id === period.id ? commonDropTarget.edge : null}
+                onPointerDown={startCommonPeriodPointerDrag}
+                onPointerMove={updateCommonPeriodPointerDrag}
+                onPointerUp={finishCommonPeriodPointerDrag}
+                onPointerCancel={cancelCommonPeriodPointerDrag}
+              />
+            ))}
             {routine.periodTypes.map((period, periodIndex) => {
               const times = routine.lessonTimes
                 .filter((time) => time.periodTypeId === period.id)
@@ -986,24 +1178,61 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
                       {activeTimes.length} 节
                     </span>
                   </div>
-                  <div className="grid grid-cols-[44px_minmax(92px,1fr)_minmax(92px,1fr)] gap-x-1.5 pb-1 text-[10.5px] text-ink-secondary">
+                  <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_20px] gap-x-1.5 pb-1 text-[10.5px] text-ink-secondary">
                     <span className="whitespace-nowrap">课次</span>
                     <span>开始</span>
                     <span>结束</span>
+                    <span aria-hidden="true" />
                   </div>
                   <div className="space-y-1.5">
-                    {activeTimes.map((time) => (
-                      <LessonTimeRow
-                        key={`${period.id}:${time.lessonIndex}`}
-                        period={period}
-                        time={time}
-                        onChange={changeLessonTime}
-                      />
-                    ))}
+                    {activeTimes.map((time) => {
+                      const lessonId = `${period.id}_${time.lessonIndex}`;
+                      const previousId = previousLessonById.get(lessonId) ?? null;
+                      return (
+                        <React.Fragment key={`${period.id}:${time.lessonIndex}`}>
+                          <LessonTimeRow
+                            period={period}
+                            time={time}
+                            onChange={changeLessonTime}
+                            lessonId={lessonId}
+                            beforeAnchor={previousId}
+                            dropEdge={commonDropTarget?.kind === 'lesson' && commonDropTarget.id === lessonId ? commonDropTarget.edge : null}
+                          />
+                          {(commonPeriodsByAnchor.get(lessonId) ?? []).map((commonPeriod) => (
+                            <CommonPeriodTimeRow
+                              key={commonPeriod.id}
+                              period={commonPeriod}
+                              dropAnchor={commonPeriod.insertAfterLessonId}
+                              onTimeChange={changeCommonPeriodTime}
+                              onDelete={deleteCommonPeriod}
+                              dropEdge={commonDropTarget?.kind === 'period' && commonDropTarget.id === commonPeriod.id ? commonDropTarget.edge : null}
+                              onPointerDown={startCommonPeriodPointerDrag}
+                              onPointerMove={updateCommonPeriodPointerDrag}
+                              onPointerUp={finishCommonPeriodPointerDrag}
+                              onPointerCancel={cancelCommonPeriodPointerDrag}
+                            />
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
                   </div>
                 </section>
               );
             })}
+            {orphanCommonPeriods.map((period) => (
+              <CommonPeriodTimeRow
+                key={period.id}
+                period={period}
+                dropAnchor={previousLessonId}
+                onTimeChange={changeCommonPeriodTime}
+                onDelete={deleteCommonPeriod}
+                dropEdge={commonDropTarget?.kind === 'period' && commonDropTarget.id === period.id ? commonDropTarget.edge : null}
+                onPointerDown={startCommonPeriodPointerDrag}
+                onPointerMove={updateCommonPeriodPointerDrag}
+                onPointerUp={finishCommonPeriodPointerDrag}
+                onPointerCancel={cancelCommonPeriodPointerDrag}
+              />
+            ))}
           </div>
         </Card>
       </div>
@@ -1156,10 +1385,83 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
   );
 };
 
+function CommonPeriodTimeRow({
+  period,
+  dropAnchor,
+  onTimeChange,
+  onDelete,
+  dropEdge,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+}: {
+  period: CommonPeriod;
+  dropAnchor: string | null;
+  onTimeChange: (id: string, field: 'startMinute' | 'endMinute', value: string) => void;
+  onDelete: (period: CommonPeriod) => void;
+  dropEdge: 'before' | 'after' | null;
+  onPointerDown: (event: React.PointerEvent<HTMLButtonElement>, periodId: string) => void;
+  onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel: (event: React.PointerEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <div
+      data-common-drop-anchor={dropAnchor ?? '__first__'}
+      data-common-drop-period={period.id}
+      className={'grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_20px] items-center gap-x-1.5 bg-warning-surface ' + (dropEdge === 'before' ? 'border-t-2 border-t-primary' : dropEdge === 'after' ? 'border-b-2 border-b-primary' : '')}
+    >
+      <button
+        aria-label={`拖动公共时段「${period.name}」到其他课节间隙`}
+        className="flex h-8 w-full min-w-0 cursor-grab touch-none items-center gap-1 text-left text-warning active:cursor-grabbing"
+        onPointerDown={(event) => onPointerDown(event, period.id)}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        title="拖动到其他课节间隙"
+        type="button"
+      >
+        <GripVertical aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-secondary" />
+        <span className="truncate text-[11.5px] font-medium">{period.name}</span>
+      </button>
+      <TimePicker
+        ariaLabel={`${period.name}开始时间（可选）`}
+        allowClear
+        className="h-8 gap-1 px-1.5 text-[12px] tabular-nums"
+        placeholder="--:--"
+        showClockIcon={false}
+        onChange={(value) => onTimeChange(period.id, 'startMinute', value)}
+        value={minuteToTime(period.startMinute)}
+      />
+      <TimePicker
+        ariaLabel={`${period.name}结束时间（可选）`}
+        allowClear
+        className="h-8 gap-1 px-1.5 text-[12px] tabular-nums"
+        placeholder="--:--"
+        showClockIcon={false}
+        onChange={(value) => onTimeChange(period.id, 'endMinute', value)}
+        value={minuteToTime(period.endMinute)}
+      />
+      <button
+        aria-label={`删除公共时段「${period.name}」`}
+        className="flex h-8 w-5 items-center justify-center rounded text-ink-secondary hover:bg-surface hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => onDelete(period)}
+        type="button"
+      >
+        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 function LessonTimeRow({
   period,
   time,
   onChange,
+  lessonId,
+  beforeAnchor,
+  dropEdge,
 }: {
   period: LessonPeriodType;
   time: LessonTime;
@@ -1169,9 +1471,17 @@ function LessonTimeRow({
     field: 'startMinute' | 'endMinute',
     value: string
   ) => void;
+  lessonId: string;
+  beforeAnchor: string | null;
+  dropEdge: 'before' | 'after' | null;
 }) {
   return (
-    <div className="grid grid-cols-[44px_minmax(92px,1fr)_minmax(92px,1fr)] items-center gap-x-1.5">
+    <div
+      data-common-drop-lesson={lessonId}
+      data-common-drop-before-anchor={beforeAnchor ?? '__first__'}
+      data-common-drop-after-anchor={lessonId}
+      className={'grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_20px] items-center gap-x-1.5 ' + (dropEdge === 'before' ? 'border-t-2 border-t-primary' : dropEdge === 'after' ? 'border-b-2 border-b-primary' : '')}
+    >
       <span className="whitespace-nowrap text-[12px] font-medium text-ink">
         {time.label || `第${time.lessonIndex}节`}
       </span>
@@ -1179,6 +1489,8 @@ function LessonTimeRow({
         ariaLabel={`${period.name} ${time.label}开始时间`}
         allowClear
         className="h-8 gap-1 px-1.5 text-[12px] tabular-nums"
+        placeholder="--:--"
+        showClockIcon={false}
         onChange={(value) => onChange(period.id, time.lessonIndex, 'startMinute', value)}
         value={minuteToTime(time.startMinute)}
       />
@@ -1186,9 +1498,12 @@ function LessonTimeRow({
         ariaLabel={`${period.name} ${time.label}结束时间`}
         allowClear
         className="h-8 gap-1 px-1.5 text-[12px] tabular-nums"
+        placeholder="--:--"
+        showClockIcon={false}
         onChange={(value) => onChange(period.id, time.lessonIndex, 'endMinute', value)}
         value={minuteToTime(time.endMinute)}
       />
+      <span aria-hidden="true" />
     </div>
   );
 }

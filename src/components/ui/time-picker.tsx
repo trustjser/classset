@@ -26,6 +26,7 @@ export interface TimePickerProps {
   ariaLabel?: string;
   className?: string;
   allowClear?: boolean;
+  showClockIcon?: boolean;
 }
 
 export function TimePicker({
@@ -37,6 +38,7 @@ export function TimePicker({
   ariaLabel = '选择时间',
   className,
   allowClear = false,
+  showClockIcon = true,
 }: TimePickerProps) {
   const [open, setOpen] = useState(false);
   const [pendingMinutes, setPendingMinutes] = useState(() => toMinutes(value) ?? 8 * 60);
@@ -70,7 +72,9 @@ export function TimePicker({
           variant="outline"
         >
           <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap">
-            <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-secondary" />
+            {showClockIcon && (
+              <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-secondary" />
+            )}
             <span className="min-w-0 truncate">{value || placeholder}</span>
           </span>
           <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-secondary" />

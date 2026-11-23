@@ -23,7 +23,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { TimePicker } from '@/components/ui/time-picker';
 import type {
   ClassGroup,
   CommonPeriod,
@@ -98,61 +97,17 @@ interface CommonDropTarget {
   edge: 'before' | 'after';
 }
 
-function minuteToTime(value: number | null): string {
-  if (value === null) return '';
-  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
-}
-
-function timeToMinute(value: string): number | null {
-  if (!value) return null;
-  const [hours, minutes] = value.split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
 function CommonPeriodMatrixRow({
   period,
   dayCount,
   insertionEdge,
-  onChange,
-  onDelete,
   onPointerDown,
 }: {
   period: CommonPeriod;
   dayCount: number;
   insertionEdge: CommonDropTarget['edge'] | null;
-  onChange: (id: string, patch: Partial<CommonPeriod>, label: string) => void;
-  onDelete: (period: CommonPeriod) => void;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>, period: CommonPeriod) => void;
 }) {
-  const [name, setName] = useState(period.name);
-  const [duration, setDuration] = useState(String(period.durationMinutes));
-
-  useEffect(() => {
-    setName(period.name);
-    setDuration(String(period.durationMinutes));
-  }, [period.name, period.durationMinutes]);
-
-  const commitName = () => {
-    const next = name.trim();
-    if (!next) {
-      setName(period.name);
-      return;
-    }
-    if (next !== period.name) onChange(period.id, { name: next }, `重命名公共时段「${period.name}」`);
-  };
-
-  const commitDuration = () => {
-    const next = Number(duration);
-    if (!Number.isFinite(next) || next < 1) {
-      setDuration(String(period.durationMinutes));
-      return;
-    }
-    const rounded = Math.round(next);
-    if (rounded !== period.durationMinutes) {
-      onChange(period.id, { durationMinutes: rounded }, `修改公共时段「${period.name}」时长`);
-    }
-  };
-
   return (
     <tr
       data-common-drop-anchor={period.insertAfterLessonId ?? '__first__'}
@@ -174,65 +129,8 @@ function CommonPeriodMatrixRow({
         </div>
       </th>
       <td className={'border-b border-l border-table-divider px-2 py-1.5 ' + (insertionEdge === 'before' ? 'border-t-2 border-t-primary' : insertionEdge === 'after' ? 'border-b-2 border-b-primary' : '')} colSpan={dayCount}>
-        <div className="flex min-w-[560px] flex-wrap items-center gap-2">
-          <input
-            aria-label={`公共时段名称：${period.name}`}
-            className="h-7 min-w-[110px] flex-1 rounded-md border border-warning/20 bg-surface px-2 text-[11.5px] font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            maxLength={30}
-            onBlur={commitName}
-            onChange={(event) => setName(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur();
-            }}
-            value={name}
-          />
-          <label className="flex shrink-0 items-center gap-1 text-[10.5px] text-ink-secondary">
-            时长
-            <input
-              aria-label={`${period.name}时长（分钟）`}
-              className="h-7 w-14 rounded-md border border-warning/20 bg-surface px-1.5 text-center text-[11px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              max="240"
-              min="1"
-              onBlur={commitDuration}
-              onChange={(event) => setDuration(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
-              }}
-              type="number"
-              value={duration}
-            />
-            分
-          </label>
-          <TimePicker
-            ariaLabel={`${period.name}开始时间`}
-            allowClear
-            className="h-7 w-[88px] shrink-0 justify-center border-warning/20 bg-surface px-1.5 text-[11px]"
-            max={period.endMinute === null ? undefined : minuteToTime(period.endMinute - 1)}
-            onChange={(value) => onChange(period.id, { startMinute: timeToMinute(value) }, `设置公共时段「${period.name}」时间`)}
-            value={minuteToTime(period.startMinute)}
-          />
-          <span className="text-[10px] text-ink-secondary">至</span>
-          <TimePicker
-            ariaLabel={`${period.name}结束时间`}
-            allowClear
-            className="h-7 w-[88px] shrink-0 justify-center border-warning/20 bg-surface px-1.5 text-[11px]"
-            min={period.startMinute === null ? undefined : minuteToTime(period.startMinute + 1)}
-            onChange={(value) => onChange(period.id, { endMinute: timeToMinute(value) }, `设置公共时段「${period.name}」时间`)}
-            value={minuteToTime(period.endMinute)}
-          />
-          <span className="hidden text-[10.5px] text-ink-secondary xl:inline">
-            {period.startMinute !== null && period.endMinute !== null
-              ? `${minuteToTime(period.startMinute)}–${minuteToTime(period.endMinute)}`
-              : `持续 ${period.durationMinutes} 分钟`}
-          </span>
-          <button
-            aria-label={`删除公共时段「${period.name}」`}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-secondary transition-colors hover:bg-destructive-surface hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => onDelete(period)}
-            type="button"
-          >
-            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex min-h-6 items-center px-1 text-[11.5px] font-medium text-warning">
+          {period.name}
         </div>
       </td>
     </tr>
@@ -345,7 +243,6 @@ export function FreeSlotEditor({
   const [dropTarget, setDropTarget] = useState<CommonDropTarget | null>(null);
   const [addCommonPeriodOpen, setAddCommonPeriodOpen] = useState(false);
   const [newCommonPeriodName, setNewCommonPeriodName] = useState('');
-  const [newCommonPeriodDuration, setNewCommonPeriodDuration] = useState('10');
   const [newCommonPeriodAnchor, setNewCommonPeriodAnchor] = useState('__first__');
 
   useEffect(() => {
@@ -620,22 +517,6 @@ export function FreeSlotEditor({
     closeContextMenu();
   };
 
-  const updateCommonPeriod = (
-    id: string,
-    updater: (period: CommonPeriod) => CommonPeriod,
-    label: string
-  ) => {
-    onUpdateRoutine(
-      (current) => ({
-        ...current,
-        commonPeriods: (current.commonPeriods ?? []).map((period) =>
-          period.id === id ? updater(period) : period
-        ),
-      }),
-      label
-    );
-  };
-
   const moveCommonPeriod = (
     periodId: string,
     anchor: string | null,
@@ -671,43 +552,15 @@ export function FreeSlotEditor({
     }, `移动公共时段「${commonPeriods.find((period) => period.id === periodId)?.name ?? ''}」`);
   };
 
-  const patchCommonPeriod = (
-    id: string,
-    patch: Partial<CommonPeriod>,
-    label: string
-  ) => {
-    const period = commonPeriods.find((item) => item.id === id);
-    if (!period) return;
-    const startMinute = Object.prototype.hasOwnProperty.call(patch, 'startMinute')
-      ? patch.startMinute ?? null
-      : period.startMinute;
-    const endMinute = Object.prototype.hasOwnProperty.call(patch, 'endMinute')
-      ? patch.endMinute ?? null
-      : period.endMinute;
-    if (startMinute !== null && endMinute !== null && startMinute >= endMinute) return;
-    updateCommonPeriod(id, (current) => ({ ...current, ...patch }), label);
-  };
-
-  const deleteCommonPeriod = (period: CommonPeriod) => {
-    const confirmed = globalThis.confirm?.(`删除公共时段「${period.name}」？`);
-    if (confirmed === false) return;
-    onUpdateRoutine((current) => ({
-      ...current,
-      commonPeriods: (current.commonPeriods ?? []).filter((item) => item.id !== period.id),
-    }), `删除公共时段「${period.name}」`);
-  };
-
   const beginAddCommonPeriod = (afterLessonId: string | null = null) => {
     setNewCommonPeriodName('');
-    setNewCommonPeriodDuration('10');
     setNewCommonPeriodAnchor(afterLessonId ?? '__first__');
     setAddCommonPeriodOpen(true);
   };
 
   const addCommonPeriod = () => {
     const name = newCommonPeriodName.trim();
-    const durationMinutes = Number(newCommonPeriodDuration);
-    if (!name || !Number.isFinite(durationMinutes) || durationMinutes < 1) return;
+    if (!name) return;
     const insertAfterLessonId = newCommonPeriodAnchor === '__first__'
       ? null
       : newCommonPeriodAnchor;
@@ -724,7 +577,7 @@ export function FreeSlotEditor({
           stageId: current.stageId,
           name,
           insertAfterLessonId,
-          durationMinutes: Math.round(durationMinutes),
+          durationMinutes: 10,
           sortOrder: existing.length,
           startMinute: null,
           endMinute: null,
@@ -976,8 +829,6 @@ export function FreeSlotEditor({
                             dayCount={teachingDays.length}
                             insertionEdge={dropTarget?.kind === 'common' && dropTarget.id === row.commonPeriod.id ? dropTarget.edge : null}
                             key={`common:${row.commonPeriod.id}`}
-                            onChange={patchCommonPeriod}
-                            onDelete={deleteCommonPeriod}
                             onPointerDown={startCommonPeriodDrag}
                             period={row.commonPeriod}
                           />
@@ -1310,16 +1161,6 @@ export function FreeSlotEditor({
             />
           </label>
           <label className="space-y-1.5 text-[12px] font-medium text-ink">
-            持续时间（分钟）
-            <Input
-              max="240"
-              min="1"
-              onChange={(event) => setNewCommonPeriodDuration(event.currentTarget.value)}
-              type="number"
-              value={newCommonPeriodDuration}
-            />
-          </label>
-          <label className="space-y-1.5 text-[12px] font-medium text-ink">
             插入位置
             <select
               className="h-9 w-full rounded-control border border-border bg-surface px-3 text-[12px] font-normal text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1339,7 +1180,7 @@ export function FreeSlotEditor({
               取消
             </Button>
             <Button
-              disabled={!newCommonPeriodName.trim() || Number(newCommonPeriodDuration) < 1}
+              disabled={!newCommonPeriodName.trim()}
               onClick={addCommonPeriod}
               type="button"
             >

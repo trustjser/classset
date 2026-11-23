@@ -222,13 +222,6 @@
   textarea {
     user-select: text;
   }
-
-  ::selection,
-  input::selection,
-  textarea::selection {
-    color: var(--color-on-accent);
-    background-color: var(--color-accent);
-  }
 }
 
 .app-work-area {

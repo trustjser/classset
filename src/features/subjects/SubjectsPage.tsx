@@ -1079,7 +1079,7 @@ export const SubjectsPage: React.FC = () => {
             if (!selectedMatrixCells.length) return;
             event.preventDefault(); pasteMatrix(event.clipboardData.getData('text/plain'));
           }}>
-            <table className="w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + shownGrades.length * 112 + 120 }}>
+            <table className="h-full w-full table-fixed border-separate border-spacing-0 text-[13px]" style={{ minWidth: 160 + shownGrades.length * 112 + 120 }}>
               <colgroup><col style={{ width: 160 }} />{shownGrades.map((grade) => <col key={grade.id} />)}<col style={{ width: 120 }} /></colgroup>
               <thead className="sticky top-0 z-20 bg-surface"><tr className="text-ink-secondary">
                 <th className={`sticky left-0 top-0 z-30 border-b border-border bg-surface px-4 py-4 text-left text-[12px] font-semibold after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${scrollShadow.left ? 'after:opacity-100' : 'after:opacity-0'}`}>科目</th>
@@ -1087,7 +1087,7 @@ export const SubjectsPage: React.FC = () => {
                 <th className={`sticky right-0 top-0 z-30 border-b border-border bg-surface px-3 py-4 text-left text-[12px] font-semibold before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-2.5 before:bg-gradient-to-l before:from-slate-900/[0.07] before:to-transparent before:transition-opacity before:duration-150 ${scrollShadow.right ? 'before:opacity-100' : 'before:opacity-0'}`}>科目高级设置</th>
               </tr></thead>
               <tbody>{activeSubjects.map((subject, rowIndex) => <tr key={subject.id} className="group h-[46px] hover:bg-table-header/50">
-                <th className={`sticky left-0 z-10 bg-surface px-4 text-left font-normal group-hover:bg-table-header after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${scrollShadow.left ? 'after:opacity-100' : 'after:opacity-0'}`}
+                <th className={`sticky left-0 z-10 align-top bg-surface px-4 text-left font-normal group-hover:bg-table-header after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${scrollShadow.left ? 'after:opacity-100' : 'after:opacity-0'}`}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     setContextMenu(null);
@@ -1103,7 +1103,7 @@ export const SubjectsPage: React.FC = () => {
                   const text = formatGradeCell(values);
                   const changed = group.some((schoolClass) => editedCells.includes(requirementKey(subject.id, schoolClass.id)));
                   const selected = selectedMatrixCells.includes(matrixCellKey(subject.id, grade.id));
-                  return <td key={grade.id} className="px-1 py-1 text-center">
+                  return <td key={grade.id} className="align-top px-1 py-1 text-center">
                     {inlineEditor?.key === matrixCellKey(subject.id, grade.id) ?
                       <input autoFocus value={inlineEditor.value}
                         onFocus={(event) => event.currentTarget.select()}
@@ -1150,7 +1150,7 @@ export const SubjectsPage: React.FC = () => {
                         ? <span className={selected || changed ? '' : 'text-ink-secondary opacity-45'}>—</span>
                         : text}</button>}</td>;
                 })}
-                <td className={`sticky right-0 z-10 bg-surface px-3 text-left group-hover:bg-table-header before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-2.5 before:bg-gradient-to-l before:from-slate-900/[0.07] before:to-transparent before:transition-opacity before:duration-150 ${scrollShadow.right ? 'before:opacity-100' : 'before:opacity-0'}`}><button type="button" onClick={() => openPreset(subject.id)}
+                <td className={`sticky right-0 z-10 align-top bg-surface px-3 text-left group-hover:bg-table-header before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-2.5 before:bg-gradient-to-l before:from-slate-900/[0.07] before:to-transparent before:transition-opacity before:duration-150 ${scrollShadow.right ? 'before:opacity-100' : 'before:opacity-0'}`}><button type="button" onClick={() => openPreset(subject.id)}
                   className="min-h-10 w-full rounded-[7px] px-1 text-left text-[12px] text-ink-secondary hover:bg-selection hover:text-primary"
                   title="编辑科目预设、课节限制与行课场室">{advancedSummary(subject.id) || '—'}</button></td>
               </tr>)}</tbody>

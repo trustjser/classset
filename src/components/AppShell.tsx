@@ -40,6 +40,7 @@ import { SCHEMA_VERSION } from '@/adapter/db/schemaV19';
 import { useAppStore } from '@/store/useAppStore';
 import { schoolRepository } from '@/repository/schoolRepository';
 import { PALETTE_OPTIONS } from '@/styles/subjectColors';
+import classsetMark from '../../design/icon/classset/classset-mark.svg';
 import { AppearanceDialog } from './AppearanceDialog';
 import { SchoolNameDialog } from './SchoolNameDialog';
 
@@ -224,6 +225,7 @@ export const AppShell: React.FC = () => {
 
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [schoolNameDialogOpen, setSchoolNameDialogOpen] = useState(false);
+  const schoolDisplayName = schoolName.trim() || '未命名学校';
 
   const activeTerm = terms.find((t) => t.id === activeTermId) ?? null;
   const activePaletteMeta =
@@ -327,9 +329,14 @@ export const AppShell: React.FC = () => {
                 sidebarExpanded ? 'justify-start gap-2.5 px-1' : 'justify-center'
               } pb-4`}
             >
-              <div className="w-10 h-10 rounded-[11px] bg-primary flex items-center justify-center text-primary-foreground font-bold text-[16px] shrink-0">
-                课
-              </div>
+              <img
+                src={classsetMark}
+                alt="课集 Logo"
+                width={36}
+                height={36}
+                draggable={false}
+                className="h-9 w-9 shrink-0"
+              />
               {sidebarExpanded && (
                 <div>
                   <div className="text-[16px] font-bold text-ink leading-tight">
@@ -346,7 +353,7 @@ export const AppShell: React.FC = () => {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label={`${schoolName || '学校'}，编辑学校名称`}
+                    aria-label={`${schoolDisplayName}，编辑学校名称`}
                     onClick={() => setSchoolNameDialogOpen(true)}
                     className={`w-full rounded-control bg-canvas hover:bg-table-header border border-transparent hover:border-border flex items-center text-left transition-colors duration-feedback ${
                       sidebarExpanded
@@ -355,12 +362,12 @@ export const AppShell: React.FC = () => {
                     }`}
                   >
                     <div className="w-8 h-8 rounded-[9px] bg-selection text-primary font-bold text-[12px] flex items-center justify-center shrink-0">
-                      {schoolName.slice(0, 1) || '校'}
+                      {schoolDisplayName.slice(0, 1)}
                     </div>
                     {sidebarExpanded && (
                       <div className="min-w-0 flex-1">
                         <div className="text-[13px] font-semibold text-ink truncate">
-                          {schoolName}
+                          {schoolDisplayName}
                         </div>
                         <div className="text-[12px] text-ink-secondary truncate mt-0.5">
                           {activeTerm?.title ?? '当前学期'}
