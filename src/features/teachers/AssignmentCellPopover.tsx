@@ -3,6 +3,8 @@ import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Teacher, TeacherAssignment, WeekMode } from '@/domain/models';
 
 export type AssignmentDraft = {
@@ -50,6 +52,11 @@ export const AssignmentCellPopover: React.FC<Props> = ({ className, subjectName,
     return count > 0 ? `未分配(${mode === 'weekly' ? '' : mode === 'odd' ? '单·' : '双·'}${count})` : '';
   }).filter(Boolean);
   const update = (index: number, patch: Partial<AssignmentDraft>) => setDrafts((rows) => rows.map((row, at) => at === index ? { ...row, ...patch } : row));
+  const teacherOptions = teachers.map((teacher) => ({
+    value: teacher.id,
+    label: teacher.displayQualifier ? `${teacher.name} · ${teacher.displayQualifier}` : teacher.name,
+    keywords: `${teacher.shortName} ${teacher.displayQualifier}`,
+  }));
 
   return <Popover open={open} onOpenChange={setOpened}>
     <PopoverTrigger asChild>
@@ -65,8 +72,26 @@ export const AssignmentCellPopover: React.FC<Props> = ({ className, subjectName,
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_96px_72px_24px] gap-2 border-b border-border pb-1.5 text-ink-secondary"><span>教师</span><span>周模式</span><span>节数</span></div>
       <div className="max-h-64 space-y-2 overflow-y-auto py-2">{drafts.map((row, index) => <div key={row.id ?? `new-${index}`} className="grid grid-cols-[minmax(0,1fr)_96px_72px_24px] items-center gap-2">
-        <select aria-label="教师" className="h-9 min-w-0 rounded-control border border-border bg-surface px-2" value={row.teacherId} onChange={(event) => update(index, { teacherId: event.target.value })}><option value="">请选择教师</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}</select>
-        <select aria-label="周模式" className="h-9 min-w-0 rounded-control border border-border bg-surface px-1" value={row.weekMode} onChange={(event) => update(index, { weekMode: event.target.value as WeekMode })}>{availableModes.map((mode) => <option key={mode} value={mode}>{modeLabels[mode]}</option>)}</select>
+        <SearchableSelect
+          ariaLabel="教师"
+          value={row.teacherId}
+          onValueChange={(teacherId) => update(index, { teacherId })}
+          options={teacherOptions}
+          placeholder="请选择教师"
+          searchPlaceholder="搜索教师…"
+          emptyText="未找到匹配教师"
+          triggerClassName="h-9 min-w-0"
+        />
+        <Select value={row.weekMode} onValueChange={(value) => update(index, { weekMode: value as WeekMode })}>
+          <SelectTrigger aria-label="周模式" className="h-9 min-w-0 px-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableModes.map((mode) => (
+              <SelectItem key={mode} value={mode}>{modeLabels[mode]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Input aria-label="节数" type="number" min={1} className="h-9 px-2" value={row.lessonCount} onChange={(event) => update(index, { lessonCount: Number(event.target.value) })}/>
         <button aria-label="移除此行" disabled={drafts.length === 1} onClick={() => setDrafts((rows) => rows.filter((_, at) => at !== index))} className="text-ink-secondary disabled:opacity-30"><X className="h-4 w-4"/></button>
       </div>)}</div>
