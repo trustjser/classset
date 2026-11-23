@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Dialog,
   DialogContent,
@@ -399,15 +400,17 @@ export const ClassesPage: React.FC = () => {
 
         {/* 表格行 */}
         {tableRows.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <p className="text-[13.5px] text-ink-secondary">
-              当前还没有年级，点击下方按钮按模板批量新增年级。
-            </p>
-            <Button variant="outline" onClick={() => setAddGradesOpen(true)}>
-              <Plus className="h-4 w-4" />
-              新增年级
-            </Button>
-          </div>
+          <EmptyState
+            variant="grades"
+            title="还没有添加年级"
+            description="点击下方按钮，按模板快速批量创建年级与班级吧。"
+            action={
+              <Button variant="outline" onClick={() => setAddGradesOpen(true)}>
+                <Plus className="h-4 w-4" />
+                新增年级
+              </Button>
+            }
+          />
         ) : (
           <div className="divide-y divide-table-divider">
             {tableRows.map(

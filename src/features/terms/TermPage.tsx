@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useReducer, useState } from 'react';
 import {
   ArrowRight,
-  Calendar as CalendarIcon,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DatePicker } from '@/components/ui/date-picker';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Dialog,
   DialogContent,
@@ -127,25 +127,23 @@ export const TermPage: React.FC = () => {
   if (!activeTerm) {
     return (
       <>
-        <Card className="p-12 text-center space-y-4">
-          <div className="mx-auto w-11 h-11 rounded-full bg-selection text-primary flex items-center justify-center">
-            <CalendarIcon className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-[16px] font-semibold text-ink">还没有学期资料</h2>
-            <p className="text-[13px] text-ink-secondary mt-1">
-              新建学期后即可建立学段、班级和教学日历。
-            </p>
-          </div>
-          <Button
-            onClick={() => {
-              setEditingTerm(null);
-              setTermEditorOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            新建第一个学期
-          </Button>
+        <Card>
+          <EmptyState
+            variant="terms"
+            title="还没有学期资料"
+            description="新建第一个学期后，就可以建立学段、班级和教学日历啦。"
+            action={
+              <Button
+                onClick={() => {
+                  setEditingTerm(null);
+                  setTermEditorOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                新建第一个学期
+              </Button>
+            }
+          />
         </Card>
         {termEditor}
       </>

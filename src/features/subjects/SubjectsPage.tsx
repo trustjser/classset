@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -989,7 +990,7 @@ export const SubjectsPage: React.FC = () => {
     setConstraintDrafts((drafts) => ({ ...drafts, [key]: [...(drafts[key] ?? []), row] }));
   }
 
-  if (!activeTermId) return <div className="rounded-card bg-surface p-8 text-ink-secondary">请先在「学期与日历」创建学期。</div>;
+  if (!activeTermId) return <div className="rounded-card bg-surface"><EmptyState variant="terms" title="还没有创建学期" description="先到「学期与日历」建好本学期，就能回来配置科目与每周节数啦。" action={<Button variant="outline" size="sm" onClick={() => setSelectedSection('terms')}>前往学期与日历</Button>} /></div>;
   if (!stages.length) return <div className="rounded-card bg-surface p-8">
     <p className="font-medium text-ink">请先设置学段和班级</p>
     <Button className="mt-4" onClick={() => setSelectedSection('classes')}>前往班级与学段</Button>
@@ -1067,7 +1068,7 @@ export const SubjectsPage: React.FC = () => {
       </div>
     </div>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-surface">
-        {activeSubjects.length === 0 ? <div className="py-16 text-center text-ink-secondary"><p className="font-medium text-ink">暂无科目</p><p className="mt-1 text-[13px]">添加科目后，可为各年级设置每周节数。</p></div> :
+        {activeSubjects.length === 0 ? <EmptyState variant="subjects" title="科目节数还是空的" description="先添加几门科目，就可以在这里批量设置各年级每周节数啦。" action={<Button variant="outline" size="sm" onClick={() => beginSubjectDialog('new')}><Plus className="h-4 w-4" />添加科目</Button>} className="flex-1" /> :
           <>
           <div className="min-h-0 flex-1 select-none overflow-auto" ref={matrixScrollRef}
             onScroll={updateScrollShadow}
