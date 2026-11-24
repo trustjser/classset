@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
-import { ArrowDownToLine, Check, CheckCircle2, ChevronDown, ChevronRight, Columns2, Lock, LockOpen, Redo2, Rows2, Search, SlidersHorizontal, Sparkles, Undo2, Upload, X } from 'lucide-react';
+import { ArrowDownToLine, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Lock, LockOpen, MousePointerClick, Redo2, Search, SlidersHorizontal, Sparkles, Undo2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -26,7 +26,6 @@ import type { ExportOptions } from './scheduleExport';
 import './scheduling.css';
 
 type View = 'class' | 'teacher' | 'all' | 'room';
-type Layout = 'side' | 'stack';
 type Modal = 'solve' | 'rules' | 'publish' | 'detect' | 'report' | 'export' | 'reconcile' | null;
 type Reconciliation = ReturnType<typeof reconcileSchedule>;
 type Edit = { before: ScheduleItem[]; after: ScheduleItem[] };
@@ -34,7 +33,54 @@ type StageClassGroup = { id: string; name: string; classes: Array<{ id: string; 
 
 const weekLabels: Record<WeekMode, string> = { weekly: '每周', odd: '单周', even: '双周' };
 const viewOptions = [['class', '班级课表'], ['teacher', '教师课表'], ['all', '总课表'], ['room', '场室课表']] as const;
-const layouts: Record<Layout, string> = { side: '左右分屏', stack: '上下分屏' };
+const DRAG_SCROLL_EDGE = 80;
+const DRAG_SCROLL_MAX_SPEED = 620;
+
+function edgeScrollSpeed(position: number, start: number, end: number) {
+  const fromStart = position - start;
+  if (fromStart >= 0 && fromStart < DRAG_SCROLL_EDGE) {
+    const intensity = (DRAG_SCROLL_EDGE - fromStart) / DRAG_SCROLL_EDGE;
+    return -DRAG_SCROLL_MAX_SPEED * intensity * intensity;
+  }
+  const toEnd = end - position;
+  if (toEnd >= 0 && toEnd < DRAG_SCROLL_EDGE) {
+    const intensity = (DRAG_SCROLL_EDGE - toEnd) / DRAG_SCROLL_EDGE;
+    return DRAG_SCROLL_MAX_SPEED * intensity * intensity;
+  }
+  return 0;
+}
+
+function findDragScrollTarget(start: Element | null, axis: 'x' | 'y', x: number, y: number) {
+  let current = start;
+  while (current) {
+    if (current instanceof HTMLElement && current !== document.body && current !== document.documentElement) {
+      const style = window.getComputedStyle(current);
+      const overflow = axis === 'x' ? style.overflowX : style.overflowY;
+      const maxOffset = axis === 'x' ? current.scrollWidth - current.clientWidth : current.scrollHeight - current.clientHeight;
+      if ((overflow === 'auto' || overflow === 'scroll') && maxOffset > 1) {
+        const bounds = current.getBoundingClientRect();
+        if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+          const speed = edgeScrollSpeed(axis === 'x' ? x : y, axis === 'x' ? bounds.left : bounds.top,
+            axis === 'x' ? bounds.right : bounds.bottom);
+          const offset = axis === 'x' ? current.scrollLeft : current.scrollTop;
+          const canScroll = speed < 0 ? offset > 0 : speed > 0 && offset < maxOffset;
+          if (canScroll) return { element: current, speed };
+        }
+      }
+    }
+    current = current.parentElement;
+  }
+
+  const root = document.scrollingElement;
+  if (root instanceof HTMLElement) {
+    const maxOffset = axis === 'x' ? root.scrollWidth - root.clientWidth : root.scrollHeight - root.clientHeight;
+    const offset = axis === 'x' ? root.scrollLeft : root.scrollTop;
+    const speed = edgeScrollSpeed(axis === 'x' ? x : y, 0, axis === 'x' ? window.innerWidth : window.innerHeight);
+    const canScroll = speed < 0 ? offset > 0 : speed > 0 && offset < maxOffset;
+    if (maxOffset > 1 && canScroll) return { element: root, speed };
+  }
+  return null;
+}
 
 function Segment<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: ReadonlyArray<readonly [T, ReactNode]>; onChange: (value: T) => void;
@@ -218,7 +264,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const [report, setReport] = useState<ScheduleRunReport | null>(null);
   const [version, setVersion] = useState<'draft' | 'published'>('draft');
   const [view, setView] = useState<View>('class');
-  const [layout, setLayout] = useState<Layout>('side');
+  const [showTeacherView, setShowTeacherView] = useState(true);
   const [week, setWeek] = useState<WeekMode>('weekly');
   const [overviewStage, setOverviewStage] = useState('all');
   const [classId, setClassId] = useState('');
@@ -229,6 +275,8 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
   const [hovered, setHovered] = useState<ScheduleSlot | null>(null);
+  const [poolExpanded, setPoolExpanded] = useState(false);
+  const [poolDragOver, setPoolDragOver] = useState(false);
   const [poolScope, setPoolScope] = useState<'class' | 'all'>('class');
   const [modal, setModal] = useState<Modal>(null);
   const [busy, setBusy] = useState(false);
@@ -252,6 +300,9 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const worker = useRef<Worker | null>(null);
   const cancelSolve = useRef<(() => void) | null>(null);
   const running = useRef(false);
+  const schedulePageRef = useRef<HTMLDivElement | null>(null);
+  const nativeDragActiveRef = useRef(false);
+  const lastDragOverAtRef = useRef<number | null>(null);
 
   const reload = useCallback(async () => {
     const [data, snapshot, latest] = await Promise.all([
@@ -272,6 +323,38 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     const timeout = window.setTimeout(() => setFeedback(''), 5000);
     return () => window.clearTimeout(timeout);
   }, [feedback]);
+  useEffect(() => {
+    const stopAutoScroll = () => {
+      nativeDragActiveRef.current = false;
+      lastDragOverAtRef.current = null;
+    };
+    const scrollAtEdge = (event: WindowEventMap['dragover']) => {
+      if (!nativeDragActiveRef.current) return;
+      const page = schedulePageRef.current;
+      const target = event.target instanceof Element ? event.target : null;
+      if (!page || !target || !page.contains(target)) return;
+      const pageBounds = page.getBoundingClientRect();
+      if (event.clientX < pageBounds.left || event.clientX > pageBounds.right ||
+        event.clientY < pageBounds.top || event.clientY > pageBounds.bottom) return;
+
+      const elapsed = lastDragOverAtRef.current === null ? 16
+        : Math.min(64, Math.max(8, event.timeStamp - lastDragOverAtRef.current));
+      lastDragOverAtRef.current = event.timeStamp;
+      const tableScroller = target.closest('.schedule-table-scroll');
+      const horizontal = findDragScrollTarget(tableScroller, 'x', event.clientX, event.clientY);
+      const vertical = findDragScrollTarget(page.parentElement, 'y', event.clientX, event.clientY);
+      if (horizontal) horizontal.element.scrollLeft += horizontal.speed * elapsed / 1000;
+      if (vertical) vertical.element.scrollTop += vertical.speed * elapsed / 1000;
+    };
+    window.addEventListener('dragover', scrollAtEdge, true);
+    window.addEventListener('dragend', stopAutoScroll, true);
+    window.addEventListener('drop', stopAutoScroll, true);
+    return () => {
+      window.removeEventListener('dragover', scrollAtEdge, true);
+      window.removeEventListener('dragend', stopAutoScroll, true);
+      window.removeEventListener('drop', stopAutoScroll, true);
+    };
+  }, []);
 
   const schedule = version === 'published' ? published : baseline ?? draft;
   const context = useMemo(() => {
@@ -303,7 +386,8 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const selectedItem = context?.data.items.find((row) => row.id === selected);
   const movingItem = context?.data.items.find((row) => row.id === moving);
   const linkedTeacherId = selectedItem?.teacherId ?? movingItem?.teacherId;
-  const split = view === 'class';
+  const split = view === 'class' && showTeacherView;
+  const canDropToPool = !readOnly && !busy && movingItem?.weekday != null;
   const targetClass = movingItem?.classId ?? displayedClass?.id;
   const mainStage = context?.stageForClass(targetClass ?? '') ?? stageId;
   const visibleItems = useMemo(() => context?.data.items.filter((row) => occursInWeek(row.weekMode, displayWeek)) ?? [], [context, displayWeek]);
@@ -387,6 +471,8 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const beginDrag = (event: DragEvent, item: ScheduleItem) => {
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', item.id);
+    nativeDragActiveRef.current = true;
+    lastDragOverAtRef.current = null;
     setSelected(item.id);
     setMoving(item.id);
     setFeedback('');
@@ -533,7 +619,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     return interactive ? <button key={item.id} type="button" {...props} aria-label={title} aria-pressed={item.id === selected}
       draggable={!busy && !readOnly && !blocked}
       onClick={() => selectLesson(item)} onDragStart={(event) => beginDrag(event, item)}
-      onDragEnd={() => setHovered(null)}>{contents}</button>
+      onDragEnd={() => { nativeDragActiveRef.current = false; lastDragOverAtRef.current = null; setHovered(null); }}>{contents}</button>
       : <div key={item.id} {...props}>{contents}</div>;
   };
 
@@ -624,34 +710,48 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     </div>);
   }
 
-  const renderPool = () => <section className="schedule-panel schedule-pool-panel" onDragOver={(event) => {
-    if (!readOnly && movingItem?.weekday != null) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }
-  }} onDrop={(event) => {
-    if (!readOnly) { event.preventDefault(); void place(null, event.dataTransfer.getData('text/plain') || moving); }
-  }}>
+  const renderPool = () => <section className="schedule-panel schedule-pool-panel schedule-pool-dock" data-expanded={poolExpanded}
+    data-drop-active={poolDragOver && canDropToPool}
+    onDragOver={(event) => {
+      if (canDropToPool) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setPoolDragOver(true); }
+    }}
+    onDragLeave={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPoolDragOver(false);
+    }}
+    onDrop={(event) => {
+      if (canDropToPool) { event.preventDefault(); setPoolDragOver(false); void place(null, event.dataTransfer.getData('text/plain') || moving); }
+    }}>
     <div className="schedule-panel-heading schedule-pool-heading">
       <h3>暂放区</h3>
       <div className="schedule-pool-heading-meta">
-        <span className="schedule-pool-count">{pool.length} 节</span>
-        {pool.length > 0 && <div className="schedule-toolbar-group">
+        <span className="schedule-pool-count" role="status" aria-atomic="true" aria-label={`暂放区有 ${pool.length} 节课程`}>{pool.length} 节</span>
+        {poolDragOver && canDropToPool && <span className="schedule-pool-ready" role="status"><CheckCircle2 aria-hidden="true" />可放入</span>}
+        {canDropToPool && <button type="button" className="schedule-pool-place-action" aria-label="将当前选中课程暂存"
+          onClick={() => { setPoolDragOver(false); void place(null); }}>
+          <ArrowDownToLine aria-hidden="true" />暂存当前课程
+        </button>}
+        {poolExpanded && pool.length > 0 && <div className="schedule-toolbar-group">
           {view === 'class' && <Segment label="暂放范围" value={poolScope} options={[['class', '本班'], ['all', '全部']]} onChange={setPoolScope} />}
           {!readOnly && <Button variant="ghost" size="sm" disabled={busy} onClick={() => openSolve(true)}>补排</Button>}
           <Button variant="ghost" size="sm" disabled={!report} onClick={() => setModal('report')}>未排报告</Button>
         </div>}
+        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={poolExpanded ? '收起暂放区' : '展开暂放区'}
+          aria-expanded={poolExpanded} aria-controls="schedule-pool-content" onClick={() => setPoolExpanded((expanded) => !expanded)}>
+          {poolExpanded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
+        </Button>
       </div>
     </div>
-    {pool.length ? <div className="schedule-pool">{pool.map((item) => <div key={item.id} className="min-w-0"
-      title={report?.blockers[item.id]?.join('；')}>{renderLesson(item, 'both', !busy && !readOnly)}</div>)}</div>
-      : <div role="group" aria-label="拖拽课程卡片到此处暂存" className="schedule-pool-dropzone">
-        <Upload aria-hidden="true" className="h-6 w-6" />
-        <span>拖拽课程卡片到此处暂存</span>
-      </div>}
-    {!readOnly && movingItem?.weekday != null && <div className="schedule-feedback">
-      <Button variant="outline" size="sm" disabled={busy} onClick={() => void place(null)}>移入暂放区</Button>
-    </div>}
+    <div id="schedule-pool-content" hidden={!poolExpanded}>
+      {pool.length ? <div className="schedule-pool">{pool.map((item) => <div key={item.id} className="min-w-0"
+        title={report?.blockers[item.id]?.join('；')}>{renderLesson(item, 'both', !busy && !readOnly)}</div>)}</div>
+        : <div role="group" aria-label="拖拽课程卡片到此处暂存" className="schedule-pool-dropzone">
+          <Upload aria-hidden="true" className="h-6 w-6" />
+          <span>{canDropToPool ? '拖拽课程卡片到此处，或点击“暂存当前课程”' : '拖拽课程卡片到此处暂存'}</span>
+        </div>}
+    </div>
   </section>;
 
-  return <div className="schedule-page" onKeyDown={(event) => {
+  return <div ref={schedulePageRef} className="schedule-page" onKeyDown={(event) => {
     const target = event.target;
     const insideOverlay = target instanceof HTMLElement && target.closest('[role="dialog"], [role="listbox"], [role="menu"], input, textarea');
     if (event.key === 'Escape' && !insideOverlay && (selected || moving)) resetSelection();
@@ -682,10 +782,10 @@ function TermSchedulingPage({ termId }: { termId: string }) {
           {view === 'all' && overview === 'day' && <PickList label="星期" value={String(day)} options={[1, 2, 3, 4, 5, 6, 7].map((id) =>
             ({ id: String(id), name: weekdayName(id) }))} onChange={(value) => setDay(Number(value))} />}
         </div>
-        {view === 'class' && <Segment label="分屏布局" value={layout} options={[
-          ['side', <span className="inline-flex items-center gap-1"><Columns2 size={13} />{layouts.side}</span>],
-          ['stack', <span className="inline-flex items-center gap-1"><Rows2 size={13} />{layouts.stack}</span>],
-        ]} onChange={setLayout} />}
+        {view === 'class' && <label className="inline-flex h-8 cursor-pointer select-none items-center gap-2 rounded-control px-1.5 text-[12px] font-medium text-ink-secondary hover:text-ink">
+          <Checkbox checked={showTeacherView} onCheckedChange={(checked) => setShowTeacherView(checked === true)} />
+          <span>对照教师课表</span>
+        </label>}
         <div className="schedule-toolbar-group">
           {!readOnly && <>
             <Button variant="ghost" size="sm" disabled={busy || !history.undo.length} onClick={() => void undoRedo('undo')}><Undo2 />撤销</Button>
@@ -727,7 +827,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     {!context ? <section className="schedule-panel schedule-empty">
       <p className="font-semibold text-ink">尚未发布正式课表</p>
       <Button variant="ghost" onClick={() => setVersion('draft')}>前往草稿排课</Button>
-    </section> : view === 'class' ? <div className="schedule-split" data-layout={layout}>
+    </section> : view === 'class' ? <div className="schedule-split" data-layout={split ? 'side' : 'single'}>
       <div className="schedule-secondary">
         <section className="schedule-panel schedule-timetable-panel">
           <div className="schedule-timetable-heading">
@@ -742,16 +842,21 @@ function TermSchedulingPage({ termId }: { termId: string }) {
           {grid(mainStage, '班级课表', visibleItems.filter((row) => row.classId === targetClass),
             { mode: 'class', id: targetClass, active: true })}
         </section>
-        {!split && version === 'draft' && renderPool()}
       </div>
       {split && <div className="schedule-secondary">
-        <section className="schedule-panel schedule-timetable-panel">
+        <section className="schedule-panel schedule-timetable-panel schedule-teacher-panel">
           <div className="schedule-timetable-heading"><h2>任课教师课表</h2><span className="text-sm text-ink-secondary">
             {linkedTeacherId ? context.teachers.get(linkedTeacherId) : selectedItem ? '未分配教师' : ''}
           </span></div>
-          {linkedTeacherId ? renderTeacher(linkedTeacherId, true) : <p className="schedule-empty">选择班级课节即可查看任课教师课表。</p>}
+          {linkedTeacherId ? renderTeacher(linkedTeacherId, true) : <div className="schedule-teacher-empty" role="status">
+            <div className="schedule-teacher-empty-art" aria-hidden="true">
+              <CalendarDays />
+              <span><MousePointerClick /></span>
+            </div>
+            <strong>{selectedItem ? '这节课还没有安排任课教师' : '先选一节班级课程'}</strong>
+            <p>{selectedItem ? '为课程安排教师后，这里就会显示对应课表。' : '点击左侧任一课程卡片，即可查看对应任课教师课表。'}</p>
+          </div>}
         </section>
-        {version === 'draft' && renderPool()}
       </div>}
     </div> : view === 'teacher' ? <div className="schedule-secondary">
       <section className="schedule-panel schedule-timetable-panel">
@@ -762,7 +867,6 @@ function TermSchedulingPage({ termId }: { termId: string }) {
         </div>
         {displayedTeacher ? renderTeacher(displayedTeacher.id) : <p className="schedule-empty">暂无教师。</p>}
       </section>
-      {displayedTeacher && version === 'draft' && renderPool()}
     </div> : view === 'room' ? <section className="schedule-panel schedule-timetable-panel">
       <div className="schedule-timetable-heading"><h2>{displayedRoom?.name ?? '场室课表'}</h2></div>
       {displayedRoom ? stages.map((row) => <div key={row.id}><p className="schedule-feedback">{row.name}</p>{grid(row.id, row.name,
@@ -792,6 +896,8 @@ function TermSchedulingPage({ termId }: { termId: string }) {
         </section>;
       })}
     </div>}
+
+    {context && version === 'draft' && (view === 'class' || view === 'teacher' && !!displayedTeacher) && renderPool()}
 
 
     {modal === 'rules' && <ScheduleRulesDialog data={draft} onClose={closeModal} onSave={async (rules, preferences, locks) => {
