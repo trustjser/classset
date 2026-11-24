@@ -729,7 +729,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
         {poolDragOver && canDropToPool && <span className="schedule-pool-ready" role="status"><CheckCircle2 aria-hidden="true" />可放入</span>}
         {canDropToPool && <button type="button" className="schedule-pool-place-action" aria-label="将当前选中课程暂存"
           onClick={() => { setPoolDragOver(false); void place(null); }}>
-          <ArrowDownToLine aria-hidden="true" />暂存当前课程
+          <ArrowDownToLine aria-hidden="true" />将当前课程放入暂存
         </button>}
         {poolExpanded && ((view === 'class' && hasUnplacedInSchool) || pool.length > 0) && <div className="schedule-toolbar-group">
           {view === 'class' && <Segment label="暂放范围" value={poolScope} options={[['class', '本班'], ['all', '全部']]} onChange={setPoolScope} />}

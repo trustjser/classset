@@ -57,7 +57,7 @@ const NAV_ITEMS: NavEntry[] = [
   { section: 'workbench', label: '工作台', group: 'root', icon: LayoutDashboard },
   { section: 'terms', label: '学期与日历', group: 'basic', icon: CalendarDays },
   { section: 'classes', label: '班级与学段', group: 'basic', icon: Network },
-  { section: 'routines', label: '作息设置', group: 'basic', icon: Clock, badge: '分学段' },
+  { section: 'routines', label: '作息设置', group: 'basic', icon: Clock },
   { section: 'publicRooms', label: '公共场室', group: 'basic', icon: Building2 },
   { section: 'subjects', label: '科目节数', group: 'prep', icon: Calculator },
   { section: 'teachers', label: '教师任课', group: 'prep', icon: UserCheck },
@@ -322,7 +322,7 @@ export const AppShell: React.FC = () => {
         {/* 左侧导航保留全部业务步骤，内容区独立滚动，底部状态始终可见。 */}
         <aside
           className={`app-sidebar shrink-0 bg-surface flex flex-col transition-[width,padding] duration-page ${
-            sidebarExpanded ? 'w-[244px] px-4 py-4' : 'w-[70px] px-2 py-3'
+            sidebarExpanded ? 'w-[200px] px-4 py-4' : 'w-[70px] px-2 py-3'
           }`}
           data-expanded={sidebarExpanded}
         >
@@ -418,11 +418,8 @@ export const AppShell: React.FC = () => {
             <div className="app-sidebar-status mt-3 px-2.5 py-2.5 rounded-[10px] bg-canvas flex items-center gap-2.5">
               <span className="w-2.5 h-2.5 rounded-full bg-success shrink-0" />
               <div className="min-w-0">
-                <div className="text-[12px] font-semibold text-ink truncate">
-                  本地数据 · 离线可用
-                </div>
                 <div className="text-[12px] text-ink-secondary truncate">
-                  Schema v{SCHEMA_VERSION} · 最近保存 {savedTimeText}
+                  最近保存 {savedTimeText}
                 </div>
               </div>
             </div>

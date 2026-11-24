@@ -150,6 +150,7 @@ export function roomFor(context: ScheduleContext, item: ScheduleItem) {
 const lessonName = (context: ScheduleContext, item: ScheduleItem) => context.subjects.get(item.subjectId) ?? '课程';
 const teacherName = (context: ScheduleContext, item: ScheduleItem) => context.teachers.get(item.teacherId ?? '') ?? '未分配教师';
 const className = (context: ScheduleContext, item: ScheduleItem) => context.classes.get(item.classId)?.name ?? '班级';
+const weekModeName = (mode: ScheduleItem['weekMode']) => mode === 'weekly' ? '每周' : mode === 'odd' ? '单周' : '双周';
 const meetingKey = (item: ScheduleItem) => item.meetingId ?? item.id;
 const teachingMeetingKey = (item: ScheduleItem) => item.combinedGroupId && item.meetingId
   ? `${item.combinedGroupId}:${item.meetingId}` : item.id;
@@ -319,6 +320,17 @@ function relatedItems(context: ScheduleContext, source: ScheduleItem) {
   return [...new Set([...meeting, ...counterparts])];
 }
 
+function manualMoveItems(context: ScheduleContext, source: ScheduleItem) {
+  const related = relatedItems(context, source);
+  const slot = positionOf(context, source);
+  if (!slot || source.weekMode === 'weekly') return related;
+
+  const alternatingPeers = (context.itemsByClass.get(source.classId) ?? [])
+    .filter((row) => row.weekMode !== 'weekly' && row.weekMode !== source.weekMode && positionOf(context, row) === slot)
+    .flatMap((row) => relatedItems(context, row));
+  return [...new Set([...related, ...alternatingPeers])];
+}
+
 function matchingSlot(context: ScheduleContext, item: ScheduleItem, target: ScheduleSlot) {
   const stage = context.stageForClass(item.classId);
   if (stage === target.stageId) return target;
@@ -367,7 +379,7 @@ export function previewPlacement(
   const blocked = (reason: string): PlacementPreview => ({ status: 'blocked', reason });
   const target = requestedTarget ? context.slots.get(slotKey(requestedTarget)) ?? null : null;
   if (requestedTarget && !target) return blocked('目标节次不在当前作息中');
-  const moving = relatedItems(context, source);
+  const moving = manualMoveItems(context, source);
   if (moving.some((item) => isLessonLocked(context, item) &&
     (!target || matchingSlot(context, item, target) !== positionOf(context, item)))) return blocked('该课节涉及已锁定的班级或教师');
   if (!target && source.weekday === null) return blocked('课程已在暂放区');
@@ -382,11 +394,19 @@ export function previewPlacement(
     const to = target ? matchingSlot(context, item, target) : null;
     if (target && !to) return blocked('合班课在其他学段找不到同一时段');
     if (to) {
+      const from = positionOf(context, item);
       const occupants = (context.itemsByClass.get(item.classId) ?? []).filter((row) => !ignored.has(row.id) &&
         occursInWeek(row.weekMode, item.weekMode) && positionOf(context, row) === to);
-      if (explicit && item.id === source.id && !occupants.some((row) => row.id === explicit.id)) occupants.push(explicit);
-      const from = positionOf(context, item);
-      if (occupants.length && (!allowSwap || !from)) return blocked(`${className(context, item)}此节已有${lessonName(context, occupants[0])}`);
+      if (occupants.length && (!allowSwap || !from)) {
+        const lessons = occupants.map((row) => `${lessonName(context, row)}（${weekModeName(row.weekMode)}）`).join('、');
+        return blocked(`${className(context, item)}此节已有${lessons}`);
+      }
+      if (explicit && item.id === source.id && !occupants.some((row) => row.id === explicit.id)) {
+        if (!allowSwap || !from) {
+          return blocked(`${teacherName(context, explicit)}此节已有${className(context, explicit)}的${lessonName(context, explicit)}（${weekModeName(explicit.weekMode)}）`);
+        }
+        occupants.push(explicit);
+      }
       for (const occupant of occupants) {
         for (const partner of relatedItems(context, occupant)) {
           if (isLessonLocked(context, partner)) return blocked('目标课节涉及已锁定的班级或教师');
