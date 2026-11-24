@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ScopeType, Teacher, TeacherGroup, TeacherGroupMember, TeacherGroupPreset, TeacherPreset, PresetValue } from '@/domain/models';
+import { createId } from '@/domain/id';
 import { getPeriodAccentColor } from '@/domain/routineUtils';
 import { schoolRepository } from '@/repository/schoolRepository';
 import { useAppStore } from '@/store/useAppStore';
@@ -126,14 +127,14 @@ export const TeacherPresetPage: React.FC<{ termId: string; owner: Owner; teacher
       const nextSlots = slots.filter((slot) => (draft[cellKey(activeScope, slot)] ?? ownedValues[cellKey(activeScope, slot)] ?? 'auto') !== 'auto');
       if (ownerKind === 'teacher') {
         const preserved = personal.filter((item) => item.teacherId === ownerId && !isCurrent(item));
-        const next: TeacherPreset[] = [...preserved, ...nextSlots.map((slot) => ({ id: crypto.randomUUID(), termId, teacherId: ownerId, scopeType: activeScope.type,
+        const next: TeacherPreset[] = [...preserved, ...nextSlots.map((slot) => ({ id: createId(), termId, teacherId: ownerId, scopeType: activeScope.type,
           scopeId: activeScope.id, stageId: activeScope.stageId, weekday: slot.weekday, periodTypeId: slot.periodTypeId, lessonIndex: slot.lessonIndex,
           weekMode: 'weekly' as const, value: (draft[cellKey(activeScope, slot)] ?? ownedValues[cellKey(activeScope, slot)])! }))];
         await schoolRepository.replaceTeacherPresets(termId, ownerId, next);
         setPersonal([...personal.filter((item) => item.teacherId !== ownerId), ...next]);
       } else {
         const preserved = groupPresets.filter((item) => item.groupId === ownerId && !isCurrent(item));
-        const next: TeacherGroupPreset[] = [...preserved, ...nextSlots.map((slot) => ({ id: crypto.randomUUID(), groupId: ownerId, scopeType: activeScope.type,
+        const next: TeacherGroupPreset[] = [...preserved, ...nextSlots.map((slot) => ({ id: createId(), groupId: ownerId, scopeType: activeScope.type,
           scopeId: activeScope.id, stageId: activeScope.stageId, weekday: slot.weekday, periodTypeId: slot.periodTypeId, lessonIndex: slot.lessonIndex,
           weekMode: 'weekly' as const, value: (draft[cellKey(activeScope, slot)] ?? ownedValues[cellKey(activeScope, slot)])! }))];
         const affectedTeachers = members.filter((item) => item.groupId === ownerId).map((item) => item.teacherId);

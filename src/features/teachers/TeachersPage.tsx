@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { Teacher, TeacherAssignment, TeacherGroup, TeacherGroupMember, ClassGroup, WeekMode } from '@/domain/models';
+import { createId } from '@/domain/id';
 import { schoolRepository } from '@/repository/schoolRepository';
 import { useAppStore } from '@/store/useAppStore';
 import { assignmentError, remainingCourses, teacherWeeklyLoad } from './teacherLogic';
@@ -24,7 +25,7 @@ import { getSubjectColor } from '@/styles/subjectColors';
 
 const modeLabels: Record<WeekMode, string> = { weekly: '每周', odd: '单周', even: '双周' };
 const byOrder = <T extends { sortOrder: number }>(rows: T[]) => [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
-const newId = () => crypto.randomUUID();
+const newId = createId;
 const presetOwnerFromRoute = (): { kind: 'teacher' | 'group'; id?: string } | null => {
   const [, section, page, kind, id] = window.location.hash.split('/');
   return section === 'teachers' && page === 'preset' && (kind === 'teacher' || kind === 'group')

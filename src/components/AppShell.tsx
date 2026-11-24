@@ -249,6 +249,9 @@ export const AppShell: React.FC = () => {
     typeof navigator !== 'undefined' &&
     (/Macintosh|Mac OS X/i.test(navigator.userAgent) ||
       /Mac/i.test(navigator.platform));
+  const isWindows =
+    typeof navigator !== 'undefined' &&
+    (/Windows/i.test(navigator.userAgent) || /Win/i.test(navigator.platform));
 
   const renderNavButton = (item: NavEntry) => {
     const availability = getNavSectionAvailability(
@@ -314,7 +317,7 @@ export const AppShell: React.FC = () => {
       <div
         className={`app-shell-frame flex bg-canvas text-ink ${
           runtimeMode === 'tauri-desktop' && isMacOS ? 'tauri-macos' : ''
-        }`}
+        } ${isWindows ? 'windows-scrollbars' : ''}`}
       >
         {/* 左侧导航保留全部业务步骤，内容区独立滚动，底部状态始终可见。 */}
         <aside

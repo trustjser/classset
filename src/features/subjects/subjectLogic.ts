@@ -1,6 +1,7 @@
 import type {
   ClassGroup, FreeSlot, GradeGroup, SchoolStage, StageRoutine, Subject, SubjectRequirement, WeekMode,
 } from '@/domain/models';
+import { createId } from '@/domain/id';
 
 export interface LessonValues { weekly: number; odd: number; even: number }
 export const EMPTY_LESSONS: LessonValues = { weekly: 0, odd: 0, even: 0 };
@@ -83,7 +84,7 @@ export function makeRequirementRows(
       for (const mode of ['weekly', 'odd', 'even'] as WeekMode[]) {
         if (cell[mode] <= 0) continue;
         rows.push({
-          id: existingIds.get(`${subjectId}:${schoolClass.id}:${mode}`) ?? crypto.randomUUID(),
+          id: existingIds.get(`${subjectId}:${schoolClass.id}:${mode}`) ?? createId(),
           subjectId, gradeId: schoolClass.gradeId, classId: schoolClass.id,
           weekMode: mode, lessonCount: cell[mode],
         });

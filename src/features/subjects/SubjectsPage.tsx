@@ -13,6 +13,7 @@ import type {
   ClassGroup, ScopeType, Subject, SubjectLessonConstraint, SubjectPairing,
   SubjectParallelLimit, SubjectPreset, SubjectRequirement, SubjectRoomAssignment,
 } from '@/domain/models';
+import { createId } from '@/domain/id';
 import { useAppStore } from '@/store/useAppStore';
 import {
   applyGradeInput, EMPTY_LESSONS, formatGradeCell, formatLessonValues,
@@ -25,7 +26,6 @@ import { buildSubjectDraftInputs, COMMON_SUBJECTS, firstSubjectCharacter } from 
 import { applyMatrixCells, copyMatrixText, matrixCellKey, pasteMatrixGrid, rectangleKeys } from './subjectMatrixActions';
 import { resolveConstraintField, validateConstraintRanges, type ConstraintField } from './subjectAdvancedLogic';
 
-function createId(): string { return crypto.randomUUID(); }
 function sortByOrder<T extends { sortOrder: number }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.sortOrder - b.sortOrder);
 }

@@ -8,6 +8,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { SelectField } from '@/components/ui/select-field';
 import type { ScheduleCondition, ScheduleLock, SchedulePreferences } from '@/domain/models';
 import type { ScheduleData } from '@/domain/scheduling';
+import { createId } from '@/domain/id';
 import { weekdayName } from './TimetableGrid';
 
 const kinds = [
@@ -71,7 +72,7 @@ export function ScheduleRulesDialog({ data, onClose, onSave }: {
         <section className="space-y-2 border-t border-border pt-3">
           <div className="flex items-center justify-between"><h3 className="font-semibold">自定义硬条件</h3>
             <Button type="button" size="sm" variant="outline" onClick={() => setConditions([...conditions, {
-              id: crypto.randomUUID(), termId: data.term.id, kind: 'dailyLimit', targetKind: 'subject',
+              id: createId(), termId: data.term.id, kind: 'dailyLimit', targetKind: 'subject',
               name: null, targetId: null, otherId: null, periodTypeId: null, weekday: null, minCount: null, maxCount: null, exactCount: null,
             }])}><Plus />添加条件</Button></div>
           {conditions.map((row) => {

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
-import { ArrowDownToLine, CheckCircle2, Columns2, Lock, LockOpen, Redo2, Rows2, SlidersHorizontal, Sparkles, Undo2, X } from 'lucide-react';
+import { ArrowDownToLine, Check, CheckCircle2, ChevronDown, ChevronRight, Columns2, Lock, LockOpen, Redo2, Rows2, Search, SlidersHorizontal, Sparkles, Undo2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { SelectField } from '@/components/ui/select-field';
@@ -25,14 +26,15 @@ import type { ExportOptions } from './scheduleExport';
 import './scheduling.css';
 
 type View = 'class' | 'teacher' | 'all' | 'room';
-type Layout = 'single' | 'side' | 'stack';
+type Layout = 'side' | 'stack';
 type Modal = 'solve' | 'rules' | 'publish' | 'detect' | 'report' | 'export' | 'reconcile' | null;
 type Reconciliation = ReturnType<typeof reconcileSchedule>;
 type Edit = { before: ScheduleItem[]; after: ScheduleItem[] };
+type StageClassGroup = { id: string; name: string; classes: Array<{ id: string; name: string }> };
 
 const weekLabels: Record<WeekMode, string> = { weekly: '每周', odd: '单周', even: '双周' };
 const viewOptions = [['class', '班级课表'], ['teacher', '教师课表'], ['all', '总课表'], ['room', '场室课表']] as const;
-const layouts: Record<Layout, string> = { single: '单视图', side: '左右分屏', stack: '上下分屏' };
+const layouts: Record<Layout, string> = { side: '左右分屏', stack: '上下分屏' };
 
 function Segment<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: ReadonlyArray<readonly [T, ReactNode]>; onChange: (value: T) => void;
@@ -66,6 +68,85 @@ function PickList({ label, value, options, onChange, searchable = false }: {
     placeholder={`选择${label}`}
     value={value}
   />;
+}
+
+function StageClassTreeSelect({ groups, value, onChange }: {
+  groups: StageClassGroup[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const selected = groups.flatMap((stage) => stage.classes.map((schoolClass) => ({ stage, schoolClass })))
+    .find((row) => row.schoolClass.id === value);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filteredGroups = groups.map((stage) => {
+    const stageMatches = stage.name.toLocaleLowerCase().includes(normalizedQuery);
+    const classes = normalizedQuery && !stageMatches
+      ? stage.classes.filter((schoolClass) => schoolClass.name.toLocaleLowerCase().includes(normalizedQuery))
+      : stage.classes;
+    return { ...stage, classes, stageMatches };
+  }).filter((stage) => !normalizedQuery || stage.stageMatches || stage.classes.length > 0);
+
+  return <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setQuery(''); }}>
+    <PopoverTrigger asChild>
+      <Button type="button" variant="outline" size="sm"
+        aria-label={selected ? `学段与班级：${selected.stage.name}，${selected.schoolClass.name}` : '学段与班级'}
+        className="h-8 justify-between gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+          {selected ? <>
+            <span className="max-w-[4rem] shrink-0 truncate text-xs font-medium text-ink-secondary">{selected.stage.name}</span>
+            <span className="shrink-0 text-ink-secondary">·</span>
+            <span className="min-w-0 truncate font-semibold text-ink">{selected.schoolClass.name}</span>
+          </> : <span className="truncate">选择班级</span>}
+        </span>
+        <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent align="start" side="bottom" collisionPadding={12}
+      className="w-[min(15rem,calc(100vw-24px))] p-1.5">
+      <div role="group" aria-label="学段与班级" className="max-h-[min(22rem,60vh)] overflow-y-auto">
+        <div className="sticky top-0 z-10 border-b border-border bg-surface px-1 pb-2 pt-1">
+          <div className="relative">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-ink-secondary" />
+            <Input autoFocus aria-label="搜索学段或班级" className="h-8 pl-8 text-sm"
+              placeholder="搜索学段或班级" value={query} onChange={(event) => setQuery(event.target.value)} />
+          </div>
+        </div>
+        {filteredGroups.map((stage) => {
+          const expanded = !!normalizedQuery || !collapsed.has(stage.id);
+          return <div key={stage.id}>
+            <Button type="button" variant="ghost" size="sm" aria-expanded={expanded}
+              className="h-8 w-full justify-start gap-2 px-2 font-semibold"
+              onClick={() => setCollapsed((current) => {
+                const next = new Set(current);
+                if (next.has(stage.id)) next.delete(stage.id);
+                else next.add(stage.id);
+                return next;
+              })}>
+              <ChevronRight aria-hidden="true" className={`h-3.5 w-3.5 ${expanded ? 'rotate-90' : ''}`} />
+              <span className="truncate">{stage.name}</span>
+            </Button>
+            {expanded && <div role="group" aria-label={stage.name} className="ml-3 border-l border-border pl-2">
+              {stage.classes.length ? stage.classes.map((schoolClass) => {
+                const isSelected = schoolClass.id === value;
+                return <Button key={schoolClass.id} type="button" variant="ghost" size="sm" aria-pressed={isSelected}
+                  className={`h-8 w-full justify-between gap-2 px-2 text-left ${isSelected ? 'border border-accent bg-selection font-semibold text-ink hover:bg-selection' : 'text-ink'}`}
+                  style={isSelected ? { color: 'var(--color-ink)' } : undefined}
+                  onClick={() => { onChange(schoolClass.id); setOpen(false); }}>
+                  <span className="truncate">{schoolClass.name}</span>
+                  <Check aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-accent' : 'opacity-0'}`} />
+                </Button>;
+              }) : <p className="px-2 py-1 text-xs text-ink-secondary">暂无班级</p>}
+            </div>}
+          </div>;
+        })}
+        {normalizedQuery && filteredGroups.length === 0 &&
+          <p className="px-2 py-3 text-center text-xs text-ink-secondary">没有匹配的学段或班级</p>}
+      </div>
+    </PopoverContent>
+  </Popover>;
 }
 
 function ModalFrame({ title, description, children, actions, onClose, wide = false }: {
@@ -137,9 +218,8 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const [report, setReport] = useState<ScheduleRunReport | null>(null);
   const [version, setVersion] = useState<'draft' | 'published'>('draft');
   const [view, setView] = useState<View>('class');
-  const [layout, setLayout] = useState<Layout>('single');
+  const [layout, setLayout] = useState<Layout>('side');
   const [week, setWeek] = useState<WeekMode>('weekly');
-  const [stage, setStage] = useState('');
   const [overviewStage, setOverviewStage] = useState('all');
   const [classId, setClassId] = useState('');
   const [teacherId, setTeacherId] = useState('');
@@ -203,20 +283,27 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const readOnly = version === 'published' || baseline !== null;
   const displayWeek = schedule?.term.cycleMode === 'alternating' ? week : 'weekly';
   const stages = useMemo(() => [...(schedule?.stages ?? [])].sort((a, b) => a.sortOrder - b.sortOrder), [schedule]);
-  const stageId = stages.some((row) => row.id === stage) ? stage :
-    stages.find((row) => context?.data.classes.some((item) => context.stageForClass(item.id) === row.id))?.id ?? stages[0]?.id ?? '';
-  const classes = useMemo(() => {
+  const classGroups = useMemo<StageClassGroup[]>(() => {
     if (!context) return [];
-    return [...context.data.classes].filter((row) => context.stageForClass(row.id) === stageId)
-      .sort((a, b) => (context.grades.get(a.gradeId)?.sortOrder ?? 0) - (context.grades.get(b.gradeId)?.sortOrder ?? 0) || a.sortOrder - b.sortOrder);
-  }, [context, stageId]);
+    return stages.map((row) => ({
+      id: row.id,
+      name: row.name,
+      classes: [...context.data.classes].filter((item) => context.stageForClass(item.id) === row.id)
+        .sort((a, b) => (context.grades.get(a.gradeId)?.sortOrder ?? 0) - (context.grades.get(b.gradeId)?.sortOrder ?? 0) || a.sortOrder - b.sortOrder)
+        .map(({ id, name }) => ({ id, name })),
+    }));
+  }, [context, stages]);
+  const activeClassGroup = classGroups.find((group) => group.classes.some((row) => row.id === classId)) ??
+    classGroups.find((group) => group.classes.length > 0);
+  const stageId = activeClassGroup?.id ?? stages[0]?.id ?? '';
+  const classes = classGroups.find((group) => group.id === stageId)?.classes ?? [];
   const displayedClass = classes.find((row) => row.id === classId) ?? classes[0];
   const displayedTeacher = schedule?.teachers.find((row) => row.id === teacherId) ?? schedule?.teachers[0];
   const displayedRoom = schedule?.rooms.find((row) => row.id === roomId) ?? schedule?.rooms[0];
   const selectedItem = context?.data.items.find((row) => row.id === selected);
   const movingItem = context?.data.items.find((row) => row.id === moving);
   const linkedTeacherId = selectedItem?.teacherId ?? movingItem?.teacherId;
-  const split = view === 'class' && layout !== 'single';
+  const split = view === 'class';
   const targetClass = movingItem?.classId ?? displayedClass?.id;
   const mainStage = context?.stageForClass(targetClass ?? '') ?? stageId;
   const visibleItems = useMemo(() => context?.data.items.filter((row) => occursInWeek(row.weekMode, displayWeek)) ?? [], [context, displayWeek]);
@@ -236,8 +323,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     if (!context || !movingItem || busy || !canMoveLessons) return undefined;
     const sourceSlot = positionOf(context, movingItem);
     const slots = view === 'teacher' ? [...context.slots.values()] : context.slotsByStage.get(mainStage) ?? [];
-    return new Map(slots.filter((slot) => slot.stageId !== sourceSlot.stageId || slotKey(slot) !== slotKey(sourceSlot)).map((slot) =>
-      [slotKey(slot), previewPlacement(context, movingItem, slot, true, false, teacherSwapTarget(slot))]));
+    return new Map(slots.filter((slot) => !sourceSlot || slot.stageId !== sourceSlot.stageId || slotKey(slot) !== slotKey(sourceSlot)).map((slot) =>      [slotKey(slot), previewPlacement(context, movingItem, slot, true, false, teacherSwapTarget(slot))]));
   }, [context, movingItem, busy, canMoveLessons, view, mainStage, teacherSwapTarget]);
   const hoverPreview = hovered && targets?.get(slotKey(hovered));
   const linkedCorrections = hoverPreview && hoverPreview.status === 'swap' && hoverPreview.changed ? new Map(hoverPreview.changed.map((row) => [row.id, row])) : null;
@@ -435,11 +521,15 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     const schoolClass = context.classes.get(item.classId)?.name;
     const subject = context.subjects.get(item.subjectId) ?? '课程';
     const blocked = isLessonLocked(context, item);
+    const lockedOnTimetable = blocked && item.weekday !== null;
     const subtitle = [detail !== 'class' && schoolClass, detail !== 'teacher' && teacher,
-      item.weekMode !== 'weekly' && weekLabels[item.weekMode], item.combinedGroupId && '合班', blocked && '已锁定'].filter(Boolean).join(' · ');
-    const title = `${subject} · ${subtitle}${preview ? ' · 预览' : ''}`;
+      item.weekMode !== 'weekly' && weekLabels[item.weekMode], item.combinedGroupId && '合班'].filter(Boolean).join(' · ');
+    const title = `${subject} · ${subtitle}${lockedOnTimetable ? ' · 已锁定' : ''}${preview ? ' · 预览' : ''}`;
     const props = { className: 'schedule-lesson', title, style: { '--lesson-bg': color.background, '--lesson-ink': color.foreground, '--lesson-border': `${color.foreground}30` } as CSSProperties };
-    const contents = <><strong>{subject}</strong><small>{subtitle}{preview ? ' · 预览' : ''}</small></>;
+    const contents = <><strong>{subject}</strong>
+      <small className={lockedOnTimetable ? 'schedule-lesson-locked-details' : undefined}>{subtitle}{preview ? ' · 预览' : ''}</small>
+      {lockedOnTimetable && <Lock aria-hidden="true" className="schedule-lesson-lock" />}
+    </>;
     return interactive ? <button key={item.id} type="button" {...props} aria-label={title} aria-pressed={item.id === selected}
       draggable={!busy && !readOnly && !blocked}
       onClick={() => selectLesson(item)} onDragStart={(event) => beginDrag(event, item)}
@@ -523,30 +613,39 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     ]);
     const relevant = stages.filter((row) => teacherStages.has(row.id));
     if (!relevant.length) return <p className="schedule-empty">当前教师没有任课或带班安排。</p>;
-    return relevant.map((row) => <div key={row.id}>
-      {relevant.length > 1 && <p className="schedule-feedback">{row.name}</p>}
+    const currentStage = linked ? mainStage : stageId;
+    const current = relevant.find((row) => row.id === currentStage);
+    const ordered = current ? [current, ...relevant.filter((row) => row.id !== current.id)] : relevant;
+    return ordered.map((row) => <div key={row.id}>
+      {ordered.length > 1 && <p className="schedule-feedback">{row.name}</p>}
       {grid(row.id, `${context.teachers.get(id)} · ${row.name}`, teacherItems, {
         mode: 'teacher', id, ghost: linked, active: !linked || !!movingItem && canMoveLessons && row.id === mainStage, dropOnly: linked,
       })}
     </div>);
   }
 
-  const renderPool = () => <section className="schedule-panel" onDragOver={(event) => {
+  const renderPool = () => <section className="schedule-panel schedule-pool-panel" onDragOver={(event) => {
     if (!readOnly && movingItem?.weekday != null) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }
   }} onDrop={(event) => {
     if (!readOnly) { event.preventDefault(); void place(null, event.dataTransfer.getData('text/plain') || moving); }
   }}>
-    <div className="schedule-panel-heading">
-      <h3>暂放课节池 <span className="font-normal text-ink-secondary">{pool.length} 节</span></h3>
-      <div className="schedule-toolbar-group">
-        {view === 'class' && <Segment label="暂放范围" value={poolScope} options={[['class', '本班'], ['all', '全部']]} onChange={setPoolScope} />}
-        {pool.length > 0 && !readOnly && <Button variant="ghost" size="sm" disabled={busy} onClick={() => openSolve(true)}>补排</Button>}
-        <Button variant="ghost" size="sm" disabled={!report} onClick={() => setModal('report')}>未排报告</Button>
+    <div className="schedule-panel-heading schedule-pool-heading">
+      <h3>暂放区</h3>
+      <div className="schedule-pool-heading-meta">
+        <span className="schedule-pool-count">{pool.length} 节</span>
+        {pool.length > 0 && <div className="schedule-toolbar-group">
+          {view === 'class' && <Segment label="暂放范围" value={poolScope} options={[['class', '本班'], ['all', '全部']]} onChange={setPoolScope} />}
+          {!readOnly && <Button variant="ghost" size="sm" disabled={busy} onClick={() => openSolve(true)}>补排</Button>}
+          <Button variant="ghost" size="sm" disabled={!report} onClick={() => setModal('report')}>未排报告</Button>
+        </div>}
       </div>
     </div>
     {pool.length ? <div className="schedule-pool">{pool.map((item) => <div key={item.id} className="min-w-0"
       title={report?.blockers[item.id]?.join('；')}>{renderLesson(item, 'both', !busy && !readOnly)}</div>)}</div>
-      : <p className="schedule-empty">当前范围没有暂放课节。</p>}
+      : <div role="group" aria-label="拖拽课程卡片到此处暂存" className="schedule-pool-dropzone">
+        <Upload aria-hidden="true" className="h-6 w-6" />
+        <span>拖拽课程卡片到此处暂存</span>
+      </div>}
     {!readOnly && movingItem?.weekday != null && <div className="schedule-feedback">
       <Button variant="outline" size="sm" disabled={busy} onClick={() => void place(null)}>移入暂放区</Button>
     </div>}
@@ -557,7 +656,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     const insideOverlay = target instanceof HTMLElement && target.closest('[role="dialog"], [role="listbox"], [role="menu"], input, textarea');
     if (event.key === 'Escape' && !insideOverlay && (selected || moving)) resetSelection();
   }}>
-    <section className="schedule-panel" aria-label="课表工具栏">
+    <section className="schedule-panel schedule-sticky-toolbar" aria-label="课表工具栏">
       <div className="schedule-toolbar">
         <Segment label="课表版本" value={version} options={[['draft', '草稿版'], ['published', '正式版']]}
           onChange={(value) => { if (!busy) { setVersion(value); resetSelection(); setFeedback(''); } }} />
@@ -574,11 +673,9 @@ function TermSchedulingPage({ termId }: { termId: string }) {
       </div>
       {schedule && <div className="schedule-toolbar border-t border-border">
         <div className="schedule-toolbar-group">
-          {view === 'class' && <PickList label="学段" value={stageId} options={stages}
-            onChange={(id) => { setStage(id); setClassId(''); resetSelection(); }} />}
+          {view === 'class' && <StageClassTreeSelect groups={classGroups} value={displayedClass?.id ?? ''}
+            onChange={(id) => { setClassId(id); resetSelection(); }} />}
           {view === 'all' && <PickList label="总课表学段" value={overviewStage} options={[{ id: 'all', name: '全校' }, ...stages]} onChange={setOverviewStage} />}
-          {view === 'class' && <PickList label="班级" value={displayedClass?.id ?? ''} options={classes}
-            searchable onChange={(id) => { setClassId(id); resetSelection(); }} />}
           {view === 'teacher' && <PickList label="教师" value={displayedTeacher?.id ?? ''} options={schedule.teachers} searchable onChange={(id) => { setTeacherId(id); resetSelection(); }} />}
           {view === 'room' && <PickList label="场室" value={displayedRoom?.id ?? ''} options={schedule.rooms} searchable onChange={setRoomId} />}
           {view === 'all' && <Segment label="总课表布局" value={overview} options={[['grid', '周课表'], ['day', '按日对照']]} onChange={setOverview} />}
@@ -586,14 +683,15 @@ function TermSchedulingPage({ termId }: { termId: string }) {
             ({ id: String(id), name: weekdayName(id) }))} onChange={(value) => setDay(Number(value))} />}
         </div>
         {view === 'class' && <Segment label="分屏布局" value={layout} options={[
-          ['single', '单视图'], ['side', <span className="inline-flex items-center gap-1"><Columns2 size={13} />{layouts.side}</span>],
+          ['side', <span className="inline-flex items-center gap-1"><Columns2 size={13} />{layouts.side}</span>],
           ['stack', <span className="inline-flex items-center gap-1"><Rows2 size={13} />{layouts.stack}</span>],
         ]} onChange={setLayout} />}
         <div className="schedule-toolbar-group">
           {!readOnly && <>
             <Button variant="ghost" size="sm" disabled={busy || !history.undo.length} onClick={() => void undoRedo('undo')}><Undo2 />撤销</Button>
             <Button variant="ghost" size="sm" disabled={busy || !history.redo.length} onClick={() => void undoRedo('redo')}><Redo2 />重做</Button>
-            {view !== 'room' && <Button variant="ghost" size="sm" disabled={busy || !canLock} onClick={changeLock}>
+            {view !== 'room' && <Button variant="ghost" size="sm" disabled={busy || !canLock} onClick={changeLock}
+              aria-pressed={locked} className={locked ? 'text-warning hover:text-warning' : undefined}>
               {locked ? <Lock /> : <LockOpen />}{locked ? '已锁定' : '锁定'}
             </Button>}
           </>}

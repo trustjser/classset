@@ -1,6 +1,7 @@
 import type { AcademicTerm, CommonPeriod, ScheduleItem } from '../domain/models';
 import type { DutyOccurrence, ScheduleData, ScheduleSlot } from '../domain/scheduling';
 import { createScheduleContext, defaultSchedulePreferences, positionOf } from '../domain/scheduling';
+import { createId } from '../domain/id';
 
 export function scheduleRevision(data: ScheduleData): string {
   return JSON.stringify(data, (_key, value: unknown) => {
@@ -157,7 +158,7 @@ export function createStoredRun(data: ScheduleData, items: ScheduleItem[], repor
   const message = (value: string) => ({ code: 'constraint', message: value });
   const placed = items.filter((row) => row.weekday !== null);
   return {
-    id: crypto.randomUUID(), termId: data.term.id, inputFingerprint: 'classset-workbench-v1',
+    id: createId(), termId: data.term.id, inputFingerprint: 'classset-workbench-v1',
     config: { selectedClassIds: report.classIds, seed: report.seed, strength: report.strength, solverVersion: 'classset-workbench-v3' },
     items: encodeScheduleSnapshot({ ...data, items }, 'classset-workbench-v1').existingItems,
     report: { totalItems: items.length, placedItems: placed.length, coverage: placed.reduce((sum, row) => sum + (row.weekMode === 'weekly' ? 2 : 1), 0),

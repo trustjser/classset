@@ -49,6 +49,7 @@ import {
 } from '../domain/models';
 
 import { defaultSchedulePreferences, validateScheduleSupervision, type DutyOccurrence, type ScheduleData } from '../domain/scheduling';
+import { createId } from '../domain/id';
 import { formatDateYmd, getIsoWeekday, getTeachingWeekEnd, getTeachingWeekOfDate, getTeachingWeekStart, parseLocalDate } from '../features/terms/calendarUtils';
 import { createStoredRun, readStoredRun, readStoredSchedule, scheduleReconciliationRevision, scheduleRevision, writeStoredSchedule, type ScheduleRunReport } from './scheduleStorage';
 
@@ -99,10 +100,7 @@ interface FallbackStore {
 type SqlRow = Record<string, unknown>;
 
 function createRecordId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `row_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return createId();
 }
 
 function validateStageRoutine(routine: StageRoutine): void {
