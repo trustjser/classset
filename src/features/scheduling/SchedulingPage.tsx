@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { ArrowDownToLine, CheckCircle2, Columns2, Lock, LockOpen, Redo2, Rows2, SlidersHorizontal, Sparkles, Undo2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -82,6 +82,51 @@ function ModalFrame({ title, description, children, actions, onClose, wide = fal
 
 export function SchedulingPage({ termId }: { termId: string | null }) {
   return termId ? <TermSchedulingPage key={termId} termId={termId} /> : <p className="schedule-empty">请先选择学期。</p>;
+}
+
+function AnimatedScheduleSlot({ version, children }: { version: string; children: ReactNode }) {
+  const element = useRef<HTMLDivElement>(null);
+  const stableHeight = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const current = element.current;
+    if (!current) return;
+    if (stableHeight.current === null) {
+      current.style.height = 'auto';
+      stableHeight.current = current.getBoundingClientRect().height;
+      return;
+    }
+
+    const startHeight = current.style.height && current.style.height !== 'auto'
+      ? current.getBoundingClientRect().height
+      : stableHeight.current;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    current.style.transition = 'none';
+    current.style.height = 'auto';
+    const targetHeight = Math.max(54, current.scrollHeight, current.closest('td')?.clientHeight ?? 0);
+    if (reduceMotion || Math.abs(targetHeight - startHeight) < 1) {
+      current.style.height = 'auto';
+      current.style.transition = '';
+      stableHeight.current = current.getBoundingClientRect().height;
+      return;
+    }
+
+    current.style.height = `${startHeight}px`;
+    void current.offsetHeight;
+    current.style.transition = '';
+    current.style.height = `${targetHeight}px`;
+
+    const finishTransition = (event: Event) => {
+      const transition = event as TransitionEvent;
+      if (transition.target !== current || transition.propertyName !== 'height') return;
+      current.style.height = 'auto';
+      stableHeight.current = current.getBoundingClientRect().height;
+    };
+    current.addEventListener('transitionend', finishTransition);
+    return () => current.removeEventListener('transitionend', finishTransition);
+  }, [version]);
+
+  return <div ref={element} className="schedule-slot-layers">{children}</div>;
 }
 
 function TermSchedulingPage({ termId }: { termId: string }) {
@@ -191,7 +236,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     if (!context || !movingItem || busy || !canMoveLessons) return undefined;
     const sourceSlot = positionOf(context, movingItem);
     const slots = view === 'teacher' ? [...context.slots.values()] : context.slotsByStage.get(mainStage) ?? [];
-    return new Map(slots.filter((slot) => slot !== sourceSlot).map((slot) =>
+    return new Map(slots.filter((slot) => slot.stageId !== sourceSlot.stageId || slotKey(slot) !== slotKey(sourceSlot)).map((slot) =>
       [slotKey(slot), previewPlacement(context, movingItem, slot, true, false, teacherSwapTarget(slot))]));
   }, [context, movingItem, busy, canMoveLessons, view, mainStage, teacherSwapTarget]);
   const hoverPreview = hovered && targets?.get(slotKey(hovered));
@@ -429,6 +474,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
       preview={options.active ? targets : undefined}
       previewSlot={options.active ? hovered : null}
       selectedSlot={options.active && selectedItem ? positionOf(context, selectedItem) : undefined}
+      dragSourceSlot={options.active && movingItem && movingItem.weekday !== null ? positionOf(context, movingItem) : undefined}
       onActivate={options.active ? (slot) => void place(slot) : undefined}
       onHover={options.active && moving ? setHovered : undefined}
       onDrop={options.active ? (slot, event) => { event.preventDefault(); void place(slot, event.dataTransfer.getData('text/plain') || moving); } : undefined}
@@ -452,12 +498,18 @@ function TermSchedulingPage({ termId }: { termId: string }) {
           {!rows.length && !cellDuties.length && !free && <span className="schedule-empty-slot" aria-hidden="true" />}
         </>;
         const previewLessons = [...lessons.filter((item) => !linkedCorrections?.has(item.id)), ...incoming];
-        return <div className="schedule-slot-layers">
+        const contentVersion = [
+          hasPreview,
+          [...lessons, ...previewLessons].map((item) => `${item.id}:${item.subjectId}:${item.teacherId}:${item.classId}:${item.weekMode}`).join(','),
+          cellDuties.map((row) => `${row.post.id}:${row.post.name}:${row.teacherName}:${row.classNames.join(',')}`).join(','),
+          free?.label ?? '',
+        ].join('|');
+        return <AnimatedScheduleSlot version={contentVersion}>
           <div className="schedule-slot-original" data-hidden={hasPreview || undefined} aria-hidden={hasPreview || undefined}>
             {slotContent(lessons)}
           </div>
           {hasPreview && <div className="schedule-cell-preview" aria-hidden="true">{slotContent(previewLessons, true)}</div>}
-        </div>;
+        </AnimatedScheduleSlot>;
       }} />;
   }
 

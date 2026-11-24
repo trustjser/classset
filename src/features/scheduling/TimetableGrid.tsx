@@ -27,10 +27,11 @@ interface TimetableGridProps {
   onDrop?: (slot: ScheduleSlot, event: DragEvent) => void;
   highlight?: (slot: ScheduleSlot) => boolean;
   selectedSlot?: ScheduleSlot;
+  dragSourceSlot?: ScheduleSlot;
   previewSlot?: ScheduleSlot | null;
 }
 
-export function TimetableGrid({ title, slots, commonPeriods = [], anchors, periodIds = [], render, preview, onActivate, onHover, onDrop, highlight, selectedSlot, previewSlot }: TimetableGridProps) {
+export function TimetableGrid({ title, slots, commonPeriods = [], anchors, periodIds = [], render, preview, onActivate, onHover, onDrop, highlight, selectedSlot, dragSourceSlot, previewSlot }: TimetableGridProps) {
   const [pointedSlot, setPointedSlot] = useState<ScheduleSlot | null>(null);
   const activeSlot = pointedSlot ?? selectedSlot;
   const pointAt = (slot: ScheduleSlot | null) => {
@@ -75,14 +76,18 @@ export function TimetableGrid({ title, slots, commonPeriods = [], anchors, perio
               {days.map((day) => {
                 const time = cells.get(slotKey({ ...row, weekday: day }));
                 if (!time) return <td key={day} className="schedule-no-slot" aria-label="未设课节">—</td>;
-                const offer = preview?.get(slotKey(time));
                 const content = render(time);
+                const dragSource = dragSourceSlot !== undefined && dragSourceSlot.stageId === time.stageId && slotKey(dragSourceSlot) === slotKey(time);
+                const offer = dragSource ? undefined : preview?.get(slotKey(time));
                 const blocked = offer?.status === 'blocked';
-                const pointed = pointedSlot === time;
-                const hintOpen = !!offer && previewSlot === time;
+                const pointed = !!pointedSlot && pointedSlot.stageId === time.stageId && slotKey(pointedSlot) === slotKey(time);
+                const shimmerTarget = !dragSource && pointed && !!offer && !blocked;
+                const hintOpen = !!offer && !!previewSlot && previewSlot.stageId === time.stageId && slotKey(previewSlot) === slotKey(time);
                 const success = offer?.status === 'available';
                 return (
-                  <td key={day} data-drop={offer?.status} data-linked={highlight?.(time) || undefined}
+                  <td key={day} data-drop={offer?.status} data-drag-source={dragSource || undefined}
+                    data-shimmer-target={shimmerTarget || undefined}
+                    data-linked={highlight?.(time) || undefined}
                     data-pointed={pointed || undefined}
                     onMouseEnter={() => pointAt(time)} onMouseLeave={() => pointAt(null)}
                     onFocus={() => pointAt(time)}
@@ -109,6 +114,9 @@ export function TimetableGrid({ title, slots, commonPeriods = [], anchors, perio
                               {blocked && <Ban size={14} aria-hidden="true" />}
                             </button>
                           )}
+                          {(dragSource || shimmerTarget) && <svg className="schedule-border-flow" aria-hidden="true" focusable="false">
+                            <rect x="0.75" y="0.75" width="calc(100% - 1.5px)" height="calc(100% - 1.5px)" rx="7.25" pathLength={100} />
+                          </svg>}
                         </div>
                       </Tooltip.Trigger>
                       {offer && hintOpen && <Tooltip.Portal>

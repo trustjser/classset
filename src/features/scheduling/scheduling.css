@@ -4,7 +4,7 @@
 .schedule-panel-heading { justify-content: space-between; border-bottom: 1px solid var(--color-border); }
 .schedule-panel-heading h2, .schedule-panel-heading h3 { font-weight: 600; font-size: 14px; }
 .schedule-toolbar-group { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-.schedule-drop-target:focus-visible, .schedule-lesson:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.schedule-drop-target:focus-visible, .schedule-lesson:focus-visible:not([aria-pressed=true]) { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .schedule-split { display: grid; align-items: start; gap: 12px; min-width: 0; }
 .schedule-split[data-layout="side"] { grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr); }
 .schedule-secondary { display: grid; min-width: 0; gap: 12px; }
@@ -22,7 +22,11 @@
 .schedule-lesson + .schedule-lesson { margin-top: 4px; }
 button.schedule-lesson { cursor: pointer; }
 button.schedule-lesson[draggable=true] { cursor: grab; }
-.schedule-lesson[aria-pressed=true] { outline: 1.5px solid var(--color-accent); outline-offset: 2px; }
+button.schedule-lesson[aria-pressed=true],
+button.schedule-lesson[aria-pressed=true]:focus,
+button.schedule-lesson[aria-pressed=true]:focus-visible {
+  position: relative; z-index: 4; border: 1px solid var(--color-accent); box-shadow: none; outline: none;
+}
 .schedule-lesson small { display: block; margin-top: 2px; font-size: 11.5px; color: inherit; opacity: .8; }
 .schedule-timetable-panel { border: 0; border-radius: 20px; padding: 16px 14px 14px; }
 .schedule-timetable-heading { display: flex; flex-wrap: wrap; align-items: center; min-height: 28px; gap: 4px 10px; padding: 0 6px; margin-bottom: 9px; color: var(--color-ink-secondary); font-size: 12.5px; }
@@ -48,18 +52,28 @@ button.schedule-lesson[draggable=true] { cursor: grab; }
 .schedule-grid-week .schedule-common td { height: auto; }
 .schedule-common td div { border-radius: 6px; background: var(--color-table-header); color: var(--color-ink-secondary); text-align: center; font-size: 11.5px; font-weight: 500; padding: 5px; }
 .schedule-grid-week td[data-linked] .schedule-slot { outline: 1.5px solid var(--color-accent); }
-.schedule-grid-week td[data-drop] .schedule-slot::before, .schedule-grid-week td[data-drop] .schedule-slot::after {
+.schedule-grid-week td[data-drag-source] .schedule-slot { outline: none; }
+.schedule-grid-week td[data-drop] .schedule-slot::before,
+.schedule-grid-week td[data-drop] .schedule-slot::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
 }
+.schedule-grid-week td[data-drag-source] { --flow-ink: var(--color-accent); }
+.schedule-grid-week td[data-shimmer-target] { --flow-ink: var(--drop-ink); }
 .schedule-grid-week td[data-drop="available"], .schedule-grid-week td[data-drop="caution"] { --drop-ink: var(--color-success); }
 .schedule-grid-week td[data-drop="swap"], .schedule-grid-week td[data-drop="caution"][data-pointed] { --drop-ink: var(--color-warning); }
-.schedule-grid-week td[data-drop] .schedule-slot::before { z-index: 1; background: var(--drop-ink); opacity: .08; }
-.schedule-grid-week td[data-drop] .schedule-slot::after { z-index: 2; box-shadow: inset 0 0 0 1px var(--drop-ink); }
+.schedule-grid-week td[data-drop] .schedule-slot::before { z-index: 1; background: var(--drop-ink); opacity: .08; transition: opacity 140ms ease, background-color 140ms ease; }
+.schedule-grid-week td[data-drop] .schedule-slot::after { z-index: 2; box-shadow: inset 0 0 0 1px var(--drop-ink); transition: box-shadow 140ms ease; }
 .schedule-grid-week td[data-drop="blocked"] { --drop-ink: var(--color-border); }
 .schedule-grid-week td[data-drop="blocked"] .schedule-slot::before { background: var(--color-table-header); opacity: .7; }
 .schedule-grid-week td[data-drop="blocked"][data-pointed] { --drop-ink: var(--color-warning); }
-.schedule-grid-week td[data-drop][data-pointed] .schedule-slot::after { box-shadow: inset 0 0 0 2px var(--drop-ink); }
+.schedule-grid-week td[data-drop][data-pointed]:not([data-shimmer-target]) .schedule-slot::after { box-shadow: inset 0 0 0 2px var(--drop-ink); }
 .schedule-grid-week td[data-drop="blocked"] .schedule-drop-target { cursor: not-allowed; }
+.schedule-border-flow { position: absolute; z-index: 5; inset: 1px; display: block; width: calc(100% - 2px); height: calc(100% - 2px); overflow: visible; pointer-events: none; }
+.schedule-border-flow rect {
+  fill: none; stroke: var(--flow-ink); stroke-width: 1.5; stroke-linecap: round;
+  stroke-dasharray: 18 82; stroke-dashoffset: 0; vector-effect: non-scaling-stroke;
+  animation: schedule-border-dash 1.8s linear infinite;
+}
 .schedule-drop-target { position: absolute; z-index: 3; inset: 0; width: 100%; border-radius: inherit; cursor: pointer; color: var(--color-muted); display: flex; align-items: flex-start; justify-content: flex-end; padding: 6px; }
 .schedule-drop-hint {
   --hint-ink: var(--color-warning);
@@ -80,10 +94,28 @@ button.schedule-lesson[draggable=true] { cursor: grab; }
 @media (max-width: 1120px) { .schedule-split[data-layout="side"] { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 800px) { .schedule-grid { min-width: 435px; } }
 
-.schedule-slot-layers { display: grid; min-height: 100%; }
-.schedule-slot-original, .schedule-cell-preview { grid-area: 1 / 1; min-width: 0; }
+.schedule-slot-layers { display: grid; grid-template-rows: minmax(0, 1fr); min-height: 100%; transition: height 150ms cubic-bezier(.2, 0, 0, 1); }
+.schedule-slot-original, .schedule-cell-preview { grid-area: 1 / 1; align-self: stretch; width: 100%; min-width: 0; min-height: 0; overflow: hidden; }
 .schedule-slot-original[data-hidden] { visibility: hidden; }
-.schedule-cell-preview { pointer-events: none; }
+.schedule-cell-preview { pointer-events: none; animation: schedule-cell-preview-in 140ms ease-out both; }
 .schedule-slot-original, .schedule-cell-preview { display: flex; flex-direction: column; }
 .schedule-slot-original > :only-child, .schedule-cell-preview > :only-child { flex: 1; }
 .schedule-cell-preview .schedule-lesson { border-color: var(--color-warning); }
+@keyframes schedule-border-dash {
+  to { stroke-dashoffset: -100; }
+}
+@keyframes schedule-cell-preview-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-slot-layers { transition: none; }
+  .schedule-cell-preview { animation: none; }
+  .schedule-grid-week td[data-drop] .schedule-slot::before,
+  .schedule-grid-week td[data-drop] .schedule-slot::after { transition: none; animation: none; }
+  .schedule-border-flow rect { animation: none; }
+  .schedule-grid-week td[data-drop="available"] .schedule-slot::before,
+  .schedule-grid-week td[data-drop="caution"] .schedule-slot::before,
+  .schedule-grid-week td[data-drop="swap"] .schedule-slot::before { background: var(--drop-ink); opacity: .08; }
+}
