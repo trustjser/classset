@@ -114,8 +114,10 @@ export function TimetableGrid({ title, slots, commonPeriods = [], anchors, perio
                               {blocked && <Ban size={14} aria-hidden="true" />}
                             </button>
                           )}
-                          {(dragSource || shimmerTarget) && <svg className="schedule-border-flow" aria-hidden="true" focusable="false">
-                            <rect x="0.75" y="0.75" width="calc(100% - 1.5px)" height="calc(100% - 1.5px)" rx="7.25" pathLength={100} />
+                          {(dragSource || shimmerTarget) && <svg className="schedule-border-flow" viewBox="0 0 100 40"
+                            preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                            <rect className="schedule-border-flow-halo" x="1" y="1" width="98" height="38" rx="4" />
+                            <rect className="schedule-border-flow-core" x="1" y="1" width="98" height="38" rx="4" />
                           </svg>}
                         </div>
                       </Tooltip.Trigger>
