@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
-import { ArrowDownToLine, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Lock, LockOpen, MousePointerClick, Redo2, Search, SlidersHorizontal, Sparkles, Undo2, Upload, X } from 'lucide-react';
+import { ArrowDownToLine, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Lock, LockOpen, MousePointerClick, Redo2, Search, SlidersHorizontal, Sparkles, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -26,7 +26,7 @@ import type { ExportOptions } from './scheduleExport';
 import './scheduling.css';
 
 type View = 'class' | 'teacher' | 'all' | 'room';
-type Modal = 'solve' | 'rules' | 'publish' | 'detect' | 'report' | 'export' | 'reconcile' | null;
+type Modal = 'solve' | 'rules' | 'publish' | 'clear' | 'detect' | 'report' | 'export' | 'reconcile' | null;
 type Reconciliation = ReturnType<typeof reconcileSchedule>;
 type Edit = { before: ScheduleItem[]; after: ScheduleItem[] };
 type StageClassGroup = { id: string; name: string; classes: Array<{ id: string; name: string }> };
@@ -593,6 +593,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const overviewStages = stages.filter((row) => overviewStage === 'all' || row.id === overviewStage);
   const pool = visibleItems.filter((row) => row.weekday === null && (view === 'teacher'
     ? row.teacherId === displayedTeacher?.id : poolScope === 'all' || row.classId === displayedClass?.id));
+  const hasUnplacedInSchool = visibleItems.some((row) => row.weekday === null);
   const assignedCount = context?.data.items.filter((row) => row.weekday !== null).length ?? 0;
   const baselineContext = baseline && modal === 'reconcile' ? createScheduleContext(baseline) : null;
 
@@ -730,10 +731,10 @@ function TermSchedulingPage({ termId }: { termId: string }) {
           onClick={() => { setPoolDragOver(false); void place(null); }}>
           <ArrowDownToLine aria-hidden="true" />暂存当前课程
         </button>}
-        {poolExpanded && pool.length > 0 && <div className="schedule-toolbar-group">
+        {poolExpanded && ((view === 'class' && hasUnplacedInSchool) || pool.length > 0) && <div className="schedule-toolbar-group">
           {view === 'class' && <Segment label="暂放范围" value={poolScope} options={[['class', '本班'], ['all', '全部']]} onChange={setPoolScope} />}
-          {!readOnly && <Button variant="ghost" size="sm" disabled={busy} onClick={() => openSolve(true)}>补排</Button>}
-          <Button variant="ghost" size="sm" disabled={!report} onClick={() => setModal('report')}>未排报告</Button>
+          {pool.length > 0 && !readOnly && <Button variant="ghost" size="sm" disabled={busy} onClick={() => openSolve(true)}>补排</Button>}
+          {pool.length > 0 && <Button variant="ghost" size="sm" disabled={!report} onClick={() => setModal('report')}>未排报告</Button>}
         </div>}
         <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={poolExpanded ? '收起暂放区' : '展开暂放区'}
           aria-expanded={poolExpanded} aria-controls="schedule-pool-content" onClick={() => setPoolExpanded((expanded) => !expanded)}>
@@ -794,6 +795,12 @@ function TermSchedulingPage({ termId }: { termId: string }) {
               aria-pressed={locked} className={locked ? 'text-warning hover:text-warning' : undefined}>
               {locked ? <Lock /> : <LockOpen />}{locked ? '已锁定' : '锁定'}
             </Button>}
+            <Button type="button" variant="ghost" size="sm"
+              className="h-8 gap-1.5 px-2 text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15"
+              aria-label="清空课表草稿" title="清空课表草稿" disabled={busy || !assignedCount}
+              onClick={() => { setError(''); setModal('clear'); }}>
+              <Trash2 aria-hidden="true" className="h-4 w-4" />清空
+            </Button>
           </>}
           {version === 'draft' && <Button variant="ghost" size="sm" disabled={busy} onClick={() => setModal('rules')}><SlidersHorizontal />规则</Button>}
           <Button variant="ghost" size="sm" disabled={busy || !!baseline && version === 'draft'} onClick={() => {
@@ -915,6 +922,23 @@ function TermSchedulingPage({ termId }: { termId: string }) {
           setPublished(await schoolRepository.publishSchedule(draft)); setModal(null); setFeedback('正式课表已发布');
         })}>确认发布</Button></>}>
       <p className="text-sm">将发布 {assignedCount} 节课。{draft.items.some((row) => row.weekday === null) ? `另有 ${draft.items.filter((row) => row.weekday === null).length} 节仍在暂放区。` : ''}</p>
+      {error && <p className="schedule-error" role="alert">{error}</p>}
+    </ModalFrame>}
+    {modal === 'clear' && <ModalFrame title="清空课表草稿" description="将当前草稿中所有已安排课程移入暂放区。"
+      onClose={closeModal} actions={<><Button variant="ghost" disabled={busy} onClick={closeModal}>取消</Button>
+        <Button variant="destructive" disabled={busy} onClick={() => {
+          const unplaced = draft.items.map((item) => ({
+            ...item, stageId: null, weekday: null, periodTypeId: null, lessonIndex: null,
+          }));
+          void saveItems(unplaced, '已清空课表草稿').then((saved) => {
+            if (!saved) return;
+            resetSelection();
+            setModal(null);
+          });
+        }}>确认清空</Button></>}>
+      <p className="text-sm text-ink-secondary">
+        {assignedCount} 节已安排课程将移入暂放区；课程、排课规则和正式版不受影响。完成后可以通过“撤销”恢复。
+      </p>
       {error && <p className="schedule-error" role="alert">{error}</p>}
     </ModalFrame>}
     {modal === 'solve' && <ModalFrame title={supplement ? '补排暂放课节' : '自动排课'} description={supplement && keepPlacements

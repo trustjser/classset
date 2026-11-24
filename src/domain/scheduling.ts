@@ -355,6 +355,7 @@ function preferenceScore(context: ScheduleContext, item: ScheduleItem, slot: Sch
 export interface PlacementPreview {
   status: 'available' | 'swap' | 'caution' | 'blocked';
   reason: string;
+  preferenceLoss?: boolean;
   items?: ScheduleItem[];
   changed?: ScheduleItem[];
 }
@@ -437,6 +438,7 @@ export function previewPlacement(
     status: replaced.size ? 'swap' : scoreLoss ? 'caution' : 'available',
     reason: replaced.size ? (scoreLoss ? '可以互换，部分排课偏好会受影响' : '可以互换') :
       scoreLoss ? '可以落位，部分排课偏好会受影响' : target ? '可以落位' : '移入暂放区',
+    preferenceLoss: scoreLoss,
     items: materialize ? items : undefined,
     changed: changes,
   };

@@ -83,9 +83,11 @@ export function TimetableGrid({ title, slots, commonPeriods = [], anchors, perio
                 const pointed = !!pointedSlot && pointedSlot.stageId === time.stageId && slotKey(pointedSlot) === slotKey(time);
                 const shimmerTarget = !dragSource && pointed && !!offer && !blocked;
                 const hintOpen = !!offer && !!previewSlot && previewSlot.stageId === time.stageId && slotKey(previewSlot) === slotKey(time);
-                const success = offer?.status === 'available';
+                const success = !!offer && !blocked && !offer.preferenceLoss;
                 return (
-                  <td key={day} data-drop={offer?.status} data-drag-source={dragSource || undefined}
+                  <td key={day} data-drop={offer?.status}
+                    data-preference-loss={offer?.preferenceLoss ? 'true' : undefined}
+                    data-drag-source={dragSource || undefined}
                     data-shimmer-target={shimmerTarget || undefined}
                     data-linked={highlight?.(time) || undefined}
                     data-pointed={pointed || undefined}
