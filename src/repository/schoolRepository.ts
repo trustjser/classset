@@ -45,7 +45,12 @@ import {
   TeacherPreset,
   TemporaryCourseAdjustment,
   WorkbenchSummary,
+  WeekMode,
 } from '../domain/models';
+
+import { defaultSchedulePreferences, validateScheduleSupervision, type DutyOccurrence, type ScheduleData } from '../domain/scheduling';
+import { formatDateYmd, getIsoWeekday, getTeachingWeekEnd, getTeachingWeekOfDate, getTeachingWeekStart, parseLocalDate } from '../features/terms/calendarUtils';
+import { createStoredRun, readStoredRun, readStoredSchedule, scheduleReconciliationRevision, scheduleRevision, writeStoredSchedule, type ScheduleRunReport } from './scheduleStorage';
 
 const WEB_FALLBACK_KEY = 'classset_schema_v19_fallback_store';
 
@@ -76,6 +81,9 @@ interface FallbackStore {
   teacherGroupPresets: TeacherGroupPreset[];
   publicRooms: PublicRoom[];
   scheduleItems: ScheduleItem[];
+  publishedSchedules: Record<string, string>;
+  scheduleBaselines: Record<string, string>;
+  scheduleReports: Record<string, string>;
   scheduleLocks: ScheduleLock[];
   scheduleConditions: ScheduleCondition[];
   schedulePreferences: Record<string, SchedulePreferences>;
@@ -659,6 +667,9 @@ function createEmptyFallbackStore(): FallbackStore {
     teacherGroupPresets: [],
     publicRooms: [],
     scheduleItems: [],
+    publishedSchedules: {},
+    scheduleBaselines: {},
+    scheduleReports: {},
     scheduleLocks: [],
     scheduleConditions: [],
     schedulePreferences: {},
@@ -818,6 +829,7 @@ export class SchoolRepository {
   }
 
   async saveTerm(term: AcademicTerm): Promise<void> {
+    await this.captureScheduleBaseline(term.id);
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         const existing = await tx.select<{ id: string }>(
@@ -1296,6 +1308,13 @@ export class SchoolRepository {
     }
     const store = this.loadFallback();
     store.terms = store.terms.filter((t) => t.id !== termId);
+    store.scheduleItems = store.scheduleItems.filter((row) => row.termId !== termId);
+    store.scheduleLocks = store.scheduleLocks.filter((row) => row.termId !== termId);
+    store.scheduleConditions = store.scheduleConditions.filter((row) => row.termId !== termId);
+    delete store.schedulePreferences[termId];
+    delete store.publishedSchedules[termId];
+    delete store.scheduleBaselines[termId];
+    delete store.scheduleReports[termId];
     store.stages = store.stages.filter((s) => s.termId !== termId);
     this.saveFallback(store);
   }
@@ -1338,6 +1357,7 @@ export class SchoolRepository {
   }
 
   async deleteStage(stageId: string): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.execute('DELETE FROM school_stages WHERE id = ?', [stageId]);
       return;
@@ -1378,6 +1398,7 @@ export class SchoolRepository {
   }
 
   async saveGrades(grades: GradeGroup[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (const grade of grades) {
@@ -1401,6 +1422,7 @@ export class SchoolRepository {
   }
 
   async deleteGrade(gradeId: string): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         const classes = await tx.select<{ id: string }>(
@@ -1463,6 +1485,7 @@ export class SchoolRepository {
   }
 
   async saveClasses(classes: ClassGroup[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (const cls of classes) {
@@ -1486,6 +1509,7 @@ export class SchoolRepository {
   }
 
   async deleteClass(classId: string): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         await deleteSqlScopeReferences(tx, 'class', [classId]);
@@ -1625,6 +1649,7 @@ export class SchoolRepository {
   }
 
   async saveStageRoutine(routine: StageRoutine): Promise<void> {
+    await this.captureScheduleBaselines();
     validateStageRoutine(routine);
 
     const periodIds = new Set(routine.periodTypes.map((period) => period.id));
@@ -2051,6 +2076,7 @@ export class SchoolRepository {
   }
 
   async saveFreeSlot(slot: FreeSlot): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.execute(
         `INSERT INTO free_slots (id, scope_type, scope_id, stage_id, period_type_id, weekday, lesson_index, label)
@@ -2077,6 +2103,7 @@ export class SchoolRepository {
   }
 
   async deleteFreeSlot(slotId: string): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.execute('DELETE FROM free_slots WHERE id = ?', [slotId]);
       return;
@@ -2091,6 +2118,7 @@ export class SchoolRepository {
     deleteIds: string[]
   ): Promise<void> {
     if (upserts.length === 0 && deleteIds.length === 0) return;
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (let offset = 0; offset < deleteIds.length; offset += 500) {
@@ -2229,6 +2257,7 @@ export class SchoolRepository {
   }
 
   async saveSubjects(subjects: Subject[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (const sub of subjects) {
@@ -2340,6 +2369,7 @@ export class SchoolRepository {
   }
 
   async deleteSubject(subjectId: string): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.execute('DELETE FROM subjects WHERE id = ?', [subjectId]);
       return;
@@ -2375,6 +2405,7 @@ export class SchoolRepository {
   }
 
   async replaceClassPairings(classId: string, pairings: SubjectPairing[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         await tx.execute('DELETE FROM subject_pairings WHERE class_id = ?', [classId]);
@@ -2408,6 +2439,7 @@ export class SchoolRepository {
       assignment: SubjectRoomAssignment | null; limit: SubjectParallelLimit | null;
     }>;
   }): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (const subject of changes.upserts) {
@@ -2526,6 +2558,7 @@ export class SchoolRepository {
     gradeId: string,
     requirements: SubjectRequirement[]
   ): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         await tx.execute('DELETE FROM subject_requirements WHERE grade_id = ?', [gradeId]);
@@ -2567,6 +2600,7 @@ export class SchoolRepository {
   }
 
   async savePublicRooms(rooms: PublicRoom[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (const room of rooms) {
@@ -2622,6 +2656,7 @@ export class SchoolRepository {
   }
 
   async saveTeachers(teachers: Teacher[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (const tch of teachers) {
@@ -2654,6 +2689,7 @@ export class SchoolRepository {
   }
 
   async deleteTeacher(teacherId: string): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.execute('DELETE FROM teachers WHERE id = ?', [teacherId]);
       return;
@@ -2691,6 +2727,7 @@ export class SchoolRepository {
   }
 
   async deleteTeacherGroup(groupId: string): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.execute('DELETE FROM teacher_groups WHERE id = ?', [groupId]);
       return;
@@ -2714,6 +2751,7 @@ export class SchoolRepository {
   }
 
   async replaceTeacherGroupMembers(groupId: string, members: TeacherGroupMember[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         await tx.execute('DELETE FROM teacher_group_members WHERE group_id = ?', [groupId]);
@@ -2803,6 +2841,7 @@ export class SchoolRepository {
     const clearGroups = new Set(currentCell.map((item) => item.combinedLessonGroupId).filter((id): id is string => !!id));
     await this.validateTeacherAssignmentCapacity(params.termId, params.assignments,
       previous.filter((item) => item.classId !== params.classId || item.subjectId !== params.subjectId));
+    await this.captureScheduleBaseline(params.termId);
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         for (const groupId of clearGroups) {
@@ -2850,6 +2889,7 @@ export class SchoolRepository {
   }
 
   async addTeacherAssignments(termId: string, assignments: TeacherAssignment[]): Promise<void> {
+    await this.captureScheduleBaseline(termId);
     if (assignments.some((item) => item.termId !== termId || item.lessonCount <= 0 || !item.teacherId)) {
       throw new Error('任课信息不完整');
     }
@@ -2874,6 +2914,7 @@ export class SchoolRepository {
   }
 
   async deleteTeacherAssignments(termId: string, assignmentIds: string[]): Promise<void> {
+    await this.captureScheduleBaseline(termId);
     if (!assignmentIds.length) return;
     const deleted = new Set(assignmentIds);
     const groupIds = new Set((await this.loadTeacherAssignments(termId)).filter((item) => deleted.has(item.id)).map((item) => item.combinedLessonGroupId).filter((id): id is string => !!id));
@@ -2892,6 +2933,7 @@ export class SchoolRepository {
   }
 
   async setCombinedTeacherAssignments(termId: string, assignmentIds: string[], groupId: string | null): Promise<void> {
+    await this.captureScheduleBaseline(termId);
     const all = await this.loadTeacherAssignments(termId);
     const ids = new Set(assignmentIds);
     const selected = all.filter((item) => ids.has(item.id));
@@ -2931,6 +2973,7 @@ export class SchoolRepository {
   }
 
   async replaceTeacherPresets(termId: string, teacherId: string, presets: TeacherPreset[]): Promise<void> {
+    await this.captureScheduleBaseline(termId);
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         await tx.execute('DELETE FROM teacher_presets WHERE term_id = ? AND teacher_id = ?', [termId, teacherId]);
@@ -2958,6 +3001,7 @@ export class SchoolRepository {
   }
 
   async replaceTeacherGroupPresets(groupId: string, presets: TeacherGroupPreset[]): Promise<void> {
+    await this.captureScheduleBaselines();
     if (this.useSqlEngine) {
       await this.adapter.transaction(async (tx) => {
         await tx.execute('DELETE FROM teacher_group_presets WHERE group_id = ?', [groupId]);
@@ -2975,9 +3019,9 @@ export class SchoolRepository {
 
   // ==================== 6. 排课课表、带班安排与临时调代课 ====================
 
-  async loadScheduleItems(termId: string): Promise<ScheduleItem[]> {
+  async loadScheduleItems(termId: string, client: DbTransactionClient = this.adapter): Promise<ScheduleItem[]> {
     if (this.useSqlEngine) {
-      const rows = await this.adapter.select<{
+      const rows = await client.select<{
         id: string;
         term_id: string;
         assignment_id: string;
@@ -3009,6 +3053,295 @@ export class SchoolRepository {
       }));
     }
     return this.loadFallback().scheduleItems.filter((i) => i.termId === termId);
+  }
+
+  async loadSchedulingData(termId: string): Promise<ScheduleData> {
+    const [terms, stages, grades, classes, subjects, teachers, assignments, requirements, items,
+      subjectPresets, teacherPresets, teacherGroupPresets, teacherGroupMembers, pairings,
+      lessonConstraints, rooms, roomSettings, config] = await Promise.all([
+      this.loadTerms(), this.loadStages(termId), this.loadGradesForTerm(termId), this.loadClassesForTerm(termId),
+      this.loadSubjects(termId), this.loadTeachers(), this.loadTeacherAssignments(termId), this.loadSubjectRequirements(termId),
+      this.loadScheduleItems(termId), this.loadSubjectPresets(termId), this.loadTeacherPresets(termId),
+      this.loadTeacherGroupPresets(termId), this.loadTeacherGroupMembers(termId), this.loadSubjectPairings(termId),
+      this.loadSubjectLessonConstraints(termId), this.loadPublicRooms(), this.loadSubjectRoomSettings(termId),
+      this.loadScheduleConfiguration(termId),
+    ]);
+    const term = terms.find((row) => row.id === termId);
+    if (!term) throw new Error('找不到当前学期');
+    const [routines, freeSlots, supervision] = await Promise.all([
+      Promise.all(stages.map((stage) => this.loadStageRoutine(stage.id))),
+      Promise.all(stages.map((stage) => this.loadFreeSlots(stage.id))).then((rows) => rows.flat()),
+      this.loadScheduleDuties(term),
+    ]);
+    return {
+      term, stages, grades, classes, subjects, teachers, assignments, requirements, items, routines, freeSlots,
+      subjectPresets, teacherPresets, teacherGroupPresets, teacherGroupMembers, pairings, lessonConstraints, rooms,
+      roomAssignments: roomSettings.assignments, parallelLimits: roomSettings.limits, ...config, ...supervision,
+    };
+  }
+
+  private async loadScheduleDuties(source: AcademicTerm) {
+    const term = { ...source, firstTeachingWeekStart: source.firstTeachingWeekStart?.slice(0, 10) ?? null };
+    const rows = this.useSqlEngine
+      ? (await this.adapter.select<{ payload: string; effective_date: string }>(
+        'SELECT payload, effective_date FROM supervision_plan_versions WHERE term_id = ? ORDER BY effective_date', [term.id]))
+        .map((row) => ({ effectiveDate: row.effective_date, payload: row.payload }))
+      : this.loadFallback().supervisionVersions.filter((row) => row.termId === term.id)
+        .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+    const versions = rows.map((row) => ({ effectiveDate: row.effectiveDate.slice(0, 10),
+      occurrences: (JSON.parse(row.payload) as { occurrences?: DutyOccurrence[] }).occurrences ?? [] }));
+    versions.reverse();
+    const occurrencesOn = (date: string) => versions.find((row) => row.effectiveDate <= date)?.occurrences ?? [];
+    const today = formatDateYmd(new Date());
+    const visibleSupervision = occurrencesOn(today);
+    const start = getTeachingWeekStart(term, 1);
+    const end = getTeachingWeekEnd(term, term.teachingWeekCount);
+    if (!versions.length || !start || !end) return { supervision: visibleSupervision, visibleSupervision };
+    const exceptions = new Map((await this.loadCalendarExceptions(term.id)).map((row) => [row.date.slice(0, 10), row]));
+    const reservations = new Map<string, DutyOccurrence>();
+    const day = parseLocalDate(today);
+    if (day < start) day.setTime(start.getTime());
+    if (term.firstTeachingWeekStart && formatDateYmd(day) < term.firstTeachingWeekStart.slice(0, 10)) {
+      day.setTime(parseLocalDate(term.firstTeachingWeekStart.slice(0, 10)).getTime());
+    }
+    for (; day <= end; day.setDate(day.getDate() + 1)) {
+      const date = formatDateYmd(day);
+      const exception = exceptions.get(date);
+      if (exception?.kind === 'holiday') continue;
+      const templateDate = exception?.makeupForDate?.slice(0, 10) ?? date;
+      const weekday = exception?.makeupWeekday ?? getIsoWeekday(templateDate);
+      const week = getTeachingWeekOfDate(term, templateDate);
+      const mode: WeekMode = term.cycleMode === 'alternating' && week ? (week % 2 === 1 ? 'odd' : 'even') : 'weekly';
+      for (const occurrence of occurrencesOn(date).filter((row) => row.position.weekday === weekday)) {
+        const key = JSON.stringify([occurrence.post.id, occurrence.teacherId, occurrence.position]);
+        const previous = reservations.get(key);
+        if (!previous) reservations.set(key, { ...occurrence, weekModes: [mode] });
+        else if (!previous.weekModes!.includes(mode)) previous.weekModes!.push(mode);
+      }
+    }
+    return { supervision: [...reservations.values()], visibleSupervision };
+  }
+
+  private async loadScheduleConfiguration(termId: string, client: DbTransactionClient = this.adapter) {
+    if (!this.useSqlEngine) {
+      const store = this.loadFallback();
+      return {
+        locks: store.scheduleLocks.filter((row) => row.termId === termId),
+        conditions: store.scheduleConditions.filter((row) => row.termId === termId),
+        preferences: store.schedulePreferences[termId] ?? defaultSchedulePreferences(termId),
+      };
+    }
+    const [locks, rules, settings] = await Promise.all([
+      client.select<{ id: string; scope: ScheduleLock['scope']; target_id: string }>(
+        'SELECT * FROM schedule_locks WHERE term_id = ?', [termId]),
+      client.select<{
+        id: string; kind: string; name: string | null; target_kind: string | null; target_id: string | null;
+        other_id: string | null; period_type_id: string | null; weekday: number | null;
+        min_count: number | null; max_count: number | null; exact_count: number | null;
+      }>('SELECT * FROM schedule_conditions WHERE term_id = ? ORDER BY id', [termId]),
+      client.select<{
+        strength: string; progress_consistency: string; teacher_distribution: string;
+        lunch_protection: number; consecutive_policy: string; detect_progress_consistency: number;
+      }>('SELECT * FROM schedule_preferences WHERE term_id = ?', [termId]),
+    ]);
+    const p = settings[0];
+    return {
+      locks: locks.map((row) => ({ id: row.id, termId, scope: row.scope, targetId: row.target_id })),
+      conditions: rules.map((row) => ({ id: row.id, termId, kind: row.kind, name: row.name, targetKind: row.target_kind,
+        targetId: row.target_id, otherId: row.other_id, periodTypeId: row.period_type_id, weekday: row.weekday,
+        minCount: row.min_count, maxCount: row.max_count, exactCount: row.exact_count })),
+      preferences: p ? { termId, strength: p.strength, progressConsistency: p.progress_consistency,
+        teacherDistribution: p.teacher_distribution, lunchProtection: !!p.lunch_protection,
+        consecutivePolicy: p.consecutive_policy, detectProgressConsistency: !!p.detect_progress_consistency }
+        : defaultSchedulePreferences(termId),
+    };
+  }
+
+  async saveScheduleConfiguration(data: ScheduleData, conditions: ScheduleCondition[], preferences: SchedulePreferences, locks = data.locks) {
+    await this.assertScheduleCurrent(data);
+    const termId = data.term.id;
+    const nextRevision = scheduleReconciliationRevision({ ...data, conditions, preferences });
+    if (nextRevision !== scheduleReconciliationRevision(data)) await this.captureScheduleBaseline(termId);
+    const baselinePayload = await this.loadScheduleBaselinePayload(termId);
+    const restored = baselinePayload && scheduleReconciliationRevision(readStoredSchedule(baselinePayload)) === nextRevision;
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await this.assertScheduleWriteCurrent(tx, data, baselinePayload);
+        await tx.execute('DELETE FROM schedule_conditions WHERE term_id = ?', [termId]);
+        for (const row of conditions) {
+          await tx.execute('INSERT INTO schedule_conditions (id, term_id, kind, name, target_kind, target_id, other_id, period_type_id, weekday, min_count, max_count, exact_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [row.id, termId, row.kind, row.name, row.targetKind, row.targetId, row.otherId, row.periodTypeId, row.weekday, row.minCount, row.maxCount, row.exactCount]);
+        }
+        await tx.execute('DELETE FROM schedule_locks WHERE term_id = ?', [termId]);
+        for (const row of locks) await tx.execute('INSERT INTO schedule_locks (id, term_id, scope, target_id) VALUES (?, ?, ?, ?)',
+          [row.id, termId, row.scope, row.targetId]);
+        await tx.execute('INSERT OR REPLACE INTO schedule_preferences (term_id, strength, progress_consistency, teacher_distribution, lunch_protection, consecutive_policy, detect_progress_consistency) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [termId, preferences.strength, preferences.progressConsistency, preferences.teacherDistribution, Number(preferences.lunchProtection),
+            preferences.consecutivePolicy, Number(preferences.detectProgressConsistency)]);
+        if (restored) await tx.execute('DELETE FROM schedule_reconciliation_baselines WHERE term_id = ?', [termId]);
+      });
+    } else {
+      const store = this.loadFallback();
+      store.scheduleConditions = store.scheduleConditions.filter((row) => row.termId !== termId).concat(conditions);
+      store.scheduleLocks = store.scheduleLocks.filter((row) => row.termId !== termId).concat(locks);
+      store.schedulePreferences[termId] = preferences;
+      if (restored) delete store.scheduleBaselines[termId];
+      this.saveFallback(store);
+    }
+  }
+
+  async loadPublishedSchedule(termId: string): Promise<ScheduleData | null> {
+    const payload = this.useSqlEngine
+      ? (await this.adapter.select<{ data_json: string }>('SELECT data_json FROM published_schedules WHERE term_id = ?', [termId]))[0]?.data_json
+      : this.loadFallback().publishedSchedules[termId];
+    return payload ? readStoredSchedule(payload) : null;
+  }
+
+  private async loadScheduleBaselinePayload(termId: string, tx: DbTransactionClient = this.adapter) {
+    if (!this.useSqlEngine) return this.loadFallback().scheduleBaselines[termId];
+    return (await tx.select<{ snapshot_json: string }>(
+      'SELECT snapshot_json FROM schedule_reconciliation_baselines WHERE term_id = ?', [termId]))[0]?.snapshot_json;
+  }
+
+  async loadPendingScheduleBaseline(current: ScheduleData) {
+    const payload = await this.loadScheduleBaselinePayload(current.term.id);
+    if (!payload) return null;
+    const baseline = readStoredSchedule(payload);
+    return scheduleReconciliationRevision(baseline) === scheduleReconciliationRevision(current) ? null : baseline;
+  }
+
+  private async captureScheduleBaseline(termId: string) {
+    if (this.useSqlEngine) {
+      const placed = await this.adapter.select<{ id: string }>('SELECT id FROM schedule_items WHERE term_id = ? AND weekday IS NOT NULL LIMIT 1', [termId]);
+      if (placed.length === 0) return;
+    } else if (!this.loadFallback().scheduleItems.some((row) => row.termId === termId && row.weekday !== null)) {
+      return;
+    }
+    if (await this.loadScheduleBaselinePayload(termId)) return;
+    const payload = writeStoredSchedule(await this.loadSchedulingData(termId), false);
+    if (this.useSqlEngine) {
+      await this.adapter.execute('INSERT OR IGNORE INTO schedule_reconciliation_baselines (term_id, snapshot_json, created_at) VALUES (?, ?, ?)',
+        [termId, payload, Math.floor(Date.now() / 1000)]);
+    } else {
+      const store = this.loadFallback();
+      store.scheduleBaselines[termId] ??= payload;
+      this.saveFallback(store);
+    }
+  }
+
+  private async captureScheduleBaselines() {
+    if (this.useSqlEngine) {
+      const rows = await this.adapter.select<{ term_id: string }>('SELECT DISTINCT term_id FROM schedule_items WHERE weekday IS NOT NULL');
+      for (const row of rows) await this.captureScheduleBaseline(row.term_id);
+    } else {
+      for (const termId of new Set(this.loadFallback().scheduleItems.filter((row) => row.weekday !== null).map((row) => row.termId))) {
+        await this.captureScheduleBaseline(termId);
+      }
+    }
+  }
+
+  private async assertScheduleCurrent(expected: ScheduleData) {
+    const current = await this.loadSchedulingData(expected.term.id);
+    if (scheduleRevision(current) !== scheduleRevision(expected)) throw new Error('草稿或排课资料已变更，请刷新后重新操作');
+  }
+
+  private async assertScheduleWriteCurrent(tx: DbTransactionClient, data: ScheduleData, baselinePayload: string | undefined) {
+    const termId = data.term.id;
+    const [items, config] = await Promise.all([this.loadScheduleItems(termId, tx), this.loadScheduleConfiguration(termId, tx)]);
+    if (scheduleRevision({ ...data, items, ...config }) !== scheduleRevision(data) ||
+        await this.loadScheduleBaselinePayload(termId, tx) !== baselinePayload) {
+      throw new Error('草稿或排课资料已变更，请刷新后重新操作');
+    }
+  }
+
+  async publishSchedule(data: ScheduleData) {
+    await this.assertScheduleCurrent(data);
+    const termId = data.term.id;
+    const baseline = await this.loadScheduleBaselinePayload(termId);
+    if (baseline && scheduleReconciliationRevision(readStoredSchedule(baseline)) !== scheduleReconciliationRevision(data)) throw new Error('请先完成草稿课表协调');
+    const items = data.items.filter((row) => row.weekday !== null);
+    if (!items.length) throw new Error('请先安排课节');
+    const dutyIssue = validateScheduleSupervision(data);
+    if (dutyIssue) throw new Error(dutyIssue);
+    const published = { ...data, items, locks: [] };
+    const payload = writeStoredSchedule(published, true);
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await this.assertScheduleWriteCurrent(tx, data, baseline);
+        await tx.execute('INSERT OR REPLACE INTO published_schedules (term_id, data_json) VALUES (?, ?)', [termId, payload]);
+      });
+    } else {
+      const store = this.loadFallback();
+      store.publishedSchedules[termId] = payload;
+      this.saveFallback(store);
+    }
+    return published;
+  }
+
+  async saveScheduleDraft(data: ScheduleData, items: ScheduleItem[], options: {
+    locks?: ScheduleLock[];
+    baseline?: ScheduleData;
+    report?: ScheduleRunReport;
+  } = {}) {
+    const termId = data.term.id;
+    await this.assertScheduleCurrent(data);
+    const baselinePayload = await this.loadScheduleBaselinePayload(termId);
+    const pending = baselinePayload ? readStoredSchedule(baselinePayload) : null;
+    if (pending && scheduleReconciliationRevision(pending) !== scheduleReconciliationRevision(data) &&
+        (!options.baseline || scheduleRevision(options.baseline) !== scheduleRevision(pending))) {
+      throw new Error('请先完成草稿课表协调');
+    }
+    if (options.baseline && !pending) throw new Error('协调资料已更新，请刷新后重新预览');
+    if (items.some((row) => row.termId !== termId)) throw new Error('课节不属于当前学期');
+    const report = options.report && createStoredRun(data, items, options.report);
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await this.assertScheduleWriteCurrent(tx, data, baselinePayload);
+        const existing = new Map(data.items.map((row) => [row.id, row]));
+        const next = new Set(items.map((row) => row.id));
+        for (const row of data.items) {
+          if (!next.has(row.id)) await tx.execute('DELETE FROM schedule_items WHERE term_id = ? AND id = ?', [termId, row.id]);
+        }
+        for (const row of items) {
+          const old = existing.get(row.id);
+          if (old && Object.keys(row).every((key) => row[key as keyof ScheduleItem] === old[key as keyof ScheduleItem])) continue;
+          await tx.execute(`INSERT INTO schedule_items (id, term_id, assignment_id, class_id, teacher_id, subject_id, week_mode,
+            combined_group_id, meeting_id, stage_id, weekday, period_type_id, lesson_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET assignment_id = excluded.assignment_id, class_id = excluded.class_id,
+            teacher_id = excluded.teacher_id, subject_id = excluded.subject_id, week_mode = excluded.week_mode,
+            combined_group_id = excluded.combined_group_id, meeting_id = excluded.meeting_id, stage_id = excluded.stage_id,
+            weekday = excluded.weekday, period_type_id = excluded.period_type_id, lesson_index = excluded.lesson_index`,
+            [row.id, termId, row.assignmentId, row.classId, row.teacherId, row.subjectId, row.weekMode, row.combinedGroupId,
+              row.meetingId, row.stageId, row.weekday, row.periodTypeId, row.lessonIndex]);
+        }
+        if (options.locks) {
+          await tx.execute('DELETE FROM schedule_locks WHERE term_id = ?', [termId]);
+          for (const row of options.locks) await tx.execute('INSERT INTO schedule_locks (id, term_id, scope, target_id) VALUES (?, ?, ?, ?)',
+            [row.id, termId, row.scope, row.targetId]);
+        }
+        if (baselinePayload) await tx.execute('DELETE FROM schedule_reconciliation_baselines WHERE term_id = ?', [termId]);
+        if (report) {
+          await tx.execute('INSERT INTO schedule_run_reports (id, term_id, created_at, solver_version, seed, strength, input_fingerprint, report_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [report.id, termId, Math.floor(Date.now() / 1000), report.config.solverVersion, report.config.seed, report.config.strength,
+              report.inputFingerprint, JSON.stringify(report)]);
+        }
+      });
+    } else {
+      const store = this.loadFallback();
+      store.scheduleItems = store.scheduleItems.filter((row) => row.termId !== termId).concat(items);
+      if (options.locks) store.scheduleLocks = store.scheduleLocks.filter((row) => row.termId !== termId).concat(options.locks);
+      if (report) store.scheduleReports[termId] = JSON.stringify(report);
+      delete store.scheduleBaselines[termId];
+      this.saveFallback(store);
+    }
+  }
+
+  async loadLatestScheduleReport(termId: string): Promise<ScheduleRunReport | null> {
+    const payload = this.useSqlEngine
+      ? (await this.adapter.select<{ report_json: string }>(
+        'SELECT report_json FROM schedule_run_reports WHERE term_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1', [termId]))[0]?.report_json
+      : this.loadFallback().scheduleReports[termId];
+    return payload ? readStoredRun(payload) : null;
   }
 
   async loadSupervisionDraft(termId: string): Promise<SupervisionDraft | null> {
@@ -3079,6 +3412,7 @@ export class SchoolRepository {
         requirement_count: number;
         assigned_teacher_count: number;
         has_schedule: number;
+        has_saved_timetable: number;
       }>(
         `SELECT
            (SELECT COUNT(*) FROM school_stages WHERE term_id = ?) AS stage_count,
@@ -3090,8 +3424,10 @@ export class SchoolRepository {
            (SELECT COUNT(*) FROM lesson_period_types p JOIN school_stages s ON s.id = p.stage_id WHERE s.term_id = ?) AS period_type_count,
            (SELECT COUNT(*) FROM subject_requirements r JOIN subjects s ON s.id = r.subject_id WHERE s.term_id = ? AND r.lesson_count > 0) AS requirement_count,
            (SELECT COUNT(*) FROM teacher_assignments WHERE term_id = ? AND teacher_id IS NOT NULL) AS assigned_teacher_count,
-           EXISTS (SELECT 1 FROM schedule_items WHERE term_id = ? AND weekday IS NOT NULL) AS has_schedule`,
-        [termId, termId, termId, termId, termId, termId, termId, termId]
+           EXISTS (SELECT 1 FROM schedule_items WHERE term_id = ? AND weekday IS NOT NULL) AS has_schedule,
+           (EXISTS (SELECT 1 FROM published_schedules WHERE term_id = ?) OR
+            EXISTS (SELECT 1 FROM schedule_reconciliation_baselines WHERE term_id = ?)) AS has_saved_timetable`,
+        [termId, termId, termId, termId, termId, termId, termId, termId, termId, termId]
       );
 
       const stageCount = rows?.stage_count ?? 0;
@@ -3120,6 +3456,7 @@ export class SchoolRepository {
         subjectLessonsReady,
         teacherAssignmentsReady,
         hasSchedule,
+        hasSavedTimetable: Boolean(rows?.has_schedule || rows?.has_saved_timetable),
       };
     }
 
@@ -3162,6 +3499,7 @@ export class SchoolRepository {
       subjectLessonsReady,
       teacherAssignmentsReady,
       hasSchedule,
+      hasSavedTimetable: Boolean(scheduleItems.length || store.publishedSchedules[termId] || store.scheduleBaselines[termId]),
     };
   }
 

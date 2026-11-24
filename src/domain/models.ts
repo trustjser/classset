@@ -350,6 +350,7 @@ export interface WorkbenchSummary {
   subjectLessonsReady: boolean;
   teacherAssignmentsReady: boolean;
   hasSchedule: boolean;
+  hasSavedTimetable?: boolean;
 }
 
 /**
@@ -393,7 +394,7 @@ export function getNavSectionAvailability(
         ? { enabled: true, reason: null }
         : { enabled: false, reason: '请先填写各年级科目节数' };
     case 'scheduling':
-      return summary.teacherAssignmentsReady
+      return summary.teacherAssignmentsReady || summary.hasSchedule || summary.hasSavedTimetable
         ? { enabled: true, reason: null }
         : { enabled: false, reason: '请先补齐各班教师任课' };
     case 'temporaryAdjustments':

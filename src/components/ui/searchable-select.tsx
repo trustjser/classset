@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
@@ -47,6 +47,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [query, setQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
   const selectedOption = useMemo(
     () => options.find((item) => item.value === value),
     [options, value]
@@ -83,10 +89,6 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       <SelectContent
         onCloseAutoFocus={(event) => {
           event.preventDefault();
-        }}
-        onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          requestAnimationFrame(() => searchInputRef.current?.focus());
         }}
       >
         <div

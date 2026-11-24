@@ -34,6 +34,7 @@ import { RoutinesPage } from '@/features/routines/RoutinesPage';
 import { SubjectsPage } from '@/features/subjects/SubjectsPage';
 import { TeachersPage } from '@/features/teachers/TeachersPage';
 import { TermPage } from '@/features/terms/TermPage';
+import { SchedulingPage } from '@/features/scheduling/SchedulingPage';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
 import { seedDemoData } from '@/features/workbench/demoData';
 import { SCHEMA_VERSION } from '@/adapter/db/schemaV19';
@@ -559,6 +560,8 @@ export const AppShell: React.FC = () => {
                   <SubjectsPage />
                 ) : selectedSection === 'teachers' ? (
                   <TeachersPage />
+                ) : selectedSection === 'scheduling' ? (
+                  <SchedulingPage termId={activeTerm?.id ?? null} />
                 ) : selectedSection === 'temporaryAdjustments' ? (
                   <TemporaryAdjustmentsPage adjustments={adjustments} />
                 ) : (

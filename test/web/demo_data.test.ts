@@ -139,3 +139,74 @@ test('refuses to seed a term that already contains grades', async () => {
     assert.equal((await repository.loadGradesForTerm('term')).length, 1);
   });
 });
+
+test('SQLite keeps a published snapshot and previews settings reconciliation before writing back', async () => {
+  await withRepository(async (repo, db) => {
+    const { solveSchedule, reconcileSchedule } = await import('../../src/domain/scheduling.ts');
+    await repo.saveStage({ id: 'stage', termId: 'term', name: '小学部', sortOrder: 0 });
+    await repo.saveGrades([{ id: 'grade', stageId: 'stage', name: '三年级', sortOrder: 0 }]);
+    await repo.saveClasses([{ id: 'class', gradeId: 'grade', name: '三(1)班', sortOrder: 0 }]);
+    await repo.saveStageRoutine({
+      stageId: 'stage',
+      teachingDays: Array.from({ length: 7 }, (_, index) => ({
+        id: `day-${index + 1}`, stageId: 'stage', weekday: index + 1, isTeachingDay: index === 0,
+      })),
+      periodTypes: [{ id: 'am', stageId: 'stage', name: '上午', defaultLessonCount: 2, sortOrder: 0 }],
+      dailyOverrides: [],
+      lessonTimes: [],
+      commonPeriods: [],
+    });
+    await repo.saveSubjects([{ id: 'math', termId: 'term', name: '数学', shortName: '数', sortOrder: 0 }]);
+    await repo.saveTeachers([{ id: 'teacher', name: '张老师', shortName: '张', displayQualifier: '', sortOrder: 0, subjectIds: ['math'] }]);
+    await repo.replaceGradeRequirements('grade', [{ id: 'requirement', subjectId: 'math', gradeId: 'grade', classId: null,
+      weekMode: 'weekly', lessonCount: 1 }]);
+    await repo.addTeacherAssignments('term', [{ id: 'assignment', termId: 'term', teacherId: 'teacher', classId: 'class',
+      subjectId: 'math', weekMode: 'weekly', lessonCount: 1, sortOrder: 0, combinedLessonGroupId: null }]);
+
+    const ready = await repo.loadSchedulingData('term');
+    const result = solveSchedule(ready, ['class']);
+    await repo.saveScheduleDraft(ready, result.items, {
+      report: { classIds: ['class'], seed: 0, strength: 'normal', candidateChecks: result.candidateChecks, blockers: result.blockers, issues: result.issues },
+    });
+    assert.equal((await repo.loadLatestScheduleReport('term')).candidateChecks, 2);
+    await assert.rejects(repo.saveScheduleDraft(ready, []), /已变更/);
+    const draft = await repo.loadSchedulingData('term');
+    const original = draft.items[0];
+    assert.ok(original.lessonIndex);
+    const rule = { id: 'temporary-rule', termId: 'term', kind: 'dailyLimit', name: '临时条件', targetKind: 'subject', targetId: 'math',
+      otherId: null, periodTypeId: null, weekday: null, minCount: null, maxCount: 1, exactCount: null };
+    await repo.saveScheduleConfiguration(draft, [rule], draft.preferences);
+    const pendingRules = await repo.loadSchedulingData('term');
+    assert.ok(await repo.loadPendingScheduleBaseline(pendingRules));
+    await assert.rejects(repo.saveScheduleDraft(pendingRules, []), /协调/);
+    await repo.saveScheduleConfiguration(pendingRules, [], { ...draft.preferences, teacherDistribution: 'spread' });
+    const reverted = await repo.loadSchedulingData('term');
+    assert.deepEqual(reverted.items, draft.items);
+    assert.equal(await repo.loadPendingScheduleBaseline(reverted), null);
+    assert.equal(db.exec('SELECT COUNT(*) FROM schedule_reconciliation_baselines')[0].values[0][0], 0);
+    await repo.publishSchedule(reverted);
+
+    const [[payload]] = db.exec('SELECT data_json FROM published_schedules')[0].values;
+    const legacy = JSON.parse(payload);
+    delete legacy.workbench;
+    db.run('UPDATE published_schedules SET data_json = ?', [JSON.stringify(legacy)]);
+    assert.equal((await repo.loadPublishedSchedule('term')).items[0].lessonIndex, original.lessonIndex);
+
+    await repo.saveFreeSlotChanges([{ id: 'free', stageId: 'stage', scopeType: 'class', scopeId: 'class',
+      weekday: original.weekday, periodTypeId: original.periodTypeId, lessonIndex: original.lessonIndex, label: '校会' }], []);
+    const changed = await repo.loadSchedulingData('term');
+    const baseline = await repo.loadPendingScheduleBaseline(changed);
+    assert.equal(baseline.items[0].lessonIndex, original.lessonIndex);
+    await assert.rejects(repo.publishSchedule(changed), /协调/);
+    await assert.rejects(repo.saveScheduleDraft(changed, []), /协调/);
+    const preview = reconcileSchedule(changed, baseline);
+    assert.ok(preview.items[0].lessonIndex, 'the affected lesson is moved to the nearest legal time');
+    assert.notEqual(preview.items[0].lessonIndex, original.lessonIndex);
+    assert.equal((await repo.loadScheduleItems('term'))[0].lessonIndex, original.lessonIndex);
+    await repo.saveScheduleDraft(changed, preview.items, { baseline, locks: preview.locks });
+    const updated = await repo.loadSchedulingData('term');
+    assert.equal(await repo.loadPendingScheduleBaseline(updated), null);
+    assert.equal(updated.items[0].lessonIndex, preview.items[0].lessonIndex);
+    assert.equal((await repo.loadPublishedSchedule('term')).items[0].lessonIndex, original.lessonIndex);
+  });
+});

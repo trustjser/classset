@@ -437,6 +437,7 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
   const [savedNotice, setSavedNotice] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [deleteCommonPeriodTarget, setDeleteCommonPeriodTarget] = useState<CommonPeriod | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const historyRef = useRef<RoutineHistoryState>({ termId: '', undo: [], redo: [] });
   const commonPeriodDragRef = useRef<{ id: string; pointerId: number } | null>(null);
@@ -721,11 +722,17 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
   };
 
   const deleteCommonPeriod = (period: CommonPeriod) => {
-    if (globalThis.confirm?.(`删除公共时段「${period.name}」？`) === false) return;
+    setDeleteCommonPeriodTarget(period);
+  };
+
+  const confirmDeleteCommonPeriod = () => {
+    const target = deleteCommonPeriodTarget;
+    if (!target) return;
     updateRoutine((current) => ({
       ...current,
-      commonPeriods: (current.commonPeriods ?? []).filter((item) => item.id !== period.id),
-    }), `删除公共时段「${period.name}」`);
+      commonPeriods: (current.commonPeriods ?? []).filter((item) => item.id !== target.id),
+    }), `删除公共时段「${target.name}」`);
+    setDeleteCommonPeriodTarget(null);
   };
 
   const commonPeriodDropTargetAt = (clientX: number, clientY: number) => {
@@ -1236,6 +1243,28 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
           </div>
         </Card>
       </div>
+
+      <Dialog
+        open={deleteCommonPeriodTarget !== null}
+        onOpenChange={(open) => !open && setDeleteCommonPeriodTarget(null)}
+      >
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>删除公共时段「{deleteCommonPeriodTarget?.name}」？</DialogTitle>
+            <DialogDescription>
+              确认后会从当前作息草稿中移除；保存作息后生效。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setDeleteCommonPeriodTarget(null)} type="button" variant="outline">
+              取消
+            </Button>
+            <Button onClick={confirmDeleteCommonPeriod} type="button" variant="destructive">
+              确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
         <DialogContent className="max-w-lg">
