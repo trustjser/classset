@@ -296,4 +296,126 @@ mod tests {
             assert_eq!(order, vec![1, 0]);
         });
     }
+
+    #[test]
+    fn bind_and_select_support_all_sqlite_types_and_reject_invalid_params() {
+        tauri::async_runtime::block_on(async {
+            let pool = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
+                .await
+                .unwrap();
+            sqlx::query(
+                "CREATE TABLE typed_rows (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    txt TEXT,
+                    num INTEGER,
+                    flt REAL,
+                    flag BOOLEAN,
+                    raw BLOB
+                )",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+
+            let transactions = SqliteTransactions::default();
+            let id = transactions.begin(&pool).await.unwrap();
+
+            let insert_res = transactions
+                .execute(
+                    id,
+                    "INSERT INTO typed_rows (txt, num, flt, flag, raw) VALUES (?, ?, ?, ?, ?)"
+                        .into(),
+                    vec![
+                        Value::from("课集"),
+                        Value::from(42),
+                        Value::from(3.5),
+                        Value::from(true),
+                        Value::Array(vec![Value::from(1), Value::from(255)]),
+                    ],
+                )
+                .await
+                .unwrap();
+            assert_eq!(insert_res.get("rowsAffected"), Some(&Value::from(1)));
+            assert_eq!(insert_res.get("lastInsertId"), Some(&Value::from(1)));
+
+            transactions
+                .execute(
+                    id,
+                    "INSERT INTO typed_rows (txt, num, flt, flag, raw) VALUES (?, ?, ?, ?, ?)"
+                        .into(),
+                    vec![Value::Null, Value::Null, Value::Null, Value::Null, Value::Null],
+                )
+                .await
+                .unwrap();
+
+            let rows = transactions
+                .select(
+                    id,
+                    "SELECT txt, num, flt, flag, raw FROM typed_rows ORDER BY id".into(),
+                    vec![],
+                )
+                .await
+                .unwrap();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0].get("txt"), Some(&Value::from("课集")));
+            assert_eq!(rows[0].get("num"), Some(&Value::from(42)));
+            assert_eq!(rows[0].get("flt"), Some(&Value::from(3.5)));
+            assert_eq!(rows[0].get("flag"), Some(&Value::from(1)));
+            assert_eq!(
+                rows[0].get("raw"),
+                Some(&Value::Array(vec![Value::from(1), Value::from(255)]))
+            );
+            assert_eq!(rows[1].get("txt"), Some(&Value::Null));
+
+            let obj_err = transactions
+                .execute(id, "SELECT ?".into(), vec![Value::Object(Map::new())])
+                .await
+                .unwrap_err();
+            assert_eq!(obj_err, "SQLite 不支持对象参数");
+
+            let blob_err = transactions
+                .execute(
+                    id,
+                    "SELECT ?".into(),
+                    vec![Value::Array(vec![Value::from(256)])],
+                )
+                .await
+                .unwrap_err();
+            assert_eq!(blob_err, "SQLite 二进制参数必须是字节数组");
+
+            transactions.finish(id, true).await.unwrap();
+        });
+    }
+
+    #[test]
+    fn ended_or_missing_transaction_returns_error() {
+        tauri::async_runtime::block_on(async {
+            let pool = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
+                .await
+                .unwrap();
+            let transactions = SqliteTransactions::default();
+
+            let missing_err = transactions
+                .select(999, "SELECT 1".into(), vec![])
+                .await
+                .unwrap_err();
+            assert!(missing_err.contains("已结束"));
+
+            let id = transactions.begin(&pool).await.unwrap();
+            transactions.finish(id, false).await.unwrap();
+
+            let after_rollback = transactions
+                .execute(id, "SELECT 1".into(), vec![])
+                .await
+                .unwrap_err();
+            assert!(after_rollback.contains("已结束"));
+
+            let double_finish = transactions.finish(id, true).await.unwrap_err();
+            assert!(double_finish.contains("已结束"));
+        });
+    }
 }

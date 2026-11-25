@@ -39,3 +39,33 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("运行课集 Tauri 应用失败");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[test]
+    fn schema_version_is_19_and_sql_initializes_cleanly() {
+        assert_eq!(get_schema_version(), 19);
+        assert!(!SCHEMA_V19_SQL.trim().is_empty());
+
+        tauri::async_runtime::block_on(async {
+            let pool = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
+                .await
+                .unwrap();
+
+            sqlx::raw_sql(SCHEMA_V19_SQL).execute(&pool).await.unwrap();
+
+            let table_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('academic_terms', 'school_stages', 'grade_groups', 'class_groups', 'subjects', 'teachers')",
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert_eq!(table_count, 6);
+        });
+    }
+}
