@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useStickyToolbar } from '@/hooks/useStickyToolbar';
 import { AlertTriangle, Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, Eraser, MoreHorizontal, Pencil, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ interface GradeEditor {
 }
 
 export const SubjectsPage: React.FC = () => {
+  const toolbarRef = useStickyToolbar<HTMLDivElement>();
   const {
     activeTermId, terms, stages, grades, classes, subjects: savedSubjects,
     subjectRequirements, subjectPairings, subjectPresets, subjectLessonConstraints,
@@ -1004,7 +1006,10 @@ export const SubjectsPage: React.FC = () => {
       : `${currentScopeStage?.name ?? '学段'} · ${shownGrades.length}/${scopeGrades.length} 年级`;
 
   return <section className="flex h-[calc(100dvh-88px)] min-h-[420px] flex-col gap-4">
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3">
+    <div
+      ref={toolbarRef}
+      className="sticky-glass-toolbar sticky top-0 z-30 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-card bg-surface px-4 py-3 shadow-sm"
+    >
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
         <Popover>
           <PopoverTrigger asChild>

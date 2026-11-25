@@ -364,6 +364,12 @@
   padding: 16px;
 }
 
+.sticky-glass-toolbar[data-stuck='true'] {
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
 .app-shell-main {
   min-height: 0;
   overscroll-behavior: contain;

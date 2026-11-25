@@ -19,6 +19,7 @@ import {
 import { schoolRepository } from '@/repository/schoolRepository';
 import type { ScheduleRunReport } from '@/repository/scheduleStorage';
 import { useAppStore } from '@/store/useAppStore';
+import { useStickyToolbar } from '@/hooks/useStickyToolbar';
 import { getSubjectColor } from '@/styles/subjectColors';
 import { TimetableGrid, clockLabel, slotName, weekdayName } from './TimetableGrid';
 import { ScheduleRulesDialog } from './ScheduleRulesDialog';
@@ -258,6 +259,7 @@ function AnimatedScheduleSlot({ version, children }: { version: string; children
 }
 
 function TermSchedulingPage({ termId }: { termId: string }) {
+  const toolbarRef = useStickyToolbar<HTMLElement>();
   const dark = useAppStore((state) => state.resolvedDark);
   const schoolName = useAppStore((state) => state.schoolName);
   const [draft, setDraft] = useState<ScheduleData | null>(null);
@@ -757,7 +759,11 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     const insideOverlay = target instanceof HTMLElement && target.closest('[role="dialog"], [role="listbox"], [role="menu"], input, textarea');
     if (event.key === 'Escape' && !insideOverlay && (selected || moving)) resetSelection();
   }}>
-    <section className="schedule-panel schedule-sticky-toolbar" aria-label="课表工具栏">
+    <section
+      ref={toolbarRef}
+      className="schedule-panel schedule-sticky-toolbar sticky-glass-toolbar shadow-sm"
+      aria-label="课表工具栏"
+    >
       <div className="schedule-toolbar">
         <Segment label="课表版本" value={version} options={[['draft', '草稿版'], ['published', '正式版']]}
           onChange={(value) => { if (!busy) { setVersion(value); resetSelection(); setFeedback(''); } }} />

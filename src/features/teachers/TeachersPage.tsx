@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useStickyToolbar } from '@/hooks/useStickyToolbar';
 import { ChevronDown, ChevronRight, MoreHorizontal, Plus, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,6 +35,7 @@ const presetOwnerFromRoute = (): { kind: 'teacher' | 'group'; id?: string } | nu
 
 export const TeachersPage: React.FC = () => {
   const { activeTermId, classes, grades, stages, subjects, subjectRequirements, teachers: storedTeachers, refreshTermData, resolvedDark, setSelectedSection } = useAppStore();
+  const toolbarRef = useStickyToolbar<HTMLDivElement>();
   const [view, setView] = useState<'class' | 'teacher' | 'group'>('class');
   const [teachers, setTeachers] = useState<Teacher[]>(storedTeachers);
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
@@ -407,7 +409,10 @@ export const TeachersPage: React.FC = () => {
   const menuItem = 'block w-full cursor-pointer rounded-md px-3 py-2 text-left text-[13px] text-ink outline-none hover:bg-selection focus:bg-selection';
   const leftStickyShadow = `after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-2.5 after:bg-gradient-to-r after:from-slate-900/[0.07] after:to-transparent after:transition-opacity after:duration-150 ${classScrollLeft ? 'after:opacity-100' : 'after:opacity-0'}`;
   return <div className="flex h-[calc(100dvh-88px)] min-h-[420px] flex-col gap-4">
-    <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-card border border-border bg-surface px-5 py-3">
+    <div
+      ref={toolbarRef}
+      className="sticky-glass-toolbar sticky top-0 z-30 flex shrink-0 flex-wrap items-center gap-3 rounded-card bg-surface px-5 py-3 shadow-sm"
+    >
       {/* <strong className="mr-auto text-[16px] text-ink">教师任课</strong> */}
       <Tabs value={view} onValueChange={(next) => setView(next as 'class' | 'teacher' | 'group')}>
         <TabsList aria-label="教师任课视图">

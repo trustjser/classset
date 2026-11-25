@@ -40,6 +40,7 @@ import {
   WEEKDAY_SHORT_NAMES,
 } from '@/domain/routineUtils';
 import { useAppStore } from '@/store/useAppStore';
+import { useStickyToolbar } from '@/hooks/useStickyToolbar';
 import {
   FreeSlotScopeTree,
   FreeSlotEditor,
@@ -411,6 +412,7 @@ function PeriodCountControl({
 export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
   onOpenClasses,
 }) => {
+  const toolbarRef = useStickyToolbar<HTMLDivElement>();
   const {
     stages,
     grades,
@@ -944,7 +946,10 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-30 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface/95 px-3 py-2.5 shadow-sm backdrop-blur sm:px-4">
+      <div
+        ref={toolbarRef}
+        className="sticky-glass-toolbar sticky top-0 z-30 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-card bg-surface px-3 py-2.5 shadow-sm sm:px-4"
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -971,26 +976,13 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
         </div>
         <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto">
           <Button
-            className="h-8 flex-1 gap-1.5 px-2.5 text-[11.5px] sm:flex-none"
-            disabled={saving}
-            onClick={() => {
-              setSelectedTemplateId(null);
-              setTemplateOpen(true);
-            }}
-            type="button"
-            variant="outline"
-          >
-            <Copy aria-hidden="true" className="h-3.5 w-3.5" />
-            选择模板
-          </Button>
-          <Button
             aria-label="撤销作息修改"
             className="h-8 flex-1 gap-1.5 px-2.5 text-[11.5px] sm:flex-none"
             disabled={!historyDepth.undo || saving}
             onClick={() => applyHistory('undo')}
             title={historyRef.current.undo[historyRef.current.undo.length - 1]?.label ?? '撤销'}
             type="button"
-            variant="outline"
+            variant="ghost"
           >
             <Undo2 aria-hidden="true" className="h-3.5 w-3.5" />
             撤销
@@ -1002,13 +994,13 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
             onClick={() => applyHistory('redo')}
             title={historyRef.current.redo[historyRef.current.redo.length - 1]?.label ?? '重做'}
             type="button"
-            variant="outline"
+            variant="ghost"
           >
             <Redo2 aria-hidden="true" className="h-3.5 w-3.5" />
             重做
           </Button>
           <Button
-            className="h-8 flex-1 px-3 text-[11.5px] sm:flex-none"
+            className="h-8 flex-1 gap-1.5 px-2.5 text-[11.5px] sm:flex-none"
             disabled={!isDirty || saving}
             onClick={() => {
               discardTermDrafts(selectedStage.termId);
@@ -1017,10 +1009,23 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
               setSavedNotice(false);
             }}
             type="button"
-            variant="outline"
+            variant="ghost"
           >
             <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
             放弃修改
+          </Button>
+          <Button
+            className="h-8 flex-1 gap-1.5 px-2.5 text-[11.5px] sm:flex-none"
+            disabled={saving}
+            onClick={() => {
+              setSelectedTemplateId(null);
+              setTemplateOpen(true);
+            }}
+            type="button"
+            variant="ghost"
+          >
+            <Copy aria-hidden="true" className="h-3.5 w-3.5" />
+            选择模板
           </Button>
           <Button
             className="h-8 flex-1 px-3 text-[11.5px] sm:flex-none"
@@ -1029,7 +1034,7 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
             type="button"
           >
             <Save aria-hidden="true" className="h-3.5 w-3.5" />
-            {saving ? '正在保存…' : '保存作息'}
+            {saving ? '正在保存…' : '保存'}
           </Button>
         </div>
       </div>

@@ -57,6 +57,7 @@ import { SupervisionDraftHistory } from '@/domain/supervisionHistory';
 import { SupervisionMatching } from '@/domain/supervisionMatching';
 import { postErrors } from '@/domain/supervisionValidation';
 import { schoolRepository } from '@/repository/schoolRepository';
+import { useStickyToolbar } from '@/hooks/useStickyToolbar';
 import { PostDialog } from './PostDialog';
 import { PublishDialog } from './PublishDialog';
 import { SupervisionWeekGrid } from './SupervisionWeekGrid';
@@ -101,6 +102,7 @@ interface InitialSinglePostRules {
 }
 
 export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
+  const toolbarRef = useStickyToolbar<HTMLDivElement>();
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -690,9 +692,10 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
 
       {/* Top Action Bar */}
       <div
+        ref={toolbarRef}
         role="toolbar"
         aria-label="带班安排工具栏"
-        className="sticky top-0 z-30 overflow-hidden rounded-xl bg-surface"
+        className="sticky-glass-toolbar sticky top-0 z-30 overflow-hidden rounded-xl bg-surface shadow-sm"
       >
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
