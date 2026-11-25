@@ -105,7 +105,8 @@ interface AppState {
   selectTerm: (termId: string) => Promise<void>;
   updateSchoolName: (name: string) => Promise<void>;
 
-  /* 学期与日历操作 */
+  /* 初始设置与学期日历操作 */
+  completeInitialSetup: (schoolName: string, term: AcademicTerm) => Promise<void>;
   saveOrCloneTerm: (term: AcademicTerm, cloneSourceTermId?: string | null) => Promise<void>;
   removeTerm: (termId: string) => Promise<void>;
   saveWeekCalendarExceptions: (
@@ -411,6 +412,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateSchoolName: async (name) => {
     await schoolRepository.saveSchoolName(name);
     set({ schoolName: name.trim(), lastPersistedAt: new Date() });
+  },
+
+  completeInitialSetup: async (schoolName, term) => {
+    const trimmedSchoolName = schoolName.trim();
+    await schoolRepository.saveSchoolName(trimmedSchoolName);
+    await schoolRepository.saveTerm(term);
+    await schoolRepository.saveActiveTermId(term.id);
+    const terms = await schoolRepository.loadTerms();
+    if (typeof window !== 'undefined' && window.location.hash !== '#/workbench') {
+      window.location.hash = '#/workbench';
+    }
+    set({
+      schoolName: trimmedSchoolName,
+      terms,
+      activeTermId: term.id,
+      selectedSection: 'workbench',
+      lastClassFillUndo: null,
+    });
+    await get().refreshTermData(term.id);
   },
 
   saveOrCloneTerm: async (term, cloneSourceTermId) => {
