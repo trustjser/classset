@@ -35,9 +35,9 @@ import { SubjectsPage } from '@/features/subjects/SubjectsPage';
 import { TeachersPage } from '@/features/teachers/TeachersPage';
 import { TermPage } from '@/features/terms/TermPage';
 import { SchedulingPage } from '@/features/scheduling/SchedulingPage';
+import { SupervisionPage } from '@/features/supervision/SupervisionPage';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
 import { seedDemoData } from '@/features/workbench/demoData';
-import { SCHEMA_VERSION } from '@/adapter/db/schemaV19';
 import { useAppStore } from '@/store/useAppStore';
 import { schoolRepository } from '@/repository/schoolRepository';
 import { PALETTE_OPTIONS } from '@/styles/subjectColors';
@@ -562,6 +562,8 @@ export const AppShell: React.FC = () => {
                   <TeachersPage />
                 ) : selectedSection === 'scheduling' ? (
                   <SchedulingPage termId={activeTerm?.id ?? null} />
+                ) : selectedSection === 'supervision' ? (
+                  <SupervisionPage termId={activeTerm?.id ?? null} />
                 ) : selectedSection === 'temporaryAdjustments' ? (
                   <TemporaryAdjustmentsPage adjustments={adjustments} />
                 ) : (

@@ -1,10 +1,10 @@
 .schedule-page { display: grid; gap: 12px; min-width: 0; }
 .schedule-sticky-toolbar { position: sticky; top: 0; z-index: 30; }
-.schedule-panel { min-width: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; overflow: hidden; }
+.schedule-panel { min-width: 0; background: var(--color-surface); border-radius: 16px; overflow: hidden; }
 .schedule-toolbar, .schedule-panel-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
 .schedule-panel-heading { justify-content: space-between; border-bottom: 1px solid var(--color-border); }
 .schedule-panel-heading h2, .schedule-panel-heading h3 { font-weight: 600; font-size: 14px; }
-.schedule-pool-panel { border: 1px solid var(--color-border); border-radius: 20px; padding: 10px 14px; box-shadow: 0 8px 24px color-mix(in srgb, var(--color-ink) 10%, transparent); }
+.schedule-pool-panel { border-radius: 20px; padding: 10px 14px; box-shadow: 0 8px 24px color-mix(in srgb, var(--color-ink) 10%, transparent); }
 .schedule-pool-dock { position: sticky; bottom: 12px; z-index: 24; }
 .schedule-pool-dock[data-expanded="true"] { padding: 14px; }
 .schedule-pool-dock[data-drop-active="true"] {

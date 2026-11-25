@@ -1,7 +1,7 @@
 import type {
   ClassGroup, FreeSlot, GradeGroup, SchoolStage, StageRoutine, Subject, SubjectRequirement, WeekMode,
-} from '@/domain/models';
-import { createId } from '@/domain/id';
+} from '../../domain/models.ts';
+import { createId } from '../../domain/id.ts';
 
 export interface LessonValues { weekly: number; odd: number; even: number }
 export const EMPTY_LESSONS: LessonValues = { weekly: 0, odd: 0, even: 0 };

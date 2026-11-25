@@ -12,6 +12,15 @@ import {
   isTauriDesktop,
   SqlDatabaseAdapter,
 } from '../adapter/db/databaseAdapter';
+import type {
+  SupervisionDraft as SupervisionDraftModel,
+  SupervisionVersion,
+  SupervisionPreview,
+} from '../domain/supervision';
+import { defaultSupervisionMatchingPreferences } from '../domain/supervision';
+import { postErrors, occurrences } from '../domain/supervisionValidation';
+import { SupervisionAllocator } from '../domain/supervisionAllocator';
+import { SupervisionMatching } from '../domain/supervisionMatching';
 import {
   AcademicTerm,
   CalendarException,
@@ -3365,6 +3374,204 @@ export class SchoolRepository {
     }
     const store = this.loadFallback();
     store.supervisionDrafts[draft.termId] = draft;
+    this.saveFallback(store);
+  }
+
+  async loadSupervisionDraftData(termId: string): Promise<SupervisionDraftModel | null> {
+    const raw = await this.loadSupervisionDraft(termId);
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw.payload);
+      return {
+        termId: parsed.termId ?? termId,
+        revision: parsed.revision ?? 0,
+        posts: parsed.posts ?? [],
+        teacherIds: parsed.teacherIds ?? [],
+        teacherPools: parsed.teacherPools ?? [],
+        defaultTeacherPoolId: parsed.defaultTeacherPoolId ?? null,
+        matchingPreferences: parsed.matchingPreferences ?? defaultSupervisionMatchingPreferences,
+        rules: parsed.rules ?? {},
+        assignments: parsed.assignments ?? {},
+        manualPostIds: parsed.manualPostIds ?? [],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async saveSupervisionDraftData(
+    draft: SupervisionDraftModel,
+    expectedRevision?: number
+  ): Promise<SupervisionDraftModel> {
+    const nextRevision = (expectedRevision ?? draft.revision) + 1;
+    const nextDraft: SupervisionDraftModel = {
+      ...draft,
+      revision: nextRevision,
+    };
+    await this.saveSupervisionDraft({
+      termId: draft.termId,
+      payload: JSON.stringify(nextDraft),
+    });
+    return nextDraft;
+  }
+
+  async loadSupervisionVersions(termId: string): Promise<SupervisionVersion[]> {
+    if (this.useSqlEngine) {
+      const rows = await this.adapter.select<{ payload: string; effective_date: string }>(
+        'SELECT payload, effective_date FROM supervision_plan_versions WHERE term_id = ? ORDER BY effective_date ASC',
+        [termId]
+      );
+      return rows.map((r) => {
+        try {
+          return JSON.parse(r.payload) as SupervisionVersion;
+        } catch {
+          return {
+            termId,
+            effectiveDate: r.effective_date,
+            draft: {
+              termId,
+              revision: 0,
+              posts: [],
+              teacherIds: [],
+              teacherPools: [],
+              matchingPreferences: defaultSupervisionMatchingPreferences,
+              rules: {},
+              assignments: {},
+              manualPostIds: [],
+            },
+            occurrences: [],
+          };
+        }
+      });
+    }
+    const store = this.loadFallback();
+    return store.supervisionVersions
+      .filter((v) => v.termId === termId)
+      .map((v) => {
+        try {
+          return JSON.parse(v.payload) as SupervisionVersion;
+        } catch {
+          return {
+            termId,
+            effectiveDate: v.effectiveDate,
+            draft: {
+              termId,
+              revision: 0,
+              posts: [],
+              teacherIds: [],
+              teacherPools: [],
+              matchingPreferences: defaultSupervisionMatchingPreferences,
+              rules: {},
+              assignments: {},
+              manualPostIds: [],
+            },
+            occurrences: [],
+          };
+        }
+      });
+  }
+
+  async previewSupervisionPublish(
+    termId: string,
+    effectiveDate: string
+  ): Promise<SupervisionPreview> {
+    const draft = await this.loadSupervisionDraftData(termId);
+    if (!draft) {
+      throw new Error('请先保存带班草稿');
+    }
+    const snapshot = await this.loadSchedulingData(termId);
+    const versions = await this.loadSupervisionVersions(termId);
+    const before = versions
+      .filter((v) => v.effectiveDate <= effectiveDate)
+      .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0] ?? null;
+
+    const validationErrors = postErrors(snapshot, draft);
+    const missingPostIds: string[] = [];
+    const blockerErrors: string[] = [];
+    const allocator = new SupervisionAllocator();
+    const matching = new SupervisionMatching(snapshot);
+
+    for (const post of draft.posts) {
+      const assignedTeacher = draft.assignments[post.id];
+      if (!assignedTeacher) {
+        missingPostIds.push(post.id);
+      } else {
+        const blockers = allocator.teacherBlockers(snapshot, draft, post, assignedTeacher, matching);
+        for (const b of blockers) {
+          blockerErrors.push(`${post.name}：${b}`);
+        }
+      }
+    }
+
+    const allErrors = [...validationErrors, ...blockerErrors];
+
+    const scheduleChanges: string[] = [];
+    if (before) {
+      const beforeMap = new Map(before.draft.posts.map((p) => [p.id, before.draft.assignments[p.id]]));
+      for (const post of draft.posts) {
+        const prevTeacher = beforeMap.get(post.id);
+        const curTeacher = draft.assignments[post.id];
+        if (!prevTeacher && curTeacher) {
+          scheduleChanges.push(`新增岗位「${post.name}」指派教师`);
+        } else if (prevTeacher && curTeacher && prevTeacher !== curTeacher) {
+          scheduleChanges.push(`岗位「${post.name}」更换带班教师`);
+        }
+      }
+    }
+
+    const replaced = versions.find((v) => v.effectiveDate > effectiveDate);
+
+    return {
+      effectiveDate,
+      before,
+      draft,
+      errors: allErrors,
+      missingPostIds,
+      scheduleChanges,
+      replacedFutureDate: replaced ? replaced.effectiveDate : null,
+      fingerprint: `${termId}_${effectiveDate}_${Date.now()}`,
+      canPublish: allErrors.length === 0 && missingPostIds.length === 0,
+    };
+  }
+
+  async publishSupervision(termId: string, preview: SupervisionPreview): Promise<void> {
+    if (!preview.canPublish) {
+      throw new Error('带班方案仍有错误或未分配岗位，无法确认');
+    }
+    const snapshot = await this.loadSchedulingData(termId);
+    const occs = occurrences(snapshot, preview.draft);
+    const version: SupervisionVersion = {
+      termId,
+      effectiveDate: preview.effectiveDate,
+      draft: preview.draft,
+      occurrences: occs,
+    };
+
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await tx.execute(
+          'DELETE FROM supervision_plan_versions WHERE term_id = ? AND effective_date >= ?',
+          [termId, preview.effectiveDate]
+        );
+        await tx.execute(
+          'INSERT INTO supervision_plan_versions (term_id, effective_date, payload) VALUES (?, ?, ?)',
+          [termId, preview.effectiveDate, JSON.stringify(version)]
+        );
+        await tx.execute('DELETE FROM supervision_drafts WHERE term_id = ?', [termId]);
+      });
+      return;
+    }
+
+    const store = this.loadFallback();
+    store.supervisionVersions = store.supervisionVersions.filter(
+      (v) => !(v.termId === termId && v.effectiveDate >= preview.effectiveDate)
+    );
+    store.supervisionVersions.push({
+      termId,
+      effectiveDate: preview.effectiveDate,
+      payload: JSON.stringify(version),
+    });
+    delete store.supervisionDrafts[termId];
     this.saveFallback(store);
   }
 

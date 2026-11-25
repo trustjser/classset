@@ -9,6 +9,7 @@ node_modules
 .flutter-plugins-dependencies
 .pub/
 /build/
+/dist
 .agents
 .agent
 

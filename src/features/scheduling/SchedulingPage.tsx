@@ -8,7 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Progress } from '@/components/ui/progress';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { SelectField } from '@/components/ui/select-field';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ScheduleItem, ScheduleLock, WeekMode } from '@/domain/models';
 import {
   createScheduleContext, detectSchedule, freeSlotFor, groupBy, isLessonLocked, occursInWeek, positionOf, prepareDemand,
@@ -22,7 +23,7 @@ import { getSubjectColor } from '@/styles/subjectColors';
 import { TimetableGrid, clockLabel, slotName, weekdayName } from './TimetableGrid';
 import { ScheduleRulesDialog } from './ScheduleRulesDialog';
 import type { SolveRequest, SolveResponse } from './schedule.worker';
-import type { ExportOptions } from './scheduleExport';
+import { defaultExportOptions, type ExportOptions } from './scheduleExport';
 import './scheduling.css';
 
 type View = 'class' | 'teacher' | 'all' | 'room';
@@ -137,7 +138,7 @@ function StageClassTreeSelect({ groups, value, onChange }: {
 
   return <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setQuery(''); }}>
     <PopoverTrigger asChild>
-      <Button type="button" variant="outline" size="sm"
+      <Button type="button" variant="ghost" size="sm"
         aria-label={selected ? `学段与班级：${selected.stage.name}，${selected.schoolClass.name}` : '学段与班级'}
         className="h-8 justify-between gap-2">
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
@@ -178,11 +179,11 @@ function StageClassTreeSelect({ groups, value, onChange }: {
               {stage.classes.length ? stage.classes.map((schoolClass) => {
                 const isSelected = schoolClass.id === value;
                 return <Button key={schoolClass.id} type="button" variant="ghost" size="sm" aria-pressed={isSelected}
-                  className={`h-8 w-full justify-between gap-2 px-2 text-left ${isSelected ? 'border border-accent bg-selection font-semibold text-ink hover:bg-selection' : 'text-ink'}`}
+                  className={`h-8 w-full justify-between gap-2 px-2 text-left ${isSelected ? 'border border-brand-accent bg-selection font-semibold text-ink hover:bg-selection' : 'text-ink'}`}
                   style={isSelected ? { color: 'var(--color-ink)' } : undefined}
                   onClick={() => { onChange(schoolClass.id); setOpen(false); }}>
                   <span className="truncate">{schoolClass.name}</span>
-                  <Check aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-accent' : 'opacity-0'}`} />
+                  <Check aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-brand-accent' : 'opacity-0'}`} />
                 </Button>;
               }) : <p className="px-2 py-1 text-xs text-ink-secondary">暂无班级</p>}
             </div>}
@@ -258,6 +259,7 @@ function AnimatedScheduleSlot({ version, children }: { version: string; children
 
 function TermSchedulingPage({ termId }: { termId: string }) {
   const dark = useAppStore((state) => state.resolvedDark);
+  const schoolName = useAppStore((state) => state.schoolName);
   const [draft, setDraft] = useState<ScheduleData | null>(null);
   const [published, setPublished] = useState<ScheduleData | null>(null);
   const [baseline, setBaseline] = useState<ScheduleData | null>(null);
@@ -293,10 +295,8 @@ function TermSchedulingPage({ termId }: { termId: string }) {
   const [strength, setStrength] = useState('normal');
   const [detection, setDetection] = useState<string[]>([]);
   const [reconciliation, setReconciliation] = useState<Reconciliation | null>(null);
-  const [exportOptions, setExportOptions] = useState<ExportOptions>({
-    classes: true, teachers: true, school: true, rooms: false, showTeacher: true, showClass: true,
-    showTime: true, showWeek: true, fontSize: 10, printFit: 'original', landscape: false,
-  });
+  const [exportOptions, setExportOptions] = useState<ExportOptions>(defaultExportOptions);
+  const [exportTab, setExportTab] = useState<'content' | 'print' | 'split'>('content');
   const worker = useRef<Worker | null>(null);
   const cancelSolve = useRef<(() => void) | null>(null);
   const running = useRef(false);
@@ -772,7 +772,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
           </>}
         </div>
       </div>
-      {schedule && <div className="schedule-toolbar border-t border-border">
+      {schedule && <div className="schedule-toolbar border-t border-dashed">
         <div className="schedule-toolbar-group">
           {view === 'class' && <StageClassTreeSelect groups={classGroups} value={displayedClass?.id ?? ''}
             onChange={(id) => { setClassId(id); resetSelection(); }} />}
@@ -807,7 +807,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
             setDetection(detectSchedule(context!.data)); setModal('detect');
           }}><CheckCircle2 />检测</Button>
           <Button variant="ghost" size="sm" disabled={busy || (!!baseline && version === 'draft') || (!assignedCount && !schedule.visibleSupervision.length)}
-            onClick={() => setModal('export')}><ArrowDownToLine />导出</Button>
+            onClick={() => { setExportTab('content'); setModal('export'); }}><ArrowDownToLine />导出</Button>
         </div>
       </div>}
     </section>
@@ -1032,31 +1032,550 @@ function TermSchedulingPage({ termId }: { termId: string }) {
         </>;
       })()}
     </ModalFrame>}
-    {modal === 'export' && schedule && <ModalFrame title="导出课表" description="将选定课表保存为 Excel 压缩包。" onClose={closeModal}
-      actions={<><Button variant="ghost" disabled={busy} onClick={closeModal}>取消</Button>
-        <Button disabled={busy || !['classes', 'teachers', 'school', 'rooms'].some((key) => exportOptions[key as keyof ExportOptions])}
-          onClick={() => void perform(async () => {
-            const { exportSchedule } = await import('./scheduleExport');
-            if (await exportSchedule(schedule, exportOptions)) { setModal(null); setFeedback('课表压缩包已导出'); }
-          })}>{busy ? '正在导出…' : '导出压缩包'}</Button></>}>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        {([['classes', '班级课表'], ['teachers', '教师课表'], ['school', '学校总课表'], ['rooms', '场室课表'],
-          ['showTeacher', '显示任课和带班教师'], ['showClass', '显示课节所在班级'], ['showTime', '显示起止时间'], ['showWeek', '显示单双周标记']] as const)
-          .map(([key, label]) => <label key={key} className="inline-flex items-center gap-2"><Checkbox checked={exportOptions[key]}
-            onCheckedChange={(checked) => setExportOptions({ ...exportOptions, [key]: checked === true })} />{label}</label>)}
-        <label className="flex flex-wrap items-center gap-2">正文基准字号
-          <SelectField ariaLabel="正文基准字号" className="h-8 w-[6rem]" value={String(exportOptions.fontSize)}
-            onValueChange={(value) => setExportOptions({ ...exportOptions, fontSize: Number(value) })}
-            options={Array.from({ length: 11 }, (_, index) => ({ value: String(index + 8), label: `${index + 8} 磅` }))} />
-        </label>
-        <label className="col-span-2 flex items-center gap-2">打印缩放 <SelectField ariaLabel="打印缩放" className="h-8 w-auto min-w-[9rem]"
-          value={exportOptions.printFit} onValueChange={(value) => setExportOptions({ ...exportOptions, printFit: value as ExportOptions['printFit'] })}
-          options={[{ value: 'original', label: 'Excel 默认' }, { value: 'width', label: '一页宽' }, { value: 'page', label: '缩放至一页' }]} />
-        </label>
-        <label className="inline-flex items-center gap-2"><Checkbox disabled={exportOptions.printFit === 'original'} checked={exportOptions.landscape}
-          onCheckedChange={(checked) => setExportOptions({ ...exportOptions, landscape: checked === true })} />A4 横向</label>
-      </div>
-      {error && <p className="schedule-error" role="alert">{error}</p>}
-    </ModalFrame>}
+    {modal === 'export' && schedule && <Dialog open onOpenChange={(open) => { if (!open && !busy) closeModal(); }}>
+      <DialogContent className="max-w-[560px] gap-0 p-0 overflow-hidden">
+        <DialogHeader className="border-b-0 px-5 pt-5 pb-3">
+          <DialogTitle className="text-[16px] font-semibold">导出课表</DialogTitle>
+          <DialogDescription className="text-[11px] text-ink-secondary">班级、教师和学校总课表 · Excel 压缩包</DialogDescription>
+        </DialogHeader>
+        <Tabs value={exportTab} onValueChange={(next) => setExportTab(next as 'content' | 'print' | 'split')} className="w-full">
+          <div className="px-5 pb-3.5">
+            <TabsList aria-label="导出选项分类" className="grid h-9 w-full grid-cols-3 rounded-control bg-table-header p-[3px]">
+              <TabsTrigger value="content" className="h-7 text-[12px]">内容与字号</TabsTrigger>
+              <TabsTrigger value="print" className="h-7 text-[12px]">打印设置</TabsTrigger>
+              <TabsTrigger value="split" className="h-7 text-[12px]">分表方式</TabsTrigger>
+            </TabsList>
+          </div>
+          <div className="border-t border-border px-5 pt-4 pb-5 min-h-[296px]">
+            <TabsContent value="content" className="mt-0 space-y-3.5">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-semibold text-ink-secondary">课位格文字样式</span>
+                  <span className="text-[11px] text-ink-secondary">分别设置科目、教师、班级的字号、字重与颜色</span>
+                </div>
+                <div className="mt-1.5 space-y-2">
+                  {([
+                    ['subjectStyle', '科目', '班级课表 · 教师课表 · 总课表'],
+                    ['teacherStyle', '教师', '班级课表 · 总课表'],
+                    ['classStyle', '班级', '教师课表'],
+                  ] as const).map(([styleKey, title, scopeHint]) => {
+                    const currentStyle = exportOptions[styleKey];
+                    const updateStyle = (patch: Partial<typeof currentStyle>) => {
+                      const nextStyle = { ...currentStyle, ...patch };
+                      setExportOptions({
+                        ...exportOptions,
+                        [styleKey]: nextStyle,
+                        ...(styleKey === 'teacherStyle' && patch.fontSize !== undefined
+                          ? { fontSize: patch.fontSize }
+                          : {}),
+                      });
+                    };
+                    const presets = [
+                      ['#000000', '墨黑'],
+                      ['#5E6B80', '深灰'],
+                      ['#2864DC', '晴空蓝'],
+                      ['#087D89', '海盐青'],
+                      ['#1F765E', '松石绿'],
+                      ['#B74752', '绛红'],
+                    ] as const;
+                    return (
+                      <div
+                        key={styleKey}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border px-3 py-2"
+                      >
+                        <div className="min-w-[116px]">
+                          <div className="text-[12.5px] font-semibold text-ink">{title}</div>
+                          <div className="text-[10.5px] text-ink-secondary">{scopeHint}</div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <SelectField
+                            ariaLabel={`${title}字号`}
+                            className="h-7 w-[5.25rem] text-[12px]"
+                            value={String(currentStyle.fontSize)}
+                            onValueChange={(val) => updateStyle({ fontSize: Number(val) })}
+                            options={[8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20].map((sz) => ({
+                              value: String(sz),
+                              label: `${sz} 磅`,
+                            }))}
+                          />
+                          <div
+                            role="group"
+                            aria-label={`${title}字重`}
+                            className="inline-flex h-7 items-center rounded-md border border-border p-0.5 text-[11.5px]"
+                          >
+                            {([
+                              [false, '常规'],
+                              [true, '加粗'],
+                            ] as const).map(([isBold, weightLabel]) => {
+                              const active = currentStyle.bold === isBold;
+                              return (
+                                <button
+                                  key={weightLabel}
+                                  type="button"
+                                  aria-pressed={active}
+                                  onClick={() => updateStyle({ bold: isBold })}
+                                  className={`h-5 rounded px-2 transition-colors ${
+                                    active
+                                      ? 'bg-primary text-on-accent font-semibold'
+                                      : 'text-ink-secondary hover:text-ink'
+                                  }`}
+                                >
+                                  {weightLabel}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="flex items-center gap-1" role="group" aria-label={`${title}颜色`}>
+                            {presets.map(([hex, colorName]) => {
+                              const selectedColor = currentStyle.color.toUpperCase() === hex;
+                              return (
+                                <button
+                                  key={hex}
+                                  type="button"
+                                  title={`${title}颜色：${colorName}`}
+                                  aria-label={`${title}颜色：${colorName}`}
+                                  aria-pressed={selectedColor}
+                                  onClick={() => updateStyle({ color: hex })}
+                                  className={`h-4 w-4 rounded-full border transition-transform ${
+                                    selectedColor
+                                      ? 'scale-110 border-brand-accent ring-2 ring-ring/40'
+                                      : 'border-border hover:scale-105'
+                                  }`}
+                                  style={{ backgroundColor: hex }}
+                                />
+                              );
+                            })}
+                            <label
+                              title={`自定义${title}颜色`}
+                              className="relative ml-0.5 inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded border border-border text-[10px] text-ink-secondary hover:border-brand-accent"
+                            >
+                              <input
+                                type="color"
+                                aria-label={`自定义${title}颜色`}
+                                value={currentStyle.color}
+                                onChange={(event) => updateStyle({ color: event.target.value.toUpperCase() })}
+                                className="sr-only"
+                              />
+                              <span
+                                className="h-3 w-3 rounded-sm border border-border/60"
+                                style={{ backgroundColor: currentStyle.color }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[12px] font-semibold text-ink-secondary">课位格预览</div>
+                <div className="mt-1.5 grid grid-cols-3 gap-2">
+                  <div className="rounded-control border border-border px-2.5 py-2 text-center">
+                    <div className="text-[10.5px] text-ink-secondary">班级课表（科目 / 教师）</div>
+                    <div className="mt-1.5 rounded border border-border/80">
+                      <div
+                        className="px-1.5 py-1 leading-tight truncate"
+                        style={{
+                          fontSize: `${exportOptions.subjectStyle.fontSize}px`,
+                          fontWeight: exportOptions.subjectStyle.bold ? 700 : 400,
+                          color: exportOptions.subjectStyle.color,
+                        }}
+                      >
+                        语文
+                      </div>
+                      <div
+                        className="border-t border-dotted border-border px-1.5 py-1 leading-tight truncate"
+                        style={{
+                          fontSize: `${exportOptions.teacherStyle.fontSize}px`,
+                          fontWeight: exportOptions.teacherStyle.bold ? 700 : 400,
+                          color: exportOptions.showTeacher ? exportOptions.teacherStyle.color : 'var(--color-ink-secondary)',
+                          opacity: exportOptions.showTeacher ? 1 : 0.4,
+                        }}
+                      >
+                        {exportOptions.showTeacher ? '张老师' : '（不显示教师）'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-control border border-border px-2.5 py-2 text-center">
+                    <div className="text-[10.5px] text-ink-secondary">教师课表（科目 / 班级）</div>
+                    <div className="mt-1.5 rounded border border-border/80">
+                      <div
+                        className="px-1.5 pt-1 pb-0.5 leading-tight truncate"
+                        style={{
+                          fontSize: `${exportOptions.subjectStyle.fontSize}px`,
+                          fontWeight: exportOptions.subjectStyle.bold ? 700 : 400,
+                          color: exportOptions.subjectStyle.color,
+                        }}
+                      >
+                        语文
+                      </div>
+                      <div
+                        className="px-1.5 pb-1 pt-0.5 leading-tight truncate"
+                        style={{
+                          fontSize: `${exportOptions.classStyle.fontSize}px`,
+                          fontWeight: exportOptions.classStyle.bold ? 700 : 400,
+                          color: exportOptions.showClass ? exportOptions.classStyle.color : 'var(--color-ink-secondary)',
+                          opacity: exportOptions.showClass ? 1 : 0.4,
+                        }}
+                      >
+                        {exportOptions.showClass ? '一年级 1 班' : '（不显示班级）'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-control border border-border px-2.5 py-2 text-center">
+                    <div className="text-[10.5px] text-ink-secondary">总课表（科目 / 教师）</div>
+                    <div className="mt-1.5 rounded border border-border/80 px-1.5 py-1">
+                      <div
+                        className="leading-tight truncate"
+                        style={{
+                          fontSize: `${exportOptions.subjectStyle.fontSize}px`,
+                          fontWeight: exportOptions.subjectStyle.bold ? 700 : 400,
+                          color: exportOptions.subjectStyle.color,
+                        }}
+                      >
+                        语文
+                      </div>
+                      <div
+                        className="mt-0.5 leading-tight truncate"
+                        style={{
+                          fontSize: `${exportOptions.teacherStyle.fontSize}px`,
+                          fontWeight: exportOptions.teacherStyle.bold ? 700 : 400,
+                          color: exportOptions.showTeacher ? exportOptions.teacherStyle.color : 'var(--color-ink-secondary)',
+                          opacity: exportOptions.showTeacher ? 1 : 0.4,
+                        }}
+                      >
+                        {exportOptions.showTeacher ? '张老师' : '（不显示教师）'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[12px] font-semibold text-ink-secondary">课节字段</div>
+                <p className="mt-0.5 text-[11px] text-ink-secondary">科目、带班活动和课表表头始终保留。</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {([
+                    ['showTeacher', '任课及带班教师'],
+                    ['showClass', '课节内的班级'],
+                    ['showTime', '课节起止时间'],
+                    ['showWeek', '单双周标记'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="flex cursor-pointer items-center gap-2 rounded-control border border-border px-2.5 py-2 text-[12px] font-medium text-ink select-none">
+                      <Checkbox
+                        checked={exportOptions[key]}
+                        onCheckedChange={(checked) => setExportOptions({ ...exportOptions, [key]: checked === true })}
+                      />
+                      <span className="truncate">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="print" className="mt-0 space-y-3">
+              <div className="rounded-control border border-border p-3">
+                <div className="text-[13px] font-semibold text-ink">打印缩放</div>
+                <div className="mt-2">
+                  <SelectField
+                    ariaLabel="打印缩放"
+                    className="h-9 w-full"
+                    value={exportOptions.printFit}
+                    onValueChange={(value) => setExportOptions({ ...exportOptions, printFit: value as ExportOptions['printFit'] })}
+                    options={[
+                      { value: 'original', label: '原始比例（Excel 默认）' },
+                      { value: 'width', label: '一页宽，高度自动分页' },
+                      { value: 'page', label: '每张表缩放至一页' },
+                    ]}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-ink-secondary">总课表较长时，选一页宽可保留纵向分页。</p>
+              </div>
+              <div className={exportOptions.printFit === 'original' ? 'opacity-55' : undefined}>
+                <div className="flex items-center justify-between gap-3 rounded-control border border-border px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-ink">横向打印</div>
+                    <p className="mt-0.5 text-[11px] text-ink-secondary">
+                      {exportOptions.printFit === 'original'
+                        ? '选择自适应缩放后可调整 A4 纸张方向。'
+                        : exportOptions.landscape
+                          ? 'A4 横向'
+                          : 'A4 纵向'}
+                    </p>
+                  </div>
+                  <Switch
+                    aria-label="横向打印"
+                    disabled={exportOptions.printFit === 'original'}
+                    checked={exportOptions.landscape}
+                    onCheckedChange={(checked) => setExportOptions({ ...exportOptions, landscape: checked })}
+                  />
+                </div>
+              </div>
+              {(() => {
+                const isOriginal = exportOptions.printFit === 'original';
+                const isWidth = exportOptions.printFit === 'width';
+                const isPage = exportOptions.printFit === 'page';
+                const effectiveLandscape = isOriginal ? true : exportOptions.landscape;
+                const renderMiniGrid = (rowsCount: number, colsCount: number, compact = false) => (
+                  <div className="flex flex-col gap-[2px]">
+                    <div className="h-[4px] w-3/5 self-center rounded-[1px] bg-ink opacity-70" />
+                    <div
+                      className="grid border border-control-border"
+                      style={{
+                        gridTemplateColumns: `1.1fr repeat(${colsCount}, 1fr)`,
+                      }}
+                    >
+                      <div className="h-[6px] border-b border-r border-border" style={{ backgroundColor: '#DCEBD2' }} />
+                      {Array.from({ length: colsCount }).map((_, c) => (
+                        <div
+                          key={`h-${c}`}
+                          className="h-[6px] border-b border-r last:border-r-0 border-border"
+                          style={{ backgroundColor: '#DCEBD2' }}
+                        />
+                      ))}
+                      {Array.from({ length: rowsCount }).map((_, r) => {
+                        const isCommon = r === 1 && rowsCount >= 4;
+                        return (
+                          <div key={`r-${r}`} className="contents">
+                            <div
+                              className={`${compact ? 'h-[6px]' : 'h-[8px]'} border-b last:border-b-0 border-r border-border`}
+                              style={{ backgroundColor: '#F3F4EF' }}
+                            />
+                            {isCommon ? (
+                              <div
+                                className={`${compact ? 'h-[6px]' : 'h-[8px]'} border-b border-border`}
+                                style={{
+                                  gridColumn: `span ${colsCount} / span ${colsCount}`,
+                                  backgroundColor: '#F3EEDB',
+                                }}
+                              />
+                            ) : (
+                              Array.from({ length: colsCount }).map((__, c) => (
+                                <div
+                                  key={`c-${r}-${c}`}
+                                  className={`${compact ? 'h-[6px]' : 'h-[8px]'} flex flex-col items-center justify-center gap-[1px] border-b last:border-b-0 border-r last:border-r-0 border-border px-[1px]`}
+                                >
+                                  <span
+                                    className="block h-[2px] w-3/4 rounded-[1px]"
+                                    style={{ backgroundColor: exportOptions.subjectStyle.color, opacity: 0.75 }}
+                                  />
+                                  <span
+                                    className="block h-[1.5px] w-1/2 rounded-[1px]"
+                                    style={{ backgroundColor: exportOptions.teacherStyle.color, opacity: 0.45 }}
+                                  />
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+
+                return (
+                  <div className="rounded-control border border-border px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-semibold text-ink-secondary">打印预览效果</span>
+                      <span className="text-[11px] font-medium text-brand-accent">
+                        {isOriginal
+                          ? '原始比例 · 自然分页'
+                          : isWidth
+                            ? `${effectiveLandscape ? 'A4 横向' : 'A4 纵向'} · 一页宽纵向分页`
+                            : `${effectiveLandscape ? 'A4 横向' : 'A4 纵向'} · 单页完整缩放`}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2.5">
+                      <div className="flex flex-col items-center justify-between rounded-md border border-border px-2.5 py-2">
+                        <div className="flex w-full items-center justify-between text-[10.5px] text-ink-secondary">
+                          <span>班级 / 教师课表</span>
+                          <span>{isOriginal ? '100% 比例' : '1 / 1 页'}</span>
+                        </div>
+                        <div className="my-1.5 flex h-[96px] items-center justify-center">
+                          <div
+                            className={`relative flex flex-col justify-between rounded-[3px] border border-control-border bg-surface p-1.5 shadow-sm transition-all ${
+                              effectiveLandscape ? 'h-[76px] w-[108px]' : 'h-[92px] w-[66px]'
+                            }`}
+                          >
+                            {renderMiniGrid(effectiveLandscape ? 4 : 5, 5, !effectiveLandscape)}
+                            {isOriginal && (
+                              <>
+                                <div
+                                  title="Excel 默认分页线"
+                                  className="pointer-events-none absolute inset-y-0 right-[22px] border-r border-dashed border-brand-accent"
+                                />
+                                <span className="pointer-events-none absolute bottom-0.5 right-1 rounded bg-surface px-1 text-[8px] font-medium text-brand-accent">
+                                  分页线
+                                </span>
+                              </>
+                            )}
+                            {!isOriginal && (
+                              <span className="text-right text-[8px] text-ink-secondary leading-none">
+                                {effectiveLandscape ? 'A4 横向' : 'A4 纵向'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-ink-secondary">
+                          {isOriginal ? '按列宽原始尺寸输出' : '单张 A4 完整容纳整周课表'}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center justify-between rounded-md border border-border px-2.5 py-2">
+                        <div className="flex w-full items-center justify-between text-[10.5px] text-ink-secondary">
+                          <span>学校总课表（长表）</span>
+                          <span>
+                            {isPage ? '缩至 1 页' : isWidth ? '第 1~N 页' : '横纵自然分页'}
+                          </span>
+                        </div>
+                        <div className="my-1.5 flex h-[96px] items-center justify-center">
+                          {isWidth ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <div
+                                className={`relative flex flex-col justify-between rounded-t-[3px] border border-b-0 border-control-border bg-surface px-1.5 pt-1.5 pb-1 shadow-sm transition-all ${
+                                  effectiveLandscape ? 'h-[50px] w-[108px]' : 'h-[54px] w-[68px]'
+                                }`}
+                              >
+                                {renderMiniGrid(2, 6, true)}
+                                <span className="text-right text-[8px] text-ink-secondary leading-none">第 1 页</span>
+                              </div>
+                              <div
+                                className={`border-t border-dashed border-brand-accent ${
+                                  effectiveLandscape ? 'w-[114px]' : 'w-[74px]'
+                                }`}
+                              />
+                              <div
+                                className={`relative flex flex-col justify-between rounded-b-[3px] border border-t-0 border-control-border bg-surface px-1.5 pt-1 pb-1 shadow-sm transition-all ${
+                                  effectiveLandscape ? 'h-[36px] w-[108px]' : 'h-[34px] w-[68px]'
+                                }`}
+                              >
+                                {renderMiniGrid(1, 6, true)}
+                                <span className="text-right text-[8px] text-brand-accent leading-none">第 2 页（自动续页）</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className={`relative flex flex-col justify-between rounded-[3px] border border-control-border bg-surface p-1.5 shadow-sm transition-all ${
+                                effectiveLandscape ? 'h-[76px] w-[108px]' : 'h-[92px] w-[66px]'
+                              }`}
+                            >
+                              {renderMiniGrid(effectiveLandscape ? 5 : 6, 6, true)}
+                              {isOriginal ? (
+                                <>
+                                  <div className="pointer-events-none absolute inset-y-0 right-[26px] border-r border-dashed border-brand-accent" />
+                                  <div className="pointer-events-none absolute inset-x-0 bottom-[22px] border-b border-dashed border-brand-accent" />
+                                  <span className="pointer-events-none absolute bottom-0.5 right-1 rounded bg-surface px-1 text-[8px] font-medium text-brand-accent">
+                                    多页拆分
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-right text-[8px] text-ink-secondary leading-none">
+                                  全表缩至 1 页
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-ink-secondary">
+                          {isWidth
+                            ? '列宽锁在一页内，纵向跨页不裁列'
+                            : isPage
+                              ? '整张总课表压缩进单页 A4'
+                              : '超出纸张边界时向右侧和下方分页'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </TabsContent>
+            <TabsContent value="split" className="mt-0 space-y-3.5">
+              <div>
+                <div className="text-[12px] font-semibold text-ink-secondary">教师课表</div>
+                <div className="mt-1.5 grid grid-cols-2 gap-2">
+                  {([
+                    [true, '统一时间轴（推荐）', '起止时间相同的课节合并为一行。'],
+                    [false, '按学段分别展示', '保留各学段原有的作息行。'],
+                  ] as const).map(([unified, label, desc]) => {
+                    const selectedOption = exportOptions.teacherUnified === unified;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setExportOptions({ ...exportOptions, teacherUnified: unified })}
+                        className={`flex items-start gap-2 rounded-control border px-2.5 py-2 text-left transition-colors ${
+                          selectedOption
+                            ? 'border-brand-accent'
+                            : 'border-border'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                            selectedOption ? 'border-brand-accent' : 'border-control-border'
+                          }`}
+                        >
+                          {selectedOption && <span className="h-2 w-2 rounded-full bg-brand-accent" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[12px] font-semibold text-ink">{label}</span>
+                          <span className="mt-0.5 block text-[11px] text-ink-secondary leading-snug">{desc}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={`mt-2 ${!exportOptions.showClass ? 'opacity-55' : ''}`}>
+                  <label className={`flex items-center gap-2 rounded-control border border-border px-2.5 py-2 text-[12px] select-none ${exportOptions.showClass ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                    <Checkbox
+                      disabled={!exportOptions.showClass}
+                      checked={exportOptions.showTeacherStage && exportOptions.showClass}
+                      onCheckedChange={(checked) => setExportOptions({ ...exportOptions, showTeacherStage: checked === true })}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-ink">跨学段课程显示学段</div>
+                      {!exportOptions.showClass && (
+                        <div className="text-[11px] text-ink-secondary">请先启用课节内的班级。</div>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <div className="text-[12px] font-semibold text-ink-secondary">学校总课表</div>
+                <div className="mt-1.5 flex items-center justify-between gap-3 rounded-control border border-border px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-ink">学校总课表按学段汇总整周</div>
+                    <p className="mt-0.5 text-[11px] text-ink-secondary">关闭后按星期分别生成。</p>
+                  </div>
+                  <Switch
+                    aria-label="学校总课表按学段汇总整周"
+                    checked={exportOptions.schoolWeekly}
+                    onCheckedChange={(checked) => setExportOptions({ ...exportOptions, schoolWeekly: checked })}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+            {error && <p className="schedule-error mt-3" role="alert">{error}</p>}
+          </div>
+        </Tabs>
+        <DialogFooter className="border-t border-border px-5 py-3">
+          <Button variant="ghost" disabled={busy} onClick={closeModal}>取消</Button>
+          <Button
+            disabled={busy}
+            onClick={() => void perform(async () => {
+              const { exportSchedule } = await import('./scheduleExport');
+              if (await exportSchedule(schedule, exportOptions, schoolName)) {
+                setModal(null);
+                setFeedback('课表已导出');
+              }
+            })}
+          >
+            {busy ? '正在导出课表，请稍候…' : '确认导出'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>}
   </div>;
 }
