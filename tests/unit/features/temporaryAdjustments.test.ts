@@ -16,7 +16,14 @@ import type {
   TemporaryTimetableState,
 } from '@/domain/actualTimetable';
 import type { ScheduleData } from '@/domain/scheduling';
-import type { SchedulePosition } from '@/domain/supervision';
+import {
+  actualSupervisionChangeFromJson,
+  actualSupervisionChangeToJson,
+  projectTemporaryTimetable,
+  TemporaryTimetableState as TimetableState,
+  validateTemporaryCancellation,
+} from '@/domain/actualTimetable';
+import type { SchedulePosition, SupervisionVersion } from '@/domain/supervision';
 import type {
   TemporaryWorkerRequest,
   TemporaryWorkerResponse,
@@ -167,6 +174,206 @@ const emptyPreview: ActualChangePreview = {
   errors: [],
   skippedDates: [],
 };
+
+describe('带班岗位按课节替班', () => {
+  const date = '2026-11-23';
+  const post = {
+    id: 'duty', kind: 'custom' as const, name: '下午带班', groupName: '',
+    location: '', stageId: 'stage-1', weekday: 1, periodTypeId: 'afternoon',
+    lessonIndices: [2, 3], classIds: ['class-a'],
+  };
+  const positions: SchedulePosition[] = [2, 3].map((lessonIndex) => ({
+    stageId: post.stageId, weekday: 1, periodTypeId: post.periodTypeId, lessonIndex,
+  }));
+  const snapshot = emptySnapshot({
+    teachers: ['original', 'first', 'second'].map((id, sortOrder) => ({
+      id, name: id, shortName: '', displayQualifier: '', sortOrder,
+    })),
+  });
+  const version: SupervisionVersion = {
+    termId: snapshot.term.id,
+    effectiveDate: date,
+    draft: {
+      teacherIds: snapshot.teachers.map((teacher) => teacher.id),
+      rules: { first: { unavailable: [positions[1]] } },
+    } as SupervisionVersion['draft'],
+    occurrences: positions.map((position) => ({
+      post, position, teacherId: 'original', teacherName: 'original', classNames: ['一班'],
+    })),
+  };
+
+  function load(records: TemporaryAdjustmentRecord[] = []) {
+    const inputs = { snapshot, exceptions: [], supervisionVersions: [version] };
+    return new TimetableState({
+      ...inputs,
+      ...projectTemporaryTimetable({ ...inputs, records }),
+      revision: 'revision',
+      reconciliationPending: false,
+    });
+  }
+
+  function savedChange(state: TimetableState, teacherId: string, selected: SchedulePosition[]) {
+    const preview = state.previewSupervisionSubstitute({
+      date, postId: post.id, teacherId, positions: selected,
+    });
+    expect(preview.errors).toEqual([]);
+    return makeRecord(teacherId, [], {
+      kind: 'supervision-substitute',
+      supervisionChange: actualSupervisionChangeFromJson(
+        actualSupervisionChangeToJson(preview.change!)
+      ),
+    });
+  }
+
+  function displayedTeachers(state: TimetableState) {
+    return state.supervisions
+      .filter((duty) => duty.date === date)
+      .flatMap((duty) => duty.occurrences.map(({ position }) => [
+        position.lessonIndex, duty.teacherId, findActiveRecordForSupervision(state, duty)?.id ?? null,
+      ]))
+      .sort((a, b) => Number(a[0]) - Number(b[0]));
+  }
+
+  it('只检查选中的课节，保存重读后可对剩余课节另行替班并单独撤销', () => {
+    const first = savedChange(load(), 'first', [positions[0]]);
+    const afterFirst = load([first]);
+    expect(displayedTeachers(afterFirst)).toEqual([[2, 'first', 'first'], [3, 'original', null]]);
+    expect(afterFirst.previewSupervisionSubstitute({
+      date, postId: post.id, teacherId: 'second', positions: [positions[0]],
+    }).errors).toContain('所选节次已有替班记录，请先撤销');
+
+    const second = savedChange(afterFirst, 'second', [positions[1]]);
+    const afterBoth = load([first, second]);
+    expect(displayedTeachers(afterBoth)).toEqual([[2, 'first', 'first'], [3, 'second', 'second']]);
+    expect(() => validateTemporaryCancellation(afterBoth, afterBoth.records[0], 0)).not.toThrow();
+    expect(displayedTeachers(load([{ ...first, cancelledAt: 2 }, second]))).toEqual([
+      [2, 'original', null], [3, 'second', 'second'],
+    ]);
+  });
+
+  it('支持只替第 3 节、同时替两节，并拒绝空选和非岗位节次', () => {
+    const state = load();
+    expect(displayedTeachers(load([savedChange(state, 'second', [positions[1]])]))).toEqual([
+      [2, 'original', null], [3, 'second', 'second'],
+    ]);
+    expect(displayedTeachers(load([savedChange(state, 'second', positions)]))).toEqual([
+      [2, 'second', 'second'], [3, 'second', 'second'],
+    ]);
+    for (const selected of [[], [{ ...positions[0], lessonIndex: 4 }]]) {
+      expect(state.previewSupervisionSubstitute({
+        date, postId: post.id, teacherId: 'second', positions: selected,
+      }).change).toBeNull();
+    }
+    expect(state.previewSupervisionSubstitute({
+      date, postId: post.id, teacherId: 'first', positions,
+    }).errors).toContain('教师在该节次禁排带班');
+  });
+
+  it('换课时禁用带班岗位，退出后可搜索教师并按勾选课节提交', async () => {
+    const { act, createElement } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { TemporaryAdjustmentsPage } = await import(
+      '@/features/temporaryAdjustments/TemporaryAdjustmentsPage'
+    );
+    const { schoolRepository } = await import('@/repository/schoolRepository');
+    const { useAppStore } = await import('@/store/useAppStore');
+    const initial = load();
+    const uiSnapshot = {
+      ...snapshot,
+      term: { ...snapshot.term, teachingWeekCount: 1 },
+      classes: [{ id: 'class-a', name: '一班', gradeId: 'grade-a', sortOrder: 0 }],
+      routines: [{
+        stageId: post.stageId,
+        teachingDays: [{ id: 'monday', stageId: post.stageId, weekday: 1, isTeachingDay: true }],
+        periodTypes: [{
+          id: post.periodTypeId, stageId: post.stageId,
+          name: '下午', sortOrder: 1, defaultLessonCount: 3,
+        }],
+        dailyOverrides: [],
+        lessonTimes: [],
+      }] as StageRoutine[],
+    };
+    const originalLesson = makeLesson('source', date, 'class-a', 'afternoon', 1, 'original');
+    let currentState = new TimetableState({
+      ...initial,
+      snapshot: uiSnapshot,
+      lessons: [originalLesson],
+    });
+    vi.spyOn(schoolRepository, 'loadTemporaryTimetable').mockImplementation(async () => currentState);
+    vi.spyOn(useAppStore.getState(), 'refreshTermData').mockResolvedValue(undefined);
+    const commit = vi.spyOn(schoolRepository, 'commitTemporarySupervisionSubstitute')
+      .mockImplementation(async ({ request }) => {
+        const saved = savedChange(currentState, request.teacherId, request.positions!);
+        const updated = load([saved]);
+        currentState = new TimetableState({
+          ...updated, snapshot: uiSnapshot, lessons: [originalLesson],
+        });
+      });
+
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    const scrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: () => {} });
+    const host = document.body.appendChild(document.createElement('div'));
+    const root = createRoot(host);
+    const dutyButtons = () => [...host.querySelectorAll('button.schedule-lesson')]
+      .filter((button): button is HTMLButtonElement =>
+        button instanceof HTMLButtonElement && button.textContent?.includes(post.name) === true
+      );
+
+    try {
+      await act(async () => root.render(createElement(TemporaryAdjustmentsPage, { termId: snapshot.term.id })));
+      expect(dutyButtons()).toHaveLength(2);
+      const lesson = host.querySelector<HTMLButtonElement>('button.schedule-lesson[aria-pressed]');
+      expect(lesson).not.toBeNull();
+      await act(async () => lesson!.click());
+      expect(dutyButtons().every((button) => button.disabled && button.classList.contains('opacity-50'))).toBe(true);
+      await act(async () => dutyButtons()[0].click());
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+      await act(async () => lesson!.click());
+      await act(async () => dutyButtons()[0].click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      const periods = [...dialog.querySelectorAll<HTMLButtonElement>('[role="checkbox"]')];
+      expect(periods.map((period) => period.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+      await act(async () => periods[1].click());
+      expect(periods.map((period) => period.getAttribute('aria-checked'))).toEqual(['true', 'true']);
+
+      await act(async () => {
+        dialog.querySelector('[aria-label="替班教师"]')!.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+        );
+      });
+      const search = document.querySelector<HTMLInputElement>('input[aria-label="搜索教师姓名…"]')!;
+      expect(search).not.toBeNull();
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'second');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      const matches = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+      expect(matches.map((match) => match.textContent)).toEqual(['second']);
+      await act(async () => matches[0].click());
+      await act(async () => dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+      expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+        request: expect.objectContaining({ teacherId: 'second', positions }),
+      }));
+      expect(dutyButtons().map((button) => button.textContent)).toEqual([
+        expect.stringContaining('已替班second'),
+        expect.stringContaining('已替班second'),
+      ]);
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+      if (scrollIntoView) Object.defineProperty(Element.prototype, 'scrollIntoView', scrollIntoView);
+      else Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 describe('调代课日期与周次逻辑', () => {
   it('把周次限制在有效范围，教学周数为零时固定返回第 0 周索引', () => {
@@ -390,12 +597,14 @@ describe('调代课记录查询与筛选数据', () => {
       date: '2026-11-24',
       teacherId: 'a',
       classIds: ['class-a'],
+      occurrences: [],
     };
     const after = {
       key: 'after-supervision',
       date: '2026-11-24',
       teacherId: 'b',
       classIds: ['class-a'],
+      occurrences: [],
     };
     const active = makeRecord('active', [], {
       supervisionChange: { before, after } as TemporaryAdjustmentRecord['supervisionChange'],
@@ -414,9 +623,7 @@ describe('调代课记录查询与筛选数据', () => {
     const state = createState({ records: [active, cancelled, needsAttention] });
 
     expect(
-      findActiveRecordForSupervision(state, {
-        key: 'after-supervision',
-      } as ActualSupervision)
+      findActiveRecordForSupervision(state, after as unknown as ActualSupervision)
     ).toBe(active);
   });
 

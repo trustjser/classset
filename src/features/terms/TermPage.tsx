@@ -319,9 +319,9 @@ export const TermPage: React.FC = () => {
                 </Button>
               </div>
               {calendarViewMode === 'month' && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
                   className="h-8 w-8"
                   disabled={!canGoPrevMonth}
@@ -330,11 +330,11 @@ export const TermPage: React.FC = () => {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="px-2 text-[13.5px] font-semibold text-ink font-mono">
+                <span className="px-2 text-[13.5px] font-semibold text-ink tabular-nums">
                   {visibleMonth.year}年{visibleMonth.month + 1}月
                 </span>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
                   className="h-8 w-8"
                   disabled={!canGoNextMonth}
@@ -514,101 +514,110 @@ export const TermPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            /* 视图 B：逐周教学日历表 (对齐 TeachingCalendarTable，超过 6 周可折叠展开) */
-            <div className="rounded-control border border-border overflow-hidden">
-              <div className="grid grid-cols-[100px_110px_210px_1fr_90px] items-center h-10 px-4 bg-table-header text-[12px] font-semibold text-ink-secondary border-b border-table-divider">
-                <div>教学周</div>
-                <div>单 / 双周</div>
-                <div>日期范围</div>
-                <div>例外安排（停课 / 补课 / 节假日）</div>
-                <div className="text-center">操作</div>
-              </div>
+            /* 视图 B：逐周教学日历表 (超过 6 周可折叠展开) */
+            <div className="rounded-control border border-border overflow-hidden bg-surface">
+              <div className="overflow-x-auto">
+                <div className="min-w-[580px]">
+                  <div className="grid grid-cols-[92px_88px_168px_minmax(0,1fr)_80px] items-center h-9 px-4 bg-table-header/90 text-[11.5px] font-semibold text-ink-secondary border-b border-table-divider">
+                    <div>教学周</div>
+                    <div>单/双周</div>
+                    <div>日期范围</div>
+                    <div>例外安排</div>
+                    <div className="text-center">操作</div>
+                  </div>
 
-              <div className="divide-y divide-table-divider">
-                {Array.from({ length: visibleTableWeeks }, (_, idx) => {
-                  const weekNum = idx + 1;
-                  const start = getTeachingWeekStart(activeTerm, weekNum);
-                  const end = getTeachingWeekEnd(activeTerm, weekNum);
-                  const ranges = getExceptionRangesForWeek(
-                    activeTerm,
-                    weekNum,
-                    calendarExceptions
-                  );
-                  const hasMakeup = ranges.some((r) => r.kind === 'makeup');
-                  const hasHoliday = ranges.some((r) => r.kind === 'holiday');
-                  const odd = isOddWeek(weekNum);
+                  <div className="divide-y divide-table-divider">
+                    {Array.from({ length: visibleTableWeeks }, (_, idx) => {
+                      const weekNum = idx + 1;
+                      const start = getTeachingWeekStart(activeTerm, weekNum);
+                      const end = getTeachingWeekEnd(activeTerm, weekNum);
+                      const ranges = getExceptionRangesForWeek(
+                        activeTerm,
+                        weekNum,
+                        calendarExceptions
+                      );
+                      const hasMakeup = ranges.some((r) => r.kind === 'makeup');
+                      const hasHoliday = ranges.some((r) => r.kind === 'holiday');
+                      const odd = isOddWeek(weekNum);
 
-                  return (
-                    <div
-                      key={weekNum}
-                      className={`grid grid-cols-[100px_110px_210px_1fr_90px] items-center min-h-[42px] px-4 py-1.5 text-[13px] ${
-                        hasMakeup
-                          ? 'bg-warning-surface/55'
-                          : hasHoliday
-                          ? 'bg-destructive-surface/45'
-                          : 'bg-surface'
-                      }`}
-                    >
-                      <div className="font-mono font-semibold text-ink">
-                        第 {weekNum} 周
-                      </div>
-                      <div>
-                        <Badge
-                          variant={
-                            activeTerm.cycleMode === 'every_week'
-                              ? 'secondary'
-                              : odd
-                              ? 'default'
-                              : 'outline'
-                          }
-                          className={
-                            activeTerm.cycleMode === 'alternating' && !odd
-                              ? 'border-purple/40 text-purple bg-purple/10'
-                              : ''
-                          }
+                      return (
+                        <div
+                          key={weekNum}
+                          className={`grid grid-cols-[92px_88px_168px_minmax(0,1fr)_80px] items-center min-h-[44px] px-4 py-2 text-[13px] transition-colors duration-feedback ${
+                            hasMakeup
+                              ? 'bg-success-surface/35 hover:bg-success-surface/55'
+                              : hasHoliday
+                              ? 'bg-destructive-surface/30 hover:bg-destructive-surface/50'
+                              : 'bg-surface hover:bg-selection/30'
+                          }`}
                         >
-                          {getWeekCycleLabel(activeTerm, weekNum)}
-                        </Badge>
-                      </div>
-                      <div className="font-mono text-[12.5px] text-ink-secondary">
-                        {start && end
-                          ? `${formatDateMd(start)} – ${formatDateMd(end)}`
-                          : '未设置起始日'}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pr-2">
-                        {ranges.length === 0 ? (
-                          <span className="text-ink-secondary text-[12px]">—</span>
-                        ) : (
-                          ranges.map((r) => (
+                          <div className="font-semibold text-ink tabular-nums">
+                            第 {weekNum} 周
+                          </div>
+                          <div>
                             <Badge
-                              key={r.id}
-                              variant={r.kind === 'makeup' ? 'warning' : 'destructive'}
+                              variant={
+                                activeTerm.cycleMode === 'every_week'
+                                  ? 'secondary'
+                                  : odd
+                                  ? 'default'
+                                  : 'outline'
+                              }
+                              className={
+                                activeTerm.cycleMode === 'every_week'
+                                  ? ''
+                                  : odd
+                                  ? 'border border-primary/15'
+                                  : 'border-purple/25 text-purple bg-purple/10 font-semibold'
+                              }
                             >
-                              {formatExceptionRangeLabel(activeTerm, r)}
+                              {getWeekCycleLabel(activeTerm, weekNum)}
                             </Badge>
-                          ))
-                        )}
-                      </div>
-                      <div className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary h-7 px-2.5"
-                          onClick={() => openWeekExceptionModal(weekNum)}
-                        >
-                          编辑
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+                          </div>
+                          <div className="tabular-nums text-[12.5px] text-ink-secondary whitespace-nowrap">
+                            {start && end
+                              ? `${formatDateMd(start)} – ${formatDateMd(end)}`
+                              : '未设置起始日'}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 pr-3 min-w-0">
+                            {ranges.length === 0 ? (
+                              <span className="text-ink-secondary/45 text-[12px] select-none">
+                                —
+                              </span>
+                            ) : (
+                              ranges.map((r) => (
+                                <Badge
+                                  key={r.id}
+                                  variant={r.kind === 'makeup' ? 'success' : 'destructive'}
+                                  className="max-w-full whitespace-normal leading-snug py-0.5"
+                                >
+                                  {formatExceptionRangeLabel(activeTerm, r)}
+                                </Badge>
+                              ))
+                            )}
+                          </div>
+                          <div className="flex justify-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-primary hover:bg-selection/80 h-7 px-2.5 text-[12px]"
+                              onClick={() => openWeekExceptionModal(weekNum)}
+                            >
+                              编辑
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {activeTerm.teachingWeekCount > 6 && (
                 <button
                   type="button"
                   onClick={() => setTableExpanded(!tableExpanded)}
-                  className="w-full h-9 bg-table-header hover:bg-selection/50 text-primary text-[12.5px] font-medium flex items-center justify-center gap-1.5 border-t border-table-divider transition-colors duration-feedback"
+                  className="w-full h-10 bg-table-header/70 hover:bg-selection/50 text-primary text-[12.5px] font-medium flex items-center justify-center gap-1.5 border-t border-table-divider transition-colors duration-feedback tabular-nums"
                 >
                   {tableExpanded ? (
                     <>
@@ -618,7 +627,8 @@ export const TermPage: React.FC = () => {
                   ) : (
                     <>
                       <ChevronDown className="h-4 w-4" />
-                      第 7 – {activeTerm.teachingWeekCount} 周 未展开（
+                      展开剩余 {activeTerm.teachingWeekCount - 6} 周（第 7 –{' '}
+                      {activeTerm.teachingWeekCount} 周 ·{' '}
                       {activeTerm.cycleMode === 'every_week'
                         ? '每周相同'
                         : '单双周自动交替'}

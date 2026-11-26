@@ -320,10 +320,18 @@ export function sameSupervisionAssignment(
   );
 }
 
+function hasSupervisionPosition(
+  supervision: ActualSupervision,
+  position: SchedulePosition
+): boolean {
+  return supervision.occurrences.some((row) => sameCell(row.position, position));
+}
+
 export interface TemporarySupervisionSubstituteRequest {
   date: string; // YYYY-MM-DD
   postId: string;
   teacherId: string;
+  positions?: SchedulePosition[]; // 默认覆盖岗位当天的全部节次
   reason?: string;
 }
 
@@ -602,7 +610,8 @@ export function actualSupervisionConflict(
   lessons: ActualLesson[],
   supervisions: ActualSupervision[],
   supervision: ActualSupervision,
-  teacherId: string
+  teacherId: string,
+  ignoredSource: ActualSupervision | undefined
 ): string | null {
   for (const lesson of lessons) {
     if (lesson.date !== supervision.date) continue;
@@ -624,7 +633,7 @@ export function actualSupervisionConflict(
     }
   }
   for (const other of supervisions) {
-    if (other.date !== supervision.date || other.key === supervision.key) {
+    if (other.date !== supervision.date || other === ignoredSource) {
       continue;
     }
     if (
@@ -1804,11 +1813,31 @@ export class ActualTimetable {
   }): SupervisionSubstitutePreview {
     const { snapshot, lessons, supervisions, versions, request } = params;
     const reqKey = `${request.date.slice(0, 10)}:${request.postId}`;
-    const source = supervisions.find((row) => row.key === reqKey);
+    const { positions } = request;
+    if (positions?.length === 0) {
+      return { change: null, errors: ['请选择替班节次'] };
+    }
+    const postGroups = supervisions.filter((row) => row.key === reqKey);
     const teacher = snapshot.teachers.find((row) => row.id === request.teacherId);
-    if (!source || !teacher) {
+    if (postGroups.length === 0 || !teacher) {
       return { change: null, errors: ['带班岗位或替班教师不存在'] };
     }
+    const source = positions
+      ? postGroups.find((row) =>
+          positions.every((position) => hasSupervisionPosition(row, position))
+        )
+      : postGroups.length === 1
+        ? postGroups[0]
+        : undefined;
+    if (!source) {
+      return { change: null, errors: ['所选节次不属于同一带班安排'] };
+    }
+    const occurrences = positions
+      ? source.occurrences.filter((row) =>
+          positions.some((position) => sameCell(row.position, position))
+        )
+      : source.occurrences;
+    const before = { ...source, occurrences };
     if (source.teacherId === teacher.id) {
       return { change: null, errors: ['请选择不同的教师'] };
     }
@@ -1818,7 +1847,7 @@ export class ActualTimetable {
     }
     const unavailable = version.draft.rules[teacher.id]?.unavailable ?? [];
     if (
-      source.occurrences.some((row) =>
+      occurrences.some((row) =>
         unavailable.some((slot) => sameCell(slot, row.position))
       )
     ) {
@@ -1828,17 +1857,18 @@ export class ActualTimetable {
       snapshot,
       lessons,
       supervisions,
-      source,
-      teacher.id
+      before,
+      teacher.id,
+      source
     );
     if (conflict) {
       return { change: null, errors: [conflict] };
     }
     return {
       change: {
-        before: source,
+        before,
         after: supervisionWithTeacher(
-          source,
+          before,
           teacher.id,
           getTeacherDisplayName(teacher)
         ),
@@ -2806,13 +2836,17 @@ export class TemporaryTimetableState {
     }
     const reqKey = `${request.date.slice(0, 10)}:${request.postId}`;
     if (
-      this.records.some(
-        (record) =>
+      this.records.some((record) => {
+        const before = record.supervisionChange?.before;
+        return (
           record.cancelledAt == null &&
-          record.supervisionChange?.before.key === reqKey
-      )
+          before?.key === reqKey &&
+          (request.positions == null ||
+            request.positions.some((position) => hasSupervisionPosition(before, position)))
+        );
+      })
     ) {
-      return { change: null, errors: ['该岗位已有替班记录，请先撤销'] };
+      return { change: null, errors: ['所选节次已有替班记录，请先撤销'] };
     }
     return new ActualTimetable().previewSupervisionSubstitute({
       snapshot: this.snapshot,
@@ -3208,8 +3242,11 @@ export function projectTemporaryTimetable(input: {
       }
       const before = supervisionChange.before;
       const after = supervisionChange.after;
-      const index = supervisions.findIndex((row) => row.key === before.key);
-      const current = index === -1 ? null : supervisions[index];
+      const positions = before.occurrences.map((row) => row.position);
+      const index = supervisions.findIndex((row) =>
+        row.key === before.key &&
+        positions.every((position) => hasSupervisionPosition(row, position))
+      );
       const preview = engine.previewSupervisionSubstitute({
         snapshot: input.snapshot,
         lessons,
@@ -3219,15 +3256,24 @@ export function projectTemporaryTimetable(input: {
           date: before.date,
           postId: before.postId,
           teacherId: after.teacherId,
+          positions,
         },
       });
+      const change = preview.change;
       const valid =
-        current != null &&
-        sameSupervisionAssignment(current, before) &&
-        preview.change != null &&
-        sameSupervisionAssignment(preview.change.after, after);
-      if (valid && preview.change) {
-        supervisions[index] = preview.change.after;
+        index !== -1 &&
+        change != null &&
+        sameSupervisionAssignment(change.before, before) &&
+        sameSupervisionAssignment(change.after, after);
+      if (valid) {
+        const current = supervisions[index];
+        const remaining = current.occurrences.filter((row) =>
+          !hasSupervisionPosition(change.before, row.position)
+        );
+        supervisions[index] = change.after;
+        if (remaining.length > 0) {
+          supervisions.splice(index + 1, 0, { ...current, occurrences: remaining });
+        }
       }
       records.push(recordWithAttention(record, !valid));
       continue;
@@ -3365,7 +3411,10 @@ export function validateTemporaryCancellation(
       state.lessons,
       state.supervisions,
       before,
-      before.teacherId
+      before.teacherId,
+      state.supervisions.find((row) =>
+        sameSupervisionAssignment(row, supervisionChange.after)
+      )
     );
     if (conflict) {
       throw new Error(`恢复原带班教师存在冲突：${conflict}`);

@@ -20,6 +20,7 @@ import {
   type ActualSupervision,
   SUPERVISION_SUBSTITUTION_KIND,
   type TemporaryAdjustmentRecord,
+  type TemporarySupervisionSubstituteRequest,
   type TemporaryTimetableState,
 } from '@/domain/actualTimetable';
 import {
@@ -327,8 +328,10 @@ export const TemporaryAdjustmentsPage: React.FC<
   // Dialogs state
   const [substituteDialogOpen, setSubstituteDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
-  const [activeSupervision, setActiveSupervision] =
-    useState<ActualSupervision | null>(null);
+  const [activeSupervision, setActiveSupervision] = useState<{
+    supervision: ActualSupervision;
+    position: SchedulePosition;
+  } | null>(null);
   const [detailRecord, setDetailRecord] =
     useState<TemporaryAdjustmentRecord | null>(null);
   const [cancelRecord, setCancelRecord] =
@@ -873,16 +876,13 @@ export const TemporaryAdjustmentsPage: React.FC<
     await refreshTermData(term.id);
   };
 
-  const handleCommitSupervisionSubstitute = async (params: {
-    date: string;
-    postId: string;
-    teacherId: string;
-    reason: string;
-  }) => {
+  const handleCommitSupervisionSubstitute = async (
+    request: TemporarySupervisionSubstituteRequest
+  ) => {
     await schoolRepository.commitTemporarySupervisionSubstitute({
       termId: term.id,
       expectedRevision: state.revision,
-      request: params,
+      request,
     });
     await reloadTimetable(true);
     await refreshTermData(term.id);
@@ -1654,24 +1654,56 @@ export const TemporaryAdjustmentsPage: React.FC<
                                         isTeaching &&
                                         lessonIdx <= dayLessonCount;
 
-                                      const cellSupervisions =
-                                        state.supervisions.filter(
-                                          (sup) =>
-                                            sup.date === ymd &&
-                                            selectedClassId != null &&
-                                            sup.classIds.includes(
-                                              selectedClassId
-                                            ) &&
-                                            sup.occurrences.some(
-                                              (occ) =>
-                                                occ.position.stageId ===
-                                                  activeRoutine.stageId &&
-                                                occ.position.periodTypeId ===
-                                                  period.id &&
-                                                occ.position.lessonIndex ===
-                                                  lessonIdx
-                                            )
+                                      const cellSupervisions = state.supervisions.flatMap((sup) => {
+                                        if (
+                                          sup.date !== ymd ||
+                                          selectedClassId == null ||
+                                          !sup.classIds.includes(selectedClassId)
+                                        ) {
+                                          return [];
+                                        }
+                                        const occurrence = sup.occurrences.find(
+                                          ({ position }) =>
+                                            position.stageId === activeRoutine.stageId &&
+                                            position.periodTypeId === period.id &&
+                                            position.lessonIndex === lessonIdx
                                         );
+                                        return occurrence
+                                          ? [{ supervision: sup, position: occurrence.position }]
+                                          : [];
+                                      });
+                                      const supervisionSwapBlocked = source != null && kind === 'swap';
+                                      const supervisionDisabled =
+                                        state.reconciliationPending || supervisionSwapBlocked;
+                                      const supervisionButtons = cellSupervisions.map((selection) => {
+                                        const sup = selection.supervision;
+                                        const record = findActiveRecordForSupervision(state, sup);
+                                        return (
+                                          <button
+                                            key={sup.key}
+                                            type="button"
+                                            disabled={supervisionDisabled}
+                                            title={supervisionSwapBlocked ? '带班岗位不参与换课' : undefined}
+                                            onClick={() => {
+                                              if (record) setDetailRecord(record);
+                                              else setActiveSupervision(selection);
+                                            }}
+                                            className={`schedule-lesson transition-all duration-150 ${
+                                              supervisionDisabled
+                                                ? '!cursor-not-allowed opacity-50 saturate-0'
+                                                : 'hover:-translate-y-[1px] hover:border-primary/60 hover:shadow-sm'
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between gap-1">
+                                              <strong>{sup.post.name}</strong>
+                                              <span className="shrink-0 rounded bg-selection px-1.5 py-0.2 text-[10px] font-semibold text-primary">
+                                                {record ? '已替班' : '带班'}
+                                              </span>
+                                            </div>
+                                            <small>{sup.teacherName} · 带班</small>
+                                          </button>
+                                        );
+                                      });
 
                                       const lesson = state.lessons.find(
                                         (l) =>
@@ -1805,40 +1837,7 @@ export const TemporaryAdjustmentsPage: React.FC<
                                           >
                                             <div className="schedule-slot">
                                               <div className="schedule-slot-content space-y-1">
-                                                {cellSupervisions.map((sup) => {
-                                                  const activeSupRec =
-                                                    findActiveRecordForSupervision(
-                                                      state,
-                                                      sup
-                                                    );
-                                                  return (
-                                                    <button
-                                                      key={sup.key}
-                                                      type="button"
-                                                      disabled={
-                                                        state.reconciliationPending
-                                                      }
-                                                      onClick={() =>
-                                                        setActiveSupervision(sup)
-                                                      }
-                                                      className="schedule-lesson transition-all duration-150 hover:-translate-y-[1px] hover:border-primary/60 hover:shadow-sm"
-                                                    >
-                                                      <div className="flex items-center justify-between gap-1">
-                                                        <strong>
-                                                          {sup.post.name}
-                                                        </strong>
-                                                        <span className="rounded bg-selection px-1.5 py-0.2 text-[10px] font-semibold text-primary shrink-0">
-                                                          {activeSupRec
-                                                            ? '已替班'
-                                                            : '带班'}
-                                                        </span>
-                                                      </div>
-                                                      <small>
-                                                        {sup.teacherName} · 带班
-                                                      </small>
-                                                    </button>
-                                                  );
-                                                })}
+                                                {supervisionButtons}
                                                 {emptySlotEl &&
                                                 source &&
                                                 kind === 'move' &&
@@ -2060,40 +2059,7 @@ export const TemporaryAdjustmentsPage: React.FC<
                                         >
                                           <div className="schedule-slot">
                                             <div className="schedule-slot-content space-y-1">
-                                              {cellSupervisions.map((sup) => {
-                                                const activeSupRec =
-                                                  findActiveRecordForSupervision(
-                                                    state,
-                                                    sup
-                                                  );
-                                                return (
-                                                  <button
-                                                    key={sup.key}
-                                                    type="button"
-                                                    disabled={
-                                                      state.reconciliationPending
-                                                    }
-                                                    onClick={() =>
-                                                      setActiveSupervision(sup)
-                                                    }
-                                                    className="schedule-lesson transition-all duration-150 hover:-translate-y-[1px] hover:border-primary/60 hover:shadow-sm"
-                                                  >
-                                                    <div className="flex items-center justify-between gap-1">
-                                                      <strong>
-                                                        {sup.post.name}
-                                                      </strong>
-                                                      <span className="rounded bg-selection px-1.5 py-0.2 text-[10px] font-semibold text-primary shrink-0">
-                                                        {activeSupRec
-                                                          ? '已替班'
-                                                          : '带班'}
-                                                      </span>
-                                                    </div>
-                                                    <small>
-                                                      {sup.teacherName} · 带班
-                                                    </small>
-                                                  </button>
-                                                );
-                                              })}
+                                              {supervisionButtons}
                                               {isSwapBlocked &&
                                               swapErrors.length > 0 ? (
                                                 <Tooltip>
@@ -2647,15 +2613,18 @@ export const TemporaryAdjustmentsPage: React.FC<
           />
         )}
 
-        <SupervisionSubstituteDialog
-          open={activeSupervision !== null}
-          onOpenChange={(open) => {
-            if (!open) setActiveSupervision(null);
-          }}
-          state={state}
-          supervision={activeSupervision}
-          onConfirm={handleCommitSupervisionSubstitute}
-        />
+        {activeSupervision && (
+          <SupervisionSubstituteDialog
+            open
+            onOpenChange={(open) => {
+              if (!open) setActiveSupervision(null);
+            }}
+            state={state}
+            supervision={activeSupervision.supervision}
+            initialPosition={activeSupervision.position}
+            onConfirm={handleCommitSupervisionSubstitute}
+          />
+        )}
 
         <RecordDetailDialog
           open={detailRecord !== null}

@@ -14,6 +14,7 @@ import {
   type ActualLesson,
   type ActualLessonChange,
   type ActualSupervision,
+  sameSupervisionAssignment,
   getTeacherDisplayName,
   type SchedulingProblem,
   SUPERVISION_SUBSTITUTION_KIND,
@@ -230,7 +231,8 @@ export function findActiveRecordForSupervision(
   for (let i = state.records.length - 1; i >= 0; i--) {
     const record = state.records[i];
     if (record.cancelledAt != null || record.needsAttention) continue;
-    if (record.supervisionChange?.after.key === supervision.key) {
+    const after = record.supervisionChange?.after;
+    if (after && sameSupervisionAssignment(after, supervision)) {
       return record;
     }
   }
@@ -387,7 +389,10 @@ export function describeRecordSummary(
 ): string {
   if (record.supervisionChange) {
     const sc = record.supervisionChange;
-    return `${formatChineseMdWeekday(sc.before.date)} · ${sc.before.post.name}：${
+    const periods = sc.before.occurrences
+      .map(({ position }) => getPeriodLessonLabel(state, position))
+      .join('、');
+    return `${formatChineseMdWeekday(sc.before.date)} · ${sc.before.post.name} · ${periods}：${
       sc.before.teacherName
     } → ${sc.after.teacherName}`;
   }

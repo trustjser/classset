@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Search } from 'lucide-react';
-import type { SchedulePosition } from '@/domain/supervision';
+import { sameCell, type SchedulePosition } from '@/domain/supervision';
 import {
   type ActualChangePreview,
   type ActualLesson,
   type ActualSupervision,
   getTeacherDisplayName,
   type TemporaryAdjustmentRecord,
+  type TemporarySupervisionSubstituteRequest,
   type TemporaryTimetableState,
 } from '@/domain/actualTimetable';
 import {
@@ -26,6 +27,7 @@ import {
 import { temporaryAdjustmentsWorkerClient } from '@/features/temporaryAdjustments/temporaryAdjustmentsWorkerClient';
 import { getTeachingWeekOfDate } from '@/features/terms/calendarUtils';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import {
   Dialog,
@@ -37,6 +39,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 // ==================== 1. 选择代课教师弹窗 ====================
 
@@ -801,25 +804,22 @@ interface SupervisionSubstituteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   state: TemporaryTimetableState;
-  supervision: ActualSupervision | null;
-  onConfirm: (params: {
-    date: string;
-    postId: string;
-    teacherId: string;
-    reason: string;
-  }) => Promise<void>;
+  supervision: ActualSupervision;
+  initialPosition: SchedulePosition;
+  onConfirm: (request: TemporarySupervisionSubstituteRequest) => Promise<void>;
 }
 
 export const SupervisionSubstituteDialog: React.FC<
   SupervisionSubstituteDialogProps
-> = ({ open, onOpenChange, state, supervision, onConfirm }) => {
+> = ({ open, onOpenChange, state, supervision, initialPosition, onConfirm }) => {
+  const [positions, setPositions] = useState([initialPosition]);
   const [teacherId, setTeacherId] = useState<string>('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const candidates = useMemo(() => {
-    if (!supervision) return [];
+    if (positions.length === 0) return [];
     return state.snapshot.teachers
       .filter(
         (t) =>
@@ -832,6 +832,7 @@ export const SupervisionSubstituteDialog: React.FC<
           date: supervision.date,
           postId: supervision.postId,
           teacherId: t.id,
+          positions,
         });
         return {
           teacher: t,
@@ -840,25 +841,14 @@ export const SupervisionSubstituteDialog: React.FC<
           errors: preview.errors,
         };
       });
-  }, [state, supervision]);
-
-  useEffect(() => {
-    if (open && supervision) {
-      const firstValid = candidates.find((c) => c.available);
-      setTeacherId(firstValid?.teacher.id ?? candidates[0]?.teacher.id ?? '');
-      setReason('');
-      setError(null);
-    }
-  }, [open, supervision, candidates]);
-
-  if (!supervision) return null;
+  }, [state, supervision, positions]);
 
   const selectedCandidate = candidates.find((c) => c.teacher.id === teacherId);
   const canConfirm = Boolean(selectedCandidate?.available);
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canConfirm || !teacherId) return;
+    if (!canConfirm || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -866,6 +856,7 @@ export const SupervisionSubstituteDialog: React.FC<
         date: supervision.date,
         postId: supervision.postId,
         teacherId,
+        positions,
         reason,
       });
       onOpenChange(false);
@@ -877,7 +868,7 @@ export const SupervisionSubstituteDialog: React.FC<
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
           <DialogTitle>安排带班替班</DialogTitle>
@@ -895,34 +886,56 @@ export const SupervisionSubstituteDialog: React.FC<
                 {supervision.classNames.join('、') || '无'}
               </span>
             </div>
-            <div>
-              <span className="text-ink-secondary">节次位置：</span>
-              <span className="text-ink font-medium">
-                {supervision.occurrences
-                  .map((o) => getPeriodLessonLabel(state, o.position))
-                  .join('、')}
-              </span>
-            </div>
           </div>
 
+          <fieldset className="space-y-1.5" disabled={submitting}>
+            <legend className="text-sm font-medium">替班节次</legend>
+            <div className="flex flex-wrap gap-x-4">
+              {supervision.occurrences.map(({ position }) => (
+                <Label
+                  key={`${position.stageId}:${position.weekday}:${position.periodTypeId}:${position.lessonIndex}`}
+                  className="flex min-h-9 items-center gap-2"
+                >
+                  <Checkbox
+                    type="button"
+                    checked={positions.some((selected) => sameCell(selected, position))}
+                    onCheckedChange={(checked) => {
+                      setError(null);
+                      setPositions((current) => checked === true
+                        ? [...current, position]
+                        : current.filter((selected) => !sameCell(selected, position))
+                      );
+                    }}
+                  />
+                  {getPeriodLessonLabel(state, position)}
+                </Label>
+              ))}
+            </div>
+          </fieldset>
+
           <div className="space-y-1.5">
-            <Label>替班教师</Label>
-            <select
+            <div className="text-sm font-medium">替班教师</div>
+            <SearchableSelect
+              ariaLabel="替班教师"
               value={teacherId}
-              onChange={(e) => setTeacherId(e.target.value)}
-              className="w-full h-9 rounded-md border border-border bg-surface px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              {candidates.length === 0 ? (
-                <option value="">暂无候选替班教师</option>
-              ) : (
-                candidates.map((c) => (
-                  <option key={c.teacher.id} value={c.teacher.id}>
-                    {c.displayName}
-                    {c.available ? '（可替班）' : `（${c.errors.join('；')}）`}
-                  </option>
-                ))
-              )}
-            </select>
+              onValueChange={(id) => {
+                setTeacherId(id);
+                setError(null);
+              }}
+              options={candidates.map((candidate) => ({
+                value: candidate.teacher.id,
+                label: candidate.available
+                  ? candidate.displayName
+                  : `${candidate.displayName}（不可替班）`,
+                keywords: candidate.teacher.name,
+              }))}
+              placeholder={positions.length === 0
+                ? '请先选择替班节次'
+                : candidates.length === 0 ? '暂无候选替班教师' : '请选择教师'}
+              searchPlaceholder="搜索教师姓名…"
+              disabled={submitting || candidates.length === 0}
+              className="w-full"
+            />
             {selectedCandidate && !selectedCandidate.available && (
               <p className="text-xs text-destructive">
                 {selectedCandidate.errors.join('；')}
@@ -933,6 +946,7 @@ export const SupervisionSubstituteDialog: React.FC<
           <div className="space-y-1.5">
             <Label>替班原因（选填）</Label>
             <Input
+              disabled={submitting}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="例如：公务外出、临时调休…"

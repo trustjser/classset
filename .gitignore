@@ -14,5 +14,6 @@ node_modules
 .agent
 
 src-tauri/target
+src-tauri/gen
 
 websitedist

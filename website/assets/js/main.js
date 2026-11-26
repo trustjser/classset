@@ -122,8 +122,8 @@
   /* ---- 示例课表科目配色：复刻 lib/core/theme/subject_colors.dart ----
      10 色板 + FNV-1a 散列；文字=饱和主色，格底=该色 13% 叠白（浅色模式）。 */
   var SUBJECT_PALETTE = [
-    "#DB2777", "#EA580C", "#CA8A04", "#65A30D", "#16A34A",
-    "#0D9488", "#0284C7", "#4F46E5", "#7C3AED", "#C026D3"
+    "#A1396D", "#9B521E", "#806314", "#4F7029", "#1F7457",
+    "#117783", "#326CAB", "#5C56AC", "#8253A3", "#9C477D"
   ];
   function subjectIndex(id) {
     // 复刻 Dart：乘法用 BigInt 保持低 32 位精确；^ 后用 >>>0 强制无符号，避免 JS 有符号运算得到负数
@@ -154,5 +154,6 @@
     var fg = SUBJECT_PALETTE[slot];
     el.style.color = fg;
     el.style.backgroundColor = tint(fg, 0.13);
+    el.style.border = "1px solid " + tint(fg, 0.3);
   }
 })();
