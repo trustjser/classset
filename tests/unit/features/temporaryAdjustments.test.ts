@@ -736,3 +736,216 @@ describe('调代课 Worker 请求隔离', () => {
     );
   });
 });
+
+describe('调整记录 Excel', () => {
+  it('逐笔导出代课和带班替班的正负课时，按教师可直接求和', async () => {
+    const { buildTemporaryAdjustmentWorkbook } = await import(
+      '@/features/temporaryAdjustments/temporaryAdjustmentWorkbook'
+    );
+    const { read, utils } = await import('xlsx');
+    const first = makeLesson('first', '2026-11-23', 'class-a');
+    const second = makeLesson('second', '2026-11-23', 'class-b', 'morning', 1, first.item.teacherId);
+    first.item.meetingId = second.item.meetingId = 'joint';
+    const later = makeLesson('later', '2026-11-30', 'class-a');
+    const substitute = (lesson: ActualLesson, teacherId: string) => ({
+      ...lesson,
+      item: { ...lesson.item, teacherId },
+    });
+    const initial = [first, second, later].map((before) => ({
+      before,
+      after: substitute(before, 'teacher-a'),
+    }));
+    const latest = initial.slice(0, 2).map(({ after: before }) => ({
+      before,
+      after: substitute(before, 'teacher-b'),
+    }));
+    const { createActualSupervision } = await import('@/domain/actualTimetable');
+    const post = {
+      id: 'duty-a', kind: 'custom' as const, name: '午间带班', groupName: '',
+      location: '图书馆', stageId: 'stage-1', weekday: 1, periodTypeId: 'morning',
+      lessonIndices: [1, 2], classIds: ['class-a'],
+    };
+    function duty(teacherId: string, teacherName: string) {
+      return createActualSupervision({
+        date: '2026-11-23',
+        teacherId,
+        teacherName,
+        occurrences: [1, 2].map((lessonIndex) => ({
+          post, teacherId, teacherName, classNames: ['一班'],
+          position: { ...first.item.position!, lessonIndex },
+          startMinute: lessonIndex === 1 ? 720 : 750,
+          endMinute: lessonIndex === 1 ? 750 : 780,
+        })),
+      });
+    }
+    const records = [
+      makeRecord('batch', initial, { reason: '=培训 & 会议' }),
+      makeRecord('latest', latest),
+      makeRecord('cancelled', latest, { cancelledAt: 123 }),
+      makeRecord('invalid', latest, { needsAttention: true }),
+      makeRecord('swap', latest, { kind: 'swap' }),
+      makeRecord('duty', [], {
+        kind: 'supervision-substitute',
+        supervisionChange: { before: duty('teacher-a', '李老师'), after: duty('teacher-b', '王老师') },
+      }),
+    ];
+    const state = createState({
+      records,
+      snapshot: emptySnapshot({
+        teachers: [{ id: 'teacher-b', name: '王老师', shortName: '', displayQualifier: '', sortOrder: 0 }],
+      }),
+      lessons: [...latest.map(({ after }) => ({ ...after, date: '2026-11-24' })), initial[2].after],
+    });
+    const bytes = await buildTemporaryAdjustmentWorkbook(state, [...records].reverse(), {
+      schoolName: '阳光小学',
+      filterLabel: '全部类型 · 全部状态',
+      startDate: '2026-11-23',
+      endDate: '2026-11-26',
+    });
+
+    const book = read(bytes);
+    expect(book.SheetNames).toEqual(['调整记录', '调整明细']);
+    const rows = (name: string) => utils.sheet_to_json<Record<string, unknown>>(
+      book.Sheets[name], { range: 3 },
+    );
+    expect(rows('调整记录')).toHaveLength(6);
+    const details = rows('调整明细');
+    expect(details).toHaveLength(15);
+    expect(details).toContainEqual(expect.objectContaining({
+      记录编号: 'duty', 类型: '带班替班', 调整后科目或活动: '午间带班',
+      调整后时间: '12:00–12:30、12:30–13:00', 调整后地点: '图书馆',
+    }));
+    expect(details).toContainEqual(expect.objectContaining({
+      记录编号: 'batch', 调整后日期: '2026-11-30', '课时变动（节）': 0,
+    }));
+    const transfers = details.filter((row) => row['课时变动（节）'] !== 0);
+    expect(transfers).toContainEqual(expect.objectContaining({
+      记录编号: 'duty', 课时变动教师: '李老师', '课时变动（节）': -2,
+    }));
+    expect(transfers).toContainEqual(expect.objectContaining({
+      记录编号: 'duty', 课时变动教师: '王老师', '课时变动（节）': 2,
+    }));
+    expect(transfers.map((row) => [
+      row.记录编号, row.课时变动教师编号, row.核算日期, row['课时变动（节）'],
+    ])).toEqual([
+      ['duty', 'teacher-a', '2026-11-23', -2],
+      ['duty', 'teacher-b', '2026-11-23', 2],
+      ['latest', 'teacher-a', '2026-11-24', -1],
+      ['latest', 'teacher-b', '2026-11-24', 1],
+      ['batch', 'teacher-first', '2026-11-24', -1],
+      ['batch', 'teacher-a', '2026-11-24', 1],
+    ]);
+    expect(rows('调整记录')).toContainEqual(expect.objectContaining({
+      记录编号: 'batch', 原因: '=培训 & 会议',
+    }));
+  });
+
+  it('通过状态筛选直接查看已取消记录，并以变更日期而非录入时间匹配', async () => {
+    const { filterAdjustmentRecords } = await import(
+      '@/features/temporaryAdjustments/temporaryAdjustmentsHelpers'
+    );
+    const before = makeLesson('before', '2026-11-23', 'class-a');
+    const after = makeLesson('after', '2026-11-30', 'class-a');
+    const cancelled = makeRecord('cancelled', [{ before, after }], { cancelledAt: 123 });
+    const active = makeRecord('active', [{ before, after }]);
+    const filters = {
+      status: 'cancelled', kind: 'substitute', classId: 'class-a',
+      teacherId: after.item.teacherId, startDate: '2026-11-30', endDate: '2026-11-30',
+    };
+    expect(filterAdjustmentRecords([active, cancelled], filters)).toEqual([cancelled]);
+    expect(filterAdjustmentRecords([active, cancelled], { ...filters, status: 'all' })).toEqual([cancelled, active]);
+    expect(filterAdjustmentRecords([active, cancelled], { ...filters, status: 'active' })).toEqual([active]);
+  });
+});
+
+it('从调整记录页面筛选已取消后，保存与列表一致的 Excel', async () => {
+  const { act, createElement } = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const { mockIPC, clearMocks } = await import('@tauri-apps/api/mocks');
+  const { TemporaryAdjustmentsPage } = await import(
+    '@/features/temporaryAdjustments/TemporaryAdjustmentsPage'
+  );
+  const { schoolRepository } = await import('@/repository/schoolRepository');
+  const { TemporaryTimetableState } = await import('@/domain/actualTimetable');
+  const { read, utils } = await import('xlsx');
+  const before = makeLesson('lesson', '2026-11-23', 'class-a');
+  const after = { ...before, item: { ...before.item, teacherId: 'replacement' } };
+  const changes = [{ before, after }];
+  vi.spyOn(schoolRepository, 'loadTemporaryTimetable').mockResolvedValue(new TemporaryTimetableState({
+    snapshot: emptySnapshot({
+      classes: [{ id: 'class-a', name: '一班', gradeId: 'grade-a', sortOrder: 0 }],
+    }),
+    records: [
+      makeRecord('active', changes, { reason: '有效记录原因' }),
+      makeRecord('cancelled', changes, { cancelledAt: 123, reason: '取消记录原因' }),
+    ],
+    lessons: [after],
+    exceptions: [],
+    revision: 'revision-1',
+    reconciliationPending: false,
+  }));
+  let saved: Uint8Array | undefined;
+  mockIPC((command, payload) => {
+    if (command === 'plugin:dialog|save') return '/tmp/调整记录.xlsx';
+    if (command === 'plugin:fs|write_file') {
+      saved = payload as Uint8Array;
+      return;
+    }
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const scrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: () => {} });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+
+  try {
+    await act(async () => root.render(createElement(TemporaryAdjustmentsPage, { termId: 'term-1' })));
+    const recordsTab = [...host.querySelectorAll('[role="tab"]')].find((tab) =>
+      tab.textContent?.includes('调整记录'),
+    );
+    expect(recordsTab).toBeDefined();
+    await act(async () => {
+      recordsTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    });
+    expect(host.textContent).not.toContain('显示已取消');
+    expect(host.textContent).toContain('有效记录原因');
+
+    await act(async () => {
+      host.querySelector('[aria-label="调整状态"]')?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }),
+      );
+    });
+    const cancelledOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((option) => option.textContent === '已取消');
+    expect(cancelledOption).toBeDefined();
+    await act(async () => cancelledOption?.click());
+
+    expect(host.textContent).toContain('取消记录原因');
+    expect(host.textContent).not.toContain('有效记录原因');
+    const exportButton = [...host.querySelectorAll('button')].find((button) =>
+      button.textContent === '导出Excel',
+    );
+    expect(exportButton?.disabled).toBe(false);
+    await act(async () => {
+      exportButton?.click();
+      await vi.waitFor(() => expect(saved).toBeInstanceOf(Uint8Array));
+    });
+    const book = read(saved!);
+    expect(utils.sheet_to_json(book.Sheets['调整记录'], { range: 3 })).toEqual([
+      expect.objectContaining({ 记录编号: 'cancelled', 状态: '已取消', 原因: '取消记录原因' }),
+    ]);
+    expect(book.SheetNames).toEqual(['调整记录', '调整明细']);
+    expect(utils.sheet_to_json(book.Sheets['调整明细'], { range: 3 })).toEqual([
+      expect.objectContaining({ 记录编号: 'cancelled', '课时变动（节）': 0 }),
+    ]);
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+    clearMocks();
+    if (scrollIntoView) Object.defineProperty(Element.prototype, 'scrollIntoView', scrollIntoView);
+    else Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    vi.unstubAllGlobals();
+  }
+});

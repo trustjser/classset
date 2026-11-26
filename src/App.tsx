@@ -14,7 +14,7 @@ export const App: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas text-ink">
         <div className="text-[14px] text-ink-secondary">
-          正在初始化课集 Schema v19 本地数据库...
+          正在初始化课集本地数据库...
         </div>
       </div>
     );

@@ -299,6 +299,48 @@ export function recordDates(record: TemporaryAdjustmentRecord): string[] {
   ).sort();
 }
 
+export type AdjustmentRecordStatus = 'active' | 'invalid' | 'cancelled';
+
+export function adjustmentRecordStatus(record: TemporaryAdjustmentRecord): AdjustmentRecordStatus {
+  if (record.cancelledAt != null) return 'cancelled';
+  return record.needsAttention ? 'invalid' : 'active';
+}
+
+export const adjustmentStatusLabels: Record<AdjustmentRecordStatus, string> = {
+  active: '有效',
+  invalid: '需处理',
+  cancelled: '已取消',
+};
+
+export interface AdjustmentDateRange {
+  startDate: string | null;
+  endDate: string | null;
+}
+
+export function isInAdjustmentDateRange(date: string, range: AdjustmentDateRange): boolean {
+  return (!range.startDate || date >= range.startDate) &&
+    (!range.endDate || date <= range.endDate);
+}
+
+export function filterAdjustmentRecords(
+  records: TemporaryAdjustmentRecord[],
+  filters: AdjustmentDateRange & {
+    kind: string;
+    status: string;
+    classId: string;
+    teacherId: string;
+  },
+): TemporaryAdjustmentRecord[] {
+  return records.filter((record) => {
+    if (filters.kind !== 'all' && record.kind !== filters.kind) return false;
+    if (filters.status !== 'all' && adjustmentRecordStatus(record) !== filters.status) return false;
+    if (filters.classId !== 'all' && !recordClassIds(record).includes(filters.classId)) return false;
+    if (filters.teacherId !== 'all' && !recordTeacherIds(record).includes(filters.teacherId)) return false;
+    if (!filters.startDate && !filters.endDate) return true;
+    return recordDates(record).some((date) => isInAdjustmentDateRange(date, filters));
+  }).reverse();
+}
+
 export function describeLessonChange(
   state: TemporaryTimetableState,
   change: ActualLessonChange,

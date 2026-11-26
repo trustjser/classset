@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   Lock,
   Search,
   UserPlus,
@@ -23,13 +24,16 @@ import {
 } from '@/domain/actualTimetable';
 import {
   type AdjustmentKind,
+  type AdjustmentRecordStatus,
   adjustmentKindLabel,
+  adjustmentStatusLabels,
   buildTeacherGridRows,
   type CandidateMoveSlot,
   clampWeekIndex,
   defaultWeekIndex,
   describeRecordSummary,
   effectiveLessonCountOnDay,
+  filterAdjustmentRecords,
   findActiveRecordForLesson,
   findActiveRecordForSupervision,
   formatChineseMdWeekday,
@@ -44,7 +48,6 @@ import {
   getVisibleScheduleDates,
   getWeekStartDate,
   recordClassIds,
-  recordDates,
   recordTeacherIds,
   sameMoveSlot,
   weekdayShortLabel,
@@ -69,7 +72,6 @@ import { schoolRepository } from '@/repository/schoolRepository';
 import { useAppStore } from '@/store/useAppStore';
 import { getSubjectColor } from '@/styles/subjectColors';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -290,7 +292,7 @@ export const TemporaryAdjustmentsPage: React.FC<
   TemporaryAdjustmentsPageProps
 > = ({ termId }) => {
   const toolbarRef = useStickyToolbar<HTMLElement>();
-  const { resolvedDark, setSelectedSection, refreshTermData } = useAppStore();
+  const { resolvedDark, schoolName, setSelectedSection, refreshTermData } = useAppStore();
 
   const [state, setState] = useState<TemporaryTimetableState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -333,9 +335,10 @@ export const TemporaryAdjustmentsPage: React.FC<
     useState<TemporaryAdjustmentRecord | null>(null);
 
   // Records Tab filters
-  const [showCancelled, setShowCancelled] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [filterKind, setFilterKind] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<AdjustmentRecordStatus | 'all'>('all');
   const [filterClassId, setFilterClassId] = useState<string>('all');
   const [filterTeacherId, setFilterTeacherId] = useState<string>('all');
   const [filterStartDate, setFilterStartDate] = useState<string | null>(null);
@@ -661,62 +664,14 @@ export const TemporaryAdjustmentsPage: React.FC<
     substituteSubjectId,
   ]);
 
-  const filteredRecords = useMemo(() => {
-    if (!state) return [];
-    const list = [...state.records].reverse();
-    return list.filter((record) => {
-      if (!showCancelled && record.cancelledAt != null) return false;
-      if (filterKind !== 'all' && record.kind !== filterKind) return false;
-      if (filterStatus !== 'all') {
-        if (
-          filterStatus === 'active' &&
-          (record.cancelledAt != null || record.needsAttention)
-        ) {
-          return false;
-        }
-        if (
-          filterStatus === 'invalid' &&
-          (record.cancelledAt != null || !record.needsAttention)
-        ) {
-          return false;
-        }
-        if (filterStatus === 'cancelled' && record.cancelledAt == null) {
-          return false;
-        }
-      }
-      if (
-        filterClassId !== 'all' &&
-        !recordClassIds(record).includes(filterClassId)
-      ) {
-        return false;
-      }
-      if (
-        filterTeacherId !== 'all' &&
-        !recordTeacherIds(record).includes(filterTeacherId)
-      ) {
-        return false;
-      }
-      if (filterStartDate || filterEndDate) {
-        const dates = recordDates(record);
-        const matchesDate = dates.some((d) => {
-          if (filterStartDate && d < filterStartDate) return false;
-          if (filterEndDate && d > filterEndDate) return false;
-          return true;
-        });
-        if (!matchesDate) return false;
-      }
-      return true;
-    });
-  }, [
-    state,
-    showCancelled,
-    filterKind,
-    filterStatus,
-    filterClassId,
-    filterTeacherId,
-    filterStartDate,
-    filterEndDate,
-  ]);
+  const filteredRecords = useMemo(() => filterAdjustmentRecords(state?.records ?? [], {
+    kind: filterKind,
+    status: filterStatus,
+    classId: filterClassId,
+    teacherId: filterTeacherId,
+    startDate: filterStartDate,
+    endDate: filterEndDate,
+  }), [state, filterKind, filterStatus, filterClassId, filterTeacherId, filterStartDate, filterEndDate]);
 
   // Pre-checks
   if (!termId) {
@@ -808,6 +763,34 @@ export const TemporaryAdjustmentsPage: React.FC<
     value: t.id,
     label: getTeacherNameById(t.id, state.snapshot.teachers),
   }));
+
+  const handleExportRecords = async () => {
+    if (exporting || loading || filteredRecords.length === 0) return;
+    setExporting(true);
+    setExportError(null);
+    const filterLabel = [
+      filterKind === 'all' ? '全部类型' : adjustmentKindLabel(filterKind),
+      filterStatus === 'all' ? '全部状态' : adjustmentStatusLabels[filterStatus],
+      classOptions.find((option) => option.value === filterClassId)?.label ?? '全部班级',
+      teacherOptions.find((option) => option.value === filterTeacherId)?.label ?? '全部教师',
+      filterStartDate || filterEndDate
+        ? `${filterStartDate ?? '不限'} 至 ${filterEndDate ?? '不限'}`
+        : '全部日期',
+    ].join(' · ');
+    try {
+      const { exportTemporaryAdjustments } = await import('./temporaryAdjustmentWorkbook');
+      await exportTemporaryAdjustments(state, filteredRecords, {
+        schoolName,
+        filterLabel,
+        startDate: filterStartDate,
+        endDate: filterEndDate,
+      });
+    } catch (error) {
+      setExportError(`导出 Excel 失败，${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const selectedClassName = selectedClassId
     ? getClassDisplayName(
@@ -1079,15 +1062,17 @@ export const TemporaryAdjustmentsPage: React.FC<
                   </Button>
                 </>
               ) : (
-                <label className="inline-flex h-8 cursor-pointer select-none items-center gap-2 rounded-control px-1.5 text-[12px] font-medium text-ink-secondary hover:text-ink">
-                  <Checkbox
-                    checked={showCancelled}
-                    onCheckedChange={(checked) =>
-                      setShowCancelled(checked === true)
-                    }
-                  />
-                  <span>显示已取消</span>
-                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loading || exporting || filteredRecords.length === 0}
+                  aria-busy={exporting}
+                  onClick={handleExportRecords}
+                >
+                  <Download aria-hidden="true" />
+                  {exporting ? '正在导出…' : '导出Excel'}
+                </Button>
               )}
             </div>
           </div>
@@ -1209,12 +1194,10 @@ export const TemporaryAdjustmentsPage: React.FC<
                   ariaLabel="调整状态"
                   className="h-8 w-auto min-w-[7.5rem]"
                   value={filterStatus}
-                  onValueChange={setFilterStatus}
+                  onValueChange={(value) => setFilterStatus(value as typeof filterStatus)}
                   options={[
                     { value: 'all', label: '全部状态' },
-                    { value: 'active', label: '有效' },
-                    { value: 'invalid', label: '需处理' },
-                    { value: 'cancelled', label: '已取消' },
+                    ...Object.entries(adjustmentStatusLabels).map(([value, label]) => ({ value, label })),
                   ]}
                 />
 
@@ -1357,6 +1340,10 @@ export const TemporaryAdjustmentsPage: React.FC<
                 : '课表待协调，完成协调后才能进行临时调整。'}
             </span>
           </div>
+        )}
+
+        {recordsTab && exportError && (
+          <p className="schedule-alert" role="alert">{exportError}</p>
         )}
 
         {/* 3. 主内容区 */}
