@@ -791,7 +791,7 @@ function TermSchedulingPage({ termId }: { termId: string }) {
         </div>
         {view === 'class' && <label className="inline-flex h-8 cursor-pointer select-none items-center gap-2 rounded-control px-1.5 text-[12px] font-medium text-ink-secondary hover:text-ink">
           <Checkbox checked={showTeacherView} onCheckedChange={(checked) => setShowTeacherView(checked === true)} />
-          <span>对照教师课表</span>
+          <span>联动教师视图</span>
         </label>}
         <div className="schedule-toolbar-group">
           {!readOnly && <>

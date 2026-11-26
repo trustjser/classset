@@ -155,6 +155,10 @@ interface AppState {
     roomScopes: Array<{ subjectId: string; scopeType: ScopeType; scopeId: string; stageId: string; assignment: SubjectRoomAssignment | null; limit: SubjectParallelLimit | null }>;
   }) => Promise<void>;
 
+  /* 公共场室操作 */
+  savePublicRooms: (rooms: PublicRoom[]) => Promise<void>;
+  deletePublicRoom: (roomId: string) => Promise<void>;
+
   /* 级联门控调试开关 */
   toggleCascadeStep: (
     flag: 'routineDone' | 'subjectLessonsReady' | 'teacherAssignmentsReady' | 'hasSchedule'
@@ -740,6 +744,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!termId) throw new Error('请先选择学期');
     await schoolRepository.saveSubjectChanges(changes);
     await get().refreshTermData(termId);
+  },
+
+  savePublicRooms: async (rooms) => {
+    await schoolRepository.savePublicRooms(rooms);
+    const publicRooms = await schoolRepository.loadPublicRooms();
+    set({ publicRooms, lastPersistedAt: new Date() });
+    const { activeTermId } = get();
+    if (activeTermId) {
+      await get().refreshTermData(activeTermId);
+    }
+  },
+
+  deletePublicRoom: async (roomId) => {
+    await schoolRepository.deletePublicRoom(roomId);
+    const publicRooms = await schoolRepository.loadPublicRooms();
+    set({ publicRooms, lastPersistedAt: new Date() });
+    const { activeTermId } = get();
+    if (activeTermId) {
+      await get().refreshTermData(activeTermId);
+    }
   },
 
   toggleCascadeStep: async (flag) => {

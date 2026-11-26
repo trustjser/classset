@@ -28,11 +28,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getNavSectionAvailability } from '@/domain/models';
-import type { AppSection, TemporaryCourseAdjustment } from '@/domain/models';
+import type { AppSection } from '@/domain/models';
 import { ClassesPage } from '@/features/classes/ClassesPage';
+import { PublicRoomsPage } from '@/features/publicRooms/PublicRoomsPage';
 import { RoutinesPage } from '@/features/routines/RoutinesPage';
 import { SubjectsPage } from '@/features/subjects/SubjectsPage';
 import { TeachersPage } from '@/features/teachers/TeachersPage';
+import { TemporaryAdjustmentsPage } from '@/features/temporaryAdjustments/TemporaryAdjustmentsPage';
 import { TermPage } from '@/features/terms/TermPage';
 import { SchedulingPage } from '@/features/scheduling/SchedulingPage';
 import { SupervisionPage } from '@/features/supervision/SupervisionPage';
@@ -71,62 +73,9 @@ const NAV_ITEMS: NavEntry[] = [
   },
 ];
 
-const TemporaryAdjustmentsPage: React.FC<{
-  adjustments: TemporaryCourseAdjustment[];
-}> = ({ adjustments }) => (
-  <section className="space-y-4">
-    <p className="text-[13px] leading-5 text-ink-secondary">
-      按自然日查看正课调代与带班替班，不按当前教学周翻页。
-      <span className="ml-2 tabular-nums">共 {adjustments.length} 条</span>
-    </p>
+const EXIT_DURATION_MS = 105;
 
-    {adjustments.length === 0 ? (
-      <div className="py-10 text-center" role="status">
-        <p className="text-[15px] font-medium text-ink">暂无课务调整记录</p>
-        <p className="mt-1 text-[13.5px] text-ink-secondary">
-          生成课表并进行调代课后，记录会显示在这里。
-        </p>
-      </div>
-    ) : (
-      <ol className="divide-y divide-table-divider">
-        {adjustments.map((adjustment) => {
-          let parsed: { summary?: string; date?: string } = {};
-          try {
-            parsed = JSON.parse(adjustment.changesJson);
-          } catch {
-            // Keep the original change description visible if older data is malformed.
-          }
 
-          return (
-            <li
-              className="flex flex-wrap items-center justify-between gap-4 py-4"
-              key={adjustment.id}
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="default">
-                    {adjustment.kind === 'swap' ? '正课互换' : '带班替班'}
-                  </Badge>
-                  <span className="text-[14px] font-semibold text-ink">
-                    {parsed.summary ?? adjustment.changesJson}
-                  </span>
-                </div>
-                <p className="mt-1 text-[12.5px] leading-5 text-ink-secondary">
-                  原因：{adjustment.reason} · 自然日：{parsed.date ?? '本学期'}
-                </p>
-              </div>
-              <Badge
-                variant={adjustment.cancelledAt === null ? 'success' : 'secondary'}
-              >
-                {adjustment.cancelledAt === null ? '生效中' : '已撤销'}
-              </Badge>
-            </li>
-          );
-        })}
-      </ol>
-    )}
-  </section>
-);
 
 const PendingModulePage: React.FC<{
   onBackToWorkbench: () => void;
@@ -171,7 +120,8 @@ export const AppShell: React.FC = () => {
   } = useAppStore();
 
   const mainRef = useRef<HTMLElement>(null);
-  const previousSection = useRef(selectedSection);
+  const [displayedSection, setDisplayedSection] = useState<AppSection>(selectedSection);
+  const [transitionStage, setTransitionStage] = useState<'idle' | 'exiting' | 'entering'>('idle');
 
   useEffect(() => {
     const syncSectionFromLocation = () => {
@@ -219,10 +169,30 @@ export const AppShell: React.FC = () => {
   }, [setSidebarExpanded]);
 
   useEffect(() => {
-    if (previousSection.current === selectedSection) return;
-    previousSection.current = selectedSection;
-    mainRef.current?.focus({ preventScroll: true });
-  }, [selectedSection]);
+    if (selectedSection === displayedSection) return;
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      setDisplayedSection(selectedSection);
+      setTransitionStage('idle');
+      mainRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
+    setTransitionStage('exiting');
+    const timer = window.setTimeout(() => {
+      setDisplayedSection(selectedSection);
+      setTransitionStage('entering');
+      if (mainRef.current) {
+        mainRef.current.scrollTop = 0;
+        mainRef.current.focus({ preventScroll: true });
+      }
+    }, EXIT_DURATION_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedSection, displayedSection]);
 
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [schoolNameDialogOpen, setSchoolNameDialogOpen] = useState(false);
@@ -252,6 +222,48 @@ export const AppShell: React.FC = () => {
   const isWindows =
     typeof navigator !== 'undefined' &&
     (/Windows/i.test(navigator.userAgent) || /Win/i.test(navigator.platform));
+
+  const renderSectionView = (section: AppSection) => {
+    switch (section) {
+      case 'workbench':
+        return (
+          <WorkbenchPage
+            activeTerm={activeTerm}
+            onNavigate={setSelectedSection}
+            onSeedDemoData={async () => {
+              if (!activeTerm) return;
+              await seedDemoData(schoolRepository, activeTerm.id);
+              await useAppStore.getState().refreshTermData(activeTerm.id);
+            }}
+            summary={summary}
+          />
+        );
+      case 'terms':
+        return <TermPage />;
+      case 'classes':
+        return <ClassesPage />;
+      case 'routines':
+        return <RoutinesPage onOpenClasses={() => setSelectedSection('classes')} />;
+      case 'publicRooms':
+        return <PublicRoomsPage />;
+      case 'subjects':
+        return <SubjectsPage />;
+      case 'teachers':
+        return <TeachersPage />;
+      case 'scheduling':
+        return <SchedulingPage termId={activeTerm?.id ?? null} />;
+      case 'supervision':
+        return <SupervisionPage termId={activeTerm?.id ?? null} />;
+      case 'temporaryAdjustments':
+        return <TemporaryAdjustmentsPage termId={activeTerm?.id ?? null} />;
+      default:
+        return (
+          <PendingModulePage
+            onBackToWorkbench={() => setSelectedSection('workbench')}
+          />
+        );
+    }
+  };
 
   const renderNavButton = (item: NavEntry) => {
     const availability = getNavSectionAvailability(
@@ -538,39 +550,15 @@ export const AppShell: React.FC = () => {
           >
             <h1 className="sr-only">{currentNav.label}</h1>
             <div className="app-main-content">
-              <div className="app-view-enter space-y-6" key={selectedSection}>
-                {selectedSection === 'workbench' ? (
-                  <WorkbenchPage
-                    activeTerm={activeTerm}
-                    onNavigate={setSelectedSection}
-                    onSeedDemoData={async () => {
-                      if (!activeTerm) return;
-                      await seedDemoData(schoolRepository, activeTerm.id);
-                      await useAppStore.getState().refreshTermData(activeTerm.id);
-                    }}
-                    summary={summary}
-                  />
-                ) : selectedSection === 'terms' ? (
-                  <TermPage />
-                ) : selectedSection === 'classes' ? (
-                  <ClassesPage />
-                ) : selectedSection === 'routines' ? (
-                  <RoutinesPage onOpenClasses={() => setSelectedSection('classes')} />
-                ) : selectedSection === 'subjects' ? (
-                  <SubjectsPage />
-                ) : selectedSection === 'teachers' ? (
-                  <TeachersPage />
-                ) : selectedSection === 'scheduling' ? (
-                  <SchedulingPage termId={activeTerm?.id ?? null} />
-                ) : selectedSection === 'supervision' ? (
-                  <SupervisionPage termId={activeTerm?.id ?? null} />
-                ) : selectedSection === 'temporaryAdjustments' ? (
-                  <TemporaryAdjustmentsPage adjustments={adjustments} />
-                ) : (
-                  <PendingModulePage
-                    onBackToWorkbench={() => setSelectedSection('workbench')}
-                  />
-                )}
+              <div
+                className={`space-y-6 ${
+                  transitionStage === 'exiting'
+                    ? 'app-view-exit'
+                    : 'app-view-enter'
+                }`}
+                key={displayedSection}
+              >
+                {renderSectionView(displayedSection)}
               </div>
             </div>
           </main>

@@ -399,55 +399,98 @@
   }
 }
 
+/* ==========================================================================
+   页面与向导切换微动效 (参照 Linear / Raycast / Emil Kowalski 桌面级微交互规范)
+   - 顺序式两段过渡（先快速柔化淡出 105ms，再柔和清晰淡入 180ms），杜绝双页重叠鬼影
+   - 仅保留 2.5px 轻量光学景深模糊，不制造重度眩晕感
+   ========================================================================== */
 .app-view-enter {
-  animation: app-view-enter 180ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: app-view-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.app-view-exit {
+  pointer-events: none;
+  user-select: none;
+  animation: app-view-exit 105ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 @keyframes app-view-enter {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(4px);
+    filter: blur(2.5px);
+    transform: translate3d(0, 3px, 0);
   }
 
-  to {
+  65% {
+    filter: blur(0px);
+  }
+
+  100% {
     opacity: 1;
-    transform: translateY(0);
+    filter: blur(0px);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes app-view-exit {
+  0% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    opacity: 0;
+    filter: blur(2px);
+    transform: translate3d(0, -2px, 0);
   }
 }
 
 /* 初次访问引导向导：步骤双向平滑过渡与徽章弹出动画 */
 .wizard-step-forward {
-  animation: wizard-step-forward 180ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: wizard-step-forward 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .wizard-step-backward {
-  animation: wizard-step-backward 180ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: wizard-step-backward 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .wizard-badge-pop {
-  animation: wizard-badge-pop 140ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: wizard-badge-pop 140ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes wizard-step-forward {
-  from {
+  0% {
     opacity: 0;
-    transform: translate3d(24px, 0, 0);
+    filter: blur(2.5px);
+    transform: translate3d(12px, 0, 0);
   }
 
-  to {
+  65% {
+    filter: blur(0px);
+  }
+
+  100% {
     opacity: 1;
+    filter: blur(0px);
     transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes wizard-step-backward {
-  from {
+  0% {
     opacity: 0;
-    transform: translate3d(-24px, 0, 0);
+    filter: blur(2.5px);
+    transform: translate3d(-12px, 0, 0);
   }
 
-  to {
+  65% {
+    filter: blur(0px);
+  }
+
+  100% {
     opacity: 1;
+    filter: blur(0px);
     transform: translate3d(0, 0, 0);
   }
 }
@@ -455,7 +498,7 @@
 @keyframes wizard-badge-pop {
   from {
     opacity: 0;
-    transform: scale(0.75);
+    transform: scale(0.82);
   }
 
   to {
@@ -470,10 +513,12 @@
   }
 
   .app-view-enter,
+  .app-view-exit,
   .wizard-step-forward,
   .wizard-step-backward,
   .wizard-badge-pop {
     animation: none;
+    filter: none;
   }
 
   .workbench-progress-fill {

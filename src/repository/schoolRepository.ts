@@ -58,6 +58,22 @@ import {
 } from '../domain/models';
 
 import { defaultSchedulePreferences, validateScheduleSupervision, type DutyOccurrence, type ScheduleData } from '../domain/scheduling';
+import {
+  type ActualChangePreview,
+  actualLessonChangeToJson,
+  actualSupervisionChangeToJson,
+  parseAdjustmentRow,
+  projectTemporaryTimetable,
+  SUPERVISION_SUBSTITUTION_KIND,
+  type TemporaryAdjustmentRecord,
+  type TemporaryMoveRequest,
+  type TemporarySubstituteRequest,
+  type TemporarySupervisionSubstituteRequest,
+  type TemporarySwapRequest,
+  TemporaryTimetableState,
+  validateTemporaryCancellation,
+} from '../domain/actualTimetable';
+import { PublicRoomTermData } from '../features/publicRooms/publicRoomsData';
 import { createId } from '../domain/id';
 import { formatDateYmd, getIsoWeekday, getTeachingWeekEnd, getTeachingWeekOfDate, getTeachingWeekStart, parseLocalDate } from '../features/terms/calendarUtils';
 import { createStoredRun, readStoredRun, readStoredSchedule, scheduleReconciliationRevision, scheduleRevision, writeStoredSchedule, type ScheduleRunReport } from './scheduleStorage';
@@ -2626,8 +2642,82 @@ export class SchoolRepository {
       return;
     }
     const store = this.loadFallback();
-    store.publicRooms = rooms;
+    const incomingById = new Map(rooms.map((r) => [r.id, r]));
+    const merged = store.publicRooms
+      .filter((r) => !incomingById.has(r.id))
+      .concat(rooms)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+    store.publicRooms = merged;
     this.saveFallback(store);
+  }
+
+  async deletePublicRoom(roomId: string): Promise<void> {
+    await this.captureScheduleBaselines();
+    if (this.useSqlEngine) {
+      await this.adapter.transaction(async (tx) => {
+        await tx.execute('DELETE FROM subject_room_assignments WHERE room_id = ?', [roomId]);
+        await tx.execute('DELETE FROM public_rooms WHERE id = ?', [roomId]);
+      });
+      return;
+    }
+    const store = this.loadFallback();
+    store.subjectRoomAssignments = store.subjectRoomAssignments.filter(
+      (a) => a.roomId !== roomId
+    );
+    store.publicRooms = store.publicRooms.filter((r) => r.id !== roomId);
+    this.saveFallback(store);
+  }
+
+  async loadRoomReferences(roomId: string): Promise<SubjectRoomAssignment[]> {
+    if (this.useSqlEngine) {
+      const rows = await this.adapter.select<{
+        id: string;
+        subject_id: string;
+        term_id: string;
+        stage_id: string;
+        scope_type: ScopeType;
+        scope_id: string;
+        room_id: string | null;
+      }>(
+        'SELECT * FROM subject_room_assignments WHERE room_id = ? ORDER BY term_id ASC, stage_id ASC, subject_id ASC',
+        [roomId]
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        subjectId: row.subject_id,
+        termId: row.term_id,
+        stageId: row.stage_id,
+        scopeType: row.scope_type,
+        scopeId: row.scope_id,
+        roomId: row.room_id,
+      }));
+    }
+    return this.loadFallback()
+      .subjectRoomAssignments.filter((a) => a.roomId === roomId)
+      .sort(
+        (a, b) =>
+          a.termId.localeCompare(b.termId) ||
+          a.stageId.localeCompare(b.stageId) ||
+          a.subjectId.localeCompare(b.subjectId)
+      );
+  }
+
+  async loadPublicRoomTermData(termId: string): Promise<PublicRoomTermData> {
+    const [stages, grades, classes, subjects, roomSettings] = await Promise.all([
+      this.loadStages(termId),
+      this.loadGradesForTerm(termId),
+      this.loadClassesForTerm(termId),
+      this.loadSubjects(termId),
+      this.loadSubjectRoomSettings(termId),
+    ]);
+    return new PublicRoomTermData({
+      termId,
+      stages,
+      grades,
+      classes,
+      assignments: roomSettings.assignments,
+      subjects,
+    });
   }
 
   // ==================== 5. 教师、分组、任课与预排 ====================
@@ -3586,7 +3676,7 @@ export class SchoolRepository {
         created_at: number;
         cancelled_at: number | null;
       }>(
-        'SELECT * FROM temporary_course_adjustments WHERE term_id = ? ORDER BY created_at DESC',
+        'SELECT * FROM temporary_course_adjustments WHERE term_id = ? ORDER BY created_at ASC, rowid ASC',
         [termId]
       );
       return rows.map((r) => ({
@@ -3599,7 +3689,237 @@ export class SchoolRepository {
         cancelledAt: r.cancelled_at,
       }));
     }
-    return this.loadFallback().adjustments.filter((a) => a.termId === termId);
+    return this.loadFallback()
+      .adjustments.filter((a) => a.termId === termId)
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  private computeTemporaryRevision(
+    snapshot: ScheduleData,
+    exceptions: CalendarException[],
+    records: TemporaryAdjustmentRecord[],
+    supervisions: SupervisionVersion[] = []
+  ): string {
+    return JSON.stringify({
+      schedule: scheduleRevision(snapshot),
+      supervision: supervisions.map((row) => [
+        row.effectiveDate,
+        row.draft.revision,
+        row.occurrences.length,
+      ]),
+      exceptions: exceptions.map((e) => [
+        e.id,
+        e.date,
+        e.kind,
+        e.makeupWeekday,
+        e.makeupForDate,
+      ]),
+      records: records.map((r) => [r.id, r.cancelledAt]),
+    });
+  }
+
+  async loadTemporaryTimetable(termId: string): Promise<TemporaryTimetableState> {
+    const [snapshot, rawExceptions, supervisionVersions, supervisionDraft, rawRows] =
+      await Promise.all([
+        this.loadSchedulingData(termId),
+        this.loadCalendarExceptions(termId),
+        this.loadSupervisionVersions(termId),
+        this.loadSupervisionDraftData(termId),
+        this.loadTemporaryAdjustments(termId),
+      ]);
+    const exceptions = [...rawExceptions].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
+    );
+    const baseline = await this.loadPendingScheduleBaseline(snapshot);
+    const hasSupervisionCalendar =
+      supervisionVersions.length > 0 ||
+      (supervisionDraft?.posts.length ?? 0) > 0;
+    const parsedRecords = rawRows.map(parseAdjustmentRow);
+    const projected = projectTemporaryTimetable({
+      snapshot,
+      exceptions,
+      records: parsedRecords,
+      supervisionVersions,
+    });
+    return new TemporaryTimetableState({
+      snapshot,
+      exceptions,
+      records: projected.records,
+      lessons: projected.lessons,
+      supervisions: projected.supervisions,
+      supervisionVersions,
+      hasSupervisionCalendar,
+      revision: this.computeTemporaryRevision(
+        snapshot,
+        exceptions,
+        projected.records,
+        supervisionVersions
+      ),
+      reconciliationPending: baseline !== null,
+    });
+  }
+
+  async commitTemporarySupervisionSubstitute(params: {
+    termId: string;
+    request: TemporarySupervisionSubstituteRequest;
+    expectedRevision: string;
+  }): Promise<void> {
+    const state = await this.loadTemporaryTimetable(params.termId);
+    if (state.revision !== params.expectedRevision) {
+      throw new Error('课表或调课记录已变更，请刷新后重试');
+    }
+    if (state.reconciliationPending) {
+      throw new Error('课表待协调，请先在排课与课表页面完成协调');
+    }
+    const preview = state.previewSupervisionSubstitute(params.request);
+    if (preview.errors.length > 0 || !preview.change) {
+      throw new Error(preview.errors.join('；'));
+    }
+    const row: TemporaryCourseAdjustment = {
+      id: createRecordId(),
+      termId: params.termId,
+      kind: SUPERVISION_SUBSTITUTION_KIND,
+      changesJson: JSON.stringify(actualSupervisionChangeToJson(preview.change)),
+      reason: (params.request.reason ?? '').trim(),
+      createdAt: Math.floor(Date.now() / 1000),
+      cancelledAt: null,
+    };
+    if (this.useSqlEngine) {
+      await this.adapter.execute(
+        `INSERT INTO temporary_course_adjustments (id, term_id, kind, changes_json, reason, created_at, cancelled_at)
+         VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+        [row.id, row.termId, row.kind, row.changesJson, row.reason, row.createdAt]
+      );
+      return;
+    }
+    const store = this.loadFallback();
+    store.adjustments.push(row);
+    this.saveFallback(store);
+  }
+
+  private async commitTemporaryChanges(params: {
+    termId: string;
+    kind: 'move' | 'swap' | 'substitute';
+    reason?: string;
+    expectedRevision: string;
+    build: (state: TemporaryTimetableState) => ActualChangePreview;
+  }): Promise<void> {
+    const state = await this.loadTemporaryTimetable(params.termId);
+    if (state.revision !== params.expectedRevision) {
+      throw new Error('课表或调课记录已变更，请刷新后重试');
+    }
+    if (state.reconciliationPending) {
+      throw new Error('课表待协调，请先在排课与课表页面完成协调');
+    }
+    const preview = params.build(state);
+    if (preview.errors.length > 0 || preview.changes.length === 0) {
+      throw new Error(
+        preview.errors.length === 0
+          ? '没有可生效的调整课次'
+          : preview.errors.join('；')
+      );
+    }
+    const row: TemporaryCourseAdjustment = {
+      id: createRecordId(),
+      termId: params.termId,
+      kind: params.kind,
+      changesJson: JSON.stringify(preview.changes.map(actualLessonChangeToJson)),
+      reason: (params.reason ?? '').trim(),
+      createdAt: Math.floor(Date.now() / 1000),
+      cancelledAt: null,
+    };
+    if (this.useSqlEngine) {
+      await this.adapter.execute(
+        `INSERT INTO temporary_course_adjustments (id, term_id, kind, changes_json, reason, created_at, cancelled_at)
+         VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+        [row.id, row.termId, row.kind, row.changesJson, row.reason, row.createdAt]
+      );
+      return;
+    }
+    const store = this.loadFallback();
+    store.adjustments.push(row);
+    this.saveFallback(store);
+  }
+
+  async commitTemporaryMove(params: {
+    termId: string;
+    request: TemporaryMoveRequest;
+    expectedRevision: string;
+  }): Promise<void> {
+    await this.commitTemporaryChanges({
+      termId: params.termId,
+      kind: 'move',
+      reason: params.request.reason,
+      expectedRevision: params.expectedRevision,
+      build: (state) => state.previewMove(params.request),
+    });
+  }
+
+  async commitTemporarySubstitute(params: {
+    termId: string;
+    request: TemporarySubstituteRequest;
+    expectedRevision: string;
+  }): Promise<void> {
+    await this.commitTemporaryChanges({
+      termId: params.termId,
+      kind: 'substitute',
+      reason: params.request.reason,
+      expectedRevision: params.expectedRevision,
+      build: (state) => state.previewSubstitute(params.request),
+    });
+  }
+
+  async commitTemporarySwap(params: {
+    termId: string;
+    request: TemporarySwapRequest;
+    expectedRevision: string;
+  }): Promise<void> {
+    await this.commitTemporaryChanges({
+      termId: params.termId,
+      kind: 'swap',
+      reason: params.request.reason,
+      expectedRevision: params.expectedRevision,
+      build: (state) => state.previewSwap(params.request),
+    });
+  }
+
+  async cancelTemporaryAdjustment(params: {
+    termId: string;
+    adjustmentId: string;
+    expectedRevision: string;
+  }): Promise<void> {
+    const state = await this.loadTemporaryTimetable(params.termId);
+    if (state.revision !== params.expectedRevision) {
+      throw new Error('课表或调课记录已变更，请刷新后重试');
+    }
+    const index = state.records.findIndex(
+      (r) => r.id === params.adjustmentId && r.cancelledAt == null
+    );
+    if (index === -1) {
+      throw new Error('未找到有效的调课记录');
+    }
+    const record = state.records[index];
+    if (state.reconciliationPending && !record.needsAttention) {
+      throw new Error('课表待协调期间仅可取消需处理的调整记录');
+    }
+    validateTemporaryCancellation(state, record, index);
+    const cancelledAt = Math.floor(Date.now() / 1000);
+    if (this.useSqlEngine) {
+      await this.adapter.execute(
+        `UPDATE temporary_course_adjustments
+         SET cancelled_at = ?
+         WHERE id = ? AND term_id = ? AND cancelled_at IS NULL`,
+        [cancelledAt, params.adjustmentId, params.termId]
+      );
+      return;
+    }
+    const store = this.loadFallback();
+    store.adjustments = store.adjustments.map((item) =>
+      item.id === params.adjustmentId && item.termId === params.termId && item.cancelledAt == null
+        ? { ...item, cancelledAt }
+        : item
+    );
+    this.saveFallback(store);
   }
 
   // ==================== 7. 工作台汇总与步骤级联门控校验 ====================
