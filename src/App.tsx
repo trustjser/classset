@@ -4,11 +4,21 @@ import { SetupWizardPage } from './features/setup/SetupWizardPage';
 import { useAppStore } from './store/useAppStore';
 
 export const App: React.FC = () => {
-  const { initialized, terms, bootstrap } = useAppStore();
+  const { initialized, runtimeMode, terms, bootstrap } = useAppStore();
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    if (runtimeMode !== 'web-browser') return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [runtimeMode]);
 
   if (!initialized) {
     return (

@@ -21,7 +21,7 @@ type Slot = { weekday: number; periodTypeId: string; lessonIndex: number; label:
 const cellKey = (scope: Scope, slot: Slot) => JSON.stringify([scope.type, scope.id, scope.stageId, slot.weekday, slot.periodTypeId, slot.lessonIndex]);
 
 export const TeacherPresetPage: React.FC<{ termId: string; owner: Owner; teachers: Teacher[]; groups: TeacherGroup[]; members: TeacherGroupMember[]; onBack: () => void }> = ({ termId, owner, teachers, groups, members, onBack }) => {
-  const { stages, grades, classes, routinesByStage, freeSlotsByStage, loadFreeSlotsForStages } = useAppStore();
+  const { stages, grades, classes, routinesByStage, freeSlotsByStage, loadFreeSlotsForStages, setNavigationGuard } = useAppStore();
   const [ownerKind, setOwnerKind] = useState<Owner['kind']>(owner.kind);
   const [ownerId, setOwnerId] = useState(owner.id ?? '');
   const [scope, setScope] = useState<Scope | null>(null);
@@ -119,8 +119,8 @@ export const TeacherPresetPage: React.FC<{ termId: string; owner: Owner; teacher
     if (dirty && !window.confirm('预排有未保存的修改，确定放弃吗？')) return;
     setScope(next); setDraft({}); setDirty(false); setError('');
   }
-  async function save() {
-    if (!ownerId || !activeScope) return;
+  async function save(): Promise<boolean> {
+    if (!ownerId || !activeScope) return true;
     setSaving(true); setError('');
     try {
       const isCurrent = (item: { scopeType: ScopeType; scopeId: string; stageId: string }) => item.scopeType === activeScope.type && item.scopeId === activeScope.id && item.stageId === activeScope.stageId;
@@ -150,9 +150,21 @@ export const TeacherPresetPage: React.FC<{ termId: string; owner: Owner; teacher
         setGroupPresets([...groupPresets.filter((item) => item.groupId !== ownerId), ...next]);
       }
       setDraft({}); setDirty(false); setSelectedKeys([]);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+      return true;
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); return false; }
     finally { setSaving(false); }
   }
+  const presetGuardRef = useRef({ dirty, save });
+  presetGuardRef.current = { dirty, save };
+  useEffect(() => {
+    setNavigationGuard({
+      label: '教师预排',
+      isDirty: () => presetGuardRef.current.dirty,
+      save: async () => await presetGuardRef.current.save(),
+      discard: () => { setDraft({}); setDirty(false); },
+    });
+    return () => setNavigationGuard(null);
+  }, [setNavigationGuard]);
   const goBack = () => { if (!dirty || window.confirm('预排有未保存的修改，确定返回吗？')) onBack(); };
   const freeInfo = (slot: Slot): { status: 'all' | 'partial' | null; classNames: string[] } => {
     if (!activeScope) return { status: null, classNames: [] };

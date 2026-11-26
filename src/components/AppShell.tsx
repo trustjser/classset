@@ -20,6 +20,14 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import {
   Tooltip,
@@ -104,6 +112,8 @@ export const AppShell: React.FC = () => {
     resolvedDark,
     sidebarExpanded,
     selectedSection,
+    pendingNavigationSection,
+    navigationGuard,
     schoolName,
     activeTermId,
     terms,
@@ -115,6 +125,7 @@ export const AppShell: React.FC = () => {
     setSidebarExpanded,
     toggleSidebar,
     setSelectedSection,
+    resolvePendingNavigation,
     updateSchoolName,
   } = useAppStore();
 
@@ -195,6 +206,7 @@ export const AppShell: React.FC = () => {
 
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [schoolNameDialogOpen, setSchoolNameDialogOpen] = useState(false);
+  const [resolvingNavigation, setResolvingNavigation] = useState(false);
   const schoolDisplayName = schoolName.trim() || '未命名学校';
 
   const activeTerm = terms.find((t) => t.id === activeTermId) ?? null;
@@ -577,6 +589,46 @@ export const AppShell: React.FC = () => {
           onSave={handleSaveSchoolName}
           onClose={() => setSchoolNameDialogOpen(false)}
         />
+        <Dialog
+          open={pendingNavigationSection !== null}
+          onOpenChange={(open) => {
+            if (!open && !resolvingNavigation) {
+              void resolvePendingNavigation('cancel');
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader className="border-b-0 pb-0">
+              <DialogTitle>
+                {navigationGuard?.label ? `「${navigationGuard.label}」有未保存的修改` : '有未保存的修改'}
+              </DialogTitle>
+              <DialogDescription>
+                切换页面前，是否保存当前未保存的草稿内容？
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="border-t-0 pt-2 gap-2 sm:gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={resolvingNavigation}
+                onClick={() => void resolvePendingNavigation('discard')}
+              >
+                丢弃修改
+              </Button>
+              <Button
+                type="button"
+                disabled={resolvingNavigation}
+                onClick={() => {
+                  setResolvingNavigation(true);
+                  void resolvePendingNavigation('save').finally(() => setResolvingNavigation(false));
+                }}
+              >
+                {resolvingNavigation ? '正在保存…' : '保存并离开'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );

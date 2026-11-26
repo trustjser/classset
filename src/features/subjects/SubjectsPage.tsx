@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStickyToolbar } from '@/hooks/useStickyToolbar';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, Eraser, MoreHorizontal, Pencil, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, Eraser, Info, MoreHorizontal, Pencil, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -62,7 +63,7 @@ export const SubjectsPage: React.FC = () => {
     activeTermId, terms, stages, grades, classes, subjects: savedSubjects,
     subjectRequirements, subjectPairings, subjectPresets, subjectLessonConstraints,
     subjectRoomAssignments, subjectParallelLimits, publicRooms, routinesByStage, freeSlotsByStage,
-    saveSubjectChanges, loadFreeSlotsForStages, setSelectedSection, setSubjectDraftDirty,
+    saveSubjectChanges, loadFreeSlotsForStages, setSelectedSection, setSubjectDraftDirty, setNavigationGuard,
   } = useAppStore();
   const term = terms.find((item) => item.id === activeTermId);
   const alternating = term?.cycleMode === 'alternating';
@@ -130,6 +131,7 @@ export const SubjectsPage: React.FC = () => {
   const [capacityWarnings, setCapacityWarnings] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [helpOpen, setHelpOpen] = useState(true);
 
   useEffect(() => {
     setScopeStageId('all');
@@ -208,12 +210,17 @@ export const SubjectsPage: React.FC = () => {
     return () => setSubjectDraftDirty(false);
   }, [hasChanges, setSubjectDraftDirty]);
 
+  const subjectGuardRef = useRef({ hasChanges, save, discard });
+  subjectGuardRef.current = { hasChanges, save, discard };
   useEffect(() => {
-    if (!hasChanges) return;
-    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    window.addEventListener('beforeunload', beforeUnload);
-    return () => window.removeEventListener('beforeunload', beforeUnload);
-  }, [hasChanges]);
+    setNavigationGuard({
+      label: '科目节数',
+      isDirty: () => subjectGuardRef.current.hasChanges,
+      save: async () => await subjectGuardRef.current.save(),
+      discard: () => subjectGuardRef.current.discard(),
+    });
+    return () => setNavigationGuard(null);
+  }, [setNavigationGuard]);
   useEffect(() => {
     const endDrag = () => { dragAnchor.current = null; dragPointer.current = null; setDragSelecting(false); };
     window.addEventListener('pointerup', endDrag);
@@ -648,8 +655,8 @@ export const SubjectsPage: React.FC = () => {
     return { upserts: Object.values(subjectDrafts), deletedIds, requirementsByGrade,
       pairingsByClass: pairingDrafts, presetScopes, constraintScopes, roomScopes };
   }
-  async function save(confirmed = false) {
-    if (!activeTermId || saving || !hasChanges) return;
+  async function save(confirmed = false): Promise<boolean> {
+    if (!activeTermId || saving || !hasChanges) return !hasChanges;
     const invalidPair = classes.flatMap((schoolClass) =>
       pairingDrafts[schoolClass.id] ?? subjectPairings.filter((pair) => pair.classId === schoolClass.id))
       .find((pair) => {
@@ -660,7 +667,7 @@ export const SubjectsPage: React.FC = () => {
       });
     if (invalidPair) {
       setMessage(`${classes.find((item) => item.id === invalidPair.classId)?.name ?? '班级'}的配对课程节数不一致，请先调整或解除配对`);
-      return;
+      return false;
     }
     for (const rows of Object.values(constraintDrafts)) for (const row of rows) {
       const ordered = [
@@ -670,20 +677,20 @@ export const SubjectsPage: React.FC = () => {
       ] as const;
       for (const [minimum, maximum, label] of ordered) {
         if (minimum !== null && maximum !== null && minimum > maximum) {
-          setMessage(`${label}的最少值不能大于最多值`); return;
+          setMessage(`${label}的最少值不能大于最多值`); return false;
         }
       }
     }
     const roomIds = new Set(publicRooms.map((room) => room.id));
     if (Object.values(roomDrafts).some((settings) =>
       settings.assignment?.roomId && !roomIds.has(settings.assignment.roomId))) {
-      setMessage('有科目引用了已删除的公共场室，请重新选择'); return;
+      setMessage('有科目引用了已删除的公共场室，请重新选择'); return false;
     }
     try {
       await loadFreeSlotsForStages(stages.map((stage) => stage.id));
     } catch (error) {
       setMessage(`读取可排容量失败：${error instanceof Error ? error.message : String(error)}`);
-      return;
+      return false;
     }
     const freeSlots = Object.values(useAppStore.getState().freeSlotsByStage)
       .flat().filter((slot) => stages.some((stage) => stage.id === slot.stageId));
@@ -692,7 +699,7 @@ export const SubjectsPage: React.FC = () => {
         activeSubjects.map((item) => item.id), allValues, routinesByStage[grade.stageId], freeSlots, activeTermId);
       return summary && summary.excess > 0 ? [`${grade.name} · ${summary.className}超出 ${summary.excess} 节`] : [];
     });
-    if (warnings.length && !confirmed) { setCapacityWarnings(warnings); return; }
+    if (warnings.length && !confirmed) { setCapacityWarnings(warnings); return false; }
     setSaving(true); setMessage('');
     try {
       await saveSubjectChanges(buildChanges());
@@ -700,8 +707,10 @@ export const SubjectsPage: React.FC = () => {
       setEditedCells([]); setPairingDrafts({}); setPresetDrafts({});
       setConstraintDrafts({}); setRoomDrafts({}); setCapacityWarnings(null);
       setMessage('科目设置已保存');
+      return true;
     } catch (error) {
       setMessage(`保存失败：${error instanceof Error ? error.message : String(error)}`);
+      return false;
     } finally { setSaving(false); }
   }
   function addPairing() {
@@ -1072,6 +1081,26 @@ export const SubjectsPage: React.FC = () => {
         <Button size="sm" disabled={!hasChanges || saving} onClick={() => void save()}><Save className="h-4 w-4" />{saving ? '保存中' : '保存'}</Button>
       </div>
     </div>
+    {helpOpen && (
+      <Alert variant="info" className="shrink-0 pr-10">
+        <Info className="h-4 w-4" />
+        <AlertTitle className="text-[13px]">填写说明</AlertTitle>
+        <AlertDescription className="flex flex-wrap gap-x-5 gap-y-1">
+          <span><strong className="font-medium text-ink">全年级统一：</strong>直接填整数（如 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">5</code>）。</span>
+          <span><strong className="font-medium text-ink">单双周：</strong>按 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">每周|单周|双周</code> 填写（如 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">0|4|0</code> 或 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">3|1|1</code>）。</span>
+          <span><strong className="font-medium text-ink">单个班级：</strong>英文逗号按班序分隔（如 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">5,5,4</code>），或右键选「逐班编辑」。</span>
+          <span><strong className="font-medium text-ink">快捷操作：</strong>拖拽框选多格支持复制/粘贴，右键可统一设置或清空。</span>
+        </AlertDescription>
+        <button
+          type="button"
+          aria-label="关闭填写帮助说明"
+          onClick={() => setHelpOpen(false)}
+          className="absolute right-3 top-3 rounded-md p-1 text-ink-secondary transition-colors hover:bg-surface/80 hover:text-ink"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </Alert>
+    )}
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-surface">
         {activeSubjects.length === 0 ? <EmptyState variant="subjects" title="科目节数还是空的" description="先添加几门科目，就可以在这里批量设置各年级每周节数啦。" action={<Button variant="outline" size="sm" onClick={() => beginSubjectDialog('new')}><Plus className="h-4 w-4" />添加科目</Button>} className="flex-1" /> :
           <>

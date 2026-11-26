@@ -428,6 +428,7 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
     discardTermDrafts,
     saveStageRoutine,
     loadScheduleItems,
+    setNavigationGuard,
   } = useAppStore();
   const [selectedStageId, setSelectedStageId] = useState('');
   const [scopeSelection, setScopeSelection] =
@@ -809,8 +810,8 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
     setCommonDropTarget(null);
   };
 
-  const saveNow = async () => {
-    if (!routine || !isDirty) return;
+  const saveNow = async (): Promise<boolean> => {
+    if (!routine || !isDirty) return true;
     setSaving(true);
     setErrorMessage(null);
     try {
@@ -841,8 +842,10 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
       setConfirmSaveOpen(false);
       setSavedNotice(true);
       clearHistory();
+      return true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '作息保存失败，请重试。');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -903,6 +906,31 @@ export const RoutinesPage: React.FC<{ onOpenClasses: () => void }> = ({
       void saveNow();
     }
   };
+
+  const routineGuardRef = useRef({ isDirty, saveNow, requestSave, hasSchedule: Boolean(summary?.hasSchedule), termId: selectedStage?.termId ?? '' });
+  routineGuardRef.current = { isDirty, saveNow, requestSave, hasSchedule: Boolean(summary?.hasSchedule), termId: selectedStage?.termId ?? '' };
+  useEffect(() => {
+    setNavigationGuard({
+      label: '作息设置',
+      isDirty: () => routineGuardRef.current.isDirty,
+      save: async () => {
+        if (routineGuardRef.current.hasSchedule) {
+          void routineGuardRef.current.requestSave();
+          return false;
+        }
+        return await routineGuardRef.current.saveNow();
+      },
+      discard: () => {
+        if (routineGuardRef.current.termId) {
+          discardTermDrafts(routineGuardRef.current.termId);
+        }
+        clearHistory();
+        setErrorMessage(null);
+        setSavedNotice(false);
+      },
+    });
+    return () => setNavigationGuard(null);
+  }, [setNavigationGuard, discardTermDrafts]);
 
   if (stages.length === 0) {
     return (

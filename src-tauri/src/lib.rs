@@ -1,3 +1,4 @@
+use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod sqlite_transactions;
@@ -28,6 +29,12 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_schema_version,
             sqlite_transactions::begin_sqlite_transaction,
@@ -36,8 +43,28 @@ pub fn run() {
             sqlite_transactions::commit_sqlite_transaction,
             sqlite_transactions::rollback_sqlite_transaction,
         ])
-        .run(tauri::generate_context!())
-        .expect("运行课集 Tauri 应用失败");
+        .build(tauri::generate_context!())
+        .expect("运行课集 Tauri 应用失败")
+        .run(|app_handle, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } = event
+            {
+                if !has_visible_windows {
+                    if let Some(window) = app_handle
+                        .get_webview_window("main")
+                        .or_else(|| app_handle.webview_windows().values().next().cloned())
+                    {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app_handle, event);
+        });
 }
 
 #[cfg(test)]

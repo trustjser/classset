@@ -58,6 +58,7 @@ import { SupervisionMatching } from '@/domain/supervisionMatching';
 import { postErrors } from '@/domain/supervisionValidation';
 import { schoolRepository } from '@/repository/schoolRepository';
 import { useStickyToolbar } from '@/hooks/useStickyToolbar';
+import { useAppStore } from '@/store/useAppStore';
 import { PostDialog } from './PostDialog';
 import { PublishDialog } from './PublishDialog';
 import { SupervisionWeekGrid } from './SupervisionWeekGrid';
@@ -203,6 +204,7 @@ interface InitialSinglePostRules {
 
 export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
   const toolbarRef = useStickyToolbar<HTMLDivElement>();
+  const setNavigationGuard = useAppStore((state) => state.setNavigationGuard);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -340,8 +342,8 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
 
   // Save draft
   const handleSaveDraft = useCallback(
-    async (userInitiated = false) => {
-      if (!currentDraft || !termId) return;
+    async (userInitiated = false): Promise<boolean> => {
+      if (!currentDraft || !termId) return true;
       setSaving(true);
       try {
         const saved = await schoolRepository.saveSupervisionDraftData(currentDraft);
@@ -354,14 +356,36 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
         if (userInitiated) {
           showToast('带班草稿已保存');
         }
+        return true;
       } catch (err) {
         showToast(`保存失败: ${err}`);
+        return false;
       } finally {
         setSaving(false);
       }
     },
     [currentDraft, showToast, termId]
   );
+
+  const supervisionGuardRef = useRef({
+    hasChanges: Boolean(history?.hasChanges && !isHistorical),
+    handleSaveDraft,
+  });
+  supervisionGuardRef.current = {
+    hasChanges: Boolean(history?.hasChanges && !isHistorical),
+    handleSaveDraft,
+  };
+  useEffect(() => {
+    setNavigationGuard({
+      label: '带班安排',
+      isDirty: () => supervisionGuardRef.current.hasChanges,
+      save: async () => await supervisionGuardRef.current.handleSaveDraft(true),
+      discard: () => {
+        setHistory(null);
+      },
+    });
+    return () => setNavigationGuard(null);
+  }, [setNavigationGuard]);
 
   // Undo / Redo
   const handleUndo = useCallback(() => {

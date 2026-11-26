@@ -58,6 +58,13 @@ export interface ClassFillUndoEntry {
   afterName: string;
 }
 
+export interface UnsavedDraftGuard {
+  label: string;
+  isDirty: () => boolean;
+  save: () => Promise<boolean>;
+  discard: () => void;
+}
+
 interface AppState {
   initialized: boolean;
   runtimeMode: 'tauri-desktop' | 'web-browser';
@@ -66,6 +73,8 @@ interface AppState {
   resolvedDark: boolean;
   sidebarExpanded: boolean;
   selectedSection: AppSection;
+  pendingNavigationSection: AppSection | null;
+  navigationGuard: UnsavedDraftGuard | null;
   schoolName: string;
   activeTermId: string | null;
   terms: AcademicTerm[];
@@ -101,6 +110,8 @@ interface AppState {
   setSidebarExpanded: (expanded: boolean) => void;
   toggleSidebar: () => void;
   setSelectedSection: (section: AppSection) => void;
+  setNavigationGuard: (guard: UnsavedDraftGuard | null) => void;
+  resolvePendingNavigation: (action: 'save' | 'discard' | 'cancel') => Promise<void>;
   setSubjectDraftDirty: (dirty: boolean) => void;
   selectTerm: (termId: string) => Promise<void>;
   updateSchoolName: (name: string) => Promise<void>;
@@ -260,6 +271,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   resolvedDark: initialDark,
   sidebarExpanded: typeof window !== 'undefined' ? window.innerWidth >= 1080 : true,
   selectedSection: getSectionFromLocation(),
+  pendingNavigationSection: null,
+  navigationGuard: null,
   schoolName: '',
   activeTermId: null,
   terms: [],
@@ -391,18 +404,59 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleSidebar: () => set((s) => ({ sidebarExpanded: !s.sidebarExpanded })),
 
   setSelectedSection: (section) => {
-    if (get().selectedSection === 'subjects' && section !== 'subjects' && get().subjectDraftDirty) {
-      if (!window.confirm('科目节数有未保存的修改，确定离开并放弃修改吗？')) {
-        window.location.hash = '#/subjects';
-        return;
+    const current = get().selectedSection;
+    if (section === current) {
+      if (typeof window !== 'undefined') {
+        const nextHash = `#/${section}`;
+        if (window.location.hash !== nextHash) window.location.hash = nextHash;
       }
-      set({ subjectDraftDirty: false });
+      return;
+    }
+    const guard = get().navigationGuard;
+    if (guard && guard.isDirty()) {
+      if (typeof window !== 'undefined') {
+        const currentHash = `#/${current}`;
+        if (window.location.hash !== currentHash) window.location.hash = currentHash;
+      }
+      set({ pendingNavigationSection: section });
+      return;
     }
     if (typeof window !== 'undefined') {
       const nextHash = `#/${section}`;
       if (window.location.hash !== nextHash) window.location.hash = nextHash;
     }
-    set({ selectedSection: section });
+    set({ selectedSection: section, pendingNavigationSection: null });
+  },
+
+  setNavigationGuard: (guard) => set({ navigationGuard: guard }),
+
+  resolvePendingNavigation: async (action) => {
+    const target = get().pendingNavigationSection;
+    if (!target) return;
+    if (action === 'cancel') {
+      set({ pendingNavigationSection: null });
+      return;
+    }
+    const guard = get().navigationGuard;
+    if (action === 'save' && guard) {
+      const ok = await guard.save();
+      if (!ok) {
+        set({ pendingNavigationSection: null });
+        return;
+      }
+    } else if (action === 'discard' && guard) {
+      guard.discard();
+    }
+    if (typeof window !== 'undefined') {
+      const nextHash = `#/${target}`;
+      if (window.location.hash !== nextHash) window.location.hash = nextHash;
+    }
+    set({
+      selectedSection: target,
+      pendingNavigationSection: null,
+      navigationGuard: null,
+      subjectDraftDirty: false,
+    });
   },
 
   setSubjectDraftDirty: (dirty) => set({ subjectDraftDirty: dirty }),
