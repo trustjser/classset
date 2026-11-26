@@ -1,23 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="sky" x1="112" y1="64" x2="912" y2="960" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3976E8" />
-      <stop offset="1" stop-color="#2054C7" />
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2196EA"/>
+      <stop offset="1" stop-color="#0066CC"/>
     </linearGradient>
   </defs>
-  <rect x="32" y="32" width="960" height="960" rx="240" fill="url(#sky)" />
-  <rect x="180" y="192" width="664" height="656" rx="80" fill="#FFFFFF" />
-  <path d="M180 272c0-44.183 35.817-80 80-80h504c44.183 0 80 35.817 80 80v94H180v-94Z" fill="#EAF1FF" />
-  <rect x="328" y="152" width="52" height="144" rx="26" fill="#FFFFFF" />
-  <rect x="644" y="152" width="52" height="144" rx="26" fill="#FFFFFF" />
-  <rect x="272" y="448" width="112" height="96" rx="28" fill="#EAF1FF" />
-  <rect x="456" y="448" width="112" height="96" rx="28" fill="#EAF1FF" />
-  <rect x="640" y="448" width="112" height="96" rx="28" fill="#EAF1FF" />
-  <rect x="272" y="608" width="112" height="96" rx="28" fill="#EAF1FF" />
-  <rect x="456" y="608" width="112" height="96" rx="28" fill="#2864DC" />
-  <rect x="640" y="608" width="112" height="96" rx="28" fill="#EAF1FF" />
-  <rect x="272" y="768" width="112" height="24" rx="12" fill="#DCE3EF" />
-  <rect x="456" y="768" width="112" height="24" rx="12" fill="#1F765E" />
-  <rect x="640" y="768" width="112" height="24" rx="12" fill="#DCE3EF" />
-  <path d="m491 656 22 22 43-47" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="18" />
+  <!-- 品牌蓝圆角底 -->
+  <rect x="0" y="0" width="32" height="32" rx="9" fill="url(#body)"/>
+  <!-- 背卡（半透明白，形成叠卡厚度） -->
+  <rect x="7.6" y="6.2" width="13" height="15" rx="3.2" fill="#FFFFFF" fill-opacity="0.5"/>
+  <!-- 前卡 -->
+  <rect x="10.6" y="9.4" width="13" height="15" rx="3.2" fill="#FFFFFF"/>
+  <!-- 表头压条 -->
+  <rect x="12.7" y="11.2" width="8.8" height="1.7" rx="0.85" fill="#0075DE"/>
+  <!-- 已排课橙格 -->
+  <rect x="18" y="19.2" width="3.8" height="3.4" rx="1" fill="#E8913C"/>
 </svg>

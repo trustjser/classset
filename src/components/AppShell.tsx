@@ -5,6 +5,7 @@ import {
   Calculator,
   CalendarDays,
   Clock,
+  Download,
   LayoutDashboard,
   Lock,
   Moon,
@@ -207,6 +208,30 @@ export const AppShell: React.FC = () => {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [schoolNameDialogOpen, setSchoolNameDialogOpen] = useState(false);
   const [resolvingNavigation, setResolvingNavigation] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<{
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (runtimeMode !== 'web-browser' || typeof window === 'undefined') return;
+    const onBeforeInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(
+        event as unknown as {
+          prompt: () => Promise<void>;
+          userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+        }
+      );
+    };
+    const onInstalled = () => setInstallPrompt(null);
+    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, [runtimeMode]);
   const schoolDisplayName = schoolName.trim() || '未命名学校';
 
   const activeTerm = terms.find((t) => t.id === activeTermId) ?? null;
@@ -342,99 +367,100 @@ export const AppShell: React.FC = () => {
           runtimeMode === 'tauri-desktop' && isMacOS ? 'tauri-macos' : ''
         } ${isWindows ? 'windows-scrollbars' : ''}`}
       >
-        {/* 左侧导航保留全部业务步骤，内容区独立滚动，底部状态始终可见。 */}
+        {/* 左侧品牌区、学校卡与底部状态固定，仅中间菜单区域独立滚动。 */}
         <aside
           className={`app-sidebar shrink-0 bg-surface flex flex-col transition-[width,padding] duration-page ${
             sidebarExpanded ? 'w-[200px] px-4 py-4' : 'w-[70px] px-2 py-3'
           }`}
           data-expanded={sidebarExpanded}
         >
-          <div className="app-sidebar-scroll">
-            {/* 品牌区 */}
-            <div
-              className={`app-sidebar-brand flex items-center ${
-                sidebarExpanded ? 'justify-start gap-2.5 px-1' : 'justify-center'
-              } pb-4`}
-            >
-              <img
-                src={classsetMark}
-                alt="课集 Logo"
-                width={36}
-                height={36}
-                draggable={false}
-                className="h-9 w-9 shrink-0"
-              />
-              {sidebarExpanded && (
-                <div>
-                  <div className="text-[16px] font-bold text-ink leading-tight">
-                    课集
-                  </div>
-                  <div className="text-[12px] text-ink-secondary">ClassSet.app</div>
+          {/* 品牌区 */}
+          <div
+            className={`app-sidebar-brand shrink-0 flex items-center ${
+              sidebarExpanded ? 'justify-start gap-2.5 px-1' : 'justify-center'
+            } pb-4`}
+          >
+            <img
+              src={classsetMark}
+              alt="课集 Logo"
+              width={36}
+              height={36}
+              draggable={false}
+              className="h-9 w-9 shrink-0"
+            />
+            {sidebarExpanded && (
+              <div>
+                <div className="text-[16px] font-bold text-ink leading-tight">
+                  课集
                 </div>
-              )}
-            </div>
-
-            {/* 学校与当前学期标识卡 */}
-            <div className="mb-3">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={`${schoolDisplayName}，编辑学校名称`}
-                    onClick={() => setSchoolNameDialogOpen(true)}
-                    className={`w-full rounded-control bg-canvas hover:bg-table-header border border-transparent hover:border-border flex items-center text-left transition-colors duration-feedback ${
-                      sidebarExpanded
-                        ? 'p-2.5 gap-2.5'
-                        : 'justify-center p-1'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-[9px] bg-selection text-primary font-bold text-[12px] flex items-center justify-center shrink-0">
-                      {schoolDisplayName.slice(0, 1)}
-                    </div>
-                    {sidebarExpanded && (
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-semibold text-ink truncate">
-                          {schoolDisplayName}
-                        </div>
-                        <div className="text-[12px] text-ink-secondary truncate mt-0.5">
-                          {activeTerm?.title ?? '当前学期'}
-                        </div>
-                      </div>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right">编辑学校名称</TooltipContent>
-              </Tooltip>
-            </div>
-
-            {/* 级联导航菜单 */}
-            <nav aria-label="主导航" className="app-sidebar-nav space-y-1">
-              {NAV_ITEMS.filter((i) => i.group === 'root').map(renderNavButton)}
-
-              {sidebarExpanded && (
-                <div className="pt-3 pb-1 text-[12px] font-semibold text-ink-secondary">
-                  基础设置
-                </div>
-              )}
-              {NAV_ITEMS.filter((i) => i.group === 'basic').map(renderNavButton)}
-
-              <Separator className="my-2" />
-              {sidebarExpanded && (
-                <div className="pt-1 pb-1 text-[12px] font-semibold text-ink-secondary">
-                  排课准备
-                </div>
-              )}
-              {NAV_ITEMS.filter((i) => i.group === 'prep').map(renderNavButton)}
-
-              <Separator className="my-2" />
-              {sidebarExpanded && (
-                <div className="pt-1 pb-1 text-[12px] font-semibold text-ink-secondary">
-                  课表与课务
-                </div>
-              )}
-              {NAV_ITEMS.filter((i) => i.group === 'schedule').map(renderNavButton)}
-            </nav>
+                <div className="text-[12px] text-ink-secondary">ClassSet.app</div>
+              </div>
+            )}
           </div>
+
+          {/* 学校与当前学期标识卡 */}
+          <div className="mb-3 shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`${schoolDisplayName}，编辑学校名称`}
+                  onClick={() => setSchoolNameDialogOpen(true)}
+                  className={`w-full rounded-control bg-canvas hover:bg-table-header border border-transparent hover:border-border flex items-center text-left transition-colors duration-feedback ${
+                    sidebarExpanded
+                      ? 'p-2.5 gap-2.5'
+                      : 'justify-center p-1'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-[9px] bg-selection text-primary font-bold text-[12px] flex items-center justify-center shrink-0">
+                    {schoolDisplayName.slice(0, 1)}
+                  </div>
+                  {sidebarExpanded && (
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-semibold text-ink truncate">
+                        {schoolDisplayName}
+                      </div>
+                      <div className="text-[12px] text-ink-secondary truncate mt-0.5">
+                        {activeTerm?.title ?? '当前学期'}
+                      </div>
+                    </div>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">编辑学校名称</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* 级联导航菜单（独立滚动区） */}
+          <nav
+            aria-label="主导航"
+            className="app-sidebar-nav app-sidebar-scroll space-y-1"
+          >
+            {NAV_ITEMS.filter((i) => i.group === 'root').map(renderNavButton)}
+
+            {sidebarExpanded && (
+              <div className="pt-3 pb-1 text-[12px] font-semibold text-ink-secondary">
+                基础设置
+              </div>
+            )}
+            {NAV_ITEMS.filter((i) => i.group === 'basic').map(renderNavButton)}
+
+            <Separator className="my-2" />
+            {sidebarExpanded && (
+              <div className="pt-1 pb-1 text-[12px] font-semibold text-ink-secondary">
+                排课准备
+              </div>
+            )}
+            {NAV_ITEMS.filter((i) => i.group === 'prep').map(renderNavButton)}
+
+            <Separator className="my-2" />
+            {sidebarExpanded && (
+              <div className="pt-1 pb-1 text-[12px] font-semibold text-ink-secondary">
+                课表与课务
+              </div>
+            )}
+            {NAV_ITEMS.filter((i) => i.group === 'schedule').map(renderNavButton)}
+          </nav>
 
           {/* 底部本地 SQLite 持久化状态指示卡 */}
           {sidebarExpanded && (
@@ -500,6 +526,22 @@ export const AppShell: React.FC = () => {
             </div>
 
             <div className="app-toolbar-actions" data-tauri-drag-region>
+              {runtimeMode === 'web-browser' && installPrompt && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2.5 text-xs"
+                  onClick={() => {
+                    void installPrompt.prompt().then(() => installPrompt.userChoice).then((choice) => {
+                      if (choice.outcome === 'accepted') setInstallPrompt(null);
+                    }).catch(() => {});
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  安装应用
+                </Button>
+              )}
               <Badge
                 variant="secondary"
                 className="app-runtime-badge border-0 bg-transparent px-2 text-ink-secondary"

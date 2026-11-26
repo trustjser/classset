@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:web": "tsc && vite build --base=/classsetapp/ --outDir=website/classsetapp --emptyOutDir",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
