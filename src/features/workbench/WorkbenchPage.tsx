@@ -1,32 +1,85 @@
 import React from 'react';
-import { ArrowRight, Check, Sparkles } from 'lucide-react';
+import {
+  CalendarX2,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Sparkles,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getNavSectionAvailability } from '@/domain/models';
-import type { AppSection, WorkbenchSummary } from '@/domain/models';
-import { getWorkbenchProgress } from './workbenchModel';
-import type { WorkbenchProgress } from './workbenchModel';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import type { AcademicTerm, AppSection, WorkbenchSummary } from '@/domain/models';
+import {
+  getTeachingWeekEnd,
+  getTeachingWeekOfDate,
+  getWeekCycleLabel,
+  parseLocalDate,
+} from '@/features/terms/calendarUtils';
+import {
+  getCompletedPreparationCount,
+  getCompletedPreparationSteps,
+  getCurrentPreparationStep,
+  getPreparationStepStatus,
+  getScheduleEntryCopy,
+  getStepCopyFor,
+  PREPARATION_STEP_TOTAL,
+  PREPARATION_STEPS,
+} from './workbenchModel';
+import type { PreparationStepKey, PreparationStepMeta } from './workbenchModel';
 import './workbench.css';
 
-type WorkbenchTerm = {
-  id: string;
-  title: string;
-  firstTeachingWeekStart: string | null;
-  teachingWeekCount: number;
-};
-
 interface WorkbenchPageProps {
-  activeTerm: WorkbenchTerm | null;
+  activeTerm: AcademicTerm | null;
   summary: WorkbenchSummary | null;
   onNavigate: (section: AppSection) => void;
   onSeedDemoData: () => Promise<void>;
 }
 
-const getStepBadge = (completed: boolean, available: boolean) => {
-  if (completed) return { label: '已完成', variant: 'success' as const };
-  if (!available) return { label: '待解锁', variant: 'secondary' as const };
-  return { label: '待完成', variant: 'warning' as const };
-};
+const GUIDE_STEPS: readonly {
+  number: number;
+  title: string;
+  description: string;
+}[] = [
+  {
+    number: 1,
+    title: '学段与班级',
+    description: '先创建学期并设置教学日历，再搭好学段、年级与班级。',
+  },
+  {
+    number: 2,
+    title: '作息设置',
+    description: '按学段设置上课日、各时段节数与节次时间。',
+  },
+  {
+    number: 3,
+    title: '科目节数',
+    description: '填写各年级每周各科所需的课时。',
+  },
+  {
+    number: 4,
+    title: '教师任课',
+    description: '为各班科目分配教师，补齐所需节数，完成后即可前往排课与课表。',
+  },
+];
+
+function formatZhDate(date: Date): string {
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatTermDateRange(term: AcademicTerm): string {
+  if (!term.firstTeachingWeekStart) return '尚未设置教学日历';
+  const start = parseLocalDate(term.firstTeachingWeekStart);
+  const end = getTeachingWeekEnd(term, term.teachingWeekCount);
+  if (!end) return '尚未设置教学日历';
+  return `${formatZhDate(start)} — ${formatZhDate(end)}`;
+}
 
 export const WorkbenchPage: React.FC<WorkbenchPageProps> = ({
   activeTerm,
@@ -36,293 +89,499 @@ export const WorkbenchPage: React.FC<WorkbenchPageProps> = ({
 }) => {
   const [seeding, setSeeding] = React.useState(false);
   const [seedMessage, setSeedMessage] = React.useState('');
-  const hasTerm = activeTerm !== null;
-  const progress: WorkbenchProgress = getWorkbenchProgress(hasTerm, summary);
-  const nextStep = progress.steps.find(
-    (step) => step.section === progress.nextSection
-  );
-  const nextAvailability = progress.nextSection
-    ? getNavSectionAvailability(progress.nextSection, hasTerm, summary)
+  const [selectedStepKey, setSelectedStepKey] =
+    React.useState<PreparationStepKey | null>(null);
+  const [guideOpen, setGuideOpen] = React.useState(false);
+
+  const doneCount = getCompletedPreparationCount(summary);
+  const currentStep = getCurrentPreparationStep(summary);
+  const completedSteps = getCompletedPreparationSteps(summary);
+
+  // 学期切换或当前进度推进时，重置手动回看的选择状态
+  React.useEffect(() => {
+    setSelectedStepKey(null);
+  }, [activeTerm?.id, currentStep?.key, doneCount]);
+
+  if (!activeTerm) {
+    return (
+      <div className="flex min-h-[360px] flex-col items-center justify-center rounded-card bg-surface p-8 text-center">
+        <CalendarX2
+          aria-hidden="true"
+          className="h-10 w-10 text-muted-foreground"
+        />
+        <h2 className="mt-3 text-[16px] font-semibold text-ink">
+          先创建一个学期
+        </h2>
+        <p className="mt-2 text-[12.5px] text-ink-secondary">
+          排课准备从学期开始：设置学年学期与教学日历。
+        </p>
+        <Button
+          className="mt-4"
+          onClick={() => onNavigate('terms')}
+          type="button"
+        >
+          前往学期与日历
+        </Button>
+      </div>
+    );
+  }
+
+  const maxUnlockedIndex = currentStep
+    ? currentStep.index
+    : PREPARATION_STEP_TOTAL - 1;
+
+  const selectedStep: PreparationStepMeta | null = selectedStepKey
+    ? (PREPARATION_STEPS.find(
+        (item) => item.key === selectedStepKey && item.index <= maxUnlockedIndex
+      ) ?? null)
     : null;
-  const completion = progress.completeCount / progress.totalCount;
-  const supportSections: {
-    section: AppSection;
-    title: string;
-    description: string;
-  }[] = [
-    {
-      section: 'supervision',
-      title: '带班安排',
-      description: '安排日常带班岗位与教师',
-    },
-    {
-      section: 'temporaryAdjustments',
-      title: '调代课',
-      description: '查看与处理本学期课务调整',
-    },
-  ];
+
+  const activeStep: PreparationStepMeta | null = selectedStep ?? currentStep;
+  const isPreviewingDoneStep =
+    selectedStep !== null && selectedStep.index < doneCount;
+
+  const heroCopy = activeStep
+    ? getStepCopyFor(activeStep, summary)
+    : getScheduleEntryCopy(summary);
+
+  const handleSelectStep = (step: PreparationStepMeta) => {
+    if (step.index > maxUnlockedIndex) return;
+    setSelectedStepKey((prev) => {
+      if (currentStep && step.key === currentStep.key) return null;
+      return prev === step.key ? null : step.key;
+    });
+  };
+
+  const handleSeedDemoData = async () => {
+    if (summary && summary.gradeCount > 0) {
+      setSeedMessage('当前学期已有年级数据，未生成演示数据。');
+      return;
+    }
+    setSeeding(true);
+    setSeedMessage('');
+    try {
+      await onSeedDemoData();
+      setSeedMessage(
+        '已生成演示数据：小学 36 个班、初中 24 个班，并配置作息、科目和教师任课。'
+      );
+    } catch (error) {
+      setSeedMessage(
+        `生成演示数据失败：${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const now = new Date();
+  const currentWeek = getTeachingWeekOfDate(activeTerm, now);
+  const termDisplayTitle =
+    activeTerm.academicYear && activeTerm.semesterLabel
+      ? `${activeTerm.academicYear} 学年 · ${activeTerm.semesterLabel}`
+      : activeTerm.title;
+  const completionRatio =
+    PREPARATION_STEP_TOTAL === 0 ? 0 : doneCount / PREPARATION_STEP_TOTAL;
 
   return (
-    <div className="workbench-container">
-      <div className="workbench-layout">
-        <section aria-labelledby="workbench-steps-title" className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2
-              className="text-[16px] font-semibold text-ink"
-              id="workbench-steps-title"
-            >
-              排课准备
-            </h2>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              {activeTerm && (
-                <Button
-                  disabled={seeding}
-                  onClick={async () => {
-                    setSeeding(true);
-                    setSeedMessage('');
-                    try {
-                      await onSeedDemoData();
-                      setSeedMessage('已生成演示数据：小学 36 个班、初中 24 个班，并配置作息、科目和教师任课。');
-                    } catch (error) {
-                      setSeedMessage(`生成演示数据失败：${error instanceof Error ? error.message : String(error)}`);
-                    } finally {
-                      setSeeding(false);
-                    }
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-                  {seeding ? '正在生成…' : '演示数据'}
-                </Button>
-              )}
-              <div className="flex w-full max-w-[320px] items-center gap-3 sm:w-[320px]">
-                <span className="shrink-0 text-[12.5px] tabular-nums text-ink-secondary">
-                  {progress.completeCount} / {progress.totalCount} 项
-                </span>
-                <div
-                  aria-label="排课准备进度"
-                  aria-valuemax={progress.totalCount}
-                  aria-valuemin={0}
-                  aria-valuenow={progress.completeCount}
-                  aria-valuetext={`已完成 ${progress.completeCount} 项，共 ${progress.totalCount} 项`}
-                  className="workbench-progress-track flex-1"
-                  role="progressbar"
-                >
-                  <span
-                    className="workbench-progress-fill"
-                    style={{ transform: `scaleX(${completion})` }}
-                  />
-                </div>
-              </div>
-            </div>
-            {seedMessage && (
-              <p
-                className="w-full text-[12.5px] text-ink-secondary"
-                role="status"
-                aria-live="polite"
+    <div className="workbench-container space-y-5">
+      {/* 顶部标题区：先把新学期的基础搭起来 + 演示数据按钮 */}
+      <div className="workbench-page-header">
+        <div className="min-w-0">
+          <h2 className="text-[26px] font-bold leading-[1.25] text-ink">
+            先把新学期的基础搭起来
+          </h2>
+          <p className="mt-1.5 text-[13.5px] leading-5 text-ink-secondary">
+            跟着步骤完成准备，课集会在合适的时候解锁下一步。
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            className="rounded-full px-4"
+            disabled={seeding}
+            onClick={handleSeedDemoData}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {seeding ? '正在生成…' : '演示数据'}
+          </Button>
+        </div>
+      </div>
+
+      {seedMessage && (
+        <p
+          aria-live="polite"
+          className="rounded-control bg-surface px-4 py-2.5 text-[12.5px] text-ink-secondary"
+          role="status"
+        >
+          {seedMessage}
+        </p>
+      )}
+
+      {/* 新学期排课准备：进度条 + 4 步横向指示卡片 */}
+      <section
+        aria-labelledby="workbench-steps-title"
+        className="rounded-card bg-surface px-5 pb-5 pt-[18px]"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h3
+            className="text-[14px] font-semibold text-ink"
+            id="workbench-steps-title"
+          >
+            新学期排课准备
+          </h3>
+          <Badge
+            className="border-0 bg-table-header px-2.5 py-0.5 text-[12px] font-medium tabular-nums text-ink-secondary"
+            variant="secondary"
+          >
+            {doneCount} / {PREPARATION_STEP_TOTAL} 完成
+          </Badge>
+        </div>
+
+        <div
+          aria-label="新学期排课准备进度"
+          aria-valuemax={PREPARATION_STEP_TOTAL}
+          aria-valuemin={0}
+          aria-valuenow={doneCount}
+          aria-valuetext={`已完成 ${doneCount} 步，共 ${PREPARATION_STEP_TOTAL} 步`}
+          className="workbench-progress-track mt-3"
+          role="progressbar"
+        >
+          <span
+            className="workbench-progress-fill"
+            style={{ transform: `scaleX(${completionRatio})` }}
+          />
+        </div>
+
+        <div className="workbench-steps-grid mt-3.5">
+          {PREPARATION_STEPS.map((step) => {
+            const status = getPreparationStepStatus(
+              step,
+              doneCount,
+              currentStep
+            );
+            const isLocked = status === 'locked';
+            const isSelected = activeStep?.key === step.key;
+            const isHighlighted = isSelected || status === 'current';
+
+            const statusLabel =
+              status === 'done'
+                ? '已完成'
+                : status === 'current'
+                  ? '当前步骤'
+                  : '完成前一步后解锁';
+
+            const tileStateClass = isSelected
+              ? 'workbench-step-tile-selected'
+              : status === 'current'
+                ? 'workbench-step-tile-current'
+                : status === 'done'
+                  ? 'workbench-step-tile-done'
+                  : 'workbench-step-tile-locked';
+
+            const dotStateClass =
+              status === 'done'
+                ? 'workbench-step-dot-done'
+                : status === 'current'
+                  ? 'workbench-step-dot-current'
+                  : 'workbench-step-dot-locked';
+
+            const titleColorClass =
+              status === 'locked'
+                ? 'text-muted-foreground'
+                : status === 'done' && !isSelected
+                  ? 'text-ink-secondary'
+                  : 'text-ink';
+
+            const statusColorClass =
+              status === 'done'
+                ? 'text-success'
+                : status === 'current'
+                  ? 'text-primary'
+                  : 'text-muted-foreground';
+
+            return (
+              <button
+                aria-current={status === 'current' ? 'step' : undefined}
+                aria-label={`第 ${step.number} 步：${step.title}（${statusLabel}）`}
+                className={`workbench-step-tile ${tileStateClass}`}
+                disabled={isLocked}
+                key={step.key}
+                onClick={() => handleSelectStep(step)}
+                type="button"
               >
-                {seedMessage}
-              </p>
-            )}
-          </div>
-
-          <ol className="workbench-step-list">
-            {progress.steps.map((step, index) => {
-              const availability = getNavSectionAvailability(
-                step.section,
-                hasTerm,
-                summary
-              );
-              const badge = getStepBadge(step.completed, availability.enabled);
-
-              return (
-                <li className="workbench-step" key={step.section}>
+                <div className="flex w-full items-center gap-2">
                   <span
                     aria-hidden="true"
-                    className={`workbench-step-marker ${
-                      step.completed ? 'workbench-step-marker-complete' : ''
-                    }`}
+                    className={`workbench-step-dot ${dotStateClass}`}
                   >
-                    {step.completed ? (
-                      <Check className="h-4 w-4" />
+                    {status === 'done' ? (
+                      <Check className="h-3 w-3 stroke-[2.6]" />
                     ) : (
-                      <span>{index + 1}</span>
+                      <span>{step.number}</span>
                     )}
                   </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-[14px] font-semibold text-ink">
-                        {step.title}
-                      </h3>
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                    </div>
-                    <p className="mt-1 text-[13px] leading-5 text-ink-secondary">
-                      {step.description}
-                    </p>
-                    {!availability.enabled && availability.reason && (
-                      <p className="mt-1 text-[12.5px] text-warning">
-                        {availability.reason}
-                      </p>
-                    )}
-                  </div>
-                  {availability.enabled && (
-                    <Button
-                      aria-label={`${step.completed ? '查看' : '前往'}${step.title}`}
-                      className="workbench-step-action"
-                      onClick={() => onNavigate(step.section)}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      {step.completed ? '查看' : '前往'}
-                      <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
+                  <span
+                    className={`truncate text-[12.5px] ${
+                      isHighlighted ? 'font-semibold' : 'font-medium'
+                    } ${titleColorClass}`}
+                  >
+                    {step.title}
+                  </span>
+                </div>
+                <span
+                  className={`mt-1.5 truncate text-[11px] ${statusColorClass}`}
+                >
+                  {statusLabel}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 第二行：接下来/排课入口引导卡 (5) + 当前学期卡片 (4) */}
+      <div className="workbench-dual-row">
+        <section
+          aria-labelledby="workbench-next-title"
+          className="workbench-hero-card"
+        >
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Badge
+                  className="bg-surface px-2.5 py-0.5 text-[12px] font-semibold text-primary"
+                  variant="default"
+                >
+                  {isPreviewingDoneStep
+                    ? '回看调整'
+                    : activeStep
+                      ? '接下来'
+                      : '基础已就绪'}
+                </Badge>
+                <span className="text-[12px] font-semibold text-primary">
+                  {activeStep
+                    ? `第 ${activeStep.number} 步`
+                    : '可前往排课与课表'}
+                </span>
+              </div>
+
+              {isPreviewingDoneStep && (
+                <button
+                  className="rounded-full bg-surface/90 px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-surface"
+                  onClick={() => setSelectedStepKey(null)}
+                  type="button"
+                >
+                  回到当前进度
+                </button>
+              )}
+            </div>
+
+            <h3
+              className="mt-3 text-[18px] font-bold leading-[1.3] text-ink"
+              id="workbench-next-title"
+            >
+              {heroCopy.title}
+            </h3>
+            <p className="mt-1.5 text-[13px] leading-[1.55] text-ink-secondary">
+              {heroCopy.description}
+            </p>
+            <p className="mt-3.5 text-[12px] text-muted-foreground">
+              {heroCopy.meta}
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => onNavigate(heroCopy.targetSection)}
+              type="button"
+            >
+              {!activeStep && (
+                <Sparkles aria-hidden="true" className="h-4 w-4" />
+              )}
+              {heroCopy.actionLabel}
+            </Button>
+          </div>
         </section>
 
-        <aside className="min-w-0 space-y-5">
-          <section
-            aria-labelledby="workbench-next-title"
-            className="workbench-next-panel"
-          >
-            {progress.isLoading ? (
-              <div aria-live="polite" role="status">
-                <h2
-                  className="text-[20px] font-semibold text-ink"
-                  id="workbench-next-title"
-                >
-                  正在读取本学期进度
-                </h2>
-                <p className="mt-2 text-[14px] leading-6 text-ink">
-                  数据载入后会显示建议的下一步。
-                </p>
-              </div>
-            ) : nextStep && nextAvailability?.enabled ? (
-              <>
-                <p className="text-[13px] font-medium text-ink-secondary">
-                  建议下一步
-                </p>
-                <h2
-                  className="mt-2 text-[20px] font-semibold text-ink"
-                  id="workbench-next-title"
-                >
-                  {nextStep.title}
-                </h2>
-                <p className="mt-2 text-[14px] leading-6 text-ink-secondary">
-                  {nextStep.description}
-                </p>
-                <Button
-                  className="mt-5 w-full"
-                  onClick={() => onNavigate(nextStep.section)}
-                  type="button"
-                >
-                  {activeTerm ? '继续设置' : '创建学期'}
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </Button>
-              </>
-            ) : nextStep ? (
-              <>
-                <p className="text-[13px] font-medium text-warning">等待前置步骤</p>
-                <h2
-                  className="mt-2 text-[20px] font-semibold text-ink"
-                  id="workbench-next-title"
-                >
-                  {nextStep.title}
-                </h2>
-                <p className="mt-2 text-[14px] leading-6 text-ink-secondary">
-                  {nextAvailability?.reason ?? '请先完成前面的设置。'}
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 text-success">
-                  <Sparkles aria-hidden="true" className="h-4 w-4" />
-                  <p className="text-[13px] font-semibold">排课准备已完成</p>
+        <section
+          aria-labelledby="workbench-term-title"
+          className="workbench-surface-card workbench-surface-card-interactive"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <h3
+                className="text-[14px] font-semibold text-ink"
+                id="workbench-term-title"
+              >
+                当前学期
+              </h3>
+              <Badge
+                variant={currentWeek !== null ? 'success' : 'secondary'}
+              >
+                {currentWeek !== null ? '进行中' : '未开始'}
+              </Badge>
+            </div>
+
+            <div className="mt-3 text-[15.5px] font-semibold text-ink">
+              {termDisplayTitle}
+            </div>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              {formatTermDateRange(activeTerm)}
+            </p>
+
+            <div className="mt-3">
+              {currentWeek !== null ? (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-bold tabular-nums text-primary-foreground">
+                    {currentWeek}
+                  </span>
+                  <span className="text-[12.5px] text-ink-secondary">
+                    第 {currentWeek} 教学周 ·{' '}
+                    {getWeekCycleLabel(activeTerm, currentWeek)}
+                  </span>
                 </div>
-                <h2
-                  className="mt-2 text-[20px] font-semibold text-ink"
-                  id="workbench-next-title"
-                >
-                  继续安排带班
-                </h2>
-                <p className="mt-2 text-[14px] leading-6 text-ink-secondary">
-                  核心排课设置已齐备，可以接着处理带班岗位与课务调整。
+              ) : (
+                <p className="text-[12px] text-muted-foreground">
+                  {activeTerm.firstTeachingWeekStart
+                    ? '当前日期不在本学期教学周范围内。'
+                    : '尚未设置第 1 教学周起始日，暂无法定位教学周。'}
                 </p>
-                <Button
-                  className="mt-5 w-full"
-                  onClick={() => onNavigate('supervision')}
-                  type="button"
-                >
-                  打开带班安排
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-          </section>
+              )}
+            </div>
+          </div>
 
-          <section aria-labelledby="workbench-followups-title">
-            <h2
-              className="mb-2 text-[14px] font-semibold text-ink"
-              id="workbench-followups-title"
+          <div className="mt-3.5">
+            <Button
+              className="-ml-3 px-3 text-[13px] font-semibold text-ink hover:text-primary"
+              onClick={() => onNavigate('terms')}
+              size="sm"
+              type="button"
+              variant="ghost"
             >
-              课务安排
-            </h2>
-            <ul className="divide-y divide-table-divider border-y border-table-divider">
-              {supportSections.map((item) => {
-                const availability = getNavSectionAvailability(
-                  item.section,
-                  hasTerm,
-                  summary
-                );
-
-                return (
-                  <li
-                    className="flex flex-wrap items-center justify-between gap-3 py-3"
-                    key={item.section}
-                  >
-                    <div className="min-w-0">
-                      <div className="text-[13.5px] font-medium text-ink">
-                        {item.title}
-                      </div>
-                      <p className="mt-0.5 text-[12.5px] text-ink-secondary">
-                        {availability.enabled
-                          ? item.description
-                          : availability.reason}
-                      </p>
-                    </div>
-                    {availability.enabled ? (
-                      <Button
-                        aria-label={`前往${item.title}`}
-                        className="shrink-0"
-                        onClick={() => onNavigate(item.section)}
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        打开
-                        <ArrowRight
-                          aria-hidden="true"
-                          className="h-3.5 w-3.5"
-                        />
-                      </Button>
-                    ) : (
-                      <Badge className="shrink-0" variant="secondary">
-                        待解锁
-                      </Badge>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        </aside>
+              查看学期与日历
+              <ChevronRight aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          </div>
+        </section>
       </div>
+
+      {/* 第三行：已完成的准备 (5) + 数据只保存在这台设备 (4) */}
+      <div className="workbench-dual-row">
+        <section
+          aria-labelledby="workbench-completed-title"
+          className="workbench-surface-card"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <h3
+                className="text-[14px] font-semibold text-ink"
+                id="workbench-completed-title"
+              >
+                已完成的准备
+              </h3>
+              <span className="text-[11.5px] text-muted-foreground">
+                随时可调整
+              </span>
+            </div>
+
+            <div className="mt-3.5">
+              {completedSteps.length === 0 ? (
+                <p className="text-[12.5px] leading-[1.5] text-muted-foreground">
+                  还没有完成的准备，从「学段与班级」开始吧。
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {completedSteps.map((step) => {
+                    const isChipSelected = selectedStep?.key === step.key;
+                    return (
+                      <button
+                        className={`workbench-completed-chip ${
+                          isChipSelected
+                            ? 'workbench-completed-chip-selected'
+                            : ''
+                        }`}
+                        key={step.key}
+                        onClick={() => handleSelectStep(step)}
+                        type="button"
+                      >
+                        <CheckCircle2
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5 shrink-0 text-success"
+                        />
+                        <span>{step.title} · 已完成</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section
+          aria-labelledby="workbench-local-data-title"
+          className="workbench-surface-card"
+        >
+          <div>
+            <h3
+              className="text-[14px] font-semibold text-ink"
+              id="workbench-local-data-title"
+            >
+              数据只保存在这台设备
+            </h3>
+            <p className="mt-2 text-[12.5px] leading-[1.55] text-ink-secondary">
+              离线也能排课，数据文件可随时备份。
+            </p>
+          </div>
+
+          <div className="mt-3">
+            <Button
+              className="-ml-3 px-3 text-[13px] font-semibold text-ink hover:text-primary"
+              onClick={() => setGuideOpen(true)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              查看四步上手指南
+              <ChevronRight aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          </div>
+        </section>
+      </div>
+
+      {/* 四步上手指南弹窗 */}
+      <Dialog onOpenChange={setGuideOpen} open={guideOpen}>
+        <DialogContent className="max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>四步上手指南</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {GUIDE_STEPS.map((item) => (
+              <div className="flex items-start gap-2.5" key={item.number}>
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-selection text-[11px] font-bold text-primary">
+                  {item.number}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold text-ink">
+                    {item.title}
+                  </div>
+                  <p className="mt-0.5 text-[12px] leading-[1.5] text-ink-secondary">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setGuideOpen(false)} type="button">
+              知道了
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

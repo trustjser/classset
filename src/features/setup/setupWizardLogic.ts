@@ -5,8 +5,8 @@ import { formatDateYmd, parseLocalDate } from '@/features/terms/calendarUtils';
 export const SETUP_WIZARD_TOTAL_STEPS = 2 as const;
 
 export const SCHOOL_NAME_SUGGESTIONS = [
-  '青木实验小学',
-  '青木初级中学',
+  '阳光实验小学',
+  '阳光初级中学',
   '第一高级中学',
   '实验学校',
 ] as const;

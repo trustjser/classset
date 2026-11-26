@@ -341,7 +341,7 @@ export const SetupWizardPage: React.FC = () => {
                   autoFocus
                   value={schoolName}
                   onChange={(event) => setSchoolName(event.currentTarget.value)}
-                  placeholder="如：青木实验小学"
+                  placeholder="如：阳光实验小学"
                 />
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">

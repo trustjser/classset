@@ -9,6 +9,17 @@ import {
   getPeriodAccentColor,
 } from '@/domain/routineUtils';
 import {
+  getCompletedPreparationCount,
+  getCompletedPreparationSteps,
+  getCurrentPreparationStep,
+  getPreparationStepStatus,
+  getScheduleEntryCopy,
+  getStepCopyFor,
+  getWorkbenchProgress,
+  PREPARATION_STEP_TOTAL,
+  PREPARATION_STEPS,
+} from '@/features/workbench/workbenchModel';
+import {
   parseNumericDraft,
   normalizeNumericValue,
   numericInputDraftReducer,
@@ -118,6 +129,82 @@ describe('domain/models.ts - getNavSectionAvailability', () => {
         baseSummary({ teacherAssignmentsReady: false, hasSchedule: false, hasSavedTimetable: true })
       )
     ).toEqual({ enabled: true, reason: null });
+  });
+});
+
+describe('features/workbench/workbenchModel.ts - 4步排课准备与排课入口', () => {
+  it('排课准备精简为 4 个基础搭建步骤（不含开始排课）', () => {
+    expect(PREPARATION_STEP_TOTAL).toBe(4);
+    expect(PREPARATION_STEPS.map((s) => [s.number, s.title, s.section])).toEqual([
+      [1, '学段与班级', 'classes'],
+      [2, '作息设置', 'routines'],
+      [3, '科目节数', 'subjects'],
+      [4, '教师任课', 'teachers'],
+    ]);
+  });
+
+  it('按级联顺序计算已完成步数、当前步骤与各步状态', () => {
+    const step2Summary = baseSummary({
+      stagesDone: true,
+      routineDone: false,
+      subjectLessonsReady: false,
+      teacherAssignmentsReady: false,
+      hasSchedule: false,
+    });
+    expect(getCompletedPreparationCount(step2Summary)).toBe(1);
+    const currentStep = getCurrentPreparationStep(step2Summary);
+    expect(currentStep?.key).toBe('routine');
+    expect(getCompletedPreparationSteps(step2Summary).map((s) => s.key)).toEqual([
+      'stagesAndClasses',
+    ]);
+    expect(
+      PREPARATION_STEPS.map((step) =>
+        getPreparationStepStatus(step, 1, currentStep)
+      )
+    ).toEqual(['done', 'current', 'locked', 'locked']);
+  });
+
+  it('4 步基础搭建全部完成后，当前准备步骤为空并提供排课与课表跳转入口', () => {
+    const allSetupDone = baseSummary({
+      stagesDone: true,
+      routineDone: true,
+      subjectLessonsReady: true,
+      teacherAssignmentsReady: true,
+      hasSchedule: false,
+      hasSavedTimetable: false,
+    });
+    expect(getCompletedPreparationCount(allSetupDone)).toBe(4);
+    expect(getCurrentPreparationStep(allSetupDone)).toBeNull();
+    expect(getCompletedPreparationSteps(allSetupDone)).toHaveLength(4);
+
+    const scheduleEntry = getScheduleEntryCopy(allSetupDone);
+    expect(scheduleEntry.targetSection).toBe('scheduling');
+    expect(scheduleEntry.actionLabel).toBe('去排课');
+
+    const withSchedule = getScheduleEntryCopy(
+      baseSummary({ hasSchedule: true })
+    );
+    expect(withSchedule.targetSection).toBe('scheduling');
+    expect(withSchedule.actionLabel).toBe('打开课表');
+
+    const progress = getWorkbenchProgress(true, allSetupDone);
+    expect(progress.completeCount).toBe(4);
+    expect(progress.totalCount).toBe(4);
+    expect(progress.nextSection).toBe('scheduling');
+  });
+
+  it('为每个准备步骤生成对应的引导文案与统计摘要', () => {
+    const summary = baseSummary({
+      stageCount: 2,
+      gradeCount: 9,
+      classCount: 60,
+      routineDone: true,
+      teacherAssignmentsReady: false,
+    });
+    expect(getStepCopyFor(PREPARATION_STEPS[0], summary).meta).toContain('2 个学段 · 9 个年级 · 60 个班级');
+    expect(getStepCopyFor(PREPARATION_STEPS[1], summary).meta).toBe('2 / 2 个学段已配置作息');
+    expect(getStepCopyFor(PREPARATION_STEPS[2], summary).meta).toBe('已准备 9 个年级');
+    expect(getStepCopyFor(PREPARATION_STEPS[3], summary).actionLabel).toBe('去分配教师任课');
   });
 });
 
