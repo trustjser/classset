@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
-import { ArrowDownToLine, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Lock, LockOpen, MousePointerClick, Redo2, Search, SlidersHorizontal, Sparkles, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { ArrowDownToLine, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Loader2, Lock, LockOpen, MousePointerClick, Redo2, Search, SlidersHorizontal, Sparkles, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -201,10 +201,13 @@ function ModalFrame({ title, description, children, actions, onClose, wide = fal
   title: string; description: string; children?: ReactNode; actions?: ReactNode; onClose: () => void; wide?: boolean;
 }) {
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent className={`max-h-[86vh] overflow-auto ${wide ? 'max-w-[730px]' : ''}`}>
-      <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
-      {children}
-      <DialogFooter>{actions ?? <Button onClick={onClose}>完成</Button>}</DialogFooter>
+    <DialogContent className={`flex max-h-[86vh] flex-col gap-0 overflow-hidden p-0 ${wide ? 'max-w-[730px]' : ''}`}>
+      <DialogHeader className="shrink-0 px-6 pt-6 pb-3.5 pr-12">
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      {children && <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">{children}</div>}
+      <DialogFooter className="shrink-0 px-6 py-3.5">{actions ?? <Button onClick={onClose}>完成</Button>}</DialogFooter>
     </DialogContent>
   </Dialog>;
 }
@@ -825,11 +828,24 @@ function TermSchedulingPage({ termId }: { termId: string }) {
     {error && <div role="alert" className="schedule-error flex items-center justify-between gap-2">
       <span>{error}</span><Button variant="ghost" size="sm" disabled={busy} onClick={() => void perform(reload)}>刷新</Button>
     </div>}
-    {progress && <div className="schedule-alert flex flex-wrap items-center gap-3" role="status">
-      <span>正在自动排课</span><Progress aria-label="排课进度" className="min-w-[12rem] max-w-[20rem] flex-1" value={progress.total ? progress.done / progress.total * 100 : null} />
-      <span>{progress.total ? `${Math.round(progress.done / progress.total * 100)}%` : '准备中…'}</span>
-      <Button variant="outline" size="sm" onClick={() => cancelSolve.current?.()}>取消排课</Button>
-    </div>}
+    {progress && <section className="flex items-center gap-3.5 rounded-[16px] border border-brand-accent/25 bg-surface px-4 py-3 shadow-sm" role="status" aria-live="polite">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-selection text-brand-accent" aria-hidden="true">
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="text-[13.5px] font-semibold text-ink">正在自动排课</span>
+            {solveClasses.length > 0 && <span className="truncate text-xs text-ink-secondary">共 {solveClasses.length} 个班级</span>}
+          </div>
+          <span className="shrink-0 text-[13px] font-semibold tabular-nums text-brand-accent">
+            {progress.total ? `${Math.round(progress.done / progress.total * 100)}%` : '准备中…'}
+          </span>
+        </div>
+        <Progress aria-label="排课进度" className="h-2 w-full" value={progress.total ? progress.done / progress.total * 100 : null} />
+      </div>
+      <Button variant="outline" size="sm" className="h-8 shrink-0 text-xs text-ink-secondary hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive" onClick={() => cancelSolve.current?.()}>取消排课</Button>
+    </section>}
     {feedback && <div className="flex items-center justify-between gap-3 rounded-control border border-border bg-surface px-3 py-2 text-sm text-ink-secondary" role="status">
       <span>{feedback}</span>
       <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="关闭提示" onClick={() => setFeedback('')}>

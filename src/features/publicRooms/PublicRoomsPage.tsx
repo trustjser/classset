@@ -314,9 +314,6 @@ export const PublicRoomsPage: React.FC = () => {
             >
               <Plus className="w-4 h-4" />
               <span>添加场室</span>
-              <span className="font-normal text-ink-secondary">
-                （名称 / 个数 / 容量，容量单位为“班”）
-              </span>
             </button>
           </div>
         </div>
