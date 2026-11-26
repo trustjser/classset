@@ -107,7 +107,6 @@ export const AppShell: React.FC = () => {
     schoolName,
     activeTermId,
     terms,
-    adjustments,
     summary,
     lastPersistedAt,
     setPalette,

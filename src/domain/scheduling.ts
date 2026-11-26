@@ -152,7 +152,7 @@ const teacherName = (context: ScheduleContext, item: ScheduleItem) => context.te
 const className = (context: ScheduleContext, item: ScheduleItem) => context.classes.get(item.classId)?.name ?? '班级';
 const weekModeName = (mode: ScheduleItem['weekMode']) => mode === 'weekly' ? '每周' : mode === 'odd' ? '单周' : '双周';
 const meetingKey = (item: ScheduleItem) => item.meetingId ?? item.id;
-const teachingMeetingKey = (item: ScheduleItem) => item.combinedGroupId && item.meetingId
+export const teachingMeetingKey = (item: ScheduleItem) => item.combinedGroupId && item.meetingId
   ? `${item.combinedGroupId}:${item.meetingId}` : item.id;
 const adjacent = (a: ScheduleSlot, b: ScheduleSlot) => a.stageId === b.stageId && a.weekday === b.weekday && Math.abs(a.order - b.order) === 1;
 

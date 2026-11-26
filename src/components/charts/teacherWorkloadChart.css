@@ -1,0 +1,59 @@
+.teacher-workload-chart {
+  --workload-day1: #6993e7;
+  --workload-day2: #6390e6;
+  --workload-day3: #5e8be5;
+  --workload-day4: #5887e4;
+  --workload-day5: #5282e3;
+  --workload-day6: #4c7ee2;
+  --workload-day7: #467ae1;
+}
+
+[data-theme-mode="dark"] .teacher-workload-chart {
+  --workload-day1: #5c729e;
+  --workload-day2: #657ead;
+  --workload-day3: #6f89bd;
+  --workload-day4: #7895cc;
+  --workload-day5: #82a0dc;
+  --workload-day6: #8caded;
+  --workload-day7: #97baff;
+}
+
+[data-palette="teal"] .teacher-workload-chart {
+  --workload-day1: #489fa8;
+  --workload-day2: #429ba5;
+  --workload-day3: #3b98a1;
+  --workload-day4: #34949e;
+  --workload-day5: #2e919b;
+  --workload-day6: #278d98;
+  --workload-day7: #218a95;
+}
+
+[data-palette="teal"][data-theme-mode="dark"] .teacher-workload-chart {
+  --workload-day1: #4a8586;
+  --workload-day2: #529293;
+  --workload-day3: #599f9f;
+  --workload-day4: #60acac;
+  --workload-day5: #67b9b9;
+  --workload-day6: #70c8c7;
+  --workload-day7: #78d7d6;
+}
+
+[data-palette="cloud"] .teacher-workload-chart {
+  --workload-day1: #8994a6;
+  --workload-day2: #8490a3;
+  --workload-day3: #808b9f;
+  --workload-day4: #7b869b;
+  --workload-day5: #758197;
+  --workload-day6: #707c93;
+  --workload-day7: #6a778f;
+}
+
+[data-palette="cloud"][data-theme-mode="dark"] .teacher-workload-chart {
+  --workload-day1: #737e90;
+  --workload-day2: #7f8b9e;
+  --workload-day3: #8b97ac;
+  --workload-day4: #96a4ba;
+  --workload-day5: #a2b1c9;
+  --workload-day6: #b0bfd9;
+  --workload-day7: #bdcee9;
+}

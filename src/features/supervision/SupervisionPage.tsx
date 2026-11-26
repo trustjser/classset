@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
@@ -75,6 +75,106 @@ interface SupervisionPageProps {
 }
 
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const TeacherWorkloadChart = memo(lazy(() =>
+  import('@/components/charts/TeacherWorkloadChart').then((module) => ({ default: module.TeacherWorkloadChart }))
+));
+
+interface SupervisionTeacherCardsProps {
+  teachers: ScheduleData['teachers'];
+  draft: SupervisionDraft | undefined;
+  classMap: ReadonlyMap<string, string>;
+}
+
+const SupervisionTeacherCards = memo(function SupervisionTeacherCards({
+  teachers, draft, classMap,
+}: SupervisionTeacherCardsProps) {
+  const postsByTeacher = new Map<string, SupervisionPost[]>();
+  if (draft) {
+    for (const post of draft.posts) {
+      const teacherId = draft.assignments[post.id];
+      if (!teacherId) continue;
+      const posts = postsByTeacher.get(teacherId);
+      if (posts) posts.push(post);
+      else postsByTeacher.set(teacherId, [post]);
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {teachers.map((teacher) => {
+        const assignedPosts = postsByTeacher.get(teacher.id) ?? [];
+        const weeklyLessons = assignedPosts.reduce(
+          (sum, p) => sum + p.lessonIndices.length,
+          0
+        );
+        const weeklyDays = new Set(assignedPosts.map((p) => p.weekday)).size;
+
+        const rule = draft?.rules[teacher.id];
+        const exceedsLessons = rule?.maxLessons != null && weeklyLessons > rule.maxLessons;
+        const exceedsDays = rule?.maxDays != null && weeklyDays > rule.maxDays;
+
+        return (
+          <div
+            key={teacher.id}
+            className="rounded-xl bg-surface p-3 space-y-2.5 text-xs flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-semibold text-sm text-ink">{teacher.name}</span>
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] h-5 px-1.5 ${
+                      exceedsLessons || exceedsDays
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-canvas text-ink-secondary'
+                    }`}
+                  >
+                    {weeklyLessons} 节 · {weeklyDays} 天
+                  </Badge>
+                </div>
+              </div>
+
+              {rule && (rule.maxLessons != null || rule.maxDays != null) && (
+                <div className="text-[10px] text-ink-secondary mb-2">
+                  上限: {rule.maxLessons != null ? `${rule.maxLessons}节` : '无限制'} /{' '}
+                  {rule.maxDays != null ? `${rule.maxDays}天` : '无限制'}
+                </div>
+              )}
+
+              {assignedPosts.length === 0 ? (
+                <div className="text-ink-secondary/60 text-[11px] py-4 text-center">
+                  本周无带班任务
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {assignedPosts.map((post) => {
+                    const classNames = post.classIds
+                      .map((id) => classMap.get(id) ?? id)
+                      .join('、');
+                    return (
+                      <div
+                        key={post.id}
+                        className="p-1.5 rounded bg-canvas/50 border border-border/50 text-[11px] flex items-center justify-between"
+                      >
+                        <span className="text-ink">
+                          {WEEKDAYS[post.weekday - 1]} · {post.name} ({classNames})
+                        </span>
+                        <span className="text-ink-secondary font-medium">
+                          第{post.lessonIndices.join('、')}节
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
 
 const copyMatchingPreferences = (
   preferences: SupervisionMatchingPreferences
@@ -235,7 +335,7 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
     : bulkPoolId !== '__keep__' || bulkPreferenceMode !== 'keep';
 
   useEffect(() => {
-    setSelectedPostIds(new Set());
+    setSelectedPostIds((previous) => previous.size > 0 ? new Set() : previous);
   }, [activeVersionDate, missingOnly, searchQuery, unmetOnly, viewMode]);
 
   // Save draft
@@ -588,7 +688,7 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
 
   // Filtered posts
   const filteredPosts = useMemo(() => {
-    if (!activeDraft) return [];
+    if (!activeDraft || viewMode === 'teacher') return [];
     let list = activeDraft.posts;
 
     if (searchQuery.trim()) {
@@ -619,7 +719,33 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
     }
 
     return list;
-  }, [activeDraft, classMap, matching, missingOnly, searchQuery, teacherMap, unmetOnly]);
+  }, [activeDraft, classMap, matching, missingOnly, searchQuery, teacherMap, unmetOnly, viewMode]);
+
+  const filteredTeachers = useMemo(() => {
+    const teachers = snapshot?.teachers ?? [];
+    if (viewMode !== 'teacher') return teachers;
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return teachers;
+
+    const matchingTeacherIds = new Set(
+      teachers
+        .filter((teacher) => teacher.name.toLowerCase().includes(query))
+        .map((teacher) => teacher.id)
+    );
+
+    for (const post of activeDraft?.posts ?? []) {
+      const teacherId = activeDraft?.assignments[post.id];
+      if (!teacherId || matchingTeacherIds.has(teacherId)) continue;
+
+      const postMatches =
+        post.name.toLowerCase().includes(query) ||
+        post.groupName.toLowerCase().includes(query) ||
+        post.classIds.some((id) => (classMap.get(id) ?? '').toLowerCase().includes(query));
+      if (postMatches) matchingTeacherIds.add(teacherId);
+    }
+
+    return teachers.filter((teacher) => matchingTeacherIds.has(teacher.id));
+  }, [activeDraft, classMap, searchQuery, snapshot?.teachers, viewMode]);
 
   const allVisiblePostsSelected =
     filteredPosts.length > 0 && filteredPosts.every((post) => selectedPostIds.has(post.id));
@@ -804,7 +930,7 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-dashed px-3 py-1.5">
           <div className="flex min-w-[18rem] flex-1 flex-wrap items-center gap-2">
-            <div className="relative w-44 max-w-full transition-[width] duration-200 focus-within:w-72">
+            <div className="relative w-[190px] max-w-full transition-[width] duration-200 focus-within:w-72">
               <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-ink-secondary" />
               <Input
                 value={searchQuery}
@@ -925,8 +1051,20 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
         </div>
       )}
 
+      {viewMode === 'teacher' && filteredTeachers.length > 0 && (
+        <Suspense fallback={<p role="status" className="p-4 text-sm text-ink-secondary">正在加载教师任课负载…</p>}>
+          <TeacherWorkloadChart
+            key={snapshot.term.id}
+            teachers={filteredTeachers}
+            items={snapshot.items}
+            supervisionPlan={activeDraft}
+            cycleMode={snapshot.term.cycleMode}
+          />
+        </Suspense>
+      )}
+
       {/* Main View Display */}
-      {activeDraft?.posts.length === 0 ? (
+      {activeDraft?.posts.length === 0 && viewMode !== 'teacher' ? (
         <div className="p-16 border border-dashed border-border rounded-2xl bg-surface text-center space-y-3">
           <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
             <Users className="h-6 w-6" />
@@ -1057,81 +1195,13 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
         </div>
       ) : (
         /* ================= 3. 教师视图 ================= */
-        <div className="grid grid-cols-3 gap-3">
-          {snapshot.teachers.map((teacher) => {
-            const assignedPosts = (activeDraft?.posts ?? []).filter(
-              (p) => activeDraft?.assignments[p.id] === teacher.id
-            );
-            const weeklyLessons = assignedPosts.reduce(
-              (sum, p) => sum + p.lessonIndices.length,
-              0
-            );
-            const weeklyDays = new Set(assignedPosts.map((p) => p.weekday)).size;
-
-            const rule = activeDraft?.rules[teacher.id];
-            const exceedsLessons = rule?.maxLessons != null && weeklyLessons > rule.maxLessons;
-            const exceedsDays = rule?.maxDays != null && weeklyDays > rule.maxDays;
-
-            return (
-              <div
-                key={teacher.id}
-                className="rounded-xl bg-surface p-3 space-y-2.5 text-xs flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold text-sm text-ink">{teacher.name}</span>
-                    <div className="flex items-center gap-1.5">
-                      <Badge
-                        variant="secondary"
-                        className={`text-[10px] h-5 px-1.5 ${
-                          exceedsLessons || exceedsDays
-                            ? 'bg-destructive/10 text-destructive'
-                            : 'bg-canvas text-ink-secondary'
-                        }`}
-                      >
-                        {weeklyLessons} 节 · {weeklyDays} 天
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {rule && (rule.maxLessons != null || rule.maxDays != null) && (
-                    <div className="text-[10px] text-ink-secondary mb-2">
-                      上限: {rule.maxLessons != null ? `${rule.maxLessons}节` : '无限制'} /{' '}
-                      {rule.maxDays != null ? `${rule.maxDays}天` : '无限制'}
-                    </div>
-                  )}
-
-                  {assignedPosts.length === 0 ? (
-                    <div className="text-ink-secondary/60 text-[11px] py-4 text-center">
-                      本周无带班任务
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {assignedPosts.map((post) => {
-                        const classNames = post.classIds
-                          .map((id) => classMap.get(id) ?? id)
-                          .join('、');
-                        return (
-                          <div
-                            key={post.id}
-                            className="p-1.5 rounded bg-canvas/50 border border-border/50 text-[11px] flex items-center justify-between"
-                          >
-                            <span className="text-ink">
-                              {WEEKDAYS[post.weekday - 1]} · {post.name} ({classNames})
-                            </span>
-                            <span className="text-ink-secondary font-medium">
-                              第{post.lessonIndices.join('、')}节
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        filteredTeachers.length > 0 ? (
+          <SupervisionTeacherCards teachers={filteredTeachers} draft={activeDraft} classMap={classMap} />
+        ) : (
+          <div role="status" className="rounded-xl bg-surface p-10 text-center text-sm text-ink-secondary">
+            {searchQuery.trim() ? '没有找到匹配的教师或岗位' : '暂无教师'}
+          </div>
+        )
       )}
 
       <div
