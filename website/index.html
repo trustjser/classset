@@ -3,17 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>课集 ClassSet · 跨平台桌面排课软件</title>
-  <meta name="description" content="课集 ClassSet 是面向中小学教务的纯本地桌面排课软件，原生支持跨学段一贯制、单双周、按天差异作息与晚自习。从资料到课表，一条清晰的工作流；纯本地、离线可用、一次性买断。" />
-  <meta name="keywords" content="排课软件,课表,跨平台,单双周,一贯制,免任课,自动排课,课集,ClassSet" />
+  <title>课集 ClassSet · 免费跨平台排课软件（支持浏览器版）</title>
+  <meta name="description" content="课集 ClassSet 是面向中小学教务的纯本地排课软件，现已推出浏览器在线版并全面免费使用。原生支持跨学段一贯制、单双周、按天差异作息与晚自习，从资料到课表，一条清晰的工作流；纯本地、离线可用、数据不上云。" />
+  <meta name="keywords" content="排课软件,免费排课软件,网页排课,在线排课,课表,跨平台,单双周,一贯制,免任课,自动排课,课集,ClassSet" />
   <meta name="author" content="课集 ClassSet" />
 
   <!-- Open Graph / 社交分享 -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="课集 ClassSet · 跨平台桌面排课软件" />
-  <meta property="og:description" content="让排课清楚、安静、可信。跨学段一贯制、单双周、按天差异作息与晚自习，纯本地、一次性买断。" />
+  <meta property="og:title" content="课集 ClassSet · 免费跨平台排课软件（支持浏览器版）" />
+  <meta property="og:description" content="让排课清楚、安静、可信。跨学段一贯制、单双周、按天差异作息与晚自习，纯本地存储、免费使用、支持浏览器直接打开。" />
   <meta property="og:locale" content="zh_CN" />
   <link rel="canonical" href="https://classset.app/" />
+  <meta name="theme-color" content="#2864dc" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="课集" />
+  <link rel="manifest" href="./classsetapp/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./classsetapp/icons/apple-touch-icon.png" />
 
   <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg" />
   <link rel="stylesheet" href="assets/css/styles.css" />
@@ -48,7 +54,7 @@
       </nav>
 
       <div class="nav__actions">
-        <a class="btn btn--primary" href="#download">免费下载</a>
+        <a class="btn btn--primary" href="./classsetapp/">打开网页版</a>
         <button class="nav__toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false" aria-controls="mobileMenu">
           <span></span><span></span><span></span>
         </button>
@@ -61,7 +67,7 @@
       <a href="#why">为什么选课集</a>
       <a href="#workflow">工作流</a>
       <a href="#download">下载</a>
-      <a class="btn btn--primary btn--block" href="#download">免费下载</a>
+      <a class="btn btn--primary btn--block" href="./classsetapp/">打开网页版</a>
     </div>
   </header>
 
@@ -70,18 +76,19 @@
     <section class="hero">
       <div class="container hero__inner">
         <div class="hero__copy reveal">
-          <p class="eyebrow">跨平台桌面排课软件</p>
+          <p class="eyebrow">免费跨平台排课软件 · 浏览器版已上线</p>
           <h1 class="hero__title">让排课，<br/>清楚、安静、可信</h1>
           <p class="hero__sub">
-            课集 ClassSet 是面向中小学教务的<strong>本地排课软件</strong>，原生支持跨学段一贯制、单双周、按天差异作息与晚自习。从资料到课表，一条清晰的工作流。纯本地、离线可用、一次性买断。
+            课集 ClassSet 是面向中小学教务的<strong>纯本地排课软件</strong>，现已推出浏览器版并全面免费使用。原生支持跨学段一贯制、单双周、按天差异作息与晚自习，从资料到课表，一条清晰的工作流。数据存本机、离线可用、无需付费。
           </p>
           <div class="hero__cta">
-            <a class="btn btn--primary btn--lg" href="#download">免费下载</a>
-            <a class="btn btn--ghost btn--lg" href="#features">查看功能</a>
+            <a class="btn btn--primary btn--lg" href="./classsetapp/">立即使用网页版</a>
+            <button class="btn btn--ghost btn--lg" type="button" id="pwaInstallHero" hidden>安装桌面应用 (PWA)</button>
+            <a class="btn btn--ghost btn--lg" href="#download">下载桌面版</a>
           </div>
           <ul class="hero__trust">
-            <li>支持 macOS · Windows · Linux</li>
-            <li>免费版长期可用</li>
+            <li>浏览器即开即用 · 支持桌面三端</li>
+            <li>全功能免费使用，无限制</li>
             <li>数据存本机，不上云</li>
           </ul>
         </div>
@@ -161,7 +168,7 @@
         <div class="section__head reveal">
           <p class="eyebrow">核心功能</p>
           <h2 class="section__title">覆盖「资料 → 约束 → 排课 → 课表 → 导出」全流程</h2>
-          <p class="section__lead">原生跨平台桌面应用，界面现代、操作克制，从资料到课表一条清晰的工作流。</p>
+          <p class="section__lead">支持浏览器直接打开，也提供原生桌面应用；界面现代、操作克制，从资料到课表一条清晰的工作流。</p>
         </div>
 
         <div class="grid grid--3">
@@ -208,7 +215,7 @@
           <article class="card reveal">
             <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
             <h3 class="card__title">纯本地、离线可用</h3>
-            <p class="card__text">单文件 SQLite 自包含，无云同步、无账号、不采集任何遥测。换机用备份文件即可继续。</p>
+            <p class="card__text">浏览器版与桌面版均支持纯本地存储，无需账号、不采集任何遥测。换机用备份文件即可继续。</p>
           </article>
         </div>
       </div>
@@ -226,11 +233,11 @@
           <div class="compare__col compare__col--us">
             <h3 class="compare__head">课集 ClassSet</h3>
             <ul class="compare__list">
-              <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 原生 macOS / Windows / Linux，适配 Apple Silicon</li>
+              <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 浏览器即开即用，并提供 macOS / Windows / Linux 桌面版</li>
               <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 温暖克制的现代界面，重要操作易找</li>
               <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 跨学段一贯制、单双周、按天差异作息</li>
-              <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 单文件数据，纯本地离线，无遥测</li>
-              <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 免费版长期可用，正式版一次性买断</li>
+              <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 纯本地存储，离线可用，无账号无遥测</li>
+              <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg></span> 全功能免费使用，无导入导出或时长限制</li>
             </ul>
           </div>
           <div class="compare__col compare__col--them">
@@ -240,7 +247,7 @@
               <li><span class="cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span> 几十个窗体、密集表格，高分辨率适配差</li>
               <li><span class="cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span> 跨学段、单双周等能力不完整</li>
               <li><span class="cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span> 数据专有格式，导出依赖本机 Office</li>
-              <li><span class="cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span> 收费闭源，学校难以自行定制</li>
+              <li><span class="cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span> 收费闭源或按年订阅，试错与使用成本高</li>
             </ul>
           </div>
         </div>
@@ -289,10 +296,29 @@
     <section class="section section--soft" id="download">
       <div class="container">
         <div class="section__head reveal">
-          <p class="eyebrow">下载</p>
-          <h2 class="section__title">一次买断，三端通用</h2>
-          <p class="section__lead">免费版长期可用（限制导入导出）；正式版一次性买断、激活码一机一码。</p>
+          <p class="eyebrow">使用与下载</p>
+          <h2 class="section__title">全功能免费，网页版与桌面端任选</h2>
+          <p class="section__lead">软件现已全面免费开放，无需激活码或付费解锁。推荐直接打开浏览器版立即排课，桌面端安装包将陆续发布。</p>
         </div>
+
+        <article class="card web-launch reveal">
+          <div class="web-launch__main">
+            <div class="web-launch__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><path d="M12 3a14.5 14.5 0 0 0 0 18M12 3a14.5 14.5 0 0 1 0 18"/></svg>
+            </div>
+            <div>
+              <div class="web-launch__head">
+                <h3 class="web-launch__title">浏览器版（Web / PWA）</h3>
+                <span class="badge badge--live">已上线 · 免费使用</span>
+              </div>
+              <p class="web-launch__desc">无需下载安装，支持 Chrome、Edge、Safari 等现代浏览器；数据保留在本地浏览器，支持导入导出与备份。</p>
+            </div>
+          </div>
+          <div class="web-launch__action">
+            <button class="btn btn--ghost btn--lg" type="button" id="pwaInstallCard" hidden>安装应用 (PWA)</button>
+            <a class="btn btn--primary btn--lg" href="./classsetapp/">立即打开网页版</a>
+          </div>
+        </article>
 
         <div class="grid grid--3 download__grid">
           <article class="card platform reveal">
@@ -347,6 +373,7 @@
         <p class="footer__tag">让排课清楚、安静、可信。</p>
       </div>
       <nav class="footer__links" aria-label="页脚导航">
+        <a href="./classsetapp/">网页版</a>
         <a href="#features">功能</a>
         <a href="#why">为什么选课集</a>
         <a href="#workflow">工作流</a>
@@ -355,7 +382,7 @@
     </div>
     <div class="container footer__bottom">
       <p>© <span id="year">2026</span> 课集 ClassSet. 保留所有权利。</p>
-      <p class="footer__note">本网站为产品官网；课集为纯本地桌面软件，数据存于本机，不上云。</p>
+      <p class="footer__note">本网站为产品官网；课集免费使用，数据均保存在本地设备或浏览器中，不上云。</p>
     </div>
   </footer>
 

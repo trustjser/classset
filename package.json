@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:web": "tsc && vite build --base=/classsetapp/ --outDir=website/classsetapp --emptyOutDir",
+    "build:web": "tsc && vite build --base=/classsetapp/ --outDir=websitedist/classsetapp --emptyOutDir",
+    "build:website": "node tools/build-website.mjs",
+    "build:site": "npm run build:website && npm run build:web",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

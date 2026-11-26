@@ -7,6 +7,53 @@
 (function () {
   "use strict";
 
+  /* ---- PWA Service Worker 注册与安装引导 ---- */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker
+        .register("./classsetapp/sw.js", { scope: "./classsetapp/" })
+        .catch(function () {});
+    });
+  }
+
+  var deferredInstallPrompt = null;
+  var installButtons = [
+    document.getElementById("pwaInstallHero"),
+    document.getElementById("pwaInstallCard")
+  ].filter(Boolean);
+
+  function setInstallButtonsVisible(visible) {
+    installButtons.forEach(function (btn) {
+      btn.hidden = !visible;
+    });
+  }
+
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    setInstallButtonsVisible(true);
+  });
+
+  window.addEventListener("appinstalled", function () {
+    deferredInstallPrompt = null;
+    setInstallButtonsVisible(false);
+  });
+
+  installButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice
+        .then(function (choice) {
+          if (choice && choice.outcome === "accepted") {
+            deferredInstallPrompt = null;
+            setInstallButtonsVisible(false);
+          }
+        })
+        .catch(function () {});
+    });
+  });
+
   /* ---- 移动端菜单 ---- */
   var toggle = document.getElementById("navToggle");
   var menu = document.getElementById("mobileMenu");

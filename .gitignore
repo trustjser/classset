@@ -9,8 +9,10 @@ node_modules
 .flutter-plugins-dependencies
 .pub/
 /build/
-/dist
+./dist/
 .agents
 .agent
 
 src-tauri/target
+
+websitedist

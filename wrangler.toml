@@ -1,5 +1,6 @@
-# Cloudflare Pages 部署配置 —— 课集官网（纯静态站点，无需构建）
+# Cloudflare Pages 部署配置 —— 课集官网 + 浏览器版（构建输出目录：websitedist）
 name = "classset-website"
 compatibility_date = "2024-11-06"
-# 站点根目录：index.html + assets/ 都在此目录下
-pages_build_output_dir = "website"
+# 构建命令：npm run build:site
+# 站点根目录：websitedist/index.html + assets/ + classsetapp/
+pages_build_output_dir = "websitedist"
