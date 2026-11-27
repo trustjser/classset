@@ -1,3 +1,4 @@
+import { hasTouchInput, useSelectionPress } from '@/lib/pointerSelection';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStickyToolbar } from '@/hooks/useStickyToolbar';
@@ -57,6 +58,14 @@ interface GradeEditor {
   gradeId: string;
 }
 
+function matrixMenuAt(key: string, x: number, y: number) {
+  return {
+    key,
+    x: Math.min(x, window.innerWidth - 196),
+    y: Math.min(y, window.innerHeight - 216),
+  };
+}
+
 export const SubjectsPage: React.FC = () => {
   const toolbarRef = useStickyToolbar<HTMLDivElement>();
   const {
@@ -103,6 +112,8 @@ export const SubjectsPage: React.FC = () => {
   const selectionAnchorCell = useRef<string | null>(null);
   const clipboardCache = useRef('');
   const matrixCellRefs = useRef(new Map<string, HTMLButtonElement>());
+  const touchInput = hasTouchInput();
+  const withSelectionPress = useSelectionPress();
   const matrixScrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollShadow, setScrollShadow] = useState({ left: false, right: false });
   const dragPointer = useRef<{ x: number; y: number } | null>(null);
@@ -111,8 +122,9 @@ export const SubjectsPage: React.FC = () => {
   const cancelInlineBlur = useRef(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; key: string } | null>(null);
   const [subjectMenu, setSubjectMenu] = useState<{ x: number; y: number; subjectId: string } | null>(null);
-  const dragAnchor = useRef<{ row: number; column: number } | null>(null);
+  const dragAnchor = useRef<{ row: number; column: number; pointerId: number } | null>(null);
   const dragged = useRef(false);
+  const dragSelection = useRef<{ key: string; count: number } | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchValue, setBatchValue] = useState('');
   const [importOpen, setImportOpen] = useState(false);
@@ -221,15 +233,11 @@ export const SubjectsPage: React.FC = () => {
     });
     return () => setNavigationGuard(null);
   }, [setNavigationGuard]);
-  useEffect(() => {
-    const endDrag = () => { dragAnchor.current = null; dragPointer.current = null; setDragSelecting(false); };
-    window.addEventListener('pointerup', endDrag);
-    window.addEventListener('pointercancel', endDrag);
-    return () => {
-      window.removeEventListener('pointerup', endDrag);
-      window.removeEventListener('pointercancel', endDrag);
-    };
-  }, []);
+  function openBatchEditor() {
+    setBatchValue('');
+    setMessage('');
+    setBatchOpen(true);
+  }
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -300,21 +308,19 @@ export const SubjectsPage: React.FC = () => {
   }, [scopeStageId, visibleGradeIds]);
 
   useEffect(() => {
-    if (!dragSelecting) return;
-    const updatePointer = (event: PointerEvent) => {
-      dragPointer.current = { x: event.clientX, y: event.clientY };
-    };
-    const tick = () => {
+    const updateSelection = (autoScroll: boolean) => {
       const pointer = dragPointer.current;
       const wrapper = matrixScrollRef.current;
       const anchor = dragAnchor.current;
       if (!pointer || !wrapper || !anchor) return;
       const rect = wrapper.getBoundingClientRect();
-      const edge = 36;
-      if (pointer.x < rect.left + edge) wrapper.scrollLeft -= 12;
-      else if (pointer.x > rect.right - edge) wrapper.scrollLeft += 12;
-      if (pointer.y < rect.top + 56) wrapper.scrollTop -= 12;
-      else if (pointer.y > rect.bottom - 96) wrapper.scrollTop += 12;
+      if (autoScroll) {
+        const edge = 36;
+        if (pointer.x < rect.left + edge) wrapper.scrollLeft -= 12;
+        else if (pointer.x > rect.right - edge) wrapper.scrollLeft += 12;
+        if (pointer.y < rect.top + 56) wrapper.scrollTop -= 12;
+        else if (pointer.y > rect.bottom - 96) wrapper.scrollTop += 12;
+      }
       const x = Math.max(rect.left + 2, Math.min(rect.right - 2, pointer.x));
       const y = Math.max(rect.top + 2, Math.min(rect.bottom - 2, pointer.y));
       const element = document.elementFromPoint(x, y)?.closest<HTMLButtonElement>('[data-matrix-row]');
@@ -322,24 +328,45 @@ export const SubjectsPage: React.FC = () => {
       const row = Number(element.dataset.matrixRow), column = Number(element.dataset.matrixColumn);
       if (!Number.isInteger(row) || !Number.isInteger(column) || !activeSubjects[row] || !shownGrades[column]) return;
       if (row !== anchor.row || column !== anchor.column) dragged.current = true;
-      setSelectedMatrixCells((current) => {
-        const next = rectangleKeys(activeSubjects, shownGrades, anchor, { row, column });
-        return current.length === next.length && current.every((key, index) => key === next[index]) ? current : next;
-      });
-      setActiveMatrixCell(matrixCellKey(activeSubjects[row].id, shownGrades[column].id));
+      const next = rectangleKeys(activeSubjects, shownGrades, anchor, { row, column });
+      const key = matrixCellKey(activeSubjects[row].id, shownGrades[column].id);
+      dragSelection.current = { key, count: next.length };
+      setSelectedMatrixCells((current) =>
+        current.length === next.length && current.every((key, index) => key === next[index]) ? current : next
+      );
+      setActiveMatrixCell(key);
+    };
+    const updatePointer = (event: PointerEvent) => {
+      if (dragAnchor.current?.pointerId !== event.pointerId) return;
+      dragPointer.current = { x: event.clientX, y: event.clientY };
+      updateSelection(false);
+    };
+    const endDrag = (event: PointerEvent) => {
+      if (dragAnchor.current?.pointerId !== event.pointerId) return;
+      if (event.type === 'pointerup') {
+        updatePointer(event);
+        const selection = dragSelection.current;
+        if (selection && selection.count > 1) {
+          setContextMenu(matrixMenuAt(selection.key, event.clientX, event.clientY));
+        }
+      }
+      dragAnchor.current = null;
+      dragPointer.current = null;
+      dragSelection.current = null;
+      setDragSelecting(false);
     };
     window.addEventListener('pointermove', updatePointer);
-    const timer = window.setInterval(tick, 30);
-    return () => { window.removeEventListener('pointermove', updatePointer); window.clearInterval(timer); };
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    const timer = dragSelecting ? window.setInterval(() => updateSelection(true), 30) : undefined;
+    return () => {
+      window.removeEventListener('pointermove', updatePointer);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      window.clearInterval(timer);
+    };
   }, [dragSelecting, activeSubjects, shownGrades]);
 
-  function selectRectangle(row: number, column: number) {
-    const anchor = dragAnchor.current;
-    if (!anchor) return;
-    if (anchor.row !== row || anchor.column !== column) dragged.current = true;
-    setSelectedMatrixCells(rectangleKeys(activeSubjects, shownGrades, anchor, { row, column }));
-    setActiveMatrixCell(matrixCellKey(activeSubjects[row].id, shownGrades[column].id));
-  }
   function stageLessonChanges(nextValues: Record<string, LessonValues>, candidateKeys: string[]): string[] {
     const nextDrafts = { ...nextValues };
     const nextEdited = new Set(editedCells);
@@ -482,8 +509,7 @@ export const SubjectsPage: React.FC = () => {
       selectionAnchorCell.current = key;
       setActiveMatrixCell(key);
     }
-    setContextMenu({ x: Math.min(event.clientX, window.innerWidth - 196),
-      y: Math.min(event.clientY, window.innerHeight - 216), key });
+    setContextMenu(matrixMenuAt(key, event.clientX, event.clientY));
   }
   function downloadImportTemplate() {
     const header = '学段\t年级\t科目\t节数';
@@ -1089,7 +1115,7 @@ export const SubjectsPage: React.FC = () => {
           <span><strong className="font-medium text-ink">全年级统一：</strong>直接填整数（如 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">5</code>）。</span>
           <span><strong className="font-medium text-ink">单双周：</strong>按 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">每周|单周|双周</code> 填写（如 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">0|4|0</code> 或 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">3|1|1</code>）。</span>
           <span><strong className="font-medium text-ink">单个班级：</strong>英文逗号按班序分隔（如 <code className="rounded bg-surface/80 px-1 py-0.5 font-mono text-[11px]">5,5,4</code>），或右键选「逐班编辑」。</span>
-          <span><strong className="font-medium text-ink">快捷操作：</strong>拖拽框选多格支持复制/粘贴，右键可统一设置或清空。</span>
+          <span><strong className="font-medium text-ink">快捷操作：</strong>{touchInput ? '长按格子后拖动多选，松手打开快捷菜单。' : '拖动框选多格，松手打开快捷菜单。'}</span>
         </AlertDescription>
         <button
           type="button"
@@ -1107,7 +1133,6 @@ export const SubjectsPage: React.FC = () => {
           <div className="min-h-0 flex-1 select-none overflow-auto" ref={matrixScrollRef}
             onScroll={updateScrollShadow}
             onKeyDown={handleMatrixKey}
-            onPointerMove={(event) => { if (dragAnchor.current) dragPointer.current = { x: event.clientX, y: event.clientY }; }}
             onPaste={(event) => {
             if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
             if (!selectedMatrixCells.length) return;
@@ -1165,21 +1190,23 @@ export const SubjectsPage: React.FC = () => {
                         setSelectedMatrixCells([key]);
                       }}
                       onPointerDown={(event) => {
-                        if (event.button !== 0 || event.pointerType === 'touch') return;
-                        dragAnchor.current = { row: rowIndex, column: columnIndex };
-                        dragPointer.current = { x: event.clientX, y: event.clientY };
-                        setDragSelecting(true);
-                        dragged.current = false;
-                        const key = matrixCellKey(subject.id, grade.id);
-                        selectionAnchorCell.current = key;
-                        setActiveMatrixCell(key);
-                        setSelectedMatrixCells([key]);
+                        if (event.isPrimary) dragged.current = false;
+                        withSelectionPress(event, () => {
+                          dragAnchor.current = { row: rowIndex, column: columnIndex, pointerId: event.pointerId };
+                          dragPointer.current = { x: event.clientX, y: event.clientY };
+                          setDragSelecting(true);
+                          dragged.current = false;
+                          dragSelection.current = null;
+                          const key = matrixCellKey(subject.id, grade.id);
+                          selectionAnchorCell.current = key;
+                          setActiveMatrixCell(key);
+                          setSelectedMatrixCells([key]);
+                        });
                       }}
-                      onPointerEnter={() => selectRectangle(rowIndex, columnIndex)}
-                      onClick={() => { if (!dragged.current) startInlineEdit(matrixCellKey(subject.id, grade.id)); }}
+                      onClick={(event) => { if (!dragged.current || event.detail === 0) startInlineEdit(matrixCellKey(subject.id, grade.id)); }}
                       onContextMenu={(event) => openMatrixContextMenu(event, matrixCellKey(subject.id, grade.id))}
                       aria-label={`${subject.name} ${grade.name} 节数 ${text}`}
-                      className={`min-h-10 w-full select-none rounded-[8px] border px-2 text-center tabular-nums transition-colors ${selected ? 'border-primary bg-selection text-primary' : changed ? 'border-transparent bg-selection/50 text-primary hover:border-border' : 'border-transparent text-ink hover:border-border hover:bg-table-header'} ${text === '各班不同' ? 'text-[12px]' : 'font-medium'}`}>
+                      className={`min-h-10 w-full select-none rounded-[8px] [-webkit-touch-callout:none] border px-2 text-center tabular-nums transition-colors ${selected ? 'border-primary bg-selection text-primary' : changed ? 'border-transparent bg-selection/50 text-primary hover:border-border' : 'border-transparent text-ink hover:border-border hover:bg-table-header'} ${text === '各班不同' ? 'text-[12px]' : 'font-medium'}`}>
                       {!group.length || text === '0'
                         ? <span className={selected || changed ? '' : 'text-ink-secondary opacity-45'}>—</span>
                         : text}</button>}</td>;
@@ -1535,7 +1562,7 @@ export const SubjectsPage: React.FC = () => {
           openGradeEditor(subjectId, gradeId);
         } },
         { label: `统一设置${selectedMatrixCells.length > 1 ? ` ${selectedMatrixCells.length} 格` : ''}`,
-          icon: Check, action: () => { setBatchValue(''); setMessage(''); setBatchOpen(true); } },
+          icon: Check, action: openBatchEditor },
         { label: '清空所选格', icon: Eraser, action: () => clearMatrixSelection() },
       ].map((item, index) => <button key={item.label} type="button" role="menuitem" autoFocus={index === 0}
         onClick={() => { setContextMenu(null); item.action(); }}

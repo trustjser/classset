@@ -1,3 +1,4 @@
+import { hasTouchInput, useSelectionPress } from '@/lib/pointerSelection';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -42,7 +43,9 @@ export const TeacherPresetPage: React.FC<{ termId: string; owner: Owner; teacher
     currentLabel: string;
     activeValue: PresetValue | null;
   } | null>(null);
-  const dragAnchorRef = useRef<{ row: number; col: number } | null>(null);
+  const touchInput = hasTouchInput();
+  const withSelectionPress = useSelectionPress();
+  const dragAnchorRef = useRef<{ row: number; col: number; pointerId: number } | null>(null);
   const dragMovedRef = useRef(false);
   const suppressNextClickRef = useRef(false);
 
@@ -214,34 +217,38 @@ export const TeacherPresetPage: React.FC<{ termId: string; owner: Owner; teacher
     return Number.isInteger(row) && Number.isInteger(col) ? { row, col } : null;
   };
   const handleGridPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || event.pointerType === 'touch') return;
+    if (event.isPrimary) suppressNextClickRef.current = false;
     const point = pointFromEvent(event.target);
     if (!point) return;
     const meta = cellMeta(point.row, point.col);
     if (!meta?.editable) return;
-    suppressNextClickRef.current = false;
-    dragMovedRef.current = false;
-    dragAnchorRef.current = point;
-    setSelectedKeys([meta.key]);
-    event.currentTarget.setPointerCapture(event.pointerId);
+    withSelectionPress(event, () => {
+      dragMovedRef.current = false;
+      dragAnchorRef.current = { ...point, pointerId: event.pointerId };
+      setSelectedKeys([meta.key]);
+      if (event.pointerType !== 'touch' && event.target instanceof Element) {
+        event.target.closest('[data-preset-row]')?.setPointerCapture?.(event.pointerId);
+      }
+    });
   };
   const handleGridPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const anchor = dragAnchorRef.current;
-    if (!anchor) return;
+    if (!anchor || event.pointerId !== anchor.pointerId) return;
     const point = pointFromEvent(event.target, event.clientX, event.clientY);
     if (!point) return;
     if (point.row !== anchor.row || point.col !== anchor.col) dragMovedRef.current = true;
     setSelectedKeys(keysInRectangle(anchor, point));
   };
-  const handleGridPointerUp = () => {
-    if (!dragAnchorRef.current) return;
+  const handleGridPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerId !== dragAnchorRef.current?.pointerId) return;
+    handleGridPointerMove(event);
     if (dragMovedRef.current) {
       suppressNextClickRef.current = true;
-      window.setTimeout(() => { suppressNextClickRef.current = false; }, 0);
     }
     dragAnchorRef.current = null;
   };
-  const cancelGridDrag = () => {
+  const cancelGridDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerId !== dragAnchorRef.current?.pointerId) return;
     dragAnchorRef.current = null;
     dragMovedRef.current = false;
   };
@@ -266,11 +273,35 @@ export const TeacherPresetPage: React.FC<{ termId: string; owner: Owner; teacher
     return inherited === 'conflict' ? 'auto' : inherited;
   };
 
+  const openPresetMenu = (
+    keys: string[], clientX: number, clientY: number, singleTitle?: string
+  ) => {
+    const values = keys.map(valueOfKey);
+    const sameValue = values.every((value) => value === values[0]);
+    setCellMenu({
+      keys,
+      x: Math.max(8, Math.min(clientX, window.innerWidth - 196)),
+      y: Math.max(8, Math.min(clientY, window.innerHeight - 280)),
+      title: keys.length === 1 && singleTitle ? singleTitle : `已选 ${keys.length} 个格子`,
+      currentLabel: sameValue ? valueLabels[values[0]] : '多项混合',
+      activeValue: sameValue ? values[0] : null,
+    });
+  };
+
   return <div className="space-y-4"><div className="sticky top-0 z-30 flex items-center gap-3 rounded-card border border-border bg-surface px-5 py-3 shadow-sm"><Button variant="ghost" onClick={goBack} aria-label="返回教师任课"><ArrowLeft className="h-4 w-4"/></Button><strong className="text-[16px] text-ink">教师预排</strong><span className="text-[13px] text-ink-secondary">{selectedOwnerName ?? '请选择教师或分组'}</span><div className="ml-auto">{dirty && <span className="mr-3 text-[12px] text-warning">未保存</span>}<Button disabled={!dirty || saving} onClick={() => void save()}>保存设置</Button></div></div>
     {error && <div role="alert" className="rounded-control bg-destructive-surface p-3 text-[13px] text-destructive">{error}</div>}
     {!scopes.length && <div className="rounded-card bg-surface p-8 text-ink-secondary">请先完成至少一个学段的作息设置。</div>}
     {!!scopes.length && <div className="grid gap-4 lg:grid-cols-[220px_220px_minmax(0,1fr)]"><aside className="rounded-card bg-surface p-3"><div className="mb-3 flex rounded-control bg-selection p-0.5">{(['teacher','group'] as const).map((kind) => <button key={kind} onClick={() => switchOwner(kind, '')} className={`flex-1 rounded-md py-1.5 text-[12px] ${ownerKind === kind ? 'bg-surface text-ink' : 'text-ink-secondary'}`}>{kind === 'teacher' ? '按教师' : '按教师分组'}</button>)}</div><label className="relative block"><Search className="absolute left-2 top-2 h-4 w-4 text-ink-secondary"/><Input className="pl-8" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={ownerKind === 'teacher' ? '搜索教师' : '搜索分组'}/></label><div className="mt-2 max-h-[65vh] overflow-y-auto">{(ownerKind === 'teacher' ? teachers : groups).filter((item) => item.name.includes(query)).map((item) => <button key={item.id} onClick={() => switchOwner(ownerKind, item.id)} className={`block w-full rounded-control px-3 py-2 text-left text-[13px] ${ownerId === item.id ? 'bg-selection text-primary' : 'text-ink hover:bg-table-header'}`}>{item.name}</button>)}</div></aside><aside className="rounded-card bg-surface p-3"><strong className="mb-3 block px-2 text-[13px]">应用范围</strong><div className="max-h-[70vh] overflow-y-auto text-[13px]">{stages.filter((stage) => scopes.some((item) => item.type === 'stage' && item.id === stage.id)).map((stage) => <div key={stage.id}><div className="flex items-center"><button aria-label={`展开${stage.name}`} onClick={() => setExpanded(expanded.includes(stage.id) ? expanded.filter((id) => id !== stage.id) : [...expanded, stage.id])}>{expanded.includes(stage.id) ? <ChevronDown className="h-4 w-4"/> : <ChevronRight className="h-4 w-4"/>}</button><button onClick={() => switchScope(scopes.find((item) => item.id === stage.id)!)} className={`flex-1 rounded-control px-2 py-2 text-left ${activeScope?.id === stage.id ? 'bg-selection text-primary' : 'hover:bg-table-header'}`}>{stage.name}</button></div>{expanded.includes(stage.id) && grades.filter((grade) => grade.stageId === stage.id).map((grade) => <div key={grade.id} className="ml-4"><div className="flex items-center"><button aria-label={`展开${grade.name}`} onClick={() => setExpanded(expanded.includes(grade.id) ? expanded.filter((id) => id !== grade.id) : [...expanded, grade.id])}>{expanded.includes(grade.id) ? <ChevronDown className="h-4 w-4"/> : <ChevronRight className="h-4 w-4"/>}</button><button onClick={() => switchScope(scopes.find((item) => item.id === grade.id)!)} className={`flex-1 rounded-control px-2 py-2 text-left ${activeScope?.id === grade.id ? 'bg-selection text-primary' : 'hover:bg-table-header'}`}>{grade.name}</button></div>{expanded.includes(grade.id) && classes.filter((item) => item.gradeId === grade.id).map((item) => <button key={item.id} onClick={() => switchScope(scopes.find((scopeItem) => scopeItem.id === item.id)!)} className={`ml-5 block w-[calc(100%-20px)] rounded-control px-2 py-2 text-left ${activeScope?.id === item.id ? 'bg-selection text-primary' : 'hover:bg-table-header'}`}>{item.name}</button>)}</div>)}</div>)}</div></aside>
-    <div className="min-w-0 space-y-4"><section className="overflow-hidden rounded-card bg-surface p-4"><div className="mb-3 text-[13px]"><strong>{selectedOwnerName ? `${selectedOwnerName} · ${activeScope?.label}` : '请选择教师或分组'}</strong><p className="mt-1 text-ink-secondary">单击格子可切换状态，拖曳可框选多个格子，右键可打开设置菜单；红底为免任课不可编辑，黄底表示部分班级免任课。</p></div><div className="select-none overflow-x-auto" onPointerDown={handleGridPointerDown} onPointerMove={handleGridPointerMove} onPointerUp={handleGridPointerUp} onPointerCancel={cancelGridDrag}><table className="w-full min-w-[550px] border-collapse text-[12px]"><thead><tr className="bg-table-header text-ink-secondary"><th className="w-24 border border-table-divider p-2">节次</th>{days.map((day) => <th key={day} className="border border-table-divider p-2">{dayLabels[day - 1]}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${row.periodTypeId}:${row.lessonIndex}`}><th className="border border-table-divider bg-table-header px-3 py-3 text-left font-semibold tabular-nums" style={{ color: getPeriodAccentColor(row.periodName, row.periodIndex) }} title={row.fullLabel}>{row.label}</th>{days.map((weekday, colIndex) => { const meta = cellMeta(rowIndex, colIndex); if (!meta) return <td key={weekday} className="border border-table-divider p-1" />; const { key, free, freeClassNames, value, editable } = meta; const selected = selectedKeys.includes(key); const unavailable = row.lessonIndex > meta.count; const cellButton = <button type="button" data-preset-row={rowIndex} data-preset-col={colIndex} disabled={!editable} aria-label={`${dayLabels[weekday - 1]}${row.label}预排 ${free === 'all' ? '免任课' : value === 'conflict' ? '分组冲突' : valueLabels[value]}`} onClick={() => { if (suppressNextClickRef.current) { suppressNextClickRef.current = false; return; } if (!editable || value === 'conflict') return; const next = PRESET_ORDER[(PRESET_ORDER.indexOf(value) + 1) % PRESET_ORDER.length]; applyPresetCells([key], next); }} onContextMenu={(event) => { if (!editable || value === 'conflict') return; event.preventDefault(); const targetKeys = selected && selectedKeys.length > 1 ? selectedKeys : [key]; if (!selected) setSelectedKeys([key]); const targetValues = targetKeys.map(valueOfKey); const allSame = targetValues.every((v) => v === targetValues[0]); const title = targetKeys.length > 1 ? `已选 ${targetKeys.length} 个格子` : `第 ${row.dayLessonNumber} 节 · ${dayLabels[weekday - 1]}`; const currentLabel = allSame ? valueLabels[targetValues[0]] : '多项混合'; setCellMenu({ keys: targetKeys, x: Math.max(8, Math.min(event.clientX, window.innerWidth - 196)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 280)), title, currentLabel, activeValue: allSame ? targetValues[0] : null }); }} className={`flex h-10 w-full items-center justify-center rounded-md border px-2 text-center text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${unavailable ? 'cursor-not-allowed border-transparent bg-table-header text-ink-secondary opacity-50' : free === 'all' ? 'cursor-not-allowed border-transparent bg-destructive-surface text-destructive' : selected ? 'border-primary bg-selection text-primary ring-1 ring-primary' : value === 'conflict' ? 'cursor-not-allowed border-transparent bg-destructive-surface text-destructive' : value === 'forbid' ? 'border-transparent bg-destructive-surface text-destructive hover:border-destructive' : value === 'prefer' || value === 'must' ? 'border-transparent bg-selection text-primary hover:border-primary' : free === 'partial' ? 'border-transparent bg-warning-surface text-warning hover:border-warning' : 'border-transparent bg-surface text-ink-secondary hover:border-primary hover:bg-selection hover:text-primary'}`}>{unavailable ? '—' : free === 'all' ? '免任课' : value === 'conflict' ? '分组冲突' : value === 'auto' ? '' : valueLabels[value]}</button>; return <td key={weekday} className="border border-table-divider p-1">{free === 'partial' && !unavailable ? <Tooltip><TooltipTrigger asChild>{cellButton}</TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal leading-relaxed">部分班级免任课: {freeClassNames.join('、')}</TooltipContent></Tooltip> : cellButton}</td>; })}</tr>)}</tbody></table></div></section><section className="rounded-card bg-surface p-4"><div className="mb-3 flex justify-between text-[13px]"><strong>全部预排信息</strong><span className="text-ink-secondary">{ownedRows.length} 条</span></div>{ownedRows.length ? <div className="max-h-52 divide-y divide-table-divider overflow-y-auto">{ownedRows.map((item) => <div key={item.id} className="flex items-center gap-2 py-2 text-[12px]"><span className="min-w-0 flex-1">{scopes.find((option) => option.type === item.scopeType && option.id === item.scopeId)?.label ?? item.scopeId} · {dayLabels[item.weekday - 1]} · {routine?.periodTypes.find((period) => period.id === item.periodTypeId)?.name ?? '节次'} 第{item.lessonIndex}节 · {valueLabels[item.value]}</span><button aria-label="删除规则" onClick={() => { if (dirty && !window.confirm('请先保存当前修改，再删除其他规则。')) return; const next = ownedRows.filter((row) => row.id !== item.id); void (ownerKind === 'teacher' ? schoolRepository.replaceTeacherPresets(termId, ownerId, next as TeacherPreset[]) : schoolRepository.replaceTeacherGroupPresets(ownerId, next as TeacherGroupPreset[])).then(() => { if (ownerKind === 'teacher') setPersonal([...personal.filter((row) => row.teacherId !== ownerId), ...(next as TeacherPreset[])]); else setGroupPresets([...groupPresets.filter((row) => row.groupId !== ownerId), ...(next as TeacherGroupPreset[])]); }).catch((cause) => setError(String(cause))); }}><Trash2 className="h-4 w-4 text-ink-secondary"/></button></div>)}</div> : <div className="py-8 text-center text-[12px] text-ink-secondary">暂无预排规则，矩阵中的空白表示自动安排。</div>}</section></div></div>}
+    <div className="min-w-0 space-y-4"><section className="overflow-hidden rounded-card bg-surface p-4"><div className="mb-3 text-[13px]"><strong>{selectedOwnerName ? `${selectedOwnerName} · ${activeScope?.label}` : '请选择教师或分组'}</strong><p className="mt-1 text-ink-secondary">{touchInput ? '轻点格子可切换状态，长按后拖动可框选多个格子。' : '单击格子可切换状态，拖曳可框选多个格子，右键可打开设置菜单。'}红底为免任课不可编辑，黄底表示部分班级免任课。</p></div><div className="mb-2 flex flex-wrap items-center gap-2 empty:hidden">
+      {touchInput && (
+        <Button type="button" size="sm" variant="outline" disabled={selectedKeys.length === 0} onClick={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          openPresetMenu(selectedKeys, bounds.left, bounds.bottom);
+        }}>
+          设置所选{selectedKeys.length > 0 ? ` ${selectedKeys.length} 格` : '课节'}
+        </Button>
+      )}
+    </div><div className="select-none overflow-x-auto" onPointerDown={handleGridPointerDown} onPointerMove={handleGridPointerMove} onPointerUp={handleGridPointerUp} onPointerCancel={cancelGridDrag}><table className="w-full min-w-[550px] border-collapse text-[12px]"><thead><tr className="bg-table-header text-ink-secondary"><th className="w-24 border border-table-divider p-2">节次</th>{days.map((day) => <th key={day} className="border border-table-divider p-2">{dayLabels[day - 1]}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${row.periodTypeId}:${row.lessonIndex}`}><th className="border border-table-divider bg-table-header px-3 py-3 text-left font-semibold tabular-nums" style={{ color: getPeriodAccentColor(row.periodName, row.periodIndex) }} title={row.fullLabel}>{row.label}</th>{days.map((weekday, colIndex) => { const meta = cellMeta(rowIndex, colIndex); if (!meta) return <td key={weekday} className="border border-table-divider p-1" />; const { key, free, freeClassNames, value, editable } = meta; const selected = selectedKeys.includes(key); const unavailable = row.lessonIndex > meta.count; const cellButton = <button type="button" data-preset-row={rowIndex} data-preset-col={colIndex} disabled={!editable} aria-label={`${dayLabels[weekday - 1]}${row.label}预排 ${free === 'all' ? '免任课' : value === 'conflict' ? '分组冲突' : valueLabels[value]}`} onClick={(event) => { if (suppressNextClickRef.current && event.detail !== 0) { suppressNextClickRef.current = false; return; } if (!editable || value === 'conflict') return; const next = PRESET_ORDER[(PRESET_ORDER.indexOf(value) + 1) % PRESET_ORDER.length]; applyPresetCells([key], next); }} onContextMenu={(event) => { if (!editable || value === 'conflict') return; event.preventDefault(); const targetKeys = selected && selectedKeys.length > 1 ? selectedKeys : [key]; if (!selected) setSelectedKeys([key]); openPresetMenu(targetKeys, event.clientX, event.clientY, `第 ${row.dayLessonNumber} 节 · ${dayLabels[weekday - 1]}`); }} className={`flex h-10 w-full items-center justify-center rounded-md border px-2 text-center text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${editable ? '[-webkit-touch-callout:none]' : ''} ${unavailable ? 'cursor-not-allowed border-transparent bg-table-header text-ink-secondary opacity-50' : free === 'all' ? 'cursor-not-allowed border-transparent bg-destructive-surface text-destructive' : selected ? 'border-primary bg-selection text-primary ring-1 ring-primary' : value === 'conflict' ? 'cursor-not-allowed border-transparent bg-destructive-surface text-destructive' : value === 'forbid' ? 'border-transparent bg-destructive-surface text-destructive hover:border-destructive' : value === 'prefer' || value === 'must' ? 'border-transparent bg-selection text-primary hover:border-primary' : free === 'partial' ? 'border-transparent bg-warning-surface text-warning hover:border-warning' : 'border-transparent bg-surface text-ink-secondary hover:border-primary hover:bg-selection hover:text-primary'}`}>{unavailable ? '—' : free === 'all' ? '免任课' : value === 'conflict' ? '分组冲突' : value === 'auto' ? '' : valueLabels[value]}</button>; return <td key={weekday} className="border border-table-divider p-1">{free === 'partial' && !unavailable ? <Tooltip><TooltipTrigger asChild>{cellButton}</TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal leading-relaxed">部分班级免任课: {freeClassNames.join('、')}</TooltipContent></Tooltip> : cellButton}</td>; })}</tr>)}</tbody></table></div></section><section className="rounded-card bg-surface p-4"><div className="mb-3 flex justify-between text-[13px]"><strong>全部预排信息</strong><span className="text-ink-secondary">{ownedRows.length} 条</span></div>{ownedRows.length ? <div className="max-h-52 divide-y divide-table-divider overflow-y-auto">{ownedRows.map((item) => <div key={item.id} className="flex items-center gap-2 py-2 text-[12px]"><span className="min-w-0 flex-1">{scopes.find((option) => option.type === item.scopeType && option.id === item.scopeId)?.label ?? item.scopeId} · {dayLabels[item.weekday - 1]} · {routine?.periodTypes.find((period) => period.id === item.periodTypeId)?.name ?? '节次'} 第{item.lessonIndex}节 · {valueLabels[item.value]}</span><button aria-label="删除规则" onClick={() => { if (dirty && !window.confirm('请先保存当前修改，再删除其他规则。')) return; const next = ownedRows.filter((row) => row.id !== item.id); void (ownerKind === 'teacher' ? schoolRepository.replaceTeacherPresets(termId, ownerId, next as TeacherPreset[]) : schoolRepository.replaceTeacherGroupPresets(ownerId, next as TeacherGroupPreset[])).then(() => { if (ownerKind === 'teacher') setPersonal([...personal.filter((row) => row.teacherId !== ownerId), ...(next as TeacherPreset[])]); else setGroupPresets([...groupPresets.filter((row) => row.groupId !== ownerId), ...(next as TeacherGroupPreset[])]); }).catch((cause) => setError(String(cause))); }}><Trash2 className="h-4 w-4 text-ink-secondary"/></button></div>)}</div> : <div className="py-8 text-center text-[12px] text-ink-secondary">暂无预排规则，矩阵中的空白表示自动安排。</div>}</section></div></div>}
     {cellMenu && createPortal(<div role="menu" aria-label="课节预排设置" className="fixed z-[100] w-44 rounded-control border border-border bg-surface p-1.5 text-[13px] text-ink shadow-lg" style={{ left: cellMenu.x, top: cellMenu.y }} onPointerDown={(event) => event.stopPropagation()}>
       <div className="mb-1 border-b border-table-divider px-2.5 py-2">
         <div className="text-[13px] font-semibold text-ink">{cellMenu.title}</div>

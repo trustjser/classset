@@ -1,3 +1,4 @@
+import { hasTouchInput, useSelectionPress } from '@/lib/pointerSelection';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MoreHorizontal, Settings2, Trash2, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -58,6 +59,7 @@ interface MarqueeDrag {
   currentLocal: Point;
   baseSelection: Set<string>;
   lastSelection: Set<string>;
+  initialSelection: Set<string>;
   started: boolean;
 }
 
@@ -173,6 +175,8 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
   }, [posts]);
 
   const gridTemplateColumns = `minmax(210px, 240px) repeat(${Math.max(weekdays.length, 1)}, minmax(180px, 1fr))`;
+  const touchInput = hasTouchInput();
+  const withSelectionPress = useSelectionPress();
   const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<MarqueeDrag | null>(null);
   const autoScrollTimerRef = useRef<number | null>(null);
@@ -185,28 +189,43 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
   onSetPostSelectionRef.current = onSetPostSelection;
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isHistorical || event.button !== 0 || event.pointerType === 'touch') return;
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const point = localPoint(viewport, event.clientX, event.clientY);
-    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
-    const selected = selectedPostIdsRef.current;
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startClient: { x: event.clientX, y: event.clientY },
-      anchorContent: {
-        x: point.x + viewport.scrollLeft,
-        y: point.y + viewport.scrollTop,
-      },
-      currentLocal: point,
-      baseSelection: additive ? new Set(selected) : new Set(),
-      lastSelection: new Set(selected),
-      started: false,
-    };
+    if (event.isPrimary) suppressClickRef.current = false;
+    if (isHistorical) return;
+    if (event.pointerType !== 'mouse') {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest('[data-selectable-post]') ||
+          target.closest('button')) return;
+    }
+    withSelectionPress(event, () => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const point = localPoint(viewport, event.clientX, event.clientY);
+      const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+      const selected = selectedPostIdsRef.current;
+      const card = event.target instanceof Element
+        ? event.target.closest<HTMLElement>('[data-selectable-post]')
+        : null;
+      const initialPostId = event.pointerType === 'touch' ? card?.dataset.postId : undefined;
+      const lastSelection = initialPostId ? new Set([initialPostId]) : new Set(selected);
+      dragRef.current = {
+        pointerId: event.pointerId,
+        startClient: { x: event.clientX, y: event.clientY },
+        anchorContent: {
+          x: point.x + viewport.scrollLeft,
+          y: point.y + viewport.scrollTop,
+        },
+        currentLocal: point,
+        baseSelection: additive ? new Set(selected) : new Set(),
+        lastSelection,
+        initialSelection: new Set(selected),
+        started: false,
+      };
+      if (initialPostId) onSetPostSelectionRef.current(lastSelection);
+    });
   };
 
   const handleClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!suppressClickRef.current) return;
+    if (!suppressClickRef.current || event.detail === 0) return;
     suppressClickRef.current = false;
     event.preventDefault();
     event.stopPropagation();
@@ -326,9 +345,6 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
         setIsMarqueeDragging(false);
         setMarqueeRect(null);
         suppressClickRef.current = true;
-        window.setTimeout(() => {
-          suppressClickRef.current = false;
-        }, 0);
       }
       dragRef.current = null;
       stopAutoScroll();
@@ -339,10 +355,10 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
       if (!drag || event.pointerId !== drag.pointerId) return;
       dragRef.current = null;
       stopAutoScroll();
-      if (!drag.started) return;
+      if (!drag.started && areSetsEqual(drag.initialSelection, drag.lastSelection)) return;
       setIsMarqueeDragging(false);
       setMarqueeRect(null);
-      onSetPostSelectionRef.current(new Set());
+      onSetPostSelectionRef.current(drag.initialSelection);
     };
 
     window.addEventListener('pointermove', handlePointerMove, { passive: false });
@@ -358,6 +374,9 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
 
   return (
     <div className="space-y-3">
+      {touchInput && !isHistorical && posts.length > 0 && (
+        <p className="text-xs text-ink-secondary">长按岗位卡片后拖动可多选</p>
+      )}
       {posts.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-ink-secondary">
           当前筛选下没有带班岗位
@@ -460,11 +479,11 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
                             data-selectable-post=""
                             data-post-id={post.id}
                             onClick={(event) => {
-                              if (isHistorical || selectedPostIds.size === 0) return;
+                              if (isHistorical || (!touchInput && selectedPostIds.size === 0)) return;
                               if ((event.target as HTMLElement).closest('button,[role="checkbox"]')) return;
                               onTogglePostSelection(post.id);
                             }}
-                            className={`group relative rounded-xl border p-3 text-xs transition-colors ${
+                            className={`group relative rounded-xl border p-3 text-xs transition-colors ${isHistorical ? '' : '[-webkit-touch-callout:none]'} ${
                               isSelected
                                 ? 'cursor-pointer border-primary bg-selection/70 shadow-sm'
                                 : 'cursor-default border-border bg-surface hover:border-primary/40 hover:bg-canvas/40'
@@ -483,7 +502,7 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
                               {!isHistorical && (
                                 <div className="flex shrink-0 items-center gap-1">
                                   <div
-                                    className={`transition-opacity ${isSelected
+                                    className={`transition-opacity ${isSelected || touchInput
                                       ? 'opacity-100'
                                       : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
                                     }`}

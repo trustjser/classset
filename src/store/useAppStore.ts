@@ -194,7 +194,7 @@ function loadSavedAppearance(): { palette: AppPalette; mode: AppAppearanceMode }
   } catch {
     // 安全回退到默认晴空蓝 + 跟随系统
   }
-  return { palette: 'sky', mode: 'system' };
+  return { palette: 'teal', mode: 'system' };
 }
 
 function resolveIsDark(mode: AppAppearanceMode): boolean {

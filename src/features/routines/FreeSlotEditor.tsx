@@ -1,3 +1,4 @@
+import { hasTouchInput, useSelectionPress } from '@/lib/pointerSelection';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -233,6 +234,9 @@ export function FreeSlotEditor({
   const [contextMenuCell, setContextMenuCell] = useState<GridCell | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [customLabel, setCustomLabel] = useState('');
+  const touchInput = hasTouchInput();
+  const withSelectionPress = useSelectionPress();
+  const selectionPointerRef = useRef<number | null>(null);
   const [selectedRange, setSelectedRange] = useState<{ start: MatrixPoint; end: MatrixPoint } | null>(null);
   const [selectionPreview, setSelectionPreview] = useState<{ start: MatrixPoint; end: MatrixPoint } | null>(null);
   const selectionStartRef = useRef<MatrixPoint | null>(null);
@@ -667,15 +671,20 @@ export function FreeSlotEditor({
   };
 
   const beginSelection = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || event.pointerType === 'touch') return;
-    const point = pointFromElement(event.target instanceof Element ? event.target : null);
+    if (event.isPrimary) suppressNextClickRef.current = false;
+    const target = event.target instanceof Element ? event.target : null;
+    const point = pointFromElement(target);
     if (!point) return;
-    suppressNextClickRef.current = false;
-    selectionMovedRef.current = false;
-    selectionStartRef.current = point;
-    selectionEndRef.current = point;
-    setSelectionPreview({ start: point, end: point });
-    event.currentTarget.setPointerCapture(event.pointerId);
+    withSelectionPress(event, () => {
+      selectionPointerRef.current = event.pointerId;
+      selectionMovedRef.current = false;
+      selectionStartRef.current = point;
+      selectionEndRef.current = point;
+      setSelectionPreview({ start: point, end: point });
+      if (event.pointerType !== 'touch') {
+        target?.closest('[data-matrix-cell="true"]')?.setPointerCapture?.(event.pointerId);
+      }
+    });
   };
 
   const continueSelection = (event: PointerEvent<HTMLDivElement>) => {
@@ -684,6 +693,7 @@ export function FreeSlotEditor({
       updateCommonDropPreview(event);
       return;
     }
+    if (event.pointerId !== selectionPointerRef.current) return;
     const start = selectionStartRef.current;
     if (!start) return;
     const point = pointFromElement(document.elementFromPoint(event.clientX, event.clientY));
@@ -696,25 +706,35 @@ export function FreeSlotEditor({
   const finishSelection = (event: PointerEvent<HTMLDivElement>) => {
     if (commonDragRef.current && event.pointerId !== commonDragRef.current.pointerId) return;
     if (finishCommonPeriodDrag(event)) return;
+    if (event.pointerId !== selectionPointerRef.current) return;
     const start = selectionStartRef.current;
     if (!start) return;
     const end = pointFromElement(document.elementFromPoint(event.clientX, event.clientY)) ??
       selectionEndRef.current ?? start;
-    if (selectionMovedRef.current) {
-      setSelectedRange({ start, end });
+    if (event.pointerType === 'touch' || selectionMovedRef.current || start.row !== end.row || start.col !== end.col) {
+      const range = { start, end };
+      setSelectedRange(range);
       suppressNextClickRef.current = true;
-      window.setTimeout(() => {
-        suppressNextClickRef.current = false;
-      }, 0);
+      const cells = cellsInRange(range);
+      const row = matrixRows[end.row];
+      const weekday = teachingDays[end.col];
+      if (cells.length > 1 && row?.type === 'lesson' && weekday) {
+        const cell = { period: row.period, weekday, lessonIndex: row.lessonIndex };
+        const key = `${cell.period.id}:${cell.weekday}:${cell.lessonIndex}`;
+        openCellContextMenu(key, cell, cells, scope, event.clientX, event.clientY);
+      }
     } else {
       setSelectedRange(null);
     }
+    selectionPointerRef.current = null;
     selectionStartRef.current = null;
     selectionEndRef.current = null;
     setSelectionPreview(null);
   };
 
-  const cancelSelection = () => {
+  const cancelSelection = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerId !== (commonDragRef.current?.pointerId ?? selectionPointerRef.current)) return;
+    selectionPointerRef.current = null;
     commonDragRef.current = null;
     setDropTarget(null);
     selectionStartRef.current = null;
@@ -758,6 +778,9 @@ export function FreeSlotEditor({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-[15px] font-semibold text-ink">免任课与公共时段</h2>
+            <p className="mt-1 text-xs text-ink-secondary">
+              {touchInput ? '长按格子后拖动多选，松手打开批量菜单' : '拖动框选多格，松手打开批量菜单'}
+            </p>
           </div>
           <Badge variant="secondary">{allSlots.length}</Badge>
         </div>
@@ -880,7 +903,7 @@ export function FreeSlotEditor({
                                       (marker?.label ? marker.label + (direct ? '，当前范围' : '，继承') : '设为无课')
                                     }
                                     className={
-                                      'flex h-10 w-full items-center justify-center rounded-md border px-2 text-center text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+                                      'flex h-10 w-full select-none items-center justify-center rounded-md border px-2 text-center text-[10px] [-webkit-touch-callout:none] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
                                       (isInSelectionRange(rowIndex, colIndex)
                                         ? 'border-primary bg-selection text-primary ring-1 ring-primary'
                                         : marker
@@ -892,8 +915,8 @@ export function FreeSlotEditor({
                                     data-col-index={colIndex}
                                     data-matrix-cell="true"
                                     data-row-index={rowIndex}
-                                    onClick={() => {
-                                      if (suppressNextClickRef.current) {
+                                    onClick={(event) => {
+                                      if (suppressNextClickRef.current && event.detail !== 0) {
                                         suppressNextClickRef.current = false;
                                         return;
                                       }
@@ -909,7 +932,9 @@ export function FreeSlotEditor({
                                   </button>
                                   <button
                                     aria-label="更多免任课设置"
-                                    className="absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded bg-surface/95 text-ink-secondary opacity-60 shadow-sm transition-opacity hover:text-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
+                                    className={`absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded bg-surface/95 text-ink-secondary opacity-60 shadow-sm transition-opacity hover:text-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                                      touchInput ? '' : '[@media(hover:hover)]:sm:opacity-0 sm:group-hover:opacity-100'
+                                    }`}
                                     onClick={(event) => {
                                       if (menuOpen) {
                                         closeContextMenu();
@@ -1009,6 +1034,7 @@ export function FreeSlotEditor({
               if (event.key === 'Escape') closeContextMenu();
             }}
             role="menu"
+            aria-label="免任课快捷操作"
             style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
           >
             {contextTarget.cells.length > 1 && (

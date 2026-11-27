@@ -1,10 +1,13 @@
 import React, { useEffect } from 'react';
 import { AppShell } from './components/AppShell';
+import { usePwaInstallAction } from './components/PwaInstallAction';
 import { SetupWizardPage } from './features/setup/SetupWizardPage';
 import { useAppStore } from './store/useAppStore';
 
 export const App: React.FC = () => {
   const { initialized, runtimeMode, terms, bootstrap } = useAppStore();
+
+  const installAction = usePwaInstallAction(runtimeMode === 'web-browser');
 
   useEffect(() => {
     void bootstrap();
@@ -32,10 +35,10 @@ export const App: React.FC = () => {
 
   // 本地尚无任何学期时，进入全屏两步初始化引导（不展示侧边栏与顶部栏）
   if (terms.length === 0) {
-    return <SetupWizardPage />;
+    return <SetupWizardPage installAction={installAction} />;
   }
 
-  return <AppShell />;
+  return <AppShell installAction={installAction} />;
 };
 
 export default App;

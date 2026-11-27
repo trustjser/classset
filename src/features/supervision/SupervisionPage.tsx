@@ -1250,7 +1250,7 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
               variant="ghost"
               disabled={selectedPostIds.size === 0}
               className="h-7 px-1.5 text-xs text-ink-secondary"
-              title="按住鼠标拖过岗位卡片可涂抹多选，也可悬停后勾选"
+              title="鼠标拖动可多选。触屏长按岗位卡片后拖动可多选。"
               onClick={() => setSelectedPostIds(new Set())}
             >
               取消选择 {selectedPostIds.size} 个岗位

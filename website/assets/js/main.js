@@ -40,17 +40,12 @@
   });
 
   installButtons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      if (!deferredInstallPrompt) return;
-      deferredInstallPrompt.prompt();
-      deferredInstallPrompt.userChoice
-        .then(function (choice) {
-          if (choice && choice.outcome === "accepted") {
-            deferredInstallPrompt = null;
-            setInstallButtonsVisible(false);
-          }
-        })
-        .catch(function () {});
+    btn.addEventListener("click", function (event) {
+      if (!deferredInstallPrompt || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      var prompt = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      prompt.prompt().catch(function () {});
     });
   });
 

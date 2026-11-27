@@ -30,7 +30,7 @@ import {
  *
  * 两步：填写学校名称（可留空跳过）→ 创建第一个学期；完成后写入本地数据并进入系统。
  */
-export const SetupWizardPage: React.FC = () => {
+export const SetupWizardPage: React.FC<{ installAction?: React.ReactNode }> = ({ installAction }) => {
   const { schoolName: initialSchoolName, completeInitialSetup } = useAppStore();
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -109,7 +109,7 @@ export const SetupWizardPage: React.FC = () => {
     >
       <div className="w-full max-w-[600px] rounded-card bg-surface border border-border/70 px-8 sm:px-10 pt-[34px] pb-8 transition-[height] duration-page">
         {/* 顶部品牌栏 */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <img
               src={classsetMark}
@@ -129,11 +129,14 @@ export const SetupWizardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 rounded-[8px] bg-table-header px-2.5 py-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-success shrink-0" />
-            <span className="text-[11.5px] font-medium text-ink-secondary">
-              本地数据 · 离线可用
-            </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {installAction}
+            <div className="inline-flex items-center gap-1.5 rounded-[8px] bg-table-header px-2.5 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-success shrink-0" />
+              <span className="text-[11.5px] font-medium text-ink-secondary">
+                本地数据 · 离线可用
+              </span>
+            </div>
           </div>
         </div>
 
@@ -261,7 +264,7 @@ export const SetupWizardPage: React.FC = () => {
         </div>
 
         {/* 步骤主体内容（带方向感知滑入淡入过渡） */}
-        <div className="mt-6 overflow-hidden">
+        <div className="mt-6 -mx-1 overflow-hidden px-1">
           {step === 1 ? (
             <form
               key="setup-wizard-school-step"

@@ -5,7 +5,6 @@ import {
   Calculator,
   CalendarDays,
   Clock,
-  Download,
   LayoutDashboard,
   Lock,
   Moon,
@@ -105,7 +104,7 @@ const PendingModulePage: React.FC<{
   </section>
 );
 
-export const AppShell: React.FC = () => {
+export const AppShell: React.FC<{ installAction?: React.ReactNode }> = ({ installAction }) => {
   const {
     runtimeMode,
     palette,
@@ -208,30 +207,6 @@ export const AppShell: React.FC = () => {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [schoolNameDialogOpen, setSchoolNameDialogOpen] = useState(false);
   const [resolvingNavigation, setResolvingNavigation] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<{
-    prompt: () => Promise<void>;
-    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-  } | null>(null);
-
-  useEffect(() => {
-    if (runtimeMode !== 'web-browser' || typeof window === 'undefined') return;
-    const onBeforeInstall = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(
-        event as unknown as {
-          prompt: () => Promise<void>;
-          userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-        }
-      );
-    };
-    const onInstalled = () => setInstallPrompt(null);
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
-  }, [runtimeMode]);
   const schoolDisplayName = schoolName.trim() || '未命名学校';
 
   const activeTerm = terms.find((t) => t.id === activeTermId) ?? null;
@@ -526,22 +501,7 @@ export const AppShell: React.FC = () => {
             </div>
 
             <div className="app-toolbar-actions" data-tauri-drag-region>
-              {runtimeMode === 'web-browser' && installPrompt && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2.5 text-xs"
-                  onClick={() => {
-                    void installPrompt.prompt().then(() => installPrompt.userChoice).then((choice) => {
-                      if (choice.outcome === 'accepted') setInstallPrompt(null);
-                    }).catch(() => {});
-                  }}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  安装应用
-                </Button>
-              )}
+              {installAction}
               <Badge
                 variant="secondary"
                 className="app-runtime-badge border-0 bg-transparent px-2 text-ink-secondary"
