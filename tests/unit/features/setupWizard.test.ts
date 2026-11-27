@@ -28,7 +28,7 @@ describe('features/setup/setupWizardLogic.ts - 初次访问向导逻辑', () => 
       displayName: '青木实验小学',
       initial: '青',
     });
-    expect(SCHOOL_NAME_SUGGESTIONS).toContain('青木实验小学');
+    expect(SCHOOL_NAME_SUGGESTIONS).toContain('阳光实验小学');
   });
 
   it('钳制总周数并实时计算学期起止范围预览', () => {

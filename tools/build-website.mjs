@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
+  cpSync,
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -30,6 +32,7 @@ function minifyHtml(html) {
 async function buildWebsite() {
   mkdirSync(outDir, { recursive: true });
   rmSync(path.join(outDir, 'assets'), { recursive: true, force: true });
+  rmSync(path.join(outDir, 'skills'), { recursive: true, force: true });
   rmSync(path.join(outDir, 'index.html'), { force: true });
 
   const cssOutDir = path.join(outDir, 'assets', 'css');
@@ -74,6 +77,12 @@ async function buildWebsite() {
     const hashedName = `${base}.${hash}${ext}`;
     writeFileSync(path.join(imgOutDir, hashedName), content);
     assetMap.set(`assets/img/${file}`, `assets/img/${hashedName}`);
+  }
+
+  // 原样复制官网下的 AI Agent 技能文档（保留固定 URL：/skills/classset-scheduling/SKILL.md）
+  const skillsSrcDir = path.join(srcDir, 'skills');
+  if (existsSync(skillsSrcDir)) {
+    cpSync(skillsSrcDir, path.join(outDir, 'skills'), { recursive: true });
   }
 
   let html = readFileSync(path.join(srcDir, 'index.html'), 'utf8');

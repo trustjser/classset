@@ -7,7 +7,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'classset-webmcp-origin-trial',
+    apply: 'build',
+    transformIndexHtml() {
+      const token = process.env.CLASSSET_WEBMCP_ORIGIN_TRIAL_TOKEN?.trim();
+      if (!token || process.env.TAURI_ENV_PLATFORM) return [];
+      return [{ tag: 'meta', attrs: { 'http-equiv': 'origin-trial', content: token }, injectTo: 'head-prepend' }];
+    },
+  }],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

@@ -3,11 +3,18 @@ import { AppShell } from './components/AppShell';
 import { usePwaInstallAction } from './components/PwaInstallAction';
 import { SetupWizardPage } from './features/setup/SetupWizardPage';
 import { getSectionFromLocation, useAppStore } from './store/useAppStore';
+import { useWebAgentRegistration } from './agent/useWebAgent';
+import { agentProposals } from './agent/agentProposals';
 
 export const App: React.FC = () => {
-  const { initialized, runtimeMode, terms, setSelectedSection, bootstrap } = useAppStore();
+  const { initialized, runtimeMode, terms, activeTermId, setSelectedSection, bootstrap } = useAppStore();
 
   const installAction = usePwaInstallAction(runtimeMode === 'web-browser');
+  useWebAgentRegistration(initialized && runtimeMode === 'web-browser' && terms.length > 0);
+
+  useEffect(() => {
+    agentProposals.invalidate(({ termId }) => termId !== activeTermId);
+  }, [activeTermId]);
 
   useEffect(() => {
     void bootstrap();

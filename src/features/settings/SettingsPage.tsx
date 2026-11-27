@@ -37,6 +37,10 @@ import { Input } from '@/components/ui/input';
 import { formatDateYmd } from '@/features/terms/calendarUtils';
 import { schoolRepository } from '@/repository/schoolRepository';
 import { useAppStore } from '@/store/useAppStore';
+import { WebAgentSettings } from './WebAgentSettings';
+import { DesktopAgentSettings } from './DesktopAgentSettings';
+import { AgentPendingOperations } from './AgentPendingOperations';
+import { agentProposals } from '@/agent/agentProposals';
 import {
   PALETTE_OPTIONS,
   type AppAppearanceMode,
@@ -273,6 +277,7 @@ export function SettingsPage() {
     setDialogError(null);
     setFeedback(null);
     try {
+      agentProposals.invalidate(() => true);
       if (confirmation.kind === 'clear') await schoolRepository.clearAllData();
       else
         await schoolRepository.importSqliteBytes(
@@ -358,6 +363,9 @@ export function SettingsPage() {
           </button>
         )}
       </div>
+
+      {schoolRepository.isDesktop ? <DesktopAgentSettings /> : <WebAgentSettings />}
+      <AgentPendingOperations />
 
       {/* 模块一：学校与本地数据概览 */}
       <section

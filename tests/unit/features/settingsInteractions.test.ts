@@ -52,7 +52,7 @@ async function openSettings() {
 it('空库初始页直接提供本地备份导入，不展示设置入口', async () => {
   useAppStore.setState({ terms: [], activeTermId: null });
   await renderApp(async () => {
-    expect(button('从本地导入')).toBeDefined();
+    expect(button('从备份文件导入')).toBeDefined();
     expect([...document.querySelectorAll('button')].some((item) => item.textContent?.trim() === '设置')).toBe(false);
     expect(document.querySelector('input[type="file"]')).toBeDefined();
   });
@@ -87,7 +87,7 @@ it('取消清空保留数据，完整原文输入后才允许清空一次', asyn
     expect(clear).toHaveBeenCalledTimes(1);
     useAppStore.setState({ terms: [], activeTermId: null });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 150)); });
-    expect(button('从本地导入')).toBeDefined();
+    expect(button('从备份文件导入')).toBeDefined();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 });
@@ -129,7 +129,31 @@ it('空库通过历史导航进入设置路径时仍展示初始页', async () =
   history.replaceState(null, '', '#/settings');
   useAppStore.setState({ selectedSection: 'settings' });
   await renderApp(async () => {
-    expect(button('从本地导入')).toBeDefined();
+    expect(button('从备份文件导入')).toBeDefined();
     expect([...document.querySelectorAll('button')].some((item) => item.textContent?.trim() === '设置')).toBe(false);
   });
+});
+
+it('浏览器 AI 由用户开启，离开设置后保留连接，关闭时注销', async () => {
+  const registerTool = vi.fn();
+  Object.defineProperty(document, 'modelContext', { configurable: true, value: { registerTool } });
+  try {
+    await renderApp(async () => {
+      await openSettings();
+      expect(registerTool).not.toHaveBeenCalled();
+      const toggle = document.querySelector<HTMLButtonElement>('button[role=switch][aria-labelledby]');
+      expect(toggle).not.toBeNull();
+      await act(async () => { toggle!.click(); });
+      expect(registerTool.mock.calls.map(([tool]) => tool.name)).toContain('classset_get_context_and_gates');
+      const options = registerTool.mock.calls[0][1];
+      await act(async () => { button('工作台').click(); });
+      expect(options.signal.aborted).toBe(false);
+      await openSettings();
+      const current = document.querySelector<HTMLButtonElement>('button[role=switch][aria-labelledby]');
+      await act(async () => { current!.click(); });
+      expect(options.signal.aborted).toBe(true);
+    });
+  } finally {
+    Reflect.deleteProperty(document, 'modelContext');
+  }
 });

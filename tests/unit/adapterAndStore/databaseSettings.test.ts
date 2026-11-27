@@ -256,3 +256,32 @@ it('桌面适配器用一个原生 SQLite 事务覆盖浏览器备份，坏数�
     db.close();
   }
 });
+
+it('浏览器另一标签页更新后，拒绝用旧数据库快照覆盖', async () => {
+  const first = await browserDatabase();
+  vi.resetModules();
+  const second = await browserDatabase();
+  await first.execute('INSERT INTO app_settings (id, school_name) VALUES (1, ?)', ['标签页一']);
+  await expect(second.execute('INSERT INTO app_settings (id, school_name) VALUES (1, ?)', ['标签页二']))
+    .rejects.toThrow('其他标签页');
+  vi.resetModules();
+  const reopened = await browserDatabase();
+  expect(await reopened.select('SELECT school_name FROM app_settings WHERE id = 1'))
+    .toEqual([{ school_name: '标签页一' }]);
+});
+
+it('Agent 确认事务持久化失败后保留事务之前的数据库', async () => {
+  const adapter = await browserDatabase();
+  const { SchoolRepository } = await import('@/repository/schoolRepository');
+  const repository = new SchoolRepository(adapter);
+  await repository.initialize();
+  await repository.saveSchoolName('原校名');
+  failWrite = true;
+  await expect(repository.withAgentWrite((scoped) => scoped.saveSchoolName('新校名')))
+    .rejects.toThrow('无法保存浏览器数据库');
+  expect(await repository.loadSchoolName()).toBe('原校名');
+  vi.resetModules();
+  const reopened = await browserDatabase();
+  expect(await reopened.select('SELECT school_name FROM app_settings WHERE id = 1'))
+    .toEqual([{ school_name: '原校名' }]);
+});

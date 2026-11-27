@@ -721,6 +721,28 @@ export class SchoolRepository {
     return this.adapter.engineStatus;
   }
 
+  async withAgentWrite<T>(work: (repository: SchoolRepository) => Promise<T>): Promise<T> {
+    if (!this.useSqlEngine) throw new Error('本地数据库未就绪，无法保存确认的操作');
+    const adapter = this.adapter;
+    const run = async (tx: DbTransactionClient) => {
+      const unavailable = async (): Promise<never> => { throw new Error('操作只能在当前事务内执行'); };
+      const repository = new SchoolRepository({
+        runtimeMode: adapter.runtimeMode,
+        schemaVersion: adapter.schemaVersion,
+        engineStatus: adapter.engineStatus,
+        select: (sql, values) => tx.select(sql, values),
+        execute: (sql, values) => tx.execute(sql, values),
+        transaction: (run) => run(tx),
+        init: unavailable,
+        exportSqliteBytes: unavailable,
+        importSqliteBytes: unavailable,
+        clearAllData: unavailable,
+      });
+      return work(repository);
+    };
+    return adapter.durableTransaction ? adapter.durableTransaction(run) : adapter.transaction(run);
+  }
+
   /**
    * 当 Tauri 原生 SQLite 或 Web SQLite Wasm 引擎已就绪时，双端均走真正的 SQLite v19 引擎
    */
@@ -3719,9 +3741,10 @@ export class SchoolRepository {
   }
 
   async loadTemporaryTimetable(termId: string): Promise<TemporaryTimetableState> {
-    const [snapshot, rawExceptions, supervisionVersions, supervisionDraft, rawRows] =
+    const [draft, published, rawExceptions, supervisionVersions, supervisionDraft, rawRows] =
       await Promise.all([
         this.loadSchedulingData(termId),
+        this.loadPublishedSchedule(termId),
         this.loadCalendarExceptions(termId),
         this.loadSupervisionVersions(termId),
         this.loadSupervisionDraftData(termId),
@@ -3730,7 +3753,8 @@ export class SchoolRepository {
     const exceptions = [...rawExceptions].sort(
       (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
     );
-    const baseline = await this.loadPendingScheduleBaseline(snapshot);
+    const baseline = await this.loadPendingScheduleBaseline(draft);
+    const snapshot = published ?? draft;
     const hasSupervisionCalendar =
       supervisionVersions.length > 0 ||
       (supervisionDraft?.posts.length ?? 0) > 0;

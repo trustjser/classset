@@ -50,6 +50,7 @@ export interface SqlDatabaseAdapter {
   select<T = Record<string, unknown>>(sql: string, bindValues?: unknown[]): Promise<T[]>;
   execute(sql: string, bindValues?: unknown[]): Promise<QueryResult>;
   transaction<T>(fn: (tx: DbTransactionClient) => Promise<T>): Promise<T>;
+  durableTransaction?<T>(fn: (tx: DbTransactionClient) => Promise<T>): Promise<T>;
   exportSqliteBytes(): Promise<Uint8Array | null>;
   importSqliteBytes(bytes: Uint8Array): Promise<void>;
   clearAllData(): Promise<void>;
@@ -102,7 +103,13 @@ async function loadBytesFromIndexedDB(): Promise<Uint8Array | null> {
   }
 }
 
-async function saveBytesToIndexedDB(bytes: Uint8Array | null): Promise<void> {
+class BrowserSnapshotConflict extends Error {
+  constructor() {
+    super('数据库已被其他标签页更新，请刷新后重试。');
+  }
+}
+
+async function saveBytesToIndexedDB(bytes: Uint8Array | null, expected: Uint8Array | null): Promise<void> {
   if (typeof indexedDB === 'undefined' && bytes === null) return;
   try {
     const db = await openStorage();
@@ -110,8 +117,19 @@ async function saveBytesToIndexedDB(bytes: Uint8Array | null): Promise<void> {
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(IDB_STORE, 'readwrite');
         const store = tx.objectStore(IDB_STORE);
-        if (bytes) store.put(bytes, IDB_KEY);
-        else store.delete(IDB_KEY);
+        const current = store.get(IDB_KEY);
+        current.onsuccess = () => {
+          const saved = current.result instanceof Uint8Array ? current.result : null;
+          const same = expected === null ? saved === null
+            : saved?.length === expected.length && expected.every((value, index) => value === saved[index]);
+          if (!same) {
+            reject(new BrowserSnapshotConflict());
+            return;
+          }
+          if (bytes) store.put(bytes, IDB_KEY);
+          else store.delete(IDB_KEY);
+        };
+        current.onerror = () => reject(current.error);
         tx.oncomplete = () => resolve();
         tx.onabort = () => reject(tx.error);
       });
@@ -119,6 +137,7 @@ async function saveBytesToIndexedDB(bytes: Uint8Array | null): Promise<void> {
       db.close();
     }
   } catch (error) {
+    if (error instanceof BrowserSnapshotConflict) throw error;
     throw new Error('无法保存浏览器数据库，请检查存储空间和权限后重试。', { cause: error });
   }
 }
@@ -209,6 +228,7 @@ class WebSqliteAdapter implements SqlDatabaseAdapter {
   private wasmDb: SqlJsDatabase | null = null;
   private initialization: Promise<void> | undefined;
   private pending: Promise<unknown> = Promise.resolve();
+  private persistedBytes: Uint8Array | null = null;
 
   get engineStatus(): 'wasm-sqlite' | 'memory-fallback' {
     return this.wasmDb ? 'wasm-sqlite' : 'memory-fallback';
@@ -223,6 +243,7 @@ class WebSqliteAdapter implements SqlDatabaseAdapter {
     try {
       this.sqlModule = await loadSqliteRuntime();
       const bytes = await loadBytesFromIndexedDB();
+      this.persistedBytes = bytes;
       if (bytes?.length) {
         const database = new this.sqlModule.Database(bytes);
         try {
@@ -249,10 +270,22 @@ class WebSqliteAdapter implements SqlDatabaseAdapter {
     return result;
   }
 
-  private async persist(database: SqlJsDatabase): Promise<void> {
+  private async saveSnapshot(bytes: Uint8Array | null): Promise<void> {
+    await saveBytesToIndexedDB(bytes, this.persistedBytes);
+    this.persistedBytes = bytes;
+  }
+
+  private async persist(database: SqlJsDatabase, previous: Uint8Array, strict: boolean): Promise<void> {
     try {
-      await saveBytesToIndexedDB(exportSqliteSnapshot(database));
-    } catch {
+      await this.saveSnapshot(exportSqliteSnapshot(database));
+    } catch (error) {
+      if (strict || error instanceof BrowserSnapshotConflict) {
+        const restored = new this.sqlModule!.Database(previous);
+        restored.run('PRAGMA foreign_keys = ON');
+        this.wasmDb = restored;
+        database.close();
+        throw error;
+      }
       // Existing in-memory fallback for ordinary edits. Explicit backup
       // operations report persistence failures before switching databases.
     }
@@ -281,18 +314,31 @@ class WebSqliteAdapter implements SqlDatabaseAdapter {
   execute(sql: string, values: unknown[] = []): Promise<QueryResult> {
     return this.enqueue(async () => {
       const database = this.wasmDb;
+      const previous = database ? exportSqliteSnapshot(database) : null;
       const result = await this.client(database).execute(sql, values);
-      if (database) await this.persist(database);
+      if (database && previous) await this.persist(database, previous, false);
       return result;
     });
   }
 
   transaction<T>(fn: (tx: DbTransactionClient) => Promise<T>): Promise<T> {
+    return this.runTransaction(fn, false);
+  }
+
+  durableTransaction<T>(fn: (tx: DbTransactionClient) => Promise<T>): Promise<T> {
+    return this.runTransaction(fn, true);
+  }
+
+  private runTransaction<T>(fn: (tx: DbTransactionClient) => Promise<T>, strict: boolean): Promise<T> {
     return this.enqueue(async () => {
       const database = this.wasmDb;
       const client = this.client(database);
-      if (!database) return fn(client);
+      if (!database) {
+        if (strict) throw new Error('浏览器数据库未就绪');
+        return fn(client);
+      }
 
+      const previous = exportSqliteSnapshot(database);
       database.run('BEGIN TRANSACTION');
       let result: T;
       try {
@@ -302,7 +348,7 @@ class WebSqliteAdapter implements SqlDatabaseAdapter {
         database.run('ROLLBACK');
         throw error;
       }
-      await this.persist(database);
+      await this.persist(database, previous, strict);
       return result;
     });
   }
@@ -318,7 +364,7 @@ class WebSqliteAdapter implements SqlDatabaseAdapter {
       try {
         const tables = readSqliteBackup(runtime, bytes, replacement);
         insertBackupIntoBrowser(replacement, tables);
-        await saveBytesToIndexedDB(exportSqliteSnapshot(replacement));
+        await this.saveSnapshot(exportSqliteSnapshot(replacement));
       } catch (error) {
         replacement.close();
         throw error;
@@ -331,7 +377,7 @@ class WebSqliteAdapter implements SqlDatabaseAdapter {
 
   clearAllData(): Promise<void> {
     return this.enqueue(async () => {
-      await saveBytesToIndexedDB(null);
+      await this.saveSnapshot(null);
       this.wasmDb?.close();
       this.wasmDb = this.sqlModule ? createEmptySqliteDatabase(this.sqlModule) : null;
     });

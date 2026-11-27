@@ -86,6 +86,9 @@ describe('store/useAppStore.ts - 状态管理核心动作 (Mock Repository)', ()
       freeSlotsByStage: {},
       freeSlotDraftsByTerm: {},
       freeSlotBaselinesByTerm: {},
+      selectedSection: 'workbench',
+      pendingNavigationSection: null,
+      navigationGuard: null,
       subjectDraftDirty: false,
       lastClassFillUndo: null,
     });
@@ -193,17 +196,31 @@ describe('store/useAppStore.ts - 状态管理核心动作 (Mock Repository)', ()
     expect(savedArg.commonPeriods?.[0].insertAfterLessonId).toBe('pt1_1');
   });
 
-  it('setSelectedSection 在科目有未保存修改时根据 confirm 结果决定是否拦截跳转', () => {
-    useAppStore.setState({ selectedSection: 'subjects', subjectDraftDirty: true });
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('setSelectedSection 与 resolvePendingNavigation 在有未保存草稿守卫时按用户选择拦截或放行跳转', async () => {
+    const save = vi.fn(async () => true);
+    const discard = vi.fn();
+    useAppStore.setState({
+      selectedSection: 'subjects',
+      subjectDraftDirty: true,
+      navigationGuard: { label: '科目节数', isDirty: () => true, save, discard },
+    });
 
     useAppStore.getState().setSelectedSection('teachers');
-    expect(confirmSpy).toHaveBeenCalled();
     expect(useAppStore.getState().selectedSection).toBe('subjects');
+    expect(useAppStore.getState().pendingNavigationSection).toBe('teachers');
 
-    confirmSpy.mockReturnValue(true);
+    await useAppStore.getState().resolvePendingNavigation('cancel');
+    expect(useAppStore.getState().selectedSection).toBe('subjects');
+    expect(useAppStore.getState().pendingNavigationSection).toBeNull();
+    expect(save).not.toHaveBeenCalled();
+    expect(discard).not.toHaveBeenCalled();
+
     useAppStore.getState().setSelectedSection('teachers');
+    await useAppStore.getState().resolvePendingNavigation('discard');
+    expect(discard).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().selectedSection).toBe('teachers');
+    expect(useAppStore.getState().pendingNavigationSection).toBeNull();
+    expect(useAppStore.getState().navigationGuard).toBeNull();
     expect(useAppStore.getState().subjectDraftDirty).toBe(false);
   });
 });

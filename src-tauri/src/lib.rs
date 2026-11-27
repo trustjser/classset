@@ -3,6 +3,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod sqlite_backup;
 mod sqlite_transactions;
+mod agent_mcp;
 
 /// Schema v19 完整建表与索引 SQL，100% 兼容原 Flutter Drift school.sqlite。
 pub const SCHEMA_V19_SQL: &str = include_str!("../migrations/001_schema_v19.sql");
@@ -23,6 +24,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(sqlite_transactions::SqliteTransactions::default())
+        .manage(agent_mcp::AgentMcpState::default())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:school.sqlite", migrations)
@@ -37,6 +39,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            agent_mcp::start_agent_mcp,
+            agent_mcp::stop_agent_mcp,
+            agent_mcp::complete_agent_mcp_call,
             get_schema_version,
             sqlite_backup::export_sqlite_snapshot,
             sqlite_transactions::begin_sqlite_transaction,
