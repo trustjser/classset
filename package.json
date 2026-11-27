@@ -1,7 +1,7 @@
 {
   "name": "class-set",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "课集 (ClassSet) - 支持 Tauri 桌面端与 Web 端的学校排课与课务工作台",
   "type": "module",
   "scripts": {
