@@ -7,9 +7,16 @@
 
 import { SCHEMA_V19_DDL, SCHEMA_VERSION } from './schemaV19';
 import { runTauriTransaction } from './tauriTransaction';
-import type initSqlJs from 'sql.js';
+import {
+  createEmptySqliteDatabase,
+  exportSqliteSnapshot,
+  insertBackupIntoBrowser,
+  loadSqliteRuntime,
+  readSqliteBackup,
+  replaceNativeSqliteData,
+} from './sqliteBackup';
 
-type SqlJsRuntime = Awaited<ReturnType<typeof initSqlJs>>;
+type SqlJsRuntime = Awaited<ReturnType<typeof loadSqliteRuntime>>;
 type SqlJsDatabase = InstanceType<SqlJsRuntime['Database']>;
 type SqlJsValue = number | string | Uint8Array | null;
 
@@ -45,6 +52,7 @@ export interface SqlDatabaseAdapter {
   transaction<T>(fn: (tx: DbTransactionClient) => Promise<T>): Promise<T>;
   exportSqliteBytes(): Promise<Uint8Array | null>;
   importSqliteBytes(bytes: Uint8Array): Promise<void>;
+  clearAllData(): Promise<void>;
 }
 
 /**
@@ -64,57 +72,55 @@ const IDB_NAME = 'classset_sqlite_idb';
 const IDB_STORE = 'sqlite_files';
 const IDB_KEY = 'school.sqlite.v19';
 
-async function loadBytesFromIndexedDB(): Promise<Uint8Array | null> {
-  if (typeof indexedDB === 'undefined') return null;
-  return new Promise((resolve) => {
-    try {
-      const req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(IDB_STORE)) {
-          db.createObjectStore(IDB_STORE);
-        }
-      };
-      req.onsuccess = () => {
-        const db = req.result;
-        const tx = db.transaction(IDB_STORE, 'readonly');
-        const getReq = tx.objectStore(IDB_STORE).get(IDB_KEY);
-        getReq.onsuccess = () => {
-          const val = getReq.result;
-          resolve(val instanceof Uint8Array ? val : null);
-        };
-        getReq.onerror = () => resolve(null);
-      };
-      req.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
+function openStorage(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(IDB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(IDB_STORE)) {
+        request.result.createObjectStore(IDB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 }
 
-async function saveBytesToIndexedDB(bytes: Uint8Array): Promise<void> {
-  if (typeof indexedDB === 'undefined') return;
-  return new Promise((resolve) => {
+async function loadBytesFromIndexedDB(): Promise<Uint8Array | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  const db = await openStorage();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const request = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      request.onsuccess = () => {
+        resolve(request.result instanceof Uint8Array ? request.result : null);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function saveBytesToIndexedDB(bytes: Uint8Array | null): Promise<void> {
+  if (typeof indexedDB === 'undefined' && bytes === null) return;
+  try {
+    const db = await openStorage();
     try {
-      const req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(IDB_STORE)) {
-          db.createObjectStore(IDB_STORE);
-        }
-      };
-      req.onsuccess = () => {
-        const db = req.result;
+      await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(IDB_STORE, 'readwrite');
-        tx.objectStore(IDB_STORE).put(bytes, IDB_KEY);
+        const store = tx.objectStore(IDB_STORE);
+        if (bytes) store.put(bytes, IDB_KEY);
+        else store.delete(IDB_KEY);
         tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve();
-      };
-      req.onerror = () => resolve();
-    } catch {
-      resolve();
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
     }
-  });
+  } catch (error) {
+    throw new Error('无法保存浏览器数据库，请检查存储空间和权限后重试。', { cause: error });
+  }
 }
 
 /**
@@ -170,147 +176,165 @@ class TauriSqliteAdapter implements SqlDatabaseAdapter {
     return runTauriTransaction(invoke, fn);
   }
 
-  async exportSqliteBytes(): Promise<Uint8Array | null> {
-    try {
-      const { readFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
-      return await readFile('school.sqlite', {
-        baseDir: BaseDirectory.AppConfig,
-      });
-    } catch {
-      return null;
-    }
+  async exportSqliteBytes(): Promise<Uint8Array> {
+    await this.getDb();
+    const { invoke } = await import('@tauri-apps/api/core');
+    return new Uint8Array(await invoke<ArrayBuffer>('export_sqlite_snapshot'));
   }
 
   async importSqliteBytes(bytes: Uint8Array): Promise<void> {
-    const { writeFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
-    await writeFile('school.sqlite', bytes, {
-      baseDir: BaseDirectory.AppConfig,
-    });
-    this.dbPromise = null;
-    await this.init();
+    const runtime = await loadSqliteRuntime();
+    const schema = createEmptySqliteDatabase(runtime);
+    try {
+      const tables = readSqliteBackup(runtime, bytes, schema);
+      await this.transaction((tx) => replaceNativeSqliteData(tx, tables));
+    } finally {
+      schema.close();
+    }
+  }
+
+  async clearAllData(): Promise<void> {
+    await this.transaction((tx) => replaceNativeSqliteData(tx));
   }
 }
 
 /**
- * Web 浏览器端 SQLite 适配器 (sql.js Wasm + IndexedDB 二进制持久化 + 事务回滚)
+ * Web SQLite is a single connection. Serialize work through IndexedDB commit
+ * so a backup cannot replace an open transaction or race an older snapshot.
  */
 class WebSqliteAdapter implements SqlDatabaseAdapter {
   readonly runtimeMode = 'web-browser' as const;
   readonly schemaVersion = SCHEMA_VERSION;
   private sqlModule: SqlJsRuntime | null = null;
   private wasmDb: SqlJsDatabase | null = null;
-  private initialized = false;
-  private inTransaction = false;
+  private initialization: Promise<void> | undefined;
+  private pending: Promise<unknown> = Promise.resolve();
 
   get engineStatus(): 'wasm-sqlite' | 'memory-fallback' {
     return this.wasmDb ? 'wasm-sqlite' : 'memory-fallback';
   }
 
-  async init(): Promise<void> {
-    if (this.initialized) return;
-    try {
-      const [{ default: initSqlJs }, { default: wasmUrl }] = await Promise.all([
-        import('sql.js'),
-        import('sql.js/dist/sql-wasm-browser.wasm?url'),
-      ]);
-      const SQL = await initSqlJs({
-        // Match sql.js's runtime default while satisfying its required type.
-        useOldExtensionFunctions: true,
-        locateFile: () => wasmUrl,
-      });
-      this.sqlModule = SQL;
+  init(): Promise<void> {
+    this.initialization ??= this.openDatabase();
+    return this.initialization;
+  }
 
-      const idbBytes = await loadBytesFromIndexedDB();
-      const database =
-        idbBytes && idbBytes.byteLength > 0
-          ? new SQL.Database(idbBytes)
-          : new SQL.Database();
-      database.run('PRAGMA foreign_keys = ON;');
-      database.run(SCHEMA_V19_DDL);
-      this.wasmDb = database;
-      await this.persistToStorage();
+  private async openDatabase(): Promise<void> {
+    try {
+      this.sqlModule = await loadSqliteRuntime();
+      const bytes = await loadBytesFromIndexedDB();
+      if (bytes?.length) {
+        const database = new this.sqlModule.Database(bytes);
+        try {
+          database.run(SCHEMA_V19_DDL);
+          this.wasmDb = database;
+        } catch (error) {
+          database.close();
+          throw error;
+        }
+      } else {
+        this.wasmDb = createEmptySqliteDatabase(this.sqlModule);
+      }
     } catch {
       this.wasmDb = null;
     }
-    this.initialized = true;
   }
 
-  private async persistToStorage(): Promise<void> {
-    if (!this.wasmDb || this.inTransaction) return;
+  private enqueue<T>(operation: () => T | Promise<T>): Promise<T> {
+    const result = this.pending.then(async () => {
+      await this.init();
+      return operation();
+    });
+    this.pending = result.catch(() => {});
+    return result;
+  }
+
+  private async persist(database: SqlJsDatabase): Promise<void> {
     try {
-      const bytes = this.wasmDb.export();
-      await saveBytesToIndexedDB(bytes);
+      await saveBytesToIndexedDB(exportSqliteSnapshot(database));
     } catch {
-      // ignore
+      // Existing in-memory fallback for ordinary edits. Explicit backup
+      // operations report persistence failures before switching databases.
     }
   }
 
-  async select<T = Record<string, unknown>>(
-    sql: string,
-    bindValues: unknown[] = []
-  ): Promise<T[]> {
-    await this.init();
-    if (!this.wasmDb) return [];
-    const results = this.wasmDb.exec(sql, toSqlJsValues(bindValues));
-    if (!results.length) return [];
-    const { columns, values } = results[0];
-    return values.map((row) => {
-      const record: Record<string, unknown> = {};
-      columns.forEach((col, idx) => {
-        record[col] = row[idx];
-      });
-      return record as T;
+  private client(database: SqlJsDatabase | null): DbTransactionClient {
+    return {
+      async select<T>(sql: string, values: unknown[] = []): Promise<T[]> {
+        const result = database?.exec(sql, toSqlJsValues(values))[0];
+        return result?.values.map((row) =>
+          Object.fromEntries(result.columns.map((column, index) => [column, row[index]])) as T
+        ) ?? [];
+      },
+      async execute(sql, values = []) {
+        if (!database) return { rowsAffected: 0 };
+        database.run(sql, toSqlJsValues(values));
+        return { rowsAffected: database.getRowsModified() };
+      },
+    };
+  }
+
+  select<T = Record<string, unknown>>(sql: string, values: unknown[] = []): Promise<T[]> {
+    return this.enqueue(() => this.client(this.wasmDb).select<T>(sql, values));
+  }
+
+  execute(sql: string, values: unknown[] = []): Promise<QueryResult> {
+    return this.enqueue(async () => {
+      const database = this.wasmDb;
+      const result = await this.client(database).execute(sql, values);
+      if (database) await this.persist(database);
+      return result;
     });
   }
 
-  async execute(sql: string, bindValues: unknown[] = []): Promise<QueryResult> {
-    await this.init();
-    if (!this.wasmDb) return { rowsAffected: 0 };
-    this.wasmDb.run(sql, toSqlJsValues(bindValues));
-    await this.persistToStorage();
-    return { rowsAffected: 1 };
-  }
+  transaction<T>(fn: (tx: DbTransactionClient) => Promise<T>): Promise<T> {
+    return this.enqueue(async () => {
+      const database = this.wasmDb;
+      const client = this.client(database);
+      if (!database) return fn(client);
 
-  async transaction<T>(fn: (tx: DbTransactionClient) => Promise<T>): Promise<T> {
-    await this.init();
-    if (!this.wasmDb) {
-      return fn({
-        select: this.select.bind(this),
-        execute: this.execute.bind(this),
-      });
-    }
-    this.inTransaction = true;
-    this.wasmDb.run('BEGIN TRANSACTION');
-    try {
-      const result = await fn({
-        select: this.select.bind(this),
-        execute: this.execute.bind(this),
-      });
-      this.wasmDb.run('COMMIT');
-      this.inTransaction = false;
-      await this.persistToStorage();
+      database.run('BEGIN TRANSACTION');
+      let result: T;
+      try {
+        result = await fn(client);
+        database.run('COMMIT');
+      } catch (error) {
+        database.run('ROLLBACK');
+        throw error;
+      }
+      await this.persist(database);
       return result;
-    } catch (err) {
-      this.wasmDb.run('ROLLBACK');
-      this.inTransaction = false;
-      throw err;
-    }
+    });
   }
 
-  async exportSqliteBytes(): Promise<Uint8Array | null> {
-    await this.init();
-    if (!this.wasmDb) return null;
-    return this.wasmDb.export();
+  exportSqliteBytes(): Promise<Uint8Array | null> {
+    return this.enqueue(() => this.wasmDb ? exportSqliteSnapshot(this.wasmDb) : null);
   }
 
-  async importSqliteBytes(bytes: Uint8Array): Promise<void> {
-    await this.init();
-    if (this.sqlModule) {
-      this.wasmDb = new this.sqlModule.Database(bytes);
-      this.wasmDb.run('PRAGMA foreign_keys = ON;');
-      this.wasmDb.run(SCHEMA_V19_DDL);
-      await saveBytesToIndexedDB(this.wasmDb.export());
-    }
+  importSqliteBytes(bytes: Uint8Array): Promise<void> {
+    return this.enqueue(async () => {
+      const runtime = this.sqlModule ?? await loadSqliteRuntime();
+      const replacement = createEmptySqliteDatabase(runtime);
+      try {
+        const tables = readSqliteBackup(runtime, bytes, replacement);
+        insertBackupIntoBrowser(replacement, tables);
+        await saveBytesToIndexedDB(exportSqliteSnapshot(replacement));
+      } catch (error) {
+        replacement.close();
+        throw error;
+      }
+      this.wasmDb?.close();
+      this.wasmDb = replacement;
+      this.sqlModule = runtime;
+    });
+  }
+
+  clearAllData(): Promise<void> {
+    return this.enqueue(async () => {
+      await saveBytesToIndexedDB(null);
+      this.wasmDb?.close();
+      this.wasmDb = this.sqlModule ? createEmptySqliteDatabase(this.sqlModule) : null;
+    });
   }
 }
 

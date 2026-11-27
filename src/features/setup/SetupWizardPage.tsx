@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Check,
   Repeat,
+  Upload,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import type { CycleMode } from '@/domain/models';
 import { numericInputDraftReducer } from '@/lib/numberInput';
 import { useAppStore } from '@/store/useAppStore';
+import { schoolRepository } from '@/repository/schoolRepository';
 import classsetMark from '../../../design/icon/classset/classset-mark.svg';
 import {
   buildInitialTermFromWizard,
@@ -31,7 +33,7 @@ import {
  * 两步：填写学校名称（可留空跳过）→ 创建第一个学期；完成后写入本地数据并进入系统。
  */
 export const SetupWizardPage: React.FC<{ installAction?: React.ReactNode }> = ({ installAction }) => {
-  const { schoolName: initialSchoolName, completeInitialSetup } = useAppStore();
+  const { schoolName: initialSchoolName, completeInitialSetup, reloadAfterDatabaseChange } = useAppStore();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [slideDirection, setSlideDirection] = useState<'forward' | 'backward'>('forward');
@@ -49,6 +51,29 @@ export const SetupWizardPage: React.FC<{ installAction?: React.ReactNode }> = ({
   const [weekCountError, setWeekCountError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
+  const [importing, setImporting] = useState<boolean>(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const backupPicker = React.useRef<HTMLInputElement>(null);
+
+  const handleBackupSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || importing) return;
+
+    setImporting(true);
+    setImportMessage(null);
+    setImportError(null);
+    try {
+      await schoolRepository.importSqliteBytes(new Uint8Array(await file.arrayBuffer()));
+      await reloadAfterDatabaseChange(false);
+      setImportMessage('备份已导入，正在打开课集。');
+    } catch (error) {
+      setImportError(error instanceof Error ? `导入失败：${error.message}` : '导入失败，请重试。');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const identity = getSchoolIdentityPreview(schoolName);
   const termDisplay = termTitle.trim() || '新建第一个学期';
@@ -131,11 +156,26 @@ export const SetupWizardPage: React.FC<{ installAction?: React.ReactNode }> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             {installAction}
-            <div className="inline-flex items-center gap-1.5 rounded-[8px] bg-table-header px-2.5 py-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-success shrink-0" />
-              <span className="text-[11.5px] font-medium text-ink-secondary">
-                本地数据 · 离线可用
-              </span>
+            <input
+              ref={backupPicker}
+              type="file"
+              accept=".sqlite,.sqlite3,.db"
+              hidden
+              onChange={(event) => void handleBackupSelected(event)}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
+                disabled={saving || importing}
+                onClick={() => backupPicker.current?.click()}
+              >
+                <Upload aria-hidden="true" />
+                {importing ? '正在导入…' : '从备份文件导入'}
+              </Button>
+              {importMessage && <span role="status" className="text-sm text-ink-secondary">{importMessage}</span>}
+              {importError && <span role="alert" className="text-sm text-destructive">{importError}</span>}
             </div>
           </div>
         </div>

@@ -2,16 +2,25 @@ import React, { useEffect } from 'react';
 import { AppShell } from './components/AppShell';
 import { usePwaInstallAction } from './components/PwaInstallAction';
 import { SetupWizardPage } from './features/setup/SetupWizardPage';
-import { useAppStore } from './store/useAppStore';
+import { getSectionFromLocation, useAppStore } from './store/useAppStore';
 
 export const App: React.FC = () => {
-  const { initialized, runtimeMode, terms, bootstrap } = useAppStore();
+  const { initialized, runtimeMode, terms, setSelectedSection, bootstrap } = useAppStore();
 
   const installAction = usePwaInstallAction(runtimeMode === 'web-browser');
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    const syncSectionFromLocation = () => {
+      const section = getSectionFromLocation();
+      if (section !== useAppStore.getState().selectedSection) setSelectedSection(section);
+    };
+    window.addEventListener('hashchange', syncSectionFromLocation);
+    return () => window.removeEventListener('hashchange', syncSectionFromLocation);
+  }, [setSelectedSection]);
 
   useEffect(() => {
     if (runtimeMode !== 'web-browser') return;
@@ -33,7 +42,7 @@ export const App: React.FC = () => {
     );
   }
 
-  // 本地尚无任何学期时，进入全屏两步初始化引导（不展示侧边栏与顶部栏）
+  // 空库默认进入初始化向导，并从初始页恢复本地备份。
   if (terms.length === 0) {
     return <SetupWizardPage installAction={installAction} />;
   }

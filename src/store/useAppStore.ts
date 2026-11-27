@@ -34,6 +34,7 @@ import { schoolRepository } from '../repository/schoolRepository';
 import { AppAppearanceMode, AppPalette } from '../styles/subjectColors';
 
 const APPEARANCE_STORAGE_KEY = 'classset_appearance_v1';
+const DEFAULT_APPEARANCE = { palette: 'teal', mode: 'system' } as const;
 const APP_SECTIONS: readonly AppSection[] = [
   'workbench',
   'terms',
@@ -45,9 +46,10 @@ const APP_SECTIONS: readonly AppSection[] = [
   'scheduling',
   'supervision',
   'temporaryAdjustments',
+  'settings',
 ];
 
-function getSectionFromLocation(): AppSection {
+export function getSectionFromLocation(): AppSection {
   if (typeof window === 'undefined') return 'workbench';
   const route = window.location.hash.slice(1).split('/').filter(Boolean)[0];
   return APP_SECTIONS.find((section) => section === route) ?? 'workbench';
@@ -103,6 +105,7 @@ interface AppState {
   lastClassFillUndo: ClassFillUndoEntry[] | null;
 
   bootstrap: () => Promise<void>;
+  reloadAfterDatabaseChange: (resetAppearance: boolean) => Promise<void>;
   refreshTermData: (termId: string) => Promise<void>;
   setPalette: (palette: AppPalette) => void;
   setMode: (mode: AppAppearanceMode) => void;
@@ -194,7 +197,7 @@ function loadSavedAppearance(): { palette: AppPalette; mode: AppAppearanceMode }
   } catch {
     // 安全回退到默认晴空蓝 + 跟随系统
   }
-  return { palette: 'teal', mode: 'system' };
+  return DEFAULT_APPEARANCE;
 }
 
 function resolveIsDark(mode: AppAppearanceMode): boolean {
@@ -263,19 +266,7 @@ export function applyAppearanceToDom(palette: AppPalette, mode: AppAppearanceMod
 const initialAppearance = loadSavedAppearance();
 const initialDark = applyAppearanceToDom(initialAppearance.palette, initialAppearance.mode);
 
-export const useAppStore = create<AppState>((set, get) => ({
-  initialized: false,
-  runtimeMode: schoolRepository.runtimeMode,
-  palette: initialAppearance.palette,
-  mode: initialAppearance.mode,
-  resolvedDark: initialDark,
-  sidebarExpanded: typeof window !== 'undefined' ? window.innerWidth >= 1080 : true,
-  selectedSection: getSectionFromLocation(),
-  pendingNavigationSection: null,
-  navigationGuard: null,
-  schoolName: '',
-  activeTermId: null,
-  terms: [],
+const emptyTermData = () => ({
   stages: [],
   grades: [],
   classes: [],
@@ -293,12 +284,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   subjectRoomAssignments: [],
   subjectParallelLimits: [],
   subjectDraftDirty: false,
-  teachers: [],
-  publicRooms: [],
   adjustments: [],
   summary: null,
   lastPersistedAt: null,
   lastClassFillUndo: null,
+});
+
+export const useAppStore = create<AppState>((set, get) => ({
+  initialized: false,
+  runtimeMode: schoolRepository.runtimeMode,
+  palette: initialAppearance.palette,
+  mode: initialAppearance.mode,
+  resolvedDark: initialDark,
+  sidebarExpanded: typeof window !== 'undefined' ? window.innerWidth >= 1080 : true,
+  selectedSection: getSectionFromLocation(),
+  pendingNavigationSection: null,
+  navigationGuard: null,
+  schoolName: '',
+  activeTermId: null,
+  terms: [],
+  teachers: [],
+  publicRooms: [],
+  ...emptyTermData(),
 
   refreshTermData: async (termId: string) => {
     const [
@@ -369,6 +376,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       terms.find((t) => t.id === savedTermId)?.id ?? terms[0]?.id ?? null;
 
     set({
+      ...emptyTermData(),
       initialized: true,
       runtimeMode: schoolRepository.runtimeMode,
       schoolName,
@@ -381,6 +389,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (activeTermId) {
       await get().refreshTermData(activeTermId);
     }
+  },
+
+  reloadAfterDatabaseChange: async (resetAppearance) => {
+    set({ pendingNavigationSection: null, navigationGuard: null });
+    if (resetAppearance) {
+      const { palette, mode } = DEFAULT_APPEARANCE;
+      set({ palette, mode, resolvedDark: applyAppearanceToDom(palette, mode) });
+    }
+    await get().bootstrap();
   },
 
   setPalette: (palette) => {

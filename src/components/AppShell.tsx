@@ -12,6 +12,7 @@ import {
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings,
   Sparkles,
   Sun,
   SunMoon,
@@ -44,6 +45,7 @@ import { SubjectsPage } from '@/features/subjects/SubjectsPage';
 import { TeachersPage } from '@/features/teachers/TeachersPage';
 import { TemporaryAdjustmentsPage } from '@/features/temporaryAdjustments/TemporaryAdjustmentsPage';
 import { TermPage } from '@/features/terms/TermPage';
+import { SettingsPage } from '@/features/settings/SettingsPage';
 import { SchedulingPage } from '@/features/scheduling/SchedulingPage';
 import { SupervisionPage } from '@/features/supervision/SupervisionPage';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
@@ -58,7 +60,7 @@ import { SchoolNameDialog } from './SchoolNameDialog';
 interface NavEntry {
   section: AppSection;
   label: string;
-  group: 'root' | 'basic' | 'prep' | 'schedule';
+  group: 'root' | 'basic' | 'prep' | 'schedule' | 'more';
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
 }
@@ -79,6 +81,7 @@ const NAV_ITEMS: NavEntry[] = [
     group: 'schedule',
     icon: ArrowLeftRight,
   },
+  { section: 'settings', label: '设置', group: 'more', icon: Settings },
 ];
 
 const EXIT_DURATION_MS = 105;
@@ -132,28 +135,6 @@ export const AppShell: React.FC<{ installAction?: React.ReactNode }> = ({ instal
   const mainRef = useRef<HTMLElement>(null);
   const [displayedSection, setDisplayedSection] = useState<AppSection>(selectedSection);
   const [transitionStage, setTransitionStage] = useState<'idle' | 'exiting' | 'entering'>('idle');
-
-  useEffect(() => {
-    const syncSectionFromLocation = () => {
-      const route = window.location.hash
-        .slice(1)
-        .split('/')
-        .filter(Boolean)[0];
-      const destination = NAV_ITEMS.find((item) => item.section === route);
-      if (destination) {
-        if (destination.section !== useAppStore.getState().selectedSection) {
-          setSelectedSection(destination.section);
-        }
-      } else {
-        setSelectedSection('workbench');
-      }
-    };
-
-    syncSectionFromLocation();
-    window.addEventListener('hashchange', syncSectionFromLocation);
-    return () =>
-      window.removeEventListener('hashchange', syncSectionFromLocation);
-  }, [setSelectedSection]);
 
   const autoCollapsedRef = useRef(false);
 
@@ -267,6 +248,8 @@ export const AppShell: React.FC<{ installAction?: React.ReactNode }> = ({ instal
         return <SupervisionPage termId={activeTerm?.id ?? null} />;
       case 'temporaryAdjustments':
         return <TemporaryAdjustmentsPage termId={activeTerm?.id ?? null} />;
+      case 'settings':
+        return <SettingsPage />;
       default:
         return (
           <PendingModulePage
@@ -435,6 +418,9 @@ export const AppShell: React.FC<{ installAction?: React.ReactNode }> = ({ instal
               </div>
             )}
             {NAV_ITEMS.filter((i) => i.group === 'schedule').map(renderNavButton)}
+
+            <Separator className="my-2" />
+            {NAV_ITEMS.filter((i) => i.group === 'more').map(renderNavButton)}
           </nav>
 
           {/* 底部本地 SQLite 持久化状态指示卡 */}
@@ -485,6 +471,7 @@ export const AppShell: React.FC<{ installAction?: React.ReactNode }> = ({ instal
 
               <span
                 className="app-toolbar-page text-[14px] font-semibold text-ink"
+                data-section={displayedSection}
                 data-tauri-drag-region
               >
                 {currentNav.label}

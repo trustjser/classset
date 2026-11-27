@@ -18,7 +18,8 @@ export type AppSection =
   | 'teachers'
   | 'scheduling'
   | 'supervision'
-  | 'temporaryAdjustments';
+  | 'temporaryAdjustments'
+  | 'settings';
 
 export interface AcademicTerm {
   id: string;
@@ -361,6 +362,8 @@ export function getNavSectionAvailability(
   hasTerm: boolean,
   summary: WorkbenchSummary | null
 ): { enabled: boolean; reason: string | null } {
+  if (section === 'settings') return { enabled: true, reason: null };
+
   if (!hasTerm) {
     if (section === 'workbench' || section === 'terms' || section === 'publicRooms') {
       return { enabled: true, reason: null };

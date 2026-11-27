@@ -384,6 +384,10 @@
     gap: 8px;
   }
 
+  .app-toolbar-page[data-section='settings'] {
+    flex: 0 0 auto;
+  }
+
   .app-term-context {
     flex-basis: 72px;
     max-width: 160px;

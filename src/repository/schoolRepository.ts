@@ -766,7 +766,7 @@ export class SchoolRepository {
       );
       if (settings.length === 0) {
         await this.adapter.execute(
-          'INSERT INTO app_settings (id, school_name, active_term_id) VALUES (1, ?, NULL)',
+          'INSERT OR IGNORE INTO app_settings (id, school_name, active_term_id) VALUES (1, ?, NULL)',
           ['']
         );
       }
@@ -4049,6 +4049,20 @@ export class SchoolRepository {
 
   async importSqliteBytes(bytes: Uint8Array): Promise<void> {
     await this.adapter.importSqliteBytes(bytes);
+    this.removeFallback();
+  }
+
+  async clearAllData(): Promise<void> {
+    await this.adapter.clearAllData();
+    this.removeFallback();
+  }
+
+  private removeFallback(): void {
+    try {
+      localStorage.removeItem(WEB_FALLBACK_KEY);
+    } catch {
+      // Storage can be unavailable in restricted browser contexts.
+    }
   }
 
   get isDesktop(): boolean {
