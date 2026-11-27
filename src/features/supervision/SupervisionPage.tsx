@@ -1242,7 +1242,7 @@ export const SupervisionPage: React.FC<SupervisionPageProps> = ({ termId }) => {
         </div>
 
         {viewMode === 'week' && !isHistorical && filteredPosts.length > 0 && (
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <div data-supervision-selection-keep="" className="ml-auto flex flex-wrap items-center gap-1.5">
             <div className="mx-1 hidden h-5 w-px bg-border lg:block" />
             <Button
               type="button"

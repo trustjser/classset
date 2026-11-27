@@ -345,6 +345,11 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
         setIsMarqueeDragging(false);
         setMarqueeRect(null);
         suppressClickRef.current = true;
+      } else if (!(event.shiftKey || event.ctrlKey || event.metaKey)) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target?.closest('[data-selectable-post]')) {
+          onSetPostSelectionRef.current(new Set());
+        }
       }
       dragRef.current = null;
       stopAutoScroll();
@@ -361,10 +366,21 @@ export const SupervisionWeekGrid: React.FC<SupervisionWeekGridProps> = ({
       onSetPostSelectionRef.current(drag.initialSelection);
     };
 
+    const handleOutsidePointerDown = (event: globalThis.PointerEvent) => {
+      if (selectedPostIdsRef.current.size === 0) return;
+      if (event.shiftKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target && viewportRef.current?.contains(target)) return;
+      if (target?.closest('[data-supervision-selection-keep], [role="dialog"], [data-radix-popper-content-wrapper]')) return;
+      onSetPostSelectionRef.current(new Set());
+    };
+
+    window.addEventListener('pointerdown', handleOutsidePointerDown);
     window.addEventListener('pointermove', handlePointerMove, { passive: false });
     window.addEventListener('pointerup', finishPointer);
     window.addEventListener('pointercancel', cancelPointer);
     return () => {
+      window.removeEventListener('pointerdown', handleOutsidePointerDown);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', finishPointer);
       window.removeEventListener('pointercancel', cancelPointer);

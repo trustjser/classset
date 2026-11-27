@@ -228,7 +228,7 @@ it.each(['touch', 'mouse'])('科目节数 %s 框选松手打开快捷菜单，�
     const menu = document.querySelector('[role="menu"][aria-label="科目节数快捷操作"]');
     const actions = [...(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
     expect(actions.map((action) => action.textContent)).toEqual([
-      '复制', '粘贴', '逐班编辑', '统一设置 2 格', '清空所选格',
+      '复制', '粘贴', '统一设置 2 格', '清空所选格',
     ]);
     await act(async () => actions.find((action) => action.textContent === '统一设置 2 格')?.click());
     expect(dialog()?.textContent).toContain('统一设置 2 个格子');

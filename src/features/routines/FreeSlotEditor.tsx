@@ -236,6 +236,7 @@ export function FreeSlotEditor({
   const [customLabel, setCustomLabel] = useState('');
   const touchInput = hasTouchInput();
   const withSelectionPress = useSelectionPress();
+  const matrixContainerRef = useRef<HTMLDivElement>(null);
   const selectionPointerRef = useRef<number | null>(null);
   const [selectedRange, setSelectedRange] = useState<{ start: MatrixPoint; end: MatrixPoint } | null>(null);
   const [selectionPreview, setSelectionPreview] = useState<{ start: MatrixPoint; end: MatrixPoint } | null>(null);
@@ -272,6 +273,19 @@ export function FreeSlotEditor({
       active = false;
     };
   }, [loadFreeSlotsForStages, stages]);
+
+  useEffect(() => {
+    if (!selectedRange) return;
+    const handleOutsidePointerDown = (event: globalThis.PointerEvent) => {
+      if (event.shiftKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[role="menu"][aria-label="免任课快捷操作"], [role="dialog"]')) return;
+      if (target && matrixContainerRef.current?.contains(target)) return;
+      setSelectedRange(null);
+    };
+    window.addEventListener('pointerdown', handleOutsidePointerDown);
+    return () => window.removeEventListener('pointerdown', handleOutsidePointerDown);
+  }, [selectedRange]);
 
   const termDrafts = freeSlotDraftsByTerm[termId] ?? {};
   const allSlots = useMemo(() => {
@@ -823,6 +837,7 @@ export function FreeSlotEditor({
               </div>
             ) : (
               <div
+                ref={matrixContainerRef}
                 className="max-w-full overflow-x-auto overscroll-x-contain rounded-control border border-border"
                 onPointerCancel={cancelSelection}
                 onPointerDown={beginSelection}

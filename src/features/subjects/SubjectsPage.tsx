@@ -273,6 +273,21 @@ export const SubjectsPage: React.FC = () => {
     };
   }, [subjectMenu]);
   useEffect(() => {
+    if (!selectedMatrixCells.length) return;
+    const handleOutsidePointerDown = (event: globalThis.PointerEvent) => {
+      if (event.shiftKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[data-subject-matrix-menu], [role="dialog"]')) return;
+      if (target && matrixScrollRef.current?.contains(target)) return;
+      setSelectedMatrixCells([]);
+      setActiveMatrixCell(null);
+      selectionAnchorCell.current = null;
+    };
+    window.addEventListener('pointerdown', handleOutsidePointerDown);
+    return () => window.removeEventListener('pointerdown', handleOutsidePointerDown);
+  }, [selectedMatrixCells.length]);
+
+  useEffect(() => {
     if (!presetMenu) return;
     const close = (event: PointerEvent) => {
       if (!(event.target instanceof Element) || !event.target.closest('[data-preset-menu]')) setPresetMenu(null);
@@ -1557,10 +1572,10 @@ export const SubjectsPage: React.FC = () => {
       {[
         { label: '复制', icon: Copy, action: () => copyMatrix() },
         { label: '粘贴', icon: ClipboardPaste, action: () => void pasteFromClipboard() },
-        { label: '逐班编辑', icon: Pencil, action: () => {
+        ...(selectedMatrixCells.length <= 1 ? [{ label: '逐班编辑', icon: Pencil, action: () => {
           const [subjectId, gradeId] = contextMenu.key.split(':');
           openGradeEditor(subjectId, gradeId);
-        } },
+        } }] : []),
         { label: `统一设置${selectedMatrixCells.length > 1 ? ` ${selectedMatrixCells.length} 格` : ''}`,
           icon: Check, action: openBatchEditor },
         { label: '清空所选格', icon: Eraser, action: () => clearMatrixSelection() },
