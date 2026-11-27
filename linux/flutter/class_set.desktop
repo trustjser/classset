@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=课集
-Comment=本地课表资料维护工具
-Exec=class_set
-Icon=class_set
-Terminal=false
-Type=Application
-Categories=Utility;Education;
