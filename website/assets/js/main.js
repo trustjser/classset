@@ -93,6 +93,132 @@
   var yearEl = document.getElementById("year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
+  /* ---- 桌面端下载：探测当前系统并前置对应下载入口 ----
+     所有入口默认指向 GitHub Releases 最新页（无网络/接口失败时仍可下载）；
+     页面加载后尝试用 GitHub API 把按钮换成最新版的真实安装包直链。 */
+  var GITHUB_REPO = "trustjser/classset";
+  var RELEASES_PAGE = "https://github.com/" + GITHUB_REPO + "/releases/latest";
+  var RELEASES_API = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
+  var LINK_CACHE_KEY = "classset-download-links-v1";
+  var LINK_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 小时
+
+  function detectOS() {
+    var uaData = navigator.userAgentData;
+    var platform = (uaData && uaData.platform) || navigator.platform || "";
+    var ua = navigator.userAgent || "";
+    if (/mac/i.test(platform) || /Macintosh|Mac OS X/i.test(ua)) return "macos";
+    if (/win/i.test(platform) || /Windows/i.test(ua)) return "windows";
+    if (/linux/i.test(platform) || /Linux/i.test(ua)) return "linux";
+    return "";
+  }
+
+  function detectMacArch() {
+    var uaData = navigator.userAgentData;
+    var arch = uaData && uaData.architecture;
+    if (arch) return /arm|aarch64/i.test(arch) ? "arm" : "x64";
+    // Safari 等不暴露架构信息时默认 Apple Silicon；Intel 版本始终可从下方链接下载
+    return "arm";
+  }
+
+  function highlightCurrentOS(os) {
+    var grid = document.getElementById("platformGrid");
+    if (!grid || !os) return;
+    var cards = grid.querySelectorAll("[data-os]");
+    Array.prototype.forEach.call(cards, function (card) {
+      if (card.getAttribute("data-os") !== os) return;
+      grid.insertBefore(card, grid.firstChild);
+      card.classList.add("platform--current");
+      var badge = card.querySelector("[data-os-current]");
+      if (badge) badge.hidden = false;
+      var btn = card.querySelector(".platform__btn");
+      if (btn) {
+        btn.classList.remove("btn--ghost");
+        btn.classList.add("btn--primary");
+      }
+    });
+  }
+
+  function pickUrl(assets, pattern) {
+    for (var i = 0; i < assets.length; i++) {
+      if (pattern.test(assets[i].name || "") && assets[i].browser_download_url) {
+        return assets[i].browser_download_url;
+      }
+    }
+    return null;
+  }
+
+  function buildDownloadLinks(release) {
+    var assets = (release && release.assets) || [];
+    var dmg = assets.filter(function (a) { return /\.dmg$/i.test(a.name || ""); });
+    var macArm = pickUrl(dmg, /aarch64|arm64/i) || pickUrl(dmg, /\.dmg$/i);
+    var macX64 = pickUrl(dmg, /x64|x86_64|intel/i) || pickUrl(dmg, /\.dmg$/i);
+    return {
+      "macos-arm": macArm,
+      "macos-x64": macX64,
+      "windows": pickUrl(assets, /\.msi$/i) || pickUrl(assets, /\.exe$/i),
+      "linux-appimage": pickUrl(assets, /appimage$/i),
+      "linux-deb": pickUrl(assets, /\.deb$/i)
+    };
+  }
+
+  function readLinkCache() {
+    try {
+      var raw = localStorage.getItem(LINK_CACHE_KEY);
+      if (!raw) return null;
+      var cached = JSON.parse(raw);
+      if (!cached || !cached.links || !cached.time || Date.now() - cached.time > LINK_CACHE_TTL) return null;
+      return cached.links;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeLinkCache(links) {
+    try {
+      localStorage.setItem(LINK_CACHE_KEY, JSON.stringify({ time: Date.now(), links: links }));
+    } catch (e) { /* 隐私模式下忽略 */ }
+  }
+
+  function applyDownloadLinks(links) {
+    var nodes = document.querySelectorAll("[data-download]");
+    Array.prototype.forEach.call(nodes, function (node) {
+      var url = links[node.getAttribute("data-download")];
+      if (url) node.href = url;
+    });
+    var macBtn = document.querySelector('[data-download="macos"]');
+    if (macBtn) {
+      var arch = detectMacArch();
+      var archLabel = arch === "arm" ? "Apple Silicon" : "Intel";
+      macBtn.href = links[arch === "arm" ? "macos-arm" : "macos-x64"] || RELEASES_PAGE;
+      macBtn.textContent = "下载 macOS 版（" + archLabel + "）";
+    }
+    var linuxBtn = document.querySelector('[data-download="linux"]');
+    if (linuxBtn) linuxBtn.href = links["linux-appimage"] || links["linux-deb"] || RELEASES_PAGE;
+  }
+
+  function loadDownloadLinks() {
+    var cached = readLinkCache();
+    if (cached) {
+      applyDownloadLinks(cached);
+      return;
+    }
+    if (typeof fetch !== "function" || !document.querySelector("[data-download]")) return;
+    fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" } })
+      .then(function (res) {
+        if (!res.ok) throw new Error("GitHub Releases API unavailable");
+        return res.json();
+      })
+      .then(function (release) {
+        var links = buildDownloadLinks(release);
+        writeLinkCache(links);
+        applyDownloadLinks(links);
+      })
+      .catch(function () { /* 保留 Releases 最新页作为回退入口 */ });
+  }
+
+  highlightCurrentOS(detectOS());
+  loadDownloadLinks();
+
   /* ---- 通知表单（前端校验，占位提交） ---- */
   var form = document.getElementById("notifyForm");
   var hint = document.getElementById("notifyHint");
