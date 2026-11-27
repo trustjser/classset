@@ -1,8 +1,8 @@
 # 课集 ClassSet · 晴空蓝日程
 
 > 全项目设计规范。新页面、公共组件与后续改造均以本文为准；业务规则仍以 PRD 和领域模型为准。
-> 运行时 token：`lib/core/theme/app_theme.dart`；科目色：`lib/core/theme/subject_colors.dart`。
-> [查看明暗视觉样张](design-language.html)。样张用于审阅设计语言，包含示例数据，不代替实际 Flutter 页面。
+> 运行时 token：`src/styles/theme.css`；科目色：`src/styles/subjectColors.ts`。
+> [查看明暗视觉样张](design-language.html)。样张用于审阅设计语言，包含示例数据，不代替实际 页面。
 
 ## 1. 产品气质
 
